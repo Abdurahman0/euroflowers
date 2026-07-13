@@ -1,0 +1,232 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* issiq, hashamatli palitra — ivory / champagne / rose gold */
+  --ink: #2b221d;
+  --mut: #8d7f75;
+  --acc: #b76e79;
+  --accL: #e9c6c0;
+  --side: #211a15;
+  --sfc: rgba(255, 253, 248, 0.66);
+  --bg2: rgba(255, 252, 245, 0.4);
+  --tint: rgba(240, 226, 216, 0.65);
+  --tintink: #8a5a52;
+  --peach: rgba(248, 231, 210, 0.75);
+  --peachink: #a86a38;
+  --mint: rgba(224, 238, 224, 0.75);
+  --mintink: #3d6b52;
+  --rose: rgba(245, 226, 224, 0.78);
+  --roseink: #a04a4a;
+  --line: rgba(60, 44, 34, 0.16);
+  --line2: rgba(60, 44, 34, 0.09);
+  --solid: rgba(44, 33, 28, 0.6);
+  --bg: #faf6ef;
+  --ease-organic: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark {
+  --ink: #f4ede4;
+  --mut: rgba(244, 237, 228, 0.58);
+  --sfc: rgba(255, 250, 240, 0.06);
+  --bg2: rgba(255, 250, 240, 0.04);
+  --tint: rgba(255, 244, 232, 0.12);
+  --tintink: #e3c1b4;
+  --peach: rgba(226, 160, 92, 0.15);
+  --peachink: #e0b088;
+  --mint: rgba(110, 200, 150, 0.13);
+  --mintink: #9acbae;
+  --rose: rgba(225, 120, 130, 0.14);
+  --roseink: #e0a0a8;
+  --line: rgba(244, 237, 228, 0.2);
+  --line2: rgba(244, 237, 228, 0.1);
+  --solid: rgba(30, 24, 20, 0.62);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  letter-spacing: 0.01em;
+  transition: background-color 0.8s ease, color 0.8s ease;
+}
+
+h1, h2, h3, .font-serif-lux {
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+  letter-spacing: 0.005em;
+  font-weight: 700;
+}
+
+* {
+  transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease;
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+a {
+  color: var(--acc);
+}
+a:hover {
+  color: var(--ink);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line2);
+  border-radius: 8px;
+}
+::selection {
+  background: var(--accL);
+  color: #2b221d;
+}
+
+@layer components {
+  /* liquid glass yuzalar */
+  .glass {
+    @apply border rounded-[20px];
+    border-color: var(--line);
+    background: var(--sfc);
+    backdrop-filter: blur(26px) saturate(1.8);
+    box-shadow: 0 12px 38px rgba(56, 40, 30, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  }
+  .glass-lite {
+    @apply border rounded-[20px];
+    border-color: var(--line);
+    background: color-mix(in srgb, var(--sfc) 55%, transparent);
+    backdrop-filter: blur(12px) saturate(1.5);
+    box-shadow: 0 12px 38px rgba(56, 40, 30, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+  .glass-modal {
+    @apply border rounded-[26px] text-[#F7F1E8];
+    border-color: rgba(255, 250, 240, 0.26);
+    background: var(--solid);
+    backdrop-filter: blur(44px) saturate(1.9);
+    box-shadow: 0 28px 72px rgba(40, 28, 20, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  .inp {
+    @apply w-full box-border rounded-xl px-3.5 py-2.5 text-sm text-white outline-none;
+    border: 1px solid rgba(255, 250, 240, 0.26);
+    background: rgba(255, 250, 240, 0.09);
+    transition: border-color 0.35s var(--ease-organic), background 0.35s var(--ease-organic),
+      box-shadow 0.35s var(--ease-organic);
+  }
+  .inp:focus {
+    border-color: var(--accL);
+    background: rgba(255, 250, 240, 0.15);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accL) 22%, transparent);
+  }
+  .btn-primary {
+    @apply flex-1 text-center text-white font-bold text-sm rounded-[14px] py-3 cursor-pointer relative overflow-hidden;
+    background: linear-gradient(135deg, var(--acc), var(--accL));
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--acc) 36%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: transform 0.5s var(--ease-organic), box-shadow 0.5s var(--ease-organic),
+      filter 0.5s var(--ease-organic);
+    animation: breathe 5.5s ease-in-out infinite;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px) scale(1.015);
+    filter: brightness(1.06) saturate(1.05);
+    box-shadow: 0 18px 40px color-mix(in srgb, var(--acc) 46%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    animation-play-state: paused;
+  }
+  .btn-primary:active {
+    transform: translateY(0) scale(0.985);
+  }
+  .btn-primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.35) 50%, transparent 65%);
+    transform: translateX(-120%);
+    transition: transform 0.9s var(--ease-organic);
+  }
+  .btn-primary:hover::after {
+    transform: translateX(120%);
+  }
+  .chip {
+    @apply px-3.5 py-[7px] rounded-full cursor-pointer text-xs font-bold border;
+    border-color: var(--line2);
+    color: var(--mut);
+    transition: all 0.4s var(--ease-organic);
+  }
+  .chip:hover {
+    border-color: var(--acc);
+    color: var(--acc);
+    transform: translateY(-1px);
+  }
+  .chip-active {
+    background: var(--acc);
+    color: #fff;
+    border-color: var(--acc);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--acc) 40%, transparent);
+  }
+  /* kartalar ohista suzadi */
+  .card-hover {
+    transition: transform 0.55s var(--ease-organic), box-shadow 0.55s var(--ease-organic),
+      border-color 0.55s var(--ease-organic);
+  }
+  .card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 26px 56px rgba(56, 40, 30, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 0 0 1px color-mix(in srgb, var(--accL) 45%, transparent);
+  }
+}
+
+@layer components {
+  /* jadval qatorlari — kirish xoreografiyasi + hover nurlanish */
+  .row-lux {
+    animation: rowIn 0.65s var(--ease-organic) both;
+    transition: background 0.45s var(--ease-organic), box-shadow 0.45s var(--ease-organic);
+  }
+  .row-lux:hover {
+    background: color-mix(in srgb, var(--accL) 16%, transparent) !important;
+    box-shadow: inset 3px 0 0 var(--acc);
+  }
+}
+
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(12px); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.012); }
+}
+
+@keyframes petalFall {
+  0% { transform: translateY(-6vh) translateX(0) rotate(0deg); opacity: 0; }
+  8% { opacity: 0.45; }
+  50% { transform: translateY(52vh) translateX(-4vw) rotate(200deg); }
+  92% { opacity: 0.4; }
+  100% { transform: translateY(108vh) translateX(2vw) rotate(380deg); opacity: 0; }
+}
+
+@keyframes gentleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
+/* harakat kamaytirilgan rejim — barcha bezak animatsiyalar o'chadi */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+  }
+}
