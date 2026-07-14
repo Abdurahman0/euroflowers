@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useSeason } from "@/components/three/engine/SeasonController";
+import { PETAL_TEXTURES } from "@/components/three/engine/assets";
 
 /**
  * Har 20–40 soniyada bir necha gulbarg ekran bo'ylab tabiiy uchib o'tadi.
- * Har biri o'z tezligi, o'lchami, aylanishi va shaffofligi bilan — takrorlanmaydi.
+ * Gulbarglar — Blender'dan chiqarilgan haqiqiy piyon gulbarg teksturalari,
+ * organik siluet niqobida. Fasl palitrasiga ergashadi. Takrorlanmaydi.
  */
 
 type Petal = {
@@ -16,15 +19,29 @@ type Petal = {
   opacity: number;
   spin: number;
   wave: number;
+  tex: string;
+  shape: string;
 };
 
-const PetalShape = ({ fill }: { fill: string }) => (
-  <svg viewBox="0 0 40 40" width="100%" height="100%" fill={fill}>
-    <path d="M20,38 C6,30 2,14 12,6 C18,1 28,2 32,10 C36,20 32,32 20,38 Z" />
-  </svg>
-);
+/** fasl materiallari → chiqartirilgan tekstura fayllari */
+const MAT_TO_TEX: Record<string, string> = {
+  Petal_white: PETAL_TEXTURES.white,
+  Petal_cream: PETAL_TEXTURES.cream,
+  Petal_blush: PETAL_TEXTURES.blush,
+  Petal_pink: PETAL_TEXTURES.pink,
+  Petal_rose: PETAL_TEXTURES.rose,
+  Petal_red: PETAL_TEXTURES.red,
+};
+
+/** har gulbargga ozgina boshqacha organik siluet */
+const SHAPES = [
+  "76% 14% 82% 12% / 66% 22% 78% 18%",
+  "82% 10% 74% 16% / 72% 16% 70% 24%",
+  "70% 20% 84% 10% / 62% 26% 80% 14%",
+];
 
 export default function PetalBurst() {
+  const season = useSeason();
   const [petals, setPetals] = useState<Petal[]>([]);
   const [nonce, setNonce] = useState(0);
 
@@ -34,6 +51,7 @@ export default function PetalBurst() {
     let id = 0;
     const schedule = () => {
       timer = setTimeout(() => {
+        const texes = season.petalMaterials.map((m) => MAT_TO_TEX[m]).filter(Boolean);
         const count = 4 + Math.floor(Math.random() * 5);
         setPetals(
           Array.from({ length: count }, () => ({
@@ -42,9 +60,11 @@ export default function PetalBurst() {
             size: 14 + Math.random() * 22,
             dur: 9 + Math.random() * 8,
             delay: Math.random() * 2.5,
-            opacity: 0.18 + Math.random() * 0.3,
+            opacity: 0.3 + Math.random() * 0.4,
             spin: (Math.random() - 0.5) * 720,
             wave: 30 + Math.random() * 90,
+            tex: texes[Math.floor(Math.random() * texes.length)] ?? PETAL_TEXTURES.blush,
+            shape: SHAPES[Math.floor(Math.random() * SHAPES.length)],
           }))
         );
         setNonce((n) => n + 1);
@@ -53,7 +73,7 @@ export default function PetalBurst() {
     };
     schedule();
     return () => clearTimeout(timer);
-  }, []);
+  }, [season]);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden" aria-hidden>
@@ -72,10 +92,16 @@ export default function PetalBurst() {
             transition={{ duration: p.dur, delay: p.delay, ease: "linear", times: [0, 0.25, 0.5, 0.75, 1] }}
             onAnimationComplete={() => setPetals((ps) => ps.filter((x) => x.id !== p.id))}
             className="absolute"
-            style={{ top: p.y, width: p.size, height: p.size, color: "var(--acc)" }}
-          >
-            <PetalShape fill="var(--accL)" />
-          </motion.div>
+            style={{
+              top: p.y,
+              width: p.size,
+              height: p.size * 1.25,
+              backgroundImage: `url(${p.tex})`,
+              backgroundSize: "cover",
+              borderRadius: p.shape,
+              boxShadow: "inset 0 0 6px rgba(120,60,60,0.18)",
+            }}
+          />
         ))}
       </AnimatePresence>
     </div>

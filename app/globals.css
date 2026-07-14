@@ -2,7 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* fasl ranglari — ro'yxatdan o'tgan xususiyatlar gradient ichida ham silliq o'tadi */
+@property --glow-a {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f7c9d4;
+}
+@property --glow-b {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #cfe8d8;
+}
+@property --glow-c {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #fff3e0;
+}
+@property --fog-k {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.32;
+}
+
 :root {
+  transition: --glow-a 1.8s ease, --glow-b 1.8s ease, --glow-c 1.8s ease, --fog-k 1.8s ease;
   /* issiq, hashamatli palitra — ivory / champagne / rose gold */
   --ink: #2b221d;
   --mut: #8d7f75;
@@ -93,6 +116,16 @@ a:hover {
     @apply border rounded-[20px];
     border-color: var(--line);
     background: var(--sfc);
+    /* shisha aksi — kursor parallaksiga juda nozik ergashadi */
+    background-image: linear-gradient(
+      115deg,
+      transparent 38%,
+      rgba(255, 255, 255, 0.09) 48%,
+      rgba(255, 255, 255, 0.045) 55%,
+      transparent 66%
+    );
+    background-size: 220% 220%;
+    background-position: calc(50% + var(--plx-x, 0px) * -14) calc(50% + var(--plx-y, 0px) * -14);
     backdrop-filter: blur(26px) saturate(1.8);
     box-shadow: 0 12px 38px rgba(56, 40, 30, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.45),
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
@@ -210,6 +243,23 @@ a:hover {
   50% { transform: translateY(52vh) translateX(-4vw) rotate(200deg); }
   92% { opacity: 0.4; }
   100% { transform: translateY(108vh) translateX(2vw) rotate(380deg); opacity: 0; }
+}
+
+/* yumshoq tuman qatlami — juda sekin oqadi */
+.fog-band {
+  background: radial-gradient(ellipse 60% 100% at 50% 50%, rgba(255, 253, 248, 0.55), transparent 70%);
+  filter: blur(38px);
+  animation: fogDrift 46s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--plx-x, 0px) * 2), calc(var(--plx-y, 0px) * 2), 0);
+  will-change: transform, opacity;
+}
+.fog-band-2 {
+  animation-duration: 61s;
+  animation-direction: alternate-reverse;
+}
+@keyframes fogDrift {
+  from { translate: -4% 0; }
+  to { translate: 4% -12px; }
 }
 
 @keyframes gentleFloat {

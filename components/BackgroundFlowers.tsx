@@ -1,51 +1,66 @@
 "use client";
 import { useTheme } from "@/lib/store";
+import { FLOWER_PHOTOS } from "@/components/three/engine/assets";
 
 /**
- * Fon: real gul PNG'lari (public/flowers/) chayqalish/aylanish animatsiyasi bilan,
- * oq nur dog'lari va tushayotgan gul barglari.
- * PNG topilmasa element bo'sh qoladi — layout buzilmaydi.
+ * Katta gul qatlami — haqiqiy gul suratlari (public/flowers/textures/),
+ * har biri o'z parallaks chuqurligi va chayqalish ritmi bilan.
+ * Orqada esa xiraroq "barg-soyalar" qatlami turadi (yashilga bo'yalgan,
+ * kuchli blur) — chuqurlik hissi uchun.
  */
-const Petal = () => (
-  <svg viewBox="0 0 40 40" width="100%" height="100%" fill="currentColor">
-    <path d="M20,38 C6,30 2,14 12,6 C18,1 28,2 32,10 C36,20 32,32 20,38 Z" />
-  </svg>
-);
+
+const FLOWERS = [
+  { src: FLOWER_PHOTOS.peony, cls: "right-[-46px] top-[10%] w-[330px] animate-sway origin-bottom", depth: 5, op: [0.5, 0.36], dur: "17s" },
+  { src: FLOWER_PHOTOS.pinkRose, cls: "left-[30%] top-[-70px] w-[260px] animate-spin-slow", depth: 3, op: [0.42, 0.3], dur: "90s" },
+  { src: FLOWER_PHOTOS.hydrangeaPink, cls: "bottom-[-52px] left-[20%] w-[320px] animate-sway origin-bottom", depth: 6, op: [0.52, 0.38], dur: "19s" },
+  { src: FLOWER_PHOTOS.hydrangeaWhite, cls: "bottom-[-48px] left-[47%] w-[260px] animate-sway origin-bottom", depth: 4, op: [0.46, 0.32], dur: "21s" },
+  { src: FLOWER_PHOTOS.hydrangeaBlue, cls: "bottom-[-38px] right-[5%] w-[290px] animate-sway origin-bottom", depth: 7, op: [0.48, 0.34], dur: "23s" },
+];
+
+const FOLIAGE = [
+  { src: FLOWER_PHOTOS.hydrangeaWhite, cls: "left-[-90px] top-[18%] w-[380px]", depth: 2 },
+  { src: FLOWER_PHOTOS.hydrangeaPink, cls: "right-[22%] top-[-110px] w-[420px] rotate-[160deg]", depth: 1.4 },
+];
 
 export default function BackgroundFlowers() {
   const { dark } = useTheme();
-  const op = (l: number, d: number) => (dark ? d : l);
-  const glow = { filter: "drop-shadow(0 0 34px rgba(255,255,255,.8))" };
+  const glow = { filter: `drop-shadow(0 18px 42px rgba(120,70,60,${dark ? 0.35 : 0.22}))` };
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-      {/* gullar */}
-      <img src="/flowers/peony.png" alt="" className="absolute right-[-40px] top-[12%] w-[340px] animate-sway origin-bottom" style={{ opacity: op(0.55, 0.42), ...glow }} />
-      <img src="/flowers/pink-rose.png" alt="" className="absolute left-[30%] top-[2%] w-[280px] animate-spin-slow" style={{ opacity: op(0.5, 0.4), ...glow }} />
-      <img src="/flowers/hydrangea-pink.png" alt="" className="absolute bottom-[-40px] left-[22%] w-[330px] animate-sway origin-bottom" style={{ opacity: op(0.6, 0.45), ...glow }} />
-      <img src="/flowers/hydrangea-white.png" alt="" className="absolute bottom-[-40px] left-[48%] w-[270px] animate-sway origin-bottom" style={{ opacity: op(0.55, 0.4), animationDuration: "19s", ...glow }} />
-      <img src="/flowers/hydrangea-blue.png" alt="" className="absolute bottom-[-30px] right-[6%] w-[300px] animate-sway origin-bottom" style={{ opacity: op(0.55, 0.4), animationDuration: "21s", ...glow }} />
-
-      {/* oq nur dog'lari */}
-      <div className="absolute left-[12%] top-[8%] h-[340px] w-[340px] rounded-full blur-[30px]" style={{ background: `radial-gradient(circle, rgba(255,255,255,${op(0.55, 0.1)}), transparent 68%)` }} />
-      <div className="absolute right-[16%] top-[48%] h-[300px] w-[300px] rounded-full blur-[34px]" style={{ background: `radial-gradient(circle, rgba(255,255,255,${op(0.45, 0.08)}), transparent 68%)` }} />
-      <div className="absolute bottom-[6%] left-[8%] h-[280px] w-[280px] rounded-full blur-[30px]" style={{ background: `radial-gradient(circle, rgba(255,255,255,${op(0.5, 0.08)}), transparent 68%)` }} />
-
-      {/* tushayotgan barglar */}
-      {[
-        { left: "14%", w: 34, dur: 26, delay: 0 },
-        { left: "38%", w: 26, dur: 34, delay: 9 },
-        { left: "62%", w: 30, dur: 30, delay: 17 },
-        { left: "84%", w: 22, dur: 40, delay: 5 },
-      ].map((p, i) => (
+    <>
+      {/* barg-soyalar — uzoq qatlam */}
+      {FOLIAGE.map((f, i) => (
+        <img
+          key={`fol-${i}`}
+          src={f.src}
+          alt=""
+          className={`absolute ${f.cls}`}
+          style={{
+            opacity: dark ? 0.1 : 0.16,
+            filter: "blur(26px) hue-rotate(75deg) saturate(0.55) brightness(0.72)",
+            transform: `translate3d(calc(var(--plx-x, 0px) * ${f.depth}), calc(var(--plx-y, 0px) * ${f.depth}), 0)`,
+            willChange: "transform",
+          }}
+        />
+      ))}
+      {/* haqiqiy gullar — yaqin qatlam, har biri o'z chuqurligida */}
+      {FLOWERS.map((f, i) => (
         <div
           key={i}
-          className="absolute top-[-70px] animate-drift"
-          style={{ left: p.left, width: p.w, height: p.w, color: "var(--acc)", opacity: 0.2, animationDuration: `${p.dur}s`, animationDelay: `${p.delay}s` }}
+          className="pointer-events-none absolute inset-0"
+          style={{
+            transform: `translate3d(calc(var(--plx-x, 0px) * ${f.depth}), calc(var(--plx-y, 0px) * ${f.depth}), 0)`,
+            willChange: "transform",
+          }}
         >
-          <Petal />
+          <img
+            src={f.src}
+            alt=""
+            className={`absolute ${f.cls}`}
+            style={{ opacity: dark ? f.op[1] : f.op[0], animationDuration: f.dur, ...glow }}
+          />
         </div>
       ))}
-    </div>
+    </>
   );
 }

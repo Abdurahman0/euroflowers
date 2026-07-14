@@ -1,8 +1,10 @@
 "use client";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 import type { Group } from "three";
 import WindController from "./WindController";
+import EnvironmentController from "./EnvironmentController";
 
 /**
  * Sahna dvigateli: Canvas + shamol provayderi + ixtiyoriy kursor parallaksi.
@@ -41,6 +43,7 @@ export default function SceneController({
   parallax = 0,
   windBase = 0.5,
   lowPower = true,
+  envIntensity = 0.6,
   reducedMotion,
   className,
 }: {
@@ -51,6 +54,8 @@ export default function SceneController({
   parallax?: number;
   windBase?: number;
   lowPower?: boolean;
+  /** muhit (IBL) kuchi — PBR materiallar uchun */
+  envIntensity?: number;
   reducedMotion?: boolean;
   className?: string;
 }) {
@@ -67,7 +72,14 @@ export default function SceneController({
       frameloop={reduced ? "demand" : "always"}
       eventSource={typeof document !== "undefined" ? document.body : undefined}
       eventPrefix="client"
+      onCreated={({ gl }) => {
+        // deterministik chiqish: ACES + sRGB — Blender ko'rinishiga eng yaqin
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = 1;
+        gl.outputColorSpace = THREE.SRGBColorSpace;
+      }}
     >
+      <EnvironmentController intensity={envIntensity} />
       <WindController base={windBase} reducedMotion={reduced}>
         <Suspense fallback={null}>
           <ParallaxRig amount={parallax} reduced={reduced}>

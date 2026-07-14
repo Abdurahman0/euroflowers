@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import { THEMES } from "./data";
 import { api } from "./api";
-import type { DateFilter, Notification, ThemeId, User } from "./types";
+import type { DateFilter, Notification, SeasonId, ThemeId, User } from "./types";
 
 type State = {
   // sessiya
@@ -12,6 +12,7 @@ type State = {
   // ui
   themeId: ThemeId;
   dark: boolean;
+  season: SeasonId;
   sideOpen: boolean;
   dateFilter: DateFilter;
   toast: string;
@@ -23,6 +24,7 @@ type State = {
   setUser: (u: User | null) => void;
   setTheme: (t: ThemeId) => void;
   setDark: (d: boolean) => void;
+  setSeason: (s: SeasonId) => void;
   toggleSide: () => void;
   setDateFilter: (f: DateFilter) => void;
   showToast: (t: string) => void;
@@ -36,6 +38,7 @@ export const useStore = create<State>((set, get) => ({
   notifs: [],
   themeId: "pushti",
   dark: false,
+  season: "bahor",
   sideOpen: true,
   dateFilter: "oy",
   toast: "",
@@ -80,6 +83,7 @@ export const useStore = create<State>((set, get) => ({
   setUser: (user) => set({ user }),
   setTheme: (themeId) => set({ themeId }),
   setDark: (dark) => set({ dark }),
+  setSeason: (season) => set({ season }),
   toggleSide: () => set((s) => ({ sideOpen: !s.sideOpen })),
   setDateFilter: (dateFilter) => set({ dateFilter }),
 

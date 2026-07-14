@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useStore, THEMES } from "@/lib/store";
+import { SEASONS } from "@/components/three/engine/SeasonController";
 import { fmtTime } from "@/lib/format";
 import { Icon } from "./icons";
 import clsx from "clsx";
@@ -21,7 +22,7 @@ const MONTHS = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avg
 
 export default function Header() {
   const pathname = usePathname();
-  const { toggleSide, notifs, markNotifRead, markAllNotifsRead, themeId, setTheme, dark, setDark } = useStore();
+  const { toggleSide, notifs, markNotifRead, markAllNotifsRead, themeId, setTheme, dark, setDark, season, setSeason } = useStore();
   const [notifOpen, setNotifOpen] = useState(false);
   const [temaOpen, setTemaOpen] = useState(false);
   const unread = notifs.filter((n) => !n.is_read).length;
@@ -67,6 +68,23 @@ export default function Header() {
                     className={clsx("h-[34px] w-[34px] rounded-full border transition-transform hover:scale-110", themeId === t.id && "ring-2 ring-white")}
                     style={{ background: t.accent, borderColor: "#221833" }}
                   />
+                ))}
+              </div>
+              <div className="mb-2 mt-3.5 text-[13px] font-bold">Fasl</div>
+              <div className="flex gap-1.5">
+                {SEASONS.map((s) => (
+                  <button
+                    key={s.id}
+                    title={s.nomi}
+                    onClick={() => setSeason(s.id)}
+                    className={clsx(
+                      "flex flex-1 flex-col items-center gap-0.5 rounded-[12px] border border-white/15 py-2 text-[15px] transition-all hover:bg-white/10",
+                      season === s.id && "bg-white/15 ring-1 ring-white/60"
+                    )}
+                  >
+                    <span aria-hidden>{s.icon}</span>
+                    <span className="text-[10px] font-bold tracking-wide">{s.nomi}</span>
+                  </button>
                 ))}
               </div>
             </div>

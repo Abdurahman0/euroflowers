@@ -25,7 +25,7 @@ lib/
   data.ts          # mock ma'lumotlar (iyul mavsumi)
   store.ts         # zustand store (data + UI)
   format.ts        # narx formatlash
-public/flowers/    # fon gullari (PNG) — o'zingiznikini qo'ying
+public/flowers/        # statik gul aktivlari (models/, animations/, textures/, hdri/)
 ```
 
 ## Keyingi qadam (backend ulash)

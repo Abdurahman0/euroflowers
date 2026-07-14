@@ -7,6 +7,13 @@ import type {
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://192.168.1.5:8000";
 
+/**
+ * DEMO REJIM — dizaynni backend'siz ko'rish uchun.
+ * true  → hech qanday tarmoq so'rovi ketmaydi, hamma javob lib/demo.ts dan.
+ * false → haqiqiy API'ga qaytadi (backend tayyor bo'lganda shuni qiling).
+ */
+export const DEMO_MODE = true;
+
 const TOKEN_KEY = "ef_tokens";
 
 type Tokens = { access: string; refresh: string };
@@ -30,6 +37,7 @@ export function clearTokens() {
 }
 
 export function isLoggedIn(): boolean {
+  if (DEMO_MODE) return true; // demo: to'g'ridan-to'g'ri kirish mumkin
   return getTokens() != null;
 }
 
@@ -79,6 +87,10 @@ function toLogin() {
 }
 
 async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+  if (DEMO_MODE) {
+    const { demoRequest } = await import("./demo");
+    return demoRequest<T>(path, init);
+  }
   const t = getTokens();
   const headers: Record<string, string> = {
     ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
@@ -123,6 +135,12 @@ const list = <T,>(path: string, params?: Params) =>
 // ===== Auth =====
 
 export async function login(username: string, password: string): Promise<void> {
+  if (DEMO_MODE) {
+    // istalgan login/parol qabul qilinadi — dizaynni ko'rish uchun
+    await new Promise((r) => setTimeout(r, 600));
+    setTokens({ access: "demo-access", refresh: "demo-refresh" });
+    return;
+  }
   const res = await fetch(`${API_BASE}/api/auth/token/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -135,7 +153,7 @@ export async function login(username: string, password: string): Promise<void> {
 
 export function logout() {
   const t = getTokens();
-  if (t) {
+  if (t && !DEMO_MODE) {
     // refresh tokenni serverda bekor qilamiz; javobini kutmasak ham bo'ladi
     fetch(`${API_BASE}/api/auth/token/blacklist/`, {
       method: "POST",

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import Lenis from "lenis";
 import { useStore, useTheme } from "@/lib/store";
+import { useSeason } from "@/components/three/engine/SeasonController";
 import { isLoggedIn } from "@/lib/api";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
@@ -12,10 +13,12 @@ import FlowerLoader from "./FlowerLoader";
 import PetalBurst from "./PetalBurst";
 
 const AmbientScene = dynamic(() => import("./three/AmbientScene"), { ssr: false });
+const ParallaxController = dynamic(() => import("./three/engine/ParallaxController"), { ssr: false });
 
 /** Butun ilova qobig'i: tema CSS o'zgaruvchilari, tirik fon, auth-guard, sidebar + main panel. */
 export default function Shell({ children }: { children: React.ReactNode }) {
   const { theme, dark } = useTheme();
+  const season = useSeason();
   const pathname = usePathname();
   const router = useRouter();
   const { user, userLoading, loadMe, loadNotifs } = useStore();
@@ -30,6 +33,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     root.style.setProperty("--side", theme.dark);
     root.style.setProperty("--bg", dark ? theme.dark : theme.light);
   }, [theme, dark]);
+
+  // fasl ranglari — @property ro'yxatidan o'tgan, shuning uchun silliq oqadi
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--glow-a", season.glowA);
+    root.style.setProperty("--glow-b", season.glowB);
+    root.style.setProperty("--glow-c", season.glowC);
+    root.style.setProperty("--fog-k", String(season.fog));
+  }, [season]);
 
   useEffect(() => {
     if (isLogin) return;
@@ -76,6 +88,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative flex h-screen gap-4 overflow-hidden p-3.5 box-border">
+      <ParallaxController />
       <AmbientScene />
       <PetalBurst />
       <Sidebar />

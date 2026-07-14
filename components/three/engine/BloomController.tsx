@@ -1,24 +1,25 @@
 "use client";
-import { EffectComposer, Bloom, DepthOfField } from "@react-three/postprocessing";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
 
 /**
- * Postprocessing dvigateli: yumshoq Bloom + kinematik DOF.
+ * Postprocessing dvigateli: yumshoq Bloom.
  * reduced-motion yoki past sifat rejimida umuman o'chadi.
+ *
+ * DepthOfField ataylab YO'Q: uning depth-blit yo'li ba'zi drayverlarda
+ * "glBlitFramebuffer: depth-stencil" xatosi va miltillash beradi.
+ * multisampling=0 + stencilsiz — barqaror, Bloom o'zi yumshatadi.
  */
 export default function BloomController({
   enabled = true,
   bloom = 0.35,
-  dof = true,
 }: {
   enabled?: boolean;
   bloom?: number;
-  dof?: boolean;
 }) {
   if (!enabled) return null;
   return (
-    <EffectComposer>
+    <EffectComposer multisampling={0} stencilBuffer={false} depthBuffer>
       <Bloom intensity={bloom} luminanceThreshold={0.75} luminanceSmoothing={0.3} mipmapBlur />
-      {dof ? <DepthOfField focusDistance={0.02} focalLength={0.06} bokehScale={2.2} /> : <></>}
     </EffectComposer>
   );
 }

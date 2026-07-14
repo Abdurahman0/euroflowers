@@ -49,6 +49,15 @@ export default function LoginPage() {
         <LoginScene success={success} />
       </div>
 
+      {/* muvaffaqiyat pardasi — sahifa almashishi sezilmaydi, kamera nurga suzadi */}
+      <motion.div
+        className="pointer-events-none absolute inset-0 z-20"
+        style={{ background: "radial-gradient(ellipse at 50% 42%, rgba(255,250,240,0.98), rgba(250,246,239,0.94) 60%, rgba(244,236,226,0.9))" }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: success ? 1 : 0 }}
+        transition={{ duration: 0.9, delay: success ? 0.75 : 0, ease: [0.22, 1, 0.36, 1] }}
+      />
+
       {/* forma */}
       <motion.form
         onSubmit={submit}
