@@ -12,7 +12,6 @@
  *   FlowerParticles   — changcha/qor zarra qatlami (fasl rangli)
  *   GodRays           — nozik xudo nurlari (qahramon sahnalar)
  *   BloomController   — postprocessing (Bloom + DOF)
- *   SeasonController  — fasl dvigateli (SEASONS, useSeason)
  *   ParallaxController— DOM parallaks (CSS --plx-x/--plx-y, maks 8px)
  *   FlowerAnimationController — gul holat mashinasi (useFlowerAnimation)
  *   assets            — barcha Blender aktivlari manifesti
@@ -33,8 +32,6 @@ export { default as ParallaxController } from "./ParallaxController";
 export { default as FlowerParticles } from "./FlowerParticles";
 export { default as BloomController } from "./BloomController";
 export { useFlowerAnimation } from "./FlowerAnimationController";
-export { SEASONS, useSeason, seasonById } from "./SeasonController";
 export * from "./assets";
 export type { FlowerState, FlowerAnimation } from "./FlowerAnimationController";
 export type { WindState } from "./WindController";
-export type { SeasonConfig } from "./SeasonController";

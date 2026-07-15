@@ -5,11 +5,36 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // semantik tokenlar — yangi dizayn tizimi
+        primary: {
+          DEFAULT: "var(--primary)",
+          strong: "var(--primary-strong)",
+          soft: "var(--primary-soft)",
+          contrast: "var(--primary-contrast)",
+        },
+        success: { DEFAULT: "var(--success)", soft: "var(--success-soft)", ink: "var(--success-ink)" },
+        warning: { DEFAULT: "var(--warning)", soft: "var(--warning-soft)", ink: "var(--warning-ink)" },
+        danger: { DEFAULT: "var(--danger)", soft: "var(--danger-soft)", ink: "var(--danger-ink)" },
+        info: { DEFAULT: "var(--info)", soft: "var(--info-soft)", ink: "var(--info-ink)" },
+        surface: { DEFAULT: "var(--surface-solid)", 2: "var(--surface-2)" },
+        // meros nomlari — mavjud sahifalar uchun
         ink: "var(--ink)",
         mut: "var(--mut)",
         acc: "var(--acc)",
         accl: "var(--accL)",
         side: "var(--side)",
+      },
+      borderRadius: {
+        sm: "var(--r-sm)",
+        md: "var(--r-md)",
+        lg: "var(--r-lg)",
+        xl: "var(--r-xl)",
+      },
+      boxShadow: {
+        xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
       },
       borderColor: {
         line: "var(--line)",
@@ -33,17 +58,11 @@ const config: Config = {
       keyframes: {
         sway: { from: { transform: "rotate(-5deg)" }, to: { transform: "rotate(5deg)" } },
         blink: { "0%,80%,100%": { opacity: ".25" }, "40%": { opacity: "1" } },
-        drift: {
-          "0%": { transform: "translateY(-80px) translateX(0) rotate(0)" },
-          "50%": { transform: "translateY(55vh) translateX(-34px) rotate(210deg)" },
-          "100%": { transform: "translateY(112vh) translateX(-20px) rotate(390deg)" },
-        },
         spinSlow: { from: { transform: "rotate(0)" }, to: { transform: "rotate(360deg)" } },
       },
       animation: {
         sway: "sway 17s ease-in-out infinite alternate",
         blink: "blink 1.2s infinite",
-        drift: "drift 30s linear infinite",
         "spin-slow": "spinSlow 90s linear infinite",
       },
     },

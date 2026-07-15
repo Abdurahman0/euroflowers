@@ -1,12 +1,11 @@
 "use client";
-import { FLOWER_PHOTOS } from "@/components/three/engine/assets";
 
 /** Bo'sh holat — haqiqiy piyon surati bilan, quruq matn o'rniga. */
 export default function EmptyState({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="flex flex-col items-center gap-2.5 px-5 py-9 text-center">
       <img
-        src={FLOWER_PHOTOS.peony}
+        src="/flowers/textures/peony.png"
         alt=""
         aria-hidden
         width={86}

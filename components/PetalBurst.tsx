@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useSeason } from "@/components/three/engine/SeasonController";
 import { PETAL_TEXTURES } from "@/components/three/engine/assets";
 
 /**
@@ -41,7 +40,6 @@ const SHAPES = [
 ];
 
 export default function PetalBurst() {
-  const season = useSeason();
   const [petals, setPetals] = useState<Petal[]>([]);
   const [nonce, setNonce] = useState(0);
 
@@ -51,7 +49,7 @@ export default function PetalBurst() {
     let id = 0;
     const schedule = () => {
       timer = setTimeout(() => {
-        const texes = season.petalMaterials.map((m) => MAT_TO_TEX[m]).filter(Boolean);
+        const texes = [PETAL_TEXTURES.white, PETAL_TEXTURES.blush, PETAL_TEXTURES.cream, PETAL_TEXTURES.pink];
         const count = 4 + Math.floor(Math.random() * 5);
         setPetals(
           Array.from({ length: count }, () => ({
@@ -73,7 +71,7 @@ export default function PetalBurst() {
     };
     schedule();
     return () => clearTimeout(timer);
-  }, [season]);
+  }, []);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden" aria-hidden>

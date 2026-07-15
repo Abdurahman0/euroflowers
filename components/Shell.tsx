@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import Lenis from "lenis";
 import { useStore, useTheme } from "@/lib/store";
-import { useSeason } from "@/components/three/engine/SeasonController";
 import { isLoggedIn } from "@/lib/api";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
@@ -20,30 +19,36 @@ const PremiumPeony = dynamic(() => import("./flowers/PremiumPeony"), { ssr: fals
 /** Butun ilova qobig'i: tema CSS o'zgaruvchilari, tirik fon, auth-guard, sidebar + main panel. */
 export default function Shell({ children }: { children: React.ReactNode }) {
   const { theme, dark } = useTheme();
-  const season = useSeason();
   const pathname = usePathname();
   const router = useRouter();
-  const { user, userLoading, loadMe, loadNotifs } = useStore();
+  const { user, userLoading, loadMe, loadNotifs, setTheme, setDark } = useStore();
   const isLogin = pathname.startsWith("/login");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // saqlangan mavzuni tiklash — bir marta, gidratsiyadan keyin
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("ef_theme") ?? "{}") as { id?: string; dark?: boolean };
+      if (saved.id) setTheme(saved.id as never);
+      // faqat foydalanuvchi tanlovi — avtomatik almashish yo'q
+      if (typeof saved.dark === "boolean") setDark(saved.dark);
+    } catch {
+      /* buzuq qiymat — standart mavzu qoladi */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", dark);
-    root.style.setProperty("--acc", theme.accent);
+    // semantik tokenlar — aksent palitrasi butun tizimga tarqaladi
+    root.style.setProperty("--primary", theme.accent);
+    root.style.setProperty("--primary-strong", theme.strong);
     root.style.setProperty("--accL", theme.accL);
     root.style.setProperty("--side", theme.dark);
     root.style.setProperty("--bg", dark ? theme.dark : theme.light);
+    localStorage.setItem("ef_theme", JSON.stringify({ id: theme.id, dark }));
   }, [theme, dark]);
-
-  // fasl ranglari — @property ro'yxatidan o'tgan, shuning uchun silliq oqadi
-  useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty("--glow-a", season.glowA);
-    root.style.setProperty("--glow-b", season.glowB);
-    root.style.setProperty("--glow-c", season.glowC);
-    root.style.setProperty("--fog-k", String(season.fog));
-  }, [season]);
 
   useEffect(() => {
     if (isLogin) return;

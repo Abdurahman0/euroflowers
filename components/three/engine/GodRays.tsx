@@ -2,7 +2,6 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useSeason } from "./SeasonController";
 
 /**
  * Juda nozik xudo nurlari — additiv aralashmali 3 ta qiya nur tekisligi.
@@ -44,14 +43,12 @@ const SHAFTS = [
 ];
 
 export default function GodRays({ intensity = 1, reducedMotion = false }: { intensity?: number; reducedMotion?: boolean }) {
-  const season = useSeason();
   const mats = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   const texture = useMemo(() => makeShaftTexture(), []);
-  const color = useMemo(() => new THREE.Color(season.keyLight), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const color = useMemo(() => new THREE.Color("#fff1e0"), []);
 
   useFrame(({ clock }, delta) => {
     const t = clock.elapsedTime;
-    color.lerp(new THREE.Color(season.keyLight), 1 - Math.exp(-delta * 1.2));
     SHAFTS.forEach((s, i) => {
       const m = mats.current[i];
       if (!m) return;

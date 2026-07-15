@@ -2,99 +2,210 @@
 @tailwind components;
 @tailwind utilities;
 
-/* fasl ranglari — ro'yxatdan o'tgan xususiyatlar gradient ichida ham silliq o'tadi */
-@property --glow-a {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #f7c9d4;
-}
-@property --glow-b {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #cfe8d8;
-}
-@property --glow-c {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #fff3e0;
-}
-@property --fog-k {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 0.32;
-}
+/* ============================================================
+   EUROFLOWERS DESIGN SYSTEM
+   Semantik tokenlar — ikki qo'lda ishlangan mavzu (Light / Dark).
+   8px oraliq tizimi · yagona radius/soya/o'tish shkalasi.
+   ============================================================ */
 
 :root {
-  transition: --glow-a 1.8s ease, --glow-b 1.8s ease, --glow-c 1.8s ease, --fog-k 1.8s ease;
-  /* issiq, hashamatli palitra — ivory / champagne / rose gold */
-  --ink: #2b221d;
-  --mut: #8d7f75;
-  --acc: #b76e79;
-  --accL: #e9c6c0;
-  --side: #211a15;
-  --sfc: rgba(255, 253, 248, 0.66);
-  --bg2: rgba(255, 252, 245, 0.4);
-  --tint: rgba(240, 226, 216, 0.65);
-  --tintink: #8a5a52;
-  --peach: rgba(248, 231, 210, 0.75);
-  --peachink: #a86a38;
-  --mint: rgba(224, 238, 224, 0.75);
-  --mintink: #3d6b52;
-  --rose: rgba(245, 226, 224, 0.78);
-  --roseink: #a04a4a;
-  --line: rgba(60, 44, 34, 0.16);
-  --line2: rgba(60, 44, 34, 0.09);
-  --solid: rgba(44, 33, 28, 0.6);
-  --bg: #faf6ef;
+  /* ---- harakat ---- */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-organic: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 220ms;
+
+  /* ---- radius shkalasi ---- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+
+  /* ============ LIGHT — "Ivory Atelier" ============ */
+  /* asos */
+  --bg: #faf7f1;
+  --bg-subtle: #f3eee5;
+  --surface: rgba(255, 255, 253, 0.82);
+  --surface-solid: #fffefb;
+  --surface-2: #f8f4ec;
+
+  /* matn */
+  --text: #221d16;
+  --text-2: #5c5348;
+  --muted: #8b8173;
+
+  /* chiziqlar */
+  --border: rgba(96, 82, 62, 0.14);
+  --border-strong: rgba(96, 82, 62, 0.26);
+
+  /* brend (Shell mavzu tanloviga qarab qayta yozadi) */
+  --primary: #a85d68;
+  --primary-strong: #94505a;
+  --primary-soft: color-mix(in srgb, var(--primary) 13%, var(--surface-solid));
+  --primary-contrast: #ffffff;
+
+  /* semantik holatlar */
+  --success: #3d8b63;
+  --success-soft: #e4f1e9;
+  --success-ink: #2c6a4a;
+  --warning: #b07c28;
+  --warning-soft: #f7eedb;
+  --warning-ink: #8a5f1c;
+  --danger: #c24c4c;
+  --danger-soft: #f9e7e6;
+  --danger-ink: #a03c3c;
+  --info: #4a6fa5;
+  --info-soft: #e8eef7;
+  --info-ink: #3a577f;
+
+  /* interaktiv */
+  --hover: rgba(34, 29, 22, 0.05);
+  --focus: color-mix(in srgb, var(--primary) 38%, transparent);
+  --disabled-bg: rgba(34, 29, 22, 0.06);
+  --disabled-text: rgba(34, 29, 22, 0.34);
+
+  /* soyalar — yumshoq, past shaffoflik, ikki qatlam */
+  --shadow-xs: 0 1px 2px rgba(41, 32, 22, 0.05);
+  --shadow-sm: 0 1px 2px rgba(41, 32, 22, 0.04), 0 4px 14px rgba(41, 32, 22, 0.06);
+  --shadow-md: 0 2px 4px rgba(41, 32, 22, 0.05), 0 10px 28px rgba(41, 32, 22, 0.09);
+  --shadow-lg: 0 4px 10px rgba(41, 32, 22, 0.07), 0 22px 52px rgba(41, 32, 22, 0.13);
+
+  /* ---- meros taxalluslari (mavjud sahifalar buzilmaydi) ---- */
+  --ink: var(--text);
+  --mut: var(--muted);
+  --acc: var(--primary);
+  --accL: #dcb8ba;
+  --side: #221b15;
+  --sfc: var(--surface);
+  --bg2: rgba(255, 252, 245, 0.4);
+  --tint: var(--primary-soft);
+  --tintink: var(--primary-strong);
+  --peach: var(--warning-soft);
+  --peachink: var(--warning-ink);
+  --mint: var(--success-soft);
+  --mintink: var(--success-ink);
+  --rose: var(--danger-soft);
+  --roseink: var(--danger-ink);
+  --line: var(--border);
+  --line2: rgba(96, 82, 62, 0.08);
+  --solid: rgba(38, 30, 24, 0.78);
+
+  /* fon dekoratsiyasi (botanika qatlami) — juda nozik, doimiy */
+  --glow-a: #efd9de;
+  --glow-b: #dbe8de;
+  --glow-c: #f7efe2;
+  --fog-k: 0.26;
 }
 
+/* ============ DARK — "Nocturne Atelier" ============ */
 .dark {
-  --ink: #f4ede4;
-  --mut: rgba(244, 237, 228, 0.58);
-  --sfc: rgba(255, 250, 240, 0.06);
+  --bg: #141110;
+  --bg-subtle: #1a1614;
+  --surface: rgba(32, 27, 22, 0.78);
+  --surface-solid: #201b16;
+  --surface-2: #272119;
+
+  --text: #f1eae0;
+  --text-2: #c6bcac;
+  --muted: #968c7d;
+
+  --border: rgba(241, 234, 224, 0.11);
+  --border-strong: rgba(241, 234, 224, 0.2);
+
+  --primary-soft: color-mix(in srgb, var(--primary) 20%, transparent);
+  --primary-contrast: #ffffff;
+
+  --success: #58a97e;
+  --success-soft: rgba(88, 169, 126, 0.14);
+  --success-ink: #93cdab;
+  --warning: #c9963f;
+  --warning-soft: rgba(201, 150, 63, 0.14);
+  --warning-ink: #dfb877;
+  --danger: #d46a6a;
+  --danger-soft: rgba(212, 106, 106, 0.14);
+  --danger-ink: #e39c9c;
+  --info: #7292bd;
+  --info-soft: rgba(114, 146, 189, 0.14);
+  --info-ink: #a4bcd9;
+
+  --hover: rgba(241, 234, 224, 0.06);
+  --disabled-bg: rgba(241, 234, 224, 0.07);
+  --disabled-text: rgba(241, 234, 224, 0.3);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.38);
+  --shadow-lg: 0 4px 10px rgba(0, 0, 0, 0.34), 0 22px 52px rgba(0, 0, 0, 0.5);
+
+  /* meros taxalluslari */
   --bg2: rgba(255, 250, 240, 0.04);
-  --tint: rgba(255, 244, 232, 0.12);
-  --tintink: #e3c1b4;
-  --peach: rgba(226, 160, 92, 0.15);
-  --peachink: #e0b088;
-  --mint: rgba(110, 200, 150, 0.13);
-  --mintink: #9acbae;
-  --rose: rgba(225, 120, 130, 0.14);
-  --roseink: #e0a0a8;
-  --line: rgba(244, 237, 228, 0.2);
-  --line2: rgba(244, 237, 228, 0.1);
-  --solid: rgba(30, 24, 20, 0.62);
+  --line2: rgba(241, 234, 224, 0.07);
+  --solid: rgba(26, 21, 17, 0.82);
+
+  --glow-a: rgba(239, 217, 222, 0.06);
+  --glow-b: rgba(219, 232, 222, 0.05);
+  --glow-c: rgba(247, 239, 226, 0.05);
+  --fog-k: 0.14;
 }
+
+/* ============================================================
+   ASOS
+   ============================================================ */
 
 body {
   background: var(--bg);
-  color: var(--ink);
+  color: var(--text);
   font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI",
     "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  font-size: 13.5px;
+  line-height: 1.55;
   letter-spacing: 0.01em;
-  transition: background-color 0.8s ease, color 0.8s ease;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.5s var(--ease), color 0.5s var(--ease);
 }
 
 h1, h2, h3, .font-serif-lux {
   font-family: var(--font-serif), Georgia, "Times New Roman", serif;
-  letter-spacing: 0.005em;
+  letter-spacing: -0.01em;
   font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 
-* {
-  transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease;
-}
-
-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.38);
 }
 
 a {
-  color: var(--acc);
+  color: var(--primary);
+  transition: color var(--dur) var(--ease);
 }
+/* hover'da ham aksent oilasida qoladi — har qanday yuzada o'qiladi */
 a:hover {
-  color: var(--ink);
+  color: var(--primary-strong);
+}
+.dark a:hover {
+  color: var(--accL);
+}
+
+/* mavzu almashinuvi — doiraviy ochilish (View Transitions) */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* fokus halqasi — klaviatura foydalanuvchilari uchun har doim ko'rinadi */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar {
@@ -102,152 +213,244 @@ a:hover {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--line2);
+  background: var(--border-strong);
   border-radius: 8px;
 }
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
 ::selection {
-  background: var(--accL);
-  color: #2b221d;
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+  color: var(--text);
 }
 
+/* ============================================================
+   KOMPONENT SINFLARI
+   ============================================================ */
+
 @layer components {
-  /* liquid glass yuzalar */
+  /* ---- yuzalar ---- */
   .glass {
-    @apply border rounded-[20px];
-    border-color: var(--line);
-    background: var(--sfc);
-    /* shisha aksi — kursor parallaksiga juda nozik ergashadi */
-    background-image: linear-gradient(
-      115deg,
-      transparent 38%,
-      rgba(255, 255, 255, 0.09) 48%,
-      rgba(255, 255, 255, 0.045) 55%,
-      transparent 66%
-    );
-    background-size: 220% 220%;
-    background-position: calc(50% + var(--plx-x, 0px) * -14) calc(50% + var(--plx-y, 0px) * -14);
-    backdrop-filter: blur(26px) saturate(1.8);
-    box-shadow: 0 12px 38px rgba(56, 40, 30, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.45),
-      inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+    @apply border;
+    border-radius: var(--r-lg);
+    border-color: var(--border);
+    background: var(--surface);
+    backdrop-filter: blur(18px) saturate(1.35);
+    box-shadow: var(--shadow-sm);
   }
   .glass-lite {
-    @apply border rounded-[20px];
-    border-color: var(--line);
-    background: color-mix(in srgb, var(--sfc) 55%, transparent);
-    backdrop-filter: blur(12px) saturate(1.5);
-    box-shadow: 0 12px 38px rgba(56, 40, 30, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    @apply border;
+    border-radius: var(--r-lg);
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--surface) 62%, transparent);
+    backdrop-filter: blur(10px) saturate(1.2);
+    box-shadow: var(--shadow-xs);
   }
   .glass-modal {
-    @apply border rounded-[26px] text-[#F7F1E8];
-    border-color: rgba(255, 250, 240, 0.26);
+    @apply border text-[#F5F0E8];
+    border-radius: var(--r-xl);
+    border-color: rgba(255, 250, 240, 0.16);
     background: var(--solid);
-    backdrop-filter: blur(44px) saturate(1.9);
-    box-shadow: 0 28px 72px rgba(40, 28, 20, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(36px) saturate(1.5);
+    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
+
+  /* ---- tugmalar tizimi (umumiy asos) ---- */
+  .btn-primary, .btn-secondary, .btn-outline, .btn-ghost, .btn-danger, .btn-icon {
+    @apply inline-flex items-center justify-center gap-2 font-semibold text-sm cursor-pointer select-none;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: var(--r-md);
+    transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
+      border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+      transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
+  }
+  .btn-primary:active, .btn-secondary:active, .btn-outline:active, .btn-ghost:active, .btn-danger:active, .btn-icon:active {
+    transform: scale(0.98);
+  }
+  .btn-primary:disabled, .btn-secondary:disabled, .btn-outline:disabled, .btn-ghost:disabled, .btn-danger:disabled, .btn-icon:disabled {
+    background: var(--disabled-bg);
+    color: var(--disabled-text);
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-primary {
+    @apply flex-1 text-center;
+    color: var(--primary-contrast);
+    background: var(--primary);
+    box-shadow: var(--shadow-xs), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--primary-strong);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+  .btn-primary:disabled {
+    opacity: 0.55;
+  }
+
+  .btn-secondary {
+    @apply border;
+    color: var(--text);
+    background: var(--surface-solid);
+    border-color: var(--border);
+    box-shadow: var(--shadow-xs);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--border-strong);
+  }
+
+  .btn-outline {
+    @apply border;
+    color: var(--primary);
+    background: transparent;
+    border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: var(--primary-soft);
+    border-color: var(--primary);
+  }
+
+  .btn-ghost {
+    color: var(--text-2);
+    background: transparent;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--hover);
+  }
+
+  .btn-danger {
+    color: #fff;
+    background: var(--danger);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 88%, #000);
+    transform: translateY(-1px);
+  }
+
+  .btn-icon {
+    width: 40px;
+    padding: 0;
+  }
+
+  .btn-loading {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+  }
+  .btn-loading::after {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    animation: btnSpin 0.7s linear infinite;
+  }
+
+  /* ---- kiritish maydonlari (qorong'i modal yuzalarda) ---- */
   .inp {
-    @apply w-full box-border rounded-xl px-3.5 py-2.5 text-sm text-white outline-none;
-    border: 1px solid rgba(255, 250, 240, 0.26);
-    background: rgba(255, 250, 240, 0.09);
-    transition: border-color 0.35s var(--ease-organic), background 0.35s var(--ease-organic),
-      box-shadow 0.35s var(--ease-organic);
+    @apply w-full box-border text-sm text-white outline-none;
+    height: 42px;
+    padding: 0 14px;
+    border-radius: var(--r-md);
+    border: 1px solid rgba(255, 250, 240, 0.2);
+    background: rgba(255, 250, 240, 0.07);
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
+      box-shadow var(--dur) var(--ease);
+  }
+  .inp:hover {
+    border-color: rgba(255, 250, 240, 0.32);
   }
   .inp:focus {
     border-color: var(--accL);
-    background: rgba(255, 250, 240, 0.15);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accL) 22%, transparent);
+    background: rgba(255, 250, 240, 0.11);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accL) 24%, transparent);
   }
-  .btn-primary {
-    @apply flex-1 text-center text-white font-bold text-sm rounded-[14px] py-3 cursor-pointer relative overflow-hidden;
-    background: linear-gradient(135deg, var(--acc), var(--accL));
-    box-shadow: 0 12px 28px color-mix(in srgb, var(--acc) 36%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.35);
-    transition: transform 0.5s var(--ease-organic), box-shadow 0.5s var(--ease-organic),
-      filter 0.5s var(--ease-organic);
-    animation: breathe 5.5s ease-in-out infinite;
+  textarea.inp {
+    height: auto;
+    padding: 10px 14px;
   }
-  .btn-primary:hover {
-    transform: translateY(-2px) scale(1.015);
-    filter: brightness(1.06) saturate(1.05);
-    box-shadow: 0 18px 40px color-mix(in srgb, var(--acc) 46%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.45);
-    animation-play-state: paused;
-  }
-  .btn-primary:active {
-    transform: translateY(0) scale(0.985);
-  }
-  .btn-primary::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.35) 50%, transparent 65%);
-    transform: translateX(-120%);
-    transition: transform 0.9s var(--ease-organic);
-  }
-  .btn-primary:hover::after {
-    transform: translateX(120%);
-  }
+
+  /* ---- chiplar (filtrlar) ---- */
   .chip {
-    @apply px-3.5 py-[7px] rounded-full cursor-pointer text-xs font-bold border;
-    border-color: var(--line2);
-    color: var(--mut);
-    transition: all 0.4s var(--ease-organic);
+    @apply px-3.5 rounded-full cursor-pointer text-xs font-semibold border inline-flex items-center;
+    height: 32px;
+    border-color: var(--border);
+    color: var(--text-2);
+    background: transparent;
+    transition: all var(--dur) var(--ease);
   }
   .chip:hover {
-    border-color: var(--acc);
-    color: var(--acc);
-    transform: translateY(-1px);
+    border-color: var(--border-strong);
+    color: var(--text);
+    background: var(--hover);
   }
   .chip-active {
-    background: var(--acc);
-    color: #fff;
-    border-color: var(--acc);
-    box-shadow: 0 6px 18px color-mix(in srgb, var(--acc) 40%, transparent);
+    background: var(--primary);
+    color: var(--primary-contrast);
+    border-color: var(--primary);
+    box-shadow: var(--shadow-xs);
   }
-  /* kartalar ohista suzadi */
+  .chip-active:hover {
+    background: var(--primary-strong);
+    border-color: var(--primary-strong);
+    color: var(--primary-contrast);
+  }
+
+  /* ---- kartalar ---- */
   .card-hover {
-    transition: transform 0.55s var(--ease-organic), box-shadow 0.55s var(--ease-organic),
-      border-color 0.55s var(--ease-organic);
+    transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+      border-color var(--dur) var(--ease);
   }
   .card-hover:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 26px 56px rgba(56, 40, 30, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      0 0 0 1px color-mix(in srgb, var(--accL) 45%, transparent);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-strong);
   }
-}
 
-@layer components {
-  /* jadval qatorlari — kirish xoreografiyasi + hover nurlanish */
+  /* ---- jadval qatorlari ---- */
   .row-lux {
-    animation: rowIn 0.65s var(--ease-organic) both;
-    transition: background 0.45s var(--ease-organic), box-shadow 0.45s var(--ease-organic);
+    animation: rowIn 0.28s var(--ease) both;
+    transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
   }
   .row-lux:hover {
-    background: color-mix(in srgb, var(--accL) 16%, transparent) !important;
-    box-shadow: inset 3px 0 0 var(--acc);
+    background: var(--hover) !important;
+    box-shadow: inset 2px 0 0 var(--primary);
   }
 }
 
+/* ============================================================
+   ANIMATSIYALAR — 200–300ms, hech qachon ortiqcha emas
+   ============================================================ */
+
 @keyframes rowIn {
-  from { opacity: 0; transform: translateY(12px); filter: blur(3px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.012); }
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
 }
 
-@keyframes petalFall {
-  0% { transform: translateY(-6vh) translateX(0) rotate(0deg); opacity: 0; }
-  8% { opacity: 0.45; }
-  50% { transform: translateY(52vh) translateX(-4vw) rotate(200deg); }
-  92% { opacity: 0.4; }
-  100% { transform: translateY(108vh) translateX(2vw) rotate(380deg); opacity: 0; }
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
 }
 
-/* yumshoq tuman qatlami — juda sekin oqadi */
+@keyframes gentleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* yumshoq tuman qatlami — juda sekin oqadi (botanika foni) */
 .fog-band {
-  background: radial-gradient(ellipse 60% 100% at 50% 50%, rgba(255, 253, 248, 0.55), transparent 70%);
+  background: radial-gradient(ellipse 60% 100% at 50% 50%, rgba(255, 253, 248, 0.5), transparent 70%);
   filter: blur(38px);
   animation: fogDrift 46s ease-in-out infinite alternate;
   transform: translate3d(calc(var(--plx-x, 0px) * 2), calc(var(--plx-y, 0px) * 2), 0);
@@ -260,16 +463,6 @@ a:hover {
 @keyframes fogDrift {
   from { translate: -4% 0; }
   to { translate: 4% -12px; }
-}
-
-@keyframes gentleFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
-}
-
-@keyframes glowPulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.9; }
 }
 
 /* harakat kamaytirilgan rejim — barcha bezak animatsiyalar o'chadi */

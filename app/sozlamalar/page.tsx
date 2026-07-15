@@ -143,7 +143,7 @@ export default function SozlamalarPage() {
 
       {/* AI qoidalari — serverdan */}
       <section className="glass p-5 text-[#F0E9FA]" style={{ background: "color-mix(in srgb, var(--side) 82%, transparent)" }}>
-        <h2 className="mb-3.5 text-base font-bold" style={{ color: "var(--accL)" }}>AI qoidalari</h2>
+        <h2 className="mb-3.5 text-base font-bold">AI qoidalari</h2>
         <ul className="flex flex-col gap-2 text-[13px] leading-relaxed opacity-90">
           <li>• {st?.approximate_price_wording_uz || "Narxlar taxminiy beriladi."}</li>
           <li>• {st?.min_sale_reminder_uz || "Minimal sotuv soni eslatiladi."}</li>

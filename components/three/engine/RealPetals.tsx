@@ -4,7 +4,6 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { useWind } from "./WindController";
-import { useSeason } from "./SeasonController";
 import { FALLING_PETALS } from "./assets";
 
 /**
@@ -19,6 +18,8 @@ import { FALLING_PETALS } from "./assets";
  */
 
 const VARIANTS_PER_MATERIAL = 2;
+/** doimiy nafis palitra — oq, pushti-oq, krem, pushti */
+const ACTIVE_PETALS: string[] = ["Petal_white", "Petal_blush", "Petal_cream", "Petal_pink"];
 
 type Unit = {
   matName: string;
@@ -66,7 +67,6 @@ export default function RealPetals({
   const { scene } = useGLTF(FALLING_PETALS);
   const { viewport, camera } = useThree();
   const wind = useWind();
-  const season = useSeason();
   const meshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
   const activity = useRef<Map<string, number>>(new Map());
   const speedK = useRef(1);
@@ -138,8 +138,7 @@ export default function RealPetals({
   useFrame((state, delta) => {
     const t = reducedMotion ? 0 : state.clock.elapsedTime;
     const k = 1 - Math.exp(-delta * 1.4);
-    speedK.current += (season.petalFallSpeed - speedK.current) * k;
-    const density = Math.min(season.petalDensity, 1.7);
+    const density = 1;
     const wd = wind.current;
     const camZ = (camera as THREE.PerspectiveCamera).position.z || 6;
     const w = Math.max(viewport.width, 10);
@@ -150,7 +149,7 @@ export default function RealPetals({
       const mesh = meshRefs.current[ui];
       if (!mesh) return;
       // fasl guruhi faolligi — ohista kirib-chiqadi
-      const want = season.petalMaterials.includes(u.matName as never) ? 1 : 0;
+      const want = ACTIVE_PETALS.includes(u.matName) ? 1 : 0;
       const cur = activity.current.get(u.matName + ui) ?? want;
       const act = cur + (want - cur) * k;
       activity.current.set(u.matName + ui, act);

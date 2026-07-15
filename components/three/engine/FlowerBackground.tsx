@@ -3,7 +3,6 @@ import SceneController, { usePrefersReducedMotion } from "./SceneController";
 import LightingController from "./LightingController";
 import RealPetals from "./RealPetals";
 import FlowerParticles from "./FlowerParticles";
-import { useSeason } from "./SeasonController";
 import { useTheme } from "@/lib/store";
 import BackgroundFlowers from "@/components/BackgroundFlowers";
 
@@ -17,7 +16,6 @@ import BackgroundFlowers from "@/components/BackgroundFlowers";
  */
 export default function FlowerBackground() {
   const { theme, dark } = useTheme();
-  const season = useSeason();
   const reduced = usePrefersReducedMotion();
 
   return (
@@ -67,7 +65,7 @@ export default function FlowerBackground() {
       <BackgroundFlowers />
 
       {/* 4-qatlam: 3D — kam sonli gulbarg + changcha (nozik atmosfera) */}
-      <SceneController parallax={1} windBase={season.wind} reducedMotion={reduced}>
+      <SceneController parallax={1} windBase={0.5} reducedMotion={reduced}>
         <LightingController intensity={dark ? 0.7 : 1} moving={!reduced} dark={dark} />
         <RealPetals count={16} opacity={0.4} reducedMotion={reduced} />
         <FlowerParticles count={50} reducedMotion={reduced} />

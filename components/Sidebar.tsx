@@ -1,11 +1,10 @@
 "use client";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import { motion } from "framer-motion";
 import { useStore } from "@/lib/store";
-import { logout } from "@/lib/api";
 import { Icon } from "./icons";
-import { ROLE_LABEL } from "./badges";
 import type { Role, ScreenId } from "@/lib/types";
 
 const NAV: { id: ScreenId; href: string; label: string; roles: Role[] }[] = [
@@ -21,69 +20,86 @@ const NAV: { id: ScreenId; href: string; label: string; roles: Role[] }[] = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { sideOpen, user, notifs } = useStore();
+  const { sideOpen, toggleSide, user, notifs } = useStore();
   const role = user?.profile.role ?? "admin";
   const yangiLead = notifs.filter((n) => !n.is_read && n.notification_type === "lead").length;
-  const fullName = user ? [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username : "…";
+
+  // tor ekranlarda avtomatik yig'iladi — kontent doim ustuvor
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1024px)").matches && useStore.getState().sideOpen) {
+      toggleSide();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <aside
       className={clsx(
-        "relative z-10 flex flex-col overflow-hidden rounded-[26px] border-[1.5px] border-white/15",
-        "shadow-[0_18px_48px_rgba(40,28,20,.3),inset_0_1px_0_rgba(255,255,255,.12)]",
-        "transition-[width,min-width,padding] duration-[550ms] ease-[cubic-bezier(.22,1,.36,1)]",
-        sideOpen ? "w-[248px] min-w-[248px] px-4 pb-4 pt-6" : "w-[60px] min-w-[60px] px-1.5 pb-4 pt-6"
+        "relative z-10 flex flex-col overflow-hidden rounded-xl border border-white/10",
+        "transition-[width,min-width,padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        sideOpen ? "w-[240px] min-w-[240px] px-3 pb-3 pt-5" : "w-[60px] min-w-[60px] px-1.5 pb-3 pt-5"
       )}
-      style={{ background: "color-mix(in srgb, var(--side) 92%, transparent)", backdropFilter: "blur(20px)" }}
+      style={{
+        background: "color-mix(in srgb, var(--side) 94%, transparent)",
+        backdropFilter: "blur(20px)",
+        boxShadow: "var(--shadow-md)",
+      }}
     >
-      {/* logo — ohista nafas oladi */}
-      <div className={clsx("flex items-center gap-2.5 border-b border-white/10 pb-5", !sideOpen && "justify-center")}>
-        <motion.div
-          animate={{ rotate: [-6, -2, -6], scale: [1, 1.04, 1] }}
-          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-          className="flex h-[34px] w-[34px] items-center justify-center rounded-xl text-white"
-          style={{ background: "var(--acc)" }}
-        >
-          <Icon name="logo" />
-        </motion.div>
+      {/* logo */}
+      <div className={clsx("flex items-center gap-2.5 border-b border-white/10 px-1 pb-4", !sideOpen && "justify-center px-0")}>
+        <img
+          src="/flowers/textures/peony.png"
+          alt="EuroFlowers"
+          className="h-9 w-9 shrink-0 object-contain transition-transform duration-300 hover:rotate-6 hover:scale-105"
+          style={{ filter: "saturate(0.95) drop-shadow(0 2px 8px rgba(0,0,0,0.4))" }}
+        />
         {sideOpen && (
-          <div>
-            <div className="font-serif-lux text-[19px] tracking-tight text-[#F7F1E8]">EuroFlowers</div>
-            <div className="text-[9px] font-bold uppercase tracking-[3.5px]" style={{ color: "var(--accL)" }}>
-              AI · Boutique
-            </div>
+          <div className="min-w-0">
+            <div className="font-serif-lux truncate text-[17px] tracking-tight text-[#F5F0E8]">EuroFlowers</div>
+            <div className="text-[9px] font-semibold uppercase tracking-[3px] text-[#F5F0E8]/45">AI · Boutique</div>
           </div>
         )}
       </div>
 
       {/* nav */}
-      <nav className="mt-4 flex flex-1 flex-col gap-0.5 overflow-auto">
+      <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
         {NAV.filter((n) => n.roles.includes(role)).map((n) => {
           const active = pathname === n.href;
           return (
             <button
               key={n.id}
               onClick={() => router.push(n.href)}
+              title={sideOpen ? undefined : n.label}
               className={clsx(
-                "group relative flex items-center rounded-xl text-[13.5px] transition-[padding] duration-[550ms]",
-                sideOpen ? "gap-2.5 px-3 py-[11px]" : "justify-center py-[11px]",
-                active ? "font-bold text-[#2b221d]" : "font-medium text-[#F7F1E8]/65 hover:text-[#F7F1E8]"
+                "group relative flex items-center rounded-[10px] text-[13px] outline-none",
+                "transition-colors duration-200",
+                sideOpen ? "gap-2.5 px-3 py-2.5" : "justify-center py-2.5",
+                active ? "font-semibold text-white" : "font-medium text-[#F5F0E8]/60 hover:bg-white/[0.06] hover:text-[#F5F0E8]"
               )}
             >
               {active && (
                 <motion.span
                   layoutId="nav-active"
-                  transition={{ type: "spring", stiffness: 320, damping: 32 }}
-                  className="absolute inset-0 rounded-xl bg-white/92"
-                  style={{ boxShadow: "0 8px 22px rgba(0,0,0,.22)" }}
+                  transition={{ type: "spring", stiffness: 380, damping: 36 }}
+                  className="absolute inset-0 rounded-[10px]"
+                  style={{
+                    background: "color-mix(in srgb, var(--primary) 82%, #000 6%)",
+                    boxShadow: "var(--shadow-xs), inset 0 1px 0 rgba(255,255,255,0.16)",
+                  }}
                 />
               )}
-              <span className="relative z-10 transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)] group-hover:rotate-[8deg] group-hover:scale-110">
-                <Icon name={n.id} />
+              <span className={clsx("relative z-10 transition-opacity duration-200", !active && "opacity-80 group-hover:opacity-100")}>
+                <Icon name={n.id} size={16} />
               </span>
               {sideOpen && <span className="relative z-10 flex-1 whitespace-nowrap text-left">{n.label}</span>}
               {sideOpen && n.id === "crm" && yangiLead > 0 && (
-                <span className="relative z-10 rounded-full px-2 py-px text-[11px] font-bold text-white" style={{ background: "var(--acc)" }}>
+                <span
+                  className={clsx(
+                    "relative z-10 min-w-[20px] rounded-full px-1.5 py-px text-center text-[11px] font-bold",
+                    active ? "bg-white/20 text-white" : "text-white"
+                  )}
+                  style={active ? undefined : { background: "var(--primary)" }}
+                >
                   {yangiLead}
                 </span>
               )}
@@ -92,25 +108,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* user + chiqish */}
-      <div className="mt-2.5 border-t border-white/10 pt-3.5">
-        <div className={clsx("flex items-center gap-2.5 px-2.5", !sideOpen && "justify-center px-0")}>
-          <div className="flex h-9 w-9 shrink-0 rotate-3 items-center justify-center rounded-xl text-sm font-bold text-white transition-transform duration-500 hover:rotate-0" style={{ background: "var(--acc)" }}>
-            {fullName[0]?.toUpperCase() ?? "?"}
-          </div>
-          {sideOpen && (
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-semibold text-[#F7F1E8]">{fullName}</div>
-              <div className="text-[11.5px] text-[#F7F1E8]/50">{ROLE_LABEL[role] ?? role}</div>
-            </div>
-          )}
-          {sideOpen && (
-            <button onClick={logout} title="Chiqish" className="rounded-lg px-2 py-1 text-[11px] font-bold text-[#F7F1E8]/55 transition-colors hover:bg-white/10 hover:text-white">
-              Chiqish
-            </button>
-          )}
-        </div>
-      </div>
     </aside>
   );
 }

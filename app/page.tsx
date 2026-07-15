@@ -32,27 +32,32 @@ export default function DashboardPage() {
   if (err) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--roseink, #a04a4a)" }}>{err}</p>;
   if (!d) return <FlowerLoader />;
 
-  const stats: { label: string; num: number; money?: boolean; sub: string; href: string; cls: string }[] = [
-    { label: "Bugungi savdo", num: +d.revenue_today, money: true, sub: `so'm · ${d.orders_today} ta buyurtma`, href: "/crm", cls: "text-[#F7F1E8]" },
-    { label: "7 kunlik savdo", num: +d.revenue_7d, money: true, sub: `so'm · konversiya ${d.conversion_rate}%`, href: "/crm", cls: "text-white" },
-    { label: "Faol leadlar", num: d.active_leads, sub: `${d.new_leads_today} tasi bugun tushdi`, href: "/crm", cls: "" },
-    { label: "AI suhbatlar", num: d.ai_conversations, sub: `${d.operator_conversations} ta operatorda`, href: "/chat", cls: "" },
-    { label: "Katalogda sotuvda", num: d.available_catalog, sub: `${d.pending_deductions} ta chiqim kutilmoqda`, href: "/katalog", cls: "" },
-    { label: "Skladda gul", num: d.stock_stems, sub: `${d.low_stock} pozitsiya kam qoldi`, href: "/sklad", cls: "" },
+  // dark=true — brend fonli kartalar (matn sof oq); qolganlari neytral yuzada
+  const stats: { label: string; num: number; money?: boolean; sub: string; href: string; darkCard?: boolean }[] = [
+    { label: "Bugungi savdo", num: +d.revenue_today, money: true, sub: `so'm · ${d.orders_today} ta buyurtma`, href: "/crm", darkCard: true },
+    { label: "7 kunlik savdo", num: +d.revenue_7d, money: true, sub: `so'm · konversiya ${d.conversion_rate}%`, href: "/crm", darkCard: true },
+    { label: "Faol leadlar", num: d.active_leads, sub: `${d.new_leads_today} tasi bugun tushdi`, href: "/crm" },
+    { label: "AI suhbatlar", num: d.ai_conversations, sub: `${d.operator_conversations} ta operatorda`, href: "/chat" },
+    { label: "Katalogda sotuvda", num: d.available_catalog, sub: `${d.pending_deductions} ta chiqim kutilmoqda`, href: "/katalog" },
+    { label: "Skladda gul", num: d.stock_stems, sub: `${d.low_stock} pozitsiya kam qoldi`, href: "/sklad" },
   ];
-  const statBg = ["var(--side)", "var(--acc)", "var(--tint)", "var(--sfc)", "var(--tint)", "var(--sfc)"];
+  const statBg = ["var(--side)", "var(--primary)", "var(--surface)", "var(--surface)", "var(--surface)", "var(--surface)"];
   const maxPipe = Math.max(...d.lead_pipeline.map((p) => p.count), 1);
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="relative">
       <motion.div variants={rise} className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(205px,1fr))" }}>
         {stats.map((s, i) => (
-          <Link key={s.label} href={s.href} className={`glass-lite card-hover group relative block overflow-hidden p-4 ${s.cls}`} style={{ background: statBg[i] }}>
-            <div className="text-[11px] font-bold uppercase tracking-wider opacity-65">{s.label}</div>
-            <div className="font-serif-lux mt-2 whitespace-nowrap text-[24px] tracking-tight">
+          <Link key={s.label} href={s.href} className="glass-lite card-hover group relative block overflow-hidden p-4" style={{ background: statBg[i] }}>
+            <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: s.darkCard ? "rgba(255,255,255,0.68)" : "var(--muted)" }}>
+              {s.label}
+            </div>
+            <div className="font-serif-lux mt-2 whitespace-nowrap text-[24px] font-bold tracking-tight" style={{ color: s.darkCard ? "#ffffff" : "var(--text)" }}>
               <CountUp value={s.num} format={s.money ? fmtMoney : undefined} />
             </div>
-            <div className="mt-1 text-[12.5px] font-semibold opacity-80">{s.sub}</div>
+            <div className="mt-1 text-[12.5px] font-medium" style={{ color: s.darkCard ? "rgba(255,255,255,0.78)" : "var(--text-2)" }}>
+              {s.sub}
+            </div>
             <MiniBloom />
           </Link>
         ))}

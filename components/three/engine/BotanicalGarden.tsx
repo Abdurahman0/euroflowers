@@ -3,7 +3,6 @@ import SceneController, { usePrefersReducedMotion } from "./SceneController";
 import LightingController from "./LightingController";
 import FlowerParticles from "./FlowerParticles";
 import GardenFlora from "./GardenFlora";
-import { useSeason } from "./SeasonController";
 import { useTheme } from "@/lib/store";
 
 /**
@@ -50,7 +49,6 @@ function Branch({ width = 260, rotate = 0 }: { width?: number; rotate?: number }
 
 export default function BotanicalGarden() {
   const { dark } = useTheme();
-  const season = useSeason();
   const reduced = usePrefersReducedMotion();
 
   return (
@@ -121,7 +119,7 @@ export default function BotanicalGarden() {
 
       {/* 5+6 — uzoq fon guli (og'ir Gauss blur = chuqur DOF) + changcha */}
       <div className="absolute inset-0" style={{ filter: "blur(8px) saturate(0.95)" }}>
-        <SceneController parallax={0.35} windBase={season.wind * 0.8} reducedMotion={reduced} dpr={[1, 1.25]}>
+        <SceneController parallax={0.35} windBase={0.4} reducedMotion={reduced} dpr={[1, 1.25]}>
           <LightingController intensity={dark ? 0.6 : 0.9} moving={!reduced} dark={dark} />
           <GardenFlora reducedMotion={reduced} />
           <FlowerParticles count={54} reducedMotion={reduced} />

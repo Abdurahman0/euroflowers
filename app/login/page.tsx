@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { login, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 
-const LoginScene = dynamic(() => import("@/components/three/LoginScene"), { ssr: false });
-const CinematicVideo = dynamic(() => import("@/components/CinematicVideo"), { ssr: false });
-
+/**
+ * Login — toza, minimal, premium. Hech qanday dekorativ gul yo'q:
+ * faqat sokin gradient fon, nafis shisha karta va aniq tipografiya.
+ */
 export default function LoginPage() {
   const router = useRouter();
   const loadMe = useStore((s) => s.loadMe);
@@ -26,9 +26,8 @@ export default function LoginPage() {
     try {
       await login(username, password);
       await loadMe();
-      // gulbarglar uchadi, kamera ichkariga suzadi — so'ng dashboard
       setSuccess(true);
-      setTimeout(() => router.replace("/"), 1600);
+      setTimeout(() => router.replace("/"), 700);
     } catch (ex) {
       setErr(
         ex instanceof ApiError && ex.status === 401
@@ -42,60 +41,61 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-5">
-      {/* kinematik bog' atmosferasi (video bo'lsa) + 3D gul sahnasi */}
-      <div className="absolute inset-0">
-        <CinematicVideo opacity={0.15} blur={8} />
-        <LoginScene success={success} />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-5" style={{ background: "var(--side)" }}>
+      {/* sokin atmosfera — ikki juda xira nur dog'i, boshqa hech narsa */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <div
+          className="absolute -left-[10%] -top-[20%] h-[60vh] w-[60vh] rounded-full blur-[110px]"
+          style={{ background: "color-mix(in srgb, var(--primary) 16%, transparent)" }}
+        />
+        <div
+          className="absolute -bottom-[25%] -right-[8%] h-[55vh] w-[55vh] rounded-full blur-[120px]"
+          style={{ background: "rgba(255, 246, 230, 0.05)" }}
+        />
       </div>
 
-      {/* muvaffaqiyat pardasi — sahifa almashishi sezilmaydi, kamera nurga suzadi */}
-      <motion.div
-        className="pointer-events-none absolute inset-0 z-20"
-        style={{ background: "radial-gradient(ellipse at 50% 42%, rgba(255,250,240,0.98), rgba(250,246,239,0.94) 60%, rgba(244,236,226,0.9))" }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: success ? 1 : 0 }}
-        transition={{ duration: 0.9, delay: success ? 0.75 : 0, ease: [0.22, 1, 0.36, 1] }}
-      />
-
-      {/* forma */}
       <motion.form
         onSubmit={submit}
-        initial={{ opacity: 0, y: 36, filter: "blur(8px)" }}
-        animate={success ? { opacity: 0, y: -30, scale: 0.96, filter: "blur(10px)" } : { opacity: 1, y: 0, filter: "blur(0px)" }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: success ? 0 : 0.5 }}
-        className="glass-modal relative z-10 mt-[30vh] w-[min(420px,100%)] p-8"
+        initial={{ opacity: 0, y: 16, scale: 0.985 }}
+        animate={success ? { opacity: 0, y: -10, scale: 0.985 } : { opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: success ? 0.4 : 0.55, ease: [0.22, 1, 0.36, 1] }}
+        className="glass-modal relative z-10 w-[min(400px,100%)] p-8"
       >
         <div className="text-center">
-          <h1 className="text-[30px] tracking-tight">EuroFlowers</h1>
-          <div className="mt-1 text-[10px] font-bold uppercase tracking-[4px]" style={{ color: "var(--accL)" }}>
+          <h1 className="text-[28px] tracking-tight">EuroFlowers</h1>
+          <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-[4px] text-white/40">
             AI · Boutique · CRM
           </div>
         </div>
 
-        <p className="mt-4 text-center text-[13px] text-white/60">Tizimga kirish uchun login va parolingizni kiriting.</p>
+        <p className="mt-5 text-center text-[13px] leading-relaxed text-white/55">
+          Tizimga kirish uchun login va parolingizni kiriting.
+        </p>
 
-        <label className="mt-6 flex flex-col gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-white/60">
+        <label className="mt-7 flex flex-col gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-white/55">
           Login
           <input className="inp" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" autoFocus autoComplete="username" />
         </label>
-        <label className="mt-3.5 flex flex-col gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-white/60">
+        <label className="mt-4 flex flex-col gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-white/55">
           Parol
           <input className="inp" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
         </label>
 
         {err && (
           <motion.div
-            initial={{ opacity: 0, y: -6 }}
+            initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-3.5 rounded-[12px] border border-[#c26565]/60 bg-rose px-3.5 py-2.5 text-[12.5px] font-bold text-roseink"
+            transition={{ duration: 0.22 }}
+            className="mt-4 rounded-[10px] border px-3.5 py-2.5 text-[12.5px] font-semibold"
+            style={{ background: "rgba(212,106,106,0.14)", borderColor: "rgba(212,106,106,0.4)", color: "#e8a7a7" }}
+            role="alert"
           >
             {err}
           </motion.div>
         )}
 
-        <button type="submit" disabled={busy} className="btn-primary mt-6 w-full disabled:opacity-60">
-          {success ? "Xush kelibsiz 🌸" : busy ? "Kirilmoqda…" : "Kirish"}
+        <button type="submit" disabled={busy} className={`btn-primary mt-7 w-full ${busy && !success ? "btn-loading" : ""}`}>
+          {success ? "Xush kelibsiz" : "Kirish"}
         </button>
       </motion.form>
     </div>

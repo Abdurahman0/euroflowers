@@ -345,7 +345,6 @@ export type UploadResponse = { url: string; path: string };
 // ===== UI types =====
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
-export type Theme = { id: ThemeId; nomi: string; accent: string; accL: string; light: string; dark: string };
-export type SeasonId = "bahor" | "yoz" | "kuz" | "qish";
+export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
 export type ScreenId = "dashboard" | "chat" | "crm" | "sklad" | "katalog" | "postlar" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";

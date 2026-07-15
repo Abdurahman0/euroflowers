@@ -10,18 +10,167 @@ import { CONV_STATUS_LABEL } from "@/components/badges";
 import { Icon } from "@/components/icons";
 import type { Conversation, Message } from "@/lib/types";
 
-function Bubble({ m }: { m: Message }) {
+/**
+ * Zamonaviy AI-chat maketi:
+ *   • mijoz xabarlari — CHAPDA (neytral yuzada)
+ *   • AI javoblari — O'NGDA (brend rangida)
+ *   • operator javoblari — O'NGDA (to'q yuzada)
+ * Guruhlash, hover amallar (nusxa/reaksiya/vaqt), typing, sticky kiritish.
+ */
+
+const REACTIONS = ["❤️", "👍", "🌸", "😄"];
+
+type Side = "left" | "right" | "center";
+const sideOf = (m: Message): Side => (m.sender === "customer" ? "left" : m.sender === "system" ? "center" : "right");
+
+function Avatar({ m, custName }: { m: Message; custName: string }) {
   if (m.sender === "customer")
     return (
-      <div className="flex justify-end">
-        <div className="glass max-w-[75%] whitespace-pre-line !rounded-[18px] !rounded-br-[5px] px-4 py-2.5 text-[13.5px] leading-relaxed">{m.text}</div>
+      <span className="flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-bold" style={{ background: "var(--surface-solid)", borderColor: "var(--border)", color: "var(--text-2)" }}>
+        {initials(custName)}
+      </span>
+    );
+  if (m.sender === "ai")
+    return (
+      <span className="flex h-7 w-7 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: "var(--primary)" }}>
+        AI
+      </span>
+    );
+  return (
+    <span className="flex h-7 w-7 items-center justify-center rounded-full text-[9.5px] font-extrabold text-[#F5F0E8]" style={{ background: "var(--side)" }}>
+      OP
+    </span>
+  );
+}
+
+function MessageRow({
+  m,
+  custName,
+  groupWithPrev,
+  groupWithNext,
+  reaction,
+  onReact,
+  onCopy,
+}: {
+  m: Message;
+  custName: string;
+  groupWithPrev: boolean;
+  groupWithNext: boolean;
+  reaction?: string;
+  onReact: (id: number, emoji: string) => void;
+  onCopy: (text: string) => void;
+}) {
+  const [reactOpen, setReactOpen] = useState(false);
+  const side = sideOf(m);
+
+  if (side === "center")
+    return (
+      <div className="flex justify-center">
+        <span className="rounded-full border px-3 py-1 text-[11px] font-medium" style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}>
+          {m.text} · {fmtTime(m.created_at)}
+        </span>
       </div>
     );
-  const tag = m.sender === "ai" ? "AI" : m.sender === "operator" ? "OP" : "SYS";
+
+  const isLeft = side === "left";
+  const bubbleStyle =
+    m.sender === "customer"
+      ? { background: "var(--surface-solid)", border: "1px solid var(--border)", color: "var(--text)" }
+      : m.sender === "ai"
+        ? { background: "var(--primary)", color: "#fff" }
+        : { background: "var(--side)", color: "#F5F0E8" };
+
+  const img = typeof m.metadata?.image_url === "string" ? (m.metadata.image_url as string) : null;
+  const fileName = typeof m.metadata?.file_name === "string" ? (m.metadata.file_name as string) : null;
+
   return (
-    <div className="flex items-end justify-start gap-2">
-      <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: m.sender === "operator" ? "var(--side)" : "linear-gradient(135deg,var(--acc),var(--accL))" }}>{tag}</div>
-      <div className="max-w-[75%] whitespace-pre-line rounded-[18px] rounded-bl-[5px] px-4 py-2.5 text-[13.5px] leading-relaxed text-white" style={{ background: m.sender === "operator" ? "var(--side)" : "linear-gradient(135deg,var(--acc),var(--accL))" }}>{m.text}</div>
+    <div className={clsx("group/msg flex items-end gap-2", isLeft ? "justify-start" : "justify-end", groupWithPrev ? "mt-1" : "mt-4")}>
+      {/* chap avatar — guruh oxirida */}
+      {isLeft && <span className={clsx(!groupWithNext ? "opacity-100" : "opacity-0")}><Avatar m={m} custName={custName} /></span>}
+
+      <div className={clsx("relative flex max-w-[72%] flex-col", isLeft ? "items-start" : "items-end")}>
+        {/* hover amallar paneli */}
+        <div
+          className={clsx(
+            "pointer-events-none absolute -top-8 z-10 flex items-center gap-1 rounded-full border px-1.5 py-1 opacity-0 shadow-sm transition-opacity duration-200 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100",
+            isLeft ? "left-0" : "right-0"
+          )}
+          style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}
+        >
+          <span className="px-1.5 text-[10.5px] font-medium" style={{ color: "var(--muted)" }}>{fmtTime(m.created_at)}</span>
+          <button
+            onClick={() => onCopy(m.text)}
+            title="Nusxalash"
+            className="flex h-6 w-6 items-center justify-center rounded-full transition-colors duration-200 hover:bg-[var(--hover)]"
+            style={{ color: "var(--text-2)" }}
+          >
+            <Icon name="copy" size={13} />
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setReactOpen((v) => !v)}
+              title="Reaksiya"
+              className="flex h-6 w-6 items-center justify-center rounded-full transition-colors duration-200 hover:bg-[var(--hover)]"
+              style={{ color: "var(--text-2)" }}
+            >
+              <Icon name="smile" size={13} />
+            </button>
+            {reactOpen && (
+              <div className="absolute -top-9 left-1/2 z-20 flex -translate-x-1/2 gap-0.5 rounded-full border px-1.5 py-1 shadow-md animate-[rowIn_0.18s_var(--ease)_both]" style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}>
+                {REACTIONS.map((e) => (
+                  <button key={e} onClick={() => { onReact(m.id, e); setReactOpen(false); }} className="rounded-full px-1 text-[14px] transition-transform duration-150 hover:scale-125">
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* pufak */}
+        <div
+          className={clsx(
+            "whitespace-pre-line break-words px-4 py-2.5 text-[13.5px] leading-relaxed",
+            isLeft
+              ? clsx("rounded-[16px]", !groupWithNext && "rounded-bl-[6px]")
+              : clsx("rounded-[16px]", !groupWithNext && "rounded-br-[6px]")
+          )}
+          style={bubbleStyle}
+        >
+          {img && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={img} alt="" className="mb-2 max-h-[260px] w-full rounded-[10px] object-cover" />
+          )}
+          {fileName && (
+            <span className="mb-2 flex items-center gap-2.5 rounded-[10px] border border-white/20 bg-white/10 px-3 py-2.5">
+              <Icon name="attachment" size={15} />
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{fileName}</span>
+            </span>
+          )}
+          {m.text}
+        </div>
+
+        {/* reaksiya chipi */}
+        {reaction && (
+          <span
+            className={clsx("-mt-2 rounded-full border px-1.5 py-px text-[12px] shadow-xs", isLeft ? "ml-2 self-start" : "mr-2 self-end")}
+            style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}
+          >
+            {reaction}
+          </span>
+        )}
+
+        {/* guruh oxiridagi vaqt */}
+        {!groupWithNext && (
+          <span className={clsx("mt-1 text-[10.5px] font-medium", isLeft ? "ml-1" : "mr-1")} style={{ color: "var(--muted)" }}>
+            {m.sender === "ai" ? "AI · " : m.sender === "operator" ? "Operator · " : ""}
+            {fmtTime(m.created_at)}
+          </span>
+        )}
+      </div>
+
+      {/* o'ng avatar — guruh oxirida */}
+      {!isLeft && <span className={clsx(!groupWithNext ? "opacity-100" : "opacity-0")}><Avatar m={m} custName={custName} /></span>}
     </div>
   );
 }
@@ -37,7 +186,9 @@ export default function ChatPage() {
   const [asCustomer, setAsCustomer] = useState(false);
   const [sending, setSending] = useState(false);
   const [typing, setTyping] = useState(false);
+  const [reactions, setReactions] = useState<Record<number, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const loadList = useCallback(async () => {
     try {
@@ -119,6 +270,13 @@ export default function ChatPage() {
     }
   };
 
+  const copyText = (t: string) => {
+    navigator.clipboard?.writeText(t).then(
+      () => showToast("Nusxalandi"),
+      () => showToast("Nusxalab bo'lmadi")
+    );
+  };
+
   const q = search.trim().toLowerCase();
   const fConvs = q
     ? convs.filter((c) =>
@@ -131,108 +289,160 @@ export default function ChatPage() {
   if (loading) return <FlowerLoader />;
 
   return (
-    <div className="flex h-[80vh] items-stretch gap-4 overflow-hidden">
-      {/* chap panel */}
-      <div className="flex h-full min-h-0 min-w-[230px] max-w-[340px] flex-1 basis-60 flex-col gap-3">
-        <div className="glass flex items-center gap-2 !rounded-[15px] px-3.5 py-1 text-[13px]">
+    <div className="flex h-[80vh] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
+      {/* suhbatlar ro'yxati */}
+      <div className="flex max-h-[30vh] min-h-0 min-w-0 flex-col gap-3 md:max-h-none md:h-full md:min-w-[230px] md:max-w-[340px] md:flex-1 md:basis-60">
+        <div className="glass flex items-center gap-2 !rounded-[14px] px-3.5 py-1 text-[13px]" style={{ color: "var(--muted)" }}>
           <Icon name="search" size={15} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Qidirish — ism yoki @username"
-            className="w-full bg-transparent py-1.5 text-[13px] outline-none placeholder:text-[color:var(--mut)]"
-            style={{ color: "var(--ink)" }}
+            className="w-full bg-transparent py-1.5 text-[13px] outline-none placeholder:text-[color:var(--muted)]"
+            style={{ color: "var(--text)" }}
           />
         </div>
-        <div className="glass flex min-h-0 flex-1 flex-col gap-1 overflow-auto !rounded-[18px] p-2">
+        <div className="glass flex min-h-0 flex-1 flex-col gap-0.5 overflow-auto !rounded-[16px] p-2">
           {fConvs.map((c) => (
-            <button key={c.id} onClick={() => setSelId(c.id)} className={clsx("flex items-center gap-2.5 rounded-xl p-2.5 text-left", selId === c.id && "bg-tint")}>
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-tint text-sm font-bold text-tintink" style={{ borderColor: "var(--line2)" }}>{initials(custName(c))}</div>
+            <button
+              key={c.id}
+              onClick={() => setSelId(c.id)}
+              className={clsx(
+                "flex items-center gap-2.5 rounded-[12px] p-2.5 text-left transition-colors duration-200",
+                selId === c.id ? "bg-[var(--primary-soft)]" : "hover:bg-[var(--hover)]"
+              )}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
+                {initials(custName(c))}
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-[13.5px] font-bold">{custName(c)}</span>
-                  {c.status === "operator" && <span className="rounded-full bg-peach px-1.5 text-[9.5px] font-bold text-peachink">OPERATOR</span>}
-                  {c.status === "closed" && <span className="rounded-full bg-bg2 px-1.5 text-[9.5px] font-bold" style={{ color: "var(--mut)" }}>YOPIQ</span>}
+                  <span className="truncate text-[13.5px] font-semibold" style={{ color: "var(--text)" }}>{custName(c)}</span>
+                  {c.status === "operator" && <span className="rounded-full px-1.5 text-[9.5px] font-bold" style={{ background: "var(--warning-soft)", color: "var(--warning-ink)" }}>OPERATOR</span>}
+                  {c.status === "closed" && <span className="rounded-full px-1.5 text-[9.5px] font-bold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>YOPIQ</span>}
                 </div>
-                <div className="truncate text-xs" style={{ color: "var(--mut)" }}>{c.last_message?.text ?? "…"}</div>
+                <div className="truncate text-xs" style={{ color: "var(--muted)" }}>{c.last_message?.text ?? "…"}</div>
               </div>
-              <div className="text-right">
-                <div className="text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(c.last_message_at)}</div>
-              </div>
+              <div className="text-right text-[11px]" style={{ color: "var(--muted)" }}>{fmtTime(c.last_message_at)}</div>
             </button>
           ))}
-          {fConvs.length === 0 && <EmptyState title="Suhbat topilmadi" sub="Qidiruvni o&apos;zgartirib ko&apos;ring." />}
+          {fConvs.length === 0 && <EmptyState title="Suhbat topilmadi" sub="Qidiruvni o'zgartirib ko'ring." />}
         </div>
       </div>
 
       {/* suhbat oynasi */}
-      <div className="glass flex h-full min-h-0 min-w-[300px] flex-[2] basis-80 flex-col overflow-hidden !rounded-[22px]">
+      <div className="glass flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden !rounded-[18px] md:h-full md:min-w-[300px] md:flex-[2] md:basis-80">
         {conv ? (
           <>
-            <div className="flex items-center gap-3 border-b px-5 py-3.5" style={{ borderColor: "var(--line2)" }}>
-              <div className="flex h-[42px] w-[42px] items-center justify-center rounded-full border bg-tint font-bold text-tintink" style={{ borderColor: "var(--line2)" }}>{initials(custName(conv))}</div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[14.5px] font-bold">
-                  {custName(conv)}{" "}
-                  <span className="text-[12.5px] font-medium" style={{ color: "var(--mut)" }}>@{conv.customer_detail?.instagram_username}</span>
-                </div>
-                {conv.ai_summary && <div className="truncate text-xs font-bold" style={{ color: "var(--acc)" }}>{conv.ai_summary}</div>}
-                <div className="text-xs" style={{ color: "var(--mut)" }}>Instagram DM · {conv.customer_detail?.masked_phone || "tel yo'q"}</div>
+            {/* sarlavha */}
+            <div className="flex items-center gap-3 border-b px-5 py-3.5" style={{ borderColor: "var(--border)" }}>
+              <div className="flex h-[42px] w-[42px] items-center justify-center rounded-full border font-bold" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
+                {initials(custName(conv))}
               </div>
-              <span className={clsx("flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-bold", conv.status === "ai" ? "bg-mint text-mintink" : conv.status === "operator" ? "bg-peach text-peachink" : "bg-bg2")}>
-                <span className={clsx("h-[7px] w-[7px] rounded-full", conv.status === "ai" ? "bg-mintink" : conv.status === "operator" ? "bg-peachink" : "")} style={conv.status === "closed" ? { background: "var(--mut)" } : undefined} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14.5px] font-bold" style={{ color: "var(--text)" }}>
+                  {custName(conv)}{" "}
+                  <span className="text-[12.5px] font-medium" style={{ color: "var(--muted)" }}>@{conv.customer_detail?.instagram_username}</span>
+                </div>
+                {conv.ai_summary && <div className="truncate text-xs font-semibold" style={{ color: "var(--text-2)" }}>{conv.ai_summary}</div>}
+                <div className="text-xs" style={{ color: "var(--muted)" }}>Instagram DM · {conv.customer_detail?.masked_phone || "tel yo'q"}</div>
+              </div>
+              <span
+                className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold"
+                style={
+                  conv.status === "ai"
+                    ? { background: "var(--success-soft)", color: "var(--success-ink)", borderColor: "color-mix(in srgb, var(--success) 25%, transparent)" }
+                    : conv.status === "operator"
+                      ? { background: "var(--warning-soft)", color: "var(--warning-ink)", borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)" }
+                      : { background: "var(--surface-2)", color: "var(--muted)", borderColor: "var(--border)" }
+                }
+              >
+                <span className="h-[7px] w-[7px] rounded-full" style={{ background: conv.status === "ai" ? "var(--success)" : conv.status === "operator" ? "var(--warning)" : "var(--muted)" }} />
                 {CONV_STATUS_LABEL[conv.status]}
               </span>
               {conv.status === "ai" && (
-                <button onClick={doHandoff} className="rounded-full border-[1.5px] px-3 py-1.5 text-[11.5px] font-bold hover:bg-peach" style={{ borderColor: "var(--line)" }}>
+                <button onClick={doHandoff} className="rounded-full border px-3 py-1.5 text-[11.5px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
                   Operatorga olish
                 </button>
               )}
               {conv.status === "operator" && (
-                <button onClick={doResumeAi} className="rounded-full border-[1.5px] px-3 py-1.5 text-[11.5px] font-bold hover:bg-mint" style={{ borderColor: "var(--line)" }}>
+                <button onClick={doResumeAi} className="rounded-full border px-3 py-1.5 text-[11.5px] font-bold transition-colors duration-200 hover:bg-[var(--success-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
                   AI&apos;ga qaytarish
                 </button>
               )}
             </div>
 
-            <div className="flex flex-1 flex-col gap-3 overflow-auto p-5">
-              {conv.messages.map((m) => <Bubble key={m.id} m={m} />)}
+            {/* xabarlar */}
+            <div className="flex flex-1 flex-col overflow-auto px-5 pb-4 pt-2">
+              {conv.messages.map((m, i) => {
+                const prev = conv.messages[i - 1];
+                const next = conv.messages[i + 1];
+                return (
+                  <MessageRow
+                    key={m.id}
+                    m={m}
+                    custName={custName(conv)}
+                    groupWithPrev={!!prev && prev.sender === m.sender}
+                    groupWithNext={!!next && next.sender === m.sender}
+                    reaction={reactions[m.id]}
+                    onReact={(id, e) => setReactions((r) => ({ ...r, [id]: r[id] === e ? "" : e }))}
+                    onCopy={copyText}
+                  />
+                );
+              })}
               {typing && (
-                <div className="flex">
-                  <div className="flex items-center gap-1.5 rounded-[18px] rounded-bl-[5px] px-4 py-3.5" style={{ background: "linear-gradient(135deg,var(--acc),var(--accL))" }}>
+                <div className="mt-4 flex items-end justify-end gap-2">
+                  <div className="flex items-center gap-1.5 rounded-[16px] rounded-br-[6px] px-4 py-3.5" style={{ background: "var(--primary)" }}>
                     {[0, 0.2, 0.4].map((d) => <span key={d} className="h-1.5 w-1.5 animate-blink rounded-full bg-white" style={{ animationDelay: `${d}s` }} />)}
                   </div>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: "var(--primary)" }}>AI</span>
                 </div>
               )}
               <div ref={bottomRef} />
             </div>
 
-            <div className="border-t px-4 py-3" style={{ borderColor: "var(--line2)" }}>
+            {/* sticky kiritish paneli */}
+            <div className="border-t px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
               <div className="mb-2 flex items-center gap-2">
-                <button onClick={() => setAsCustomer(false)} className={clsx("rounded-full px-3 py-1 text-[11px] font-bold", !asCustomer ? "text-white" : "")} style={!asCustomer ? { background: "var(--acc)" } : { color: "var(--mut)" }}>
+                <button onClick={() => setAsCustomer(false)} className={clsx("rounded-full px-3 py-1 text-[11px] font-bold transition-colors duration-200", !asCustomer ? "text-white" : "hover:bg-[var(--hover)]")} style={!asCustomer ? { background: "var(--primary)" } : { color: "var(--muted)" }}>
                   Operator sifatida
                 </button>
-                <button onClick={() => setAsCustomer(true)} className={clsx("rounded-full px-3 py-1 text-[11px] font-bold", asCustomer ? "text-white" : "")} style={asCustomer ? { background: "var(--side)" } : { color: "var(--mut)" }}>
+                <button onClick={() => setAsCustomer(true)} className={clsx("rounded-full px-3 py-1 text-[11px] font-bold transition-colors duration-200", asCustomer ? "text-white" : "hover:bg-[var(--hover)]")} style={asCustomer ? { background: "var(--side)" } : { color: "var(--muted)" }}>
                   ▶ Demo: mijoz sifatida (AI javob beradi)
                 </button>
               </div>
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
+                <input ref={fileRef} type="file" className="hidden" onChange={(e) => { if (e.target.files?.length) showToast(`"${e.target.files[0].name}" — ilova yuborish backend ulanganda ishlaydi`); e.target.value = ""; }} />
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  title="Fayl biriktirish"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 hover:bg-[var(--hover)]"
+                  style={{ borderColor: "var(--border)", color: "var(--text-2)", background: "var(--surface-solid)" }}
+                >
+                  <Icon name="attachment" size={16} />
+                </button>
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
                   placeholder={asCustomer ? "Mijoz xabari — AI jonli javob beradi…" : "Operator javobi…"}
-                  className="flex-1 rounded-full border bg-bg2 px-4 py-2.5 text-[13px] outline-none placeholder:text-[color:var(--mut)]"
-                  style={{ borderColor: "var(--line2)", color: "var(--ink)" }}
+                  className="h-10 flex-1 rounded-full border px-4 text-[13px] outline-none transition-shadow duration-200 placeholder:text-[color:var(--muted)] focus:shadow-[0_0_0_3px_var(--focus)]"
+                  style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--surface-solid)" }}
                 />
-                <button onClick={send} disabled={sending || !text.trim()} className="flex h-10 w-10 items-center justify-center rounded-full text-white disabled:opacity-50" style={{ background: "var(--acc)" }}>
+                <button
+                  onClick={send}
+                  disabled={sending || !text.trim()}
+                  aria-label="Yuborish"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-xs transition-all duration-200 hover:-translate-y-px hover:shadow-sm disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
+                  style={{ background: "var(--primary)" }}
+                >
                   <Icon name="send" size={16} />
                 </button>
               </div>
             </div>
           </>
         ) : (
-          <p className="m-auto max-w-[290px] text-center text-[13.5px] leading-relaxed" style={{ color: "var(--mut)" }}>
+          <p className="m-auto max-w-[290px] text-center text-[13.5px] leading-relaxed" style={{ color: "var(--muted)" }}>
             {convs.length ? "Suhbat yuklanmoqda…" : "Hozircha suhbat yo'q — Instagram webhook ulanganda DM'lar shu yerda ko'rinadi."}
           </p>
         )}

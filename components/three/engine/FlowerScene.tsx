@@ -6,7 +6,6 @@ import FlowerParticles from "./FlowerParticles";
 import BloomController from "./BloomController";
 import GodRays from "./GodRays";
 import PetalRelease from "./PetalRelease";
-import { useSeason } from "./SeasonController";
 import RealisticFlower from "../RealisticFlower";
 
 /**
@@ -39,13 +38,12 @@ export default function FlowerScene({
   prefer?: string;
 }) {
   const reduced = usePrefersReducedMotion();
-  const season = useSeason();
   return (
     <SceneController
       camera={{ position: [0, 0.2, 5.2], fov: 42 }}
       dpr={[1, 1.75]}
       parallax={parallaxCamera ? 0.6 : 0}
-      windBase={season.wind}
+      windBase={0.5}
       lowPower={false}
       reducedMotion={reduced}
     >
