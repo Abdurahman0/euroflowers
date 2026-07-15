@@ -63,14 +63,14 @@ export default function FlowerBackground() {
         style={{ opacity: `calc(var(--fog-k, 0.32) * ${dark ? 0.4 : 0.75})` }}
       />
 
-      {/* 3-qatlam: barg-soyalar + katta haqiqiy gullar (DOM parallaks) */}
+      {/* 3-qatlam: pastki gidrangealar + o'ng-yuqori piyon (fon suratlari) */}
       <BackgroundFlowers />
 
-      {/* 4-qatlam: 3D — haqiqiy gulbarglar + changcha */}
+      {/* 4-qatlam: 3D — kam sonli gulbarg + changcha (nozik atmosfera) */}
       <SceneController parallax={1} windBase={season.wind} reducedMotion={reduced}>
         <LightingController intensity={dark ? 0.7 : 1} moving={!reduced} dark={dark} />
-        <RealPetals count={44} reducedMotion={reduced} />
-        <FlowerParticles count={70} reducedMotion={reduced} />
+        <RealPetals count={16} opacity={0.4} reducedMotion={reduced} />
+        <FlowerParticles count={50} reducedMotion={reduced} />
       </SceneController>
     </div>
   );

@@ -19,6 +19,8 @@
  */
 export { default as FlowerScene } from "./FlowerScene";
 export { default as FlowerBackground } from "./FlowerBackground";
+export { default as BotanicalGarden } from "./BotanicalGarden";
+export { default as GardenFlora } from "./GardenFlora";
 export { default as SceneController, usePrefersReducedMotion } from "./SceneController";
 export { default as WindController, useWind } from "./WindController";
 export { default as LightingController } from "./LightingController";

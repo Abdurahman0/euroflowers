@@ -7,7 +7,6 @@ import { fmt, fmtTime, initials } from "@/lib/format";
 import { STATUS_BADGE, STATUS_LABEL } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import FlowerLoader from "@/components/FlowerLoader";
-import CornerFlora from "@/components/CornerFlora";
 import MiniBloom from "@/components/MiniBloom";
 import type { Dashboard } from "@/lib/types";
 
@@ -46,7 +45,6 @@ export default function DashboardPage() {
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="relative">
-      <CornerFlora />
       <motion.div variants={rise} className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(205px,1fr))" }}>
         {stats.map((s, i) => (
           <Link key={s.label} href={s.href} className={`glass-lite card-hover group relative block overflow-hidden p-4 ${s.cls}`} style={{ background: statBg[i] }}>

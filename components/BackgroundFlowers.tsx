@@ -11,7 +11,6 @@ import { FLOWER_PHOTOS } from "@/components/three/engine/assets";
 
 const FLOWERS = [
   { src: FLOWER_PHOTOS.peony, cls: "right-[-46px] top-[10%] w-[330px] animate-sway origin-bottom", depth: 5, op: [0.5, 0.36], dur: "17s" },
-  { src: FLOWER_PHOTOS.pinkRose, cls: "left-[30%] top-[-70px] w-[260px] animate-spin-slow", depth: 3, op: [0.42, 0.3], dur: "90s" },
   { src: FLOWER_PHOTOS.hydrangeaPink, cls: "bottom-[-52px] left-[20%] w-[320px] animate-sway origin-bottom", depth: 6, op: [0.52, 0.38], dur: "19s" },
   { src: FLOWER_PHOTOS.hydrangeaWhite, cls: "bottom-[-48px] left-[47%] w-[260px] animate-sway origin-bottom", depth: 4, op: [0.46, 0.32], dur: "21s" },
   { src: FLOWER_PHOTOS.hydrangeaBlue, cls: "bottom-[-38px] right-[5%] w-[290px] animate-sway origin-bottom", depth: 7, op: [0.48, 0.34], dur: "23s" },

@@ -60,7 +60,7 @@ export default function PetalBurst() {
             size: 14 + Math.random() * 22,
             dur: 9 + Math.random() * 8,
             delay: Math.random() * 2.5,
-            opacity: 0.3 + Math.random() * 0.4,
+            opacity: 0.12 + Math.random() * 0.14,
             spin: (Math.random() - 0.5) * 720,
             wave: 30 + Math.random() * 90,
             tex: texes[Math.floor(Math.random() * texes.length)] ?? PETAL_TEXTURES.blush,

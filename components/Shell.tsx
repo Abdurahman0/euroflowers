@@ -14,6 +14,8 @@ import PetalBurst from "./PetalBurst";
 
 const AmbientScene = dynamic(() => import("./three/AmbientScene"), { ssr: false });
 const ParallaxController = dynamic(() => import("./three/engine/ParallaxController"), { ssr: false });
+const BotanicalGarden = dynamic(() => import("./three/engine/BotanicalGarden"), { ssr: false });
+const PremiumPeony = dynamic(() => import("./flowers/PremiumPeony"), { ssr: false });
 
 /** Butun ilova qobig'i: tema CSS o'zgaruvchilari, tirik fon, auth-guard, sidebar + main panel. */
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -89,13 +91,34 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex h-screen gap-4 overflow-hidden p-3.5 box-border">
       <ParallaxController />
-      <AmbientScene />
+
+      {/* ===== FON STEKI (z-0) — barcha botanika shu yerda, "fonga bosilgan" ===== */}
+      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
+        {/* atmosfera: gradientlar, tuman, siyrak gulbarglar */}
+        <AmbientScene />
+        {/* botanika bog'i: daraxtlar, barglar, uzoq gul (kuchli blur) */}
+        <BotanicalGarden />
+        {/* yaqin fon guli: premium piyon — biroz tiniqroq, baribir fonda */}
+        <PremiumPeony />
+      </div>
+
+      {/* ===== SHISHA VUAL (z-[1]) — juda yengil tekislovchi qatlam (blur YO'Q, gullar ko'rinadi) ===== */}
+      <div
+        className="pointer-events-none absolute inset-0 z-[1]"
+        aria-hidden
+        style={{ background: "color-mix(in srgb, var(--bg) 6%, transparent)" }}
+      />
+
       <PetalBurst />
+
+      {/* ===== UI (z-10+) — har doim fokusda ===== */}
       <Sidebar />
       <main className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[26px]">
-        <Header />
-        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-10 pt-6">
-          {userLoading && !user ? <FlowerLoader /> : children}
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+          <Header />
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-10 pt-6">
+            {userLoading && !user ? <FlowerLoader /> : children}
+          </div>
         </div>
       </main>
       <Toast />
