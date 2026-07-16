@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { api } from "@/lib/api";
-import { useStore } from "@/lib/store";
+import { api, ApiError } from "@/lib/api";
+import { usePerm, useStore } from "@/lib/store";
+import UserModal from "@/components/UserModal";
+import { AISettingsSection, AuditSection, InstagramEventsSection, IntegrationsSection } from "@/components/DevSections";
 import { fmt, fmtDate, initials } from "@/lib/format";
 import { ROLE_LABEL } from "@/components/badges";
 import type { Branch, BusinessSettings, InstagramSettings, Packaging, User } from "@/lib/types";
@@ -23,6 +25,9 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 
 export default function SozlamalarPage() {
   const { user, showToast } = useStore();
+  const { canControl } = usePerm();
+  const usersControl = canControl("users");
+  const [userModal, setUserModal] = useState<{ open: boolean; edit: User | null }>({ open: false, edit: null });
   const [branches, setBranches] = useState<Branch[]>([]);
   const [packaging, setPackaging] = useState<Packaging[]>([]);
   const [team, setTeam] = useState<User[]>([]);
@@ -73,6 +78,24 @@ export default function SozlamalarPage() {
   };
 
   const fullName = (u: User) => [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username;
+
+  const deactivate = async (u: User) => {
+    try {
+      const upd = await api.deactivateUser(u.id);
+      setTeam((ts) => ts.map((x) => (x.id === u.id ? { ...x, ...upd, is_active: false } : x)));
+      showToast(`✓ ${fullName(u)} nofaollashtirildi`);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "Amalga oshmadi");
+    }
+  };
+
+  const onUserSaved = (u: User) => {
+    setTeam((ts) => {
+      const i = ts.findIndex((x) => x.id === u.id);
+      return i >= 0 ? ts.map((x) => (x.id === u.id ? u : x)) : [...ts, u];
+    });
+    setUserModal({ open: false, edit: null });
+  };
 
   return (
     <div className="grid items-start gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}>
@@ -154,10 +177,17 @@ export default function SozlamalarPage() {
 
       {/* Jamoa — serverdan */}
       <section className="glass p-5">
-        <h2 className="mb-3.5 text-base font-bold">Jamoa</h2>
+        <div className="mb-3.5 flex items-center justify-between">
+          <h2 className="text-base font-bold">Jamoa</h2>
+          {usersControl && (
+            <button onClick={() => setUserModal({ open: true, edit: null })} className="rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white transition-transform duration-200 hover:-translate-y-px" style={{ background: "var(--primary)" }}>
+              + Xodim
+            </button>
+          )}
+        </div>
         <div className="flex flex-col gap-3">
           {team.map((u) => (
-            <div key={u.id} className="flex items-center gap-3">
+            <div key={u.id} className="group flex items-center gap-3">
               <div className="flex h-9 w-9 -rotate-3 items-center justify-center rounded-xl bg-tint text-[13px] font-bold text-tintink">{initials(fullName(u))}</div>
               <div className="min-w-0 flex-1">
                 <div className="text-[13.5px] font-bold">
@@ -170,6 +200,18 @@ export default function SozlamalarPage() {
               <span className="rounded-full border bg-tint px-3 py-0.5 text-[11px] font-bold text-tintink" style={{ borderColor: "var(--line2)" }}>
                 {ROLE_LABEL[u.profile?.role] ?? u.profile?.role ?? "—"}
               </span>
+              {usersControl && (
+                <span className="flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <button onClick={() => setUserModal({ open: true, edit: u })} title="Tahrirlash" className="rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
+                    ✎
+                  </button>
+                  {u.is_active !== false && u.id !== user?.id && (
+                    <button onClick={() => deactivate(u)} title="Nofaollashtirish" className="rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-[var(--danger-soft)]" style={{ borderColor: "var(--border)", color: "var(--danger-ink)" }}>
+                      ⏻
+                    </button>
+                  )}
+                </span>
+              )}
             </div>
           ))}
           {team.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Yuklanmoqda…</p>}
@@ -216,6 +258,16 @@ export default function SozlamalarPage() {
           <b>{user?.profile.branches.map((b) => b.code).join(", ") || "—"}</b>
         </div>
       </section>
+
+      {/* Developer / audit bo'limlari — ruxsatga qarab ko'rinadi */}
+      <AISettingsSection />
+      <IntegrationsSection />
+      <InstagramEventsSection />
+      <AuditSection />
+
+      {userModal.open && (
+        <UserModal editUser={userModal.edit} branches={branches} onClose={() => setUserModal({ open: false, edit: null })} onSaved={onUserSaved} />
+      )}
     </div>
   );
 }

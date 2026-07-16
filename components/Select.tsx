@@ -43,7 +43,7 @@ export default function Select({
         <span className={`text-[10px] opacity-60 transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
       </button>
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[212px] overflow-auto rounded-[14px] border border-white/28 shadow-2xl backdrop-blur-3xl" style={{ background: "rgba(26,20,40,.92)" }}>
+        <div data-lenis-prevent className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[212px] overflow-y-auto overscroll-contain rounded-[14px] border border-white/28 shadow-2xl backdrop-blur-3xl" style={{ background: "rgba(26,20,40,.92)" }}>
           {options.map((o) => (
             <button
               key={o.value}

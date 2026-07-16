@@ -7,6 +7,8 @@ import { useStore } from "@/lib/store";
 import { dateAfterParam, fmt, fmtDate, fmtTime } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import KirimModal from "@/components/KirimModal";
+import BatchDrawer from "@/components/BatchDrawer";
+import { Icon } from "@/components/icons";
 import type { StockBatch, StockMovement } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
@@ -20,6 +22,8 @@ export default function SkladPage() {
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [kirimOpen, setKirimOpen] = useState(false);
+  const [selBatch, setSelBatch] = useState<StockBatch | null>(null);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -39,6 +43,14 @@ export default function SkladPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const q = search.trim().toLowerCase();
+  const fBatches = q
+    ? batches.filter((b) => {
+        const v = b.variant_detail;
+        return [v?.flower_detail?.name_uz, v?.name_uz, v?.color_uz, b.batch_number, b.branch_detail?.name]
+          .some((x) => (x ?? "").toLowerCase().includes(q));
+      })
+    : batches;
   const total = batches.reduce((a, b) => a + b.remaining_stems, 0);
   const lows = batches.filter((b) => b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2);
   const fMoves = moves;
@@ -52,6 +64,17 @@ export default function SkladPage() {
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada
         </p>
         <div className="ml-auto flex items-center gap-2">
+          <div className="glass flex items-center gap-2 !rounded-[12px] px-3 py-0.5 text-[13px]" style={{ color: "var(--muted)" }}>
+            <Icon name="search" size={14} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Qidirish…"
+              className="w-[150px] bg-transparent py-1.5 outline-none placeholder:text-[color:var(--muted)]"
+              style={{ color: "var(--text)" }}
+              aria-label="Partiya qidirish"
+            />
+          </div>
           <DateChips />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
             ＋ Keldi qilish
@@ -61,11 +84,18 @@ export default function SkladPage() {
 
       {/* partiya kartalari */}
       <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(255px,1fr))" }}>
-        {batches.map((b) => {
+        {fBatches.map((b) => {
           const low = b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2;
           const v = b.variant_detail;
           return (
-            <article key={b.id} className="glass card-hover flex flex-col overflow-hidden !rounded-[18px]">
+            <article
+              key={b.id}
+              onClick={() => setSelBatch(b)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && setSelBatch(b)}
+              className="glass card-hover flex cursor-pointer flex-col overflow-hidden !rounded-[18px] text-left"
+            >
               <div className="relative h-[120px] bg-bg2">
                 {(b.image_url || v?.image_url) && <img src={b.image_url || v.image_url} alt={v?.name_uz} className="h-full w-full object-cover" />}
                 {b.remaining_stems === 0 && <span className="absolute right-2 top-2 rotate-2 rounded-full border border-[#221833] bg-[#5a5a5a] px-2.5 py-0.5 text-[10px] font-bold text-white">TUGADI</span>}
@@ -97,7 +127,14 @@ export default function SkladPage() {
             </article>
           );
         })}
-        {batches.length === 0 && <div className="col-span-full"><EmptyState title="Skladda faol partiya yo&apos;q" sub="«Keldi qilish» orqali birinchi partiyani kiriting." /></div>}
+        {fBatches.length === 0 && (
+          <div className="col-span-full">
+            <EmptyState
+              title={q ? "Qidiruvga mos partiya topilmadi" : "Skladda faol partiya yo'q"}
+              sub={q ? "Boshqa so'z bilan urinib ko'ring." : "«Keldi qilish» orqali birinchi partiyani kiriting."}
+            />
+          </div>
+        )}
       </div>
 
       {/* jurnal — timeline */}
@@ -134,6 +171,16 @@ export default function SkladPage() {
       </section>
 
       {kirimOpen && <KirimModal onClose={() => setKirimOpen(false)} onSaved={load} />}
+      {selBatch && (
+        <BatchDrawer
+          batch={selBatch}
+          onClose={() => setSelBatch(null)}
+          onChanged={(upd) => {
+            if (upd) setBatches((bs) => bs.map((x) => (x.id === upd.id ? upd : x)));
+            else load();
+          }}
+        />
+      )}
     </>
   );
 }

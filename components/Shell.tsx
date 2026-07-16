@@ -121,7 +121,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <main className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[26px]">
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
           <Header />
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-10 pt-6">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-10 pt-6" style={{ scrollbarGutter: "stable" }}>
             {userLoading && !user ? <FlowerLoader /> : children}
           </div>
         </div>

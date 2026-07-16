@@ -1,20 +1,26 @@
 "use client";
 import type {
-  AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard, Flower,
-  FlowerVariant, InstagramSettings, Lead, Message, Notification, Packaging, Paginated, SocialPost,
-  StockBatch, StockMovement, UploadResponse, User,
+  AISettings, AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
+  Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, Message,
+  Notification, Packaging, PagePermission, Paginated, SocialPost, StockBatch, StockMovement,
+  UploadResponse, User,
 } from "./types";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://192.168.1.5:8000";
+/**
+ * API asosi:
+ *   production — https://euroflowers.api.cognilabs.org (Swagger: /api/docs/)
+ *   lokal      — NEXT_PUBLIC_API_URL=http://192.168.1.5:8000 (kontraktdagi dev manzil)
+ */
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://euroflowers.api.cognilabs.org";
 
 /**
- * DEMO REJIM — dizaynni backend'siz ko'rish uchun.
- * true  → hech qanday tarmoq so'rovi ketmaydi, hamma javob lib/demo.ts dan.
- * false → haqiqiy API'ga qaytadi (backend tayyor bo'lganda shuni qiling).
+ * DEMO REJIM — faqat NEXT_PUBLIC_DEMO=1 bo'lganda yoqiladi (dizayn ko'rish uchun).
+ * Standart: haqiqiy backend.
  */
-export const DEMO_MODE = true;
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO === "1";
 
 const TOKEN_KEY = "ef_tokens";
+const REQUEST_TIMEOUT_MS = 20000;
 
 type Tokens = { access: string; refresh: string };
 
@@ -41,15 +47,50 @@ export function isLoggedIn(): boolean {
   return getTokens() != null;
 }
 
+/** DRF maydon xatolarini {maydon: xabar} ko'rinishiga tekislaydi. */
+function extractFieldErrors(body: unknown): Record<string, string> | undefined {
+  if (typeof body !== "object" || body == null || Array.isArray(body)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
+    if (typeof v === "string") out[k] = v;
+    else if (Array.isArray(v) && v.length && typeof v[0] === "string") out[k] = v.join(" ");
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function statusMessage(status: number, body: unknown): string {
+  if (typeof body === "object" && body != null && "detail" in body) {
+    return String((body as { detail: unknown }).detail);
+  }
+  const fields = extractFieldErrors(body);
+  if (fields) {
+    // masalan, dublikat post: {"media_id": "Bu Instagram media allaqachon ..."}
+    return Object.values(fields).join(" · ");
+  }
+  switch (status) {
+    case 400: return "So'rov noto'g'ri — maydonlarni tekshiring";
+    case 401: return "Sessiya tugadi — qayta kiring";
+    case 403: return "Ruxsat yo'q — bu amal uchun huquqingiz yetarli emas";
+    case 404: return "Topilmadi";
+    case 409: return "Konflikt — yozuv boshqa joyda o'zgartirilgan, sahifani yangilang";
+    case 422: return "Ma'lumot qabul qilinmadi — maydonlarni tekshiring";
+    case 429: return "Juda ko'p so'rov — bir necha soniyadan so'ng urinib ko'ring";
+    default:
+      if (status >= 500) return "Server xatosi — birozdan so'ng urinib ko'ring";
+      return `API xatosi (${status})`;
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
+  /** forma maydonlariga bog'lash uchun: {media_id: "Bu Instagram media allaqachon ..."} */
+  fieldErrors?: Record<string, string>;
   constructor(status: number, body: unknown) {
-    super(typeof body === "object" && body != null && "detail" in body
-      ? String((body as { detail: unknown }).detail)
-      : `API xatosi (${status})`);
+    super(statusMessage(status, body));
     this.status = status;
     this.body = body;
+    this.fieldErrors = extractFieldErrors(body);
   }
 }
 
@@ -91,6 +132,10 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
     const { demoRequest } = await import("./demo");
     return demoRequest<T>(path, init);
   }
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    throw new ApiError(0, { detail: "Internet aloqasi yo'q — tarmoqni tekshiring" });
+  }
+
   const t = getTokens();
   const headers: Record<string, string> = {
     ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
@@ -98,11 +143,19 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   };
   if (t) headers.Authorization = `Bearer ${t.access}`;
 
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
-  } catch {
-    throw new ApiError(0, { detail: "Server bilan aloqa yo'q — tarmoqni tekshiring" });
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers, signal: ctrl.signal });
+  } catch (e) {
+    const aborted = e instanceof DOMException && e.name === "AbortError";
+    throw new ApiError(0, {
+      detail: aborted ? "So'rov vaqti tugadi — internet sekin yoki server javob bermayapti" : "Server bilan aloqa yo'q — tarmoqni tekshiring",
+    });
+  } finally {
+    clearTimeout(timer);
   }
 
   if (res.status === 401 && retry && t) {
@@ -128,27 +181,60 @@ const qs = (params?: Record<string, string | number | boolean | undefined>) => {
 
 type Params = Record<string, string | number | boolean | undefined>;
 
-// fetch one big page; enough for this CRM's data volumes
-const list = <T,>(path: string, params?: Params) =>
-  request<Paginated<T>>(`${path}${qs({ page_size: 200, ...params })}`).then((r) => r.results);
+// bitta katta sahifa yetarli; count oshsa keyingi sahifalar ham olinadi (maks 5)
+const list = async <T,>(path: string, params?: Params): Promise<T[]> => {
+  const first = await request<Paginated<T>>(`${path}${qs({ page_size: 200, ...params })}`);
+  const out = [...first.results];
+  let next = first.next;
+  let guard = 0;
+  while (next && guard < 4) {
+    const url = next.startsWith("http") ? next.slice(next.indexOf("/api/")) : next;
+    const page = await request<Paginated<T>>(url);
+    out.push(...page.results);
+    next = page.next;
+    guard++;
+  }
+  return out;
+};
 
 // ===== Auth =====
 
-export async function login(username: string, password: string): Promise<void> {
+/**
+ * Kirish. Kontrakt bo'yicha javobda `user` va `permissions` ham keladi
+ * (Swagger sxemasi buni ko'rsatmaydi — kontrakt ustuvor, shu sababli
+ * user'ni ixtiyoriy sifatida o'qiymiz; bo'lmasa /api/me/ ga tayaniladi).
+ */
+export async function login(username: string, password: string): Promise<User | null> {
   if (DEMO_MODE) {
-    // istalgan login/parol qabul qilinadi — dizaynni ko'rish uchun
     await new Promise((r) => setTimeout(r, 600));
     setTokens({ access: "demo-access", refresh: "demo-refresh" });
-    return;
+    return null;
   }
-  const res = await fetch(`${API_BASE}/api/auth/token/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/auth/token/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    const aborted = e instanceof DOMException && e.name === "AbortError";
+    throw new ApiError(0, { detail: aborted ? "So'rov vaqti tugadi" : "Server bilan aloqa yo'q — tarmoqni tekshiring" });
+  } finally {
+    clearTimeout(timer);
+  }
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, body);
-  setTokens(body as Tokens);
+  const data = body as Tokens & { user?: User; permissions?: PagePermission[] };
+  setTokens({ access: data.access, refresh: data.refresh });
+  if (data.user) {
+    // top-level permissions ham bo'lishi mumkin — user ichidagiga ustama qilamiz
+    return { ...data.user, permissions: data.user.permissions ?? data.permissions };
+  }
+  return null;
 }
 
 export function logout() {
@@ -190,12 +276,19 @@ export const api = {
     request<FlowerVariant>("/api/flower-variants/", { method: "POST", body: JSON.stringify(data) }),
   createFlower: (data: Partial<Flower>) =>
     request<Flower>("/api/flowers/", { method: "POST", body: JSON.stringify(data) }),
+  updateFlower: (id: number, data: Partial<Flower>) =>
+    request<Flower>(`/api/flowers/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  updateFlowerVariant: (id: number, data: Partial<FlowerVariant>) =>
+    request<FlowerVariant>(`/api/flower-variants/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
   stockBatches: (p?: Params) => list<StockBatch>("/api/stock-batches/", p),
   createStockBatch: (data: Partial<StockBatch>) =>
     request<StockBatch>("/api/stock-batches/", { method: "POST", body: JSON.stringify(data) }),
   updateStockBatch: (id: number, data: Partial<StockBatch>) =>
     request<StockBatch>(`/api/stock-batches/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  /** kontrakt tavsiyasi: o'chirish o'rniga PATCH {is_active:false} */
+  deactivateStockBatch: (id: number) =>
+    request<StockBatch>(`/api/stock-batches/${id}/`, { method: "PATCH", body: JSON.stringify({ is_active: false }) }),
   batchMovement: (id: number, data: Partial<StockMovement>) =>
     request<StockBatch>(`/api/stock-batches/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
 
@@ -216,6 +309,8 @@ export const api = {
     request<SocialPost>("/api/social-posts/", { method: "POST", body: JSON.stringify(data) }),
   updateSocialPost: (id: number, data: Partial<SocialPost>) =>
     request<SocialPost>(`/api/social-posts/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteSocialPost: (id: number) =>
+    request<void>(`/api/social-posts/${id}/`, { method: "DELETE" }),
 
   conversations: (p?: Params) => list<Conversation>("/api/conversations/", p),
   conversation: (id: number) => request<Conversation>(`/api/conversations/${id}/`),
@@ -242,9 +337,29 @@ export const api = {
   deactivateUser: (id: number) =>
     request<User>(`/api/users/${id}/deactivate/`, { method: "POST", body: "{}" }),
 
+  /** sahifa ruxsatlari (kontrakt: GET/POST/PATCH /api/permissions/) */
+  permissions: (p?: Params) => list<PagePermission>("/api/permissions/", p),
+  createPermission: (data: Partial<PagePermission>) =>
+    request<PagePermission>("/api/permissions/", { method: "POST", body: JSON.stringify(data) }),
+  updatePermission: (id: number, data: Partial<PagePermission>) =>
+    request<PagePermission>(`/api/permissions/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+
   instagramStatus: () => request<InstagramSettings>("/api/instagram/status/"),
   updateInstagramStatus: (data: Partial<InstagramSettings>) =>
     request<InstagramSettings>("/api/instagram/status/", { method: "PATCH", body: JSON.stringify(data) }),
+
+  /** Instagram webhook hodisalari — developer debug jadvali (kontrakt) */
+  instagramEvents: (p?: Params) => list<InstagramEvent>("/api/instagram/events/", p),
+
+  /** AI sozlamalari — faqat developer (kontrakt) */
+  aiSettings: () => request<AISettings>("/api/ai/settings/"),
+  updateAiSettings: (data: Partial<AISettings>) =>
+    request<AISettings>("/api/ai/settings/", { method: "PATCH", body: JSON.stringify(data) }),
+
+  /** Integratsiya kalitlari — faqat developer (kontrakt) */
+  integrations: () => request<IntegrationSettings>("/api/integrations/"),
+  updateIntegrations: (data: Partial<IntegrationSettings>) =>
+    request<IntegrationSettings>("/api/integrations/", { method: "PATCH", body: JSON.stringify(data) }),
 
   settings: () => request<BusinessSettings>("/api/settings/"),
   updateSettings: (data: Partial<BusinessSettings>) =>
@@ -257,6 +372,13 @@ export const api = {
   },
 
   packaging: (p?: Params) => list<Packaging>("/api/packaging/", p),
+  createPackaging: (data: Partial<Packaging>) =>
+    request<Packaging>("/api/packaging/", { method: "POST", body: JSON.stringify(data) }),
+  updatePackaging: (id: number, data: Partial<Packaging>) =>
+    request<Packaging>(`/api/packaging/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
   audit: (p?: Params) => list<AuditLog>("/api/audit/", p),
+
+  // Eslatma: /api/mini-app/* endpointlari Telegram mini-ilova uchun
+  // (init_data imzosi talab qilinadi) — CRM interfeysidan chaqirilmaydi.
 };

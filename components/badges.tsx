@@ -47,6 +47,7 @@ export const ARRANGEMENT_LABEL: Record<string, string> = {
 };
 
 export const ROLE_LABEL: Record<string, string> = {
+  developer: "Developer",
   admin: "Administrator",
   operator: "Operator",
   florist: "Florist",

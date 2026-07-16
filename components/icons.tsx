@@ -2,6 +2,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
+  FlowerPotIcon,
   Attachment01Icon,
   BubbleChatIcon,
   Copy01Icon,
@@ -34,6 +35,8 @@ const ICONS: Record<string, typeof FlowerIcon> = {
   crm: UserGroupIcon,
   sklad: PackageIcon,
   katalog: FlowerIcon,
+  gullar: FlowerPotIcon,
+  bildirishnomalar: Notification03Icon,
   postlar: Image01Icon,
   sozlamalar: Settings01Icon,
   bell: Notification03Icon,

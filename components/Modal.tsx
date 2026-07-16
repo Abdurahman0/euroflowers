@@ -51,13 +51,14 @@ export default function Modal({ children, onClose, width = 540 }: { children: Re
         style={{ background: "rgba(24, 17, 12, .4)", backdropFilter: "blur(10px) saturate(1.15)" }}
         role="dialog"
         aria-modal="true"
+        data-lenis-prevent
       >
         <motion.div
           onClick={(e) => e.stopPropagation()}
           initial={{ opacity: 0, y: 26, scale: 0.96 }}
           animate={closing ? { opacity: 0, y: 12, scale: 0.97 } : { opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: closing ? 0.2 : 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="glass-modal max-h-[90vh] overflow-auto p-6"
+          className="glass-modal max-h-[90vh] overflow-y-auto overscroll-contain p-6"
           style={{ width: `min(${width}px, 100%)` }}
         >
           {children}

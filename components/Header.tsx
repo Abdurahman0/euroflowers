@@ -14,8 +14,10 @@ const TITLES: Record<string, string> = {
   "/chat": "AI Instagram chatlar",
   "/crm": "CRM — mijozlar va leadlar",
   "/sklad": "Sklad",
+  "/gullar": "Gullar va navlar",
   "/katalog": "Kunlik katalog",
   "/postlar": "Instagram postlar",
+  "/bildirishnomalar": "Bildirishnomalar",
   "/sozlamalar": "Sozlamalar",
 };
 
@@ -177,7 +179,7 @@ export default function Header() {
             )}
           </button>
           {notifOpen && (
-            <div className="glass-modal absolute right-0 top-[46px] z-50 max-h-[70vh] w-[min(410px,90vw)] origin-top-right overflow-auto p-2 animate-[rowIn_0.22s_var(--ease)_both]">
+            <div className="glass-modal absolute right-0 top-[46px] z-50 max-h-[70vh] w-[min(410px,90vw)] origin-top-right overflow-y-auto overscroll-contain p-2 animate-[rowIn_0.22s_var(--ease)_both]" data-lenis-prevent>
               <div className="flex items-center justify-between px-3 pb-1.5 pt-2.5">
                 <span className="text-[15px] font-bold">Bildirishnomalar</span>
                 {unread > 0 && (

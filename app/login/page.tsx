@@ -12,6 +12,7 @@ import { useStore } from "@/lib/store";
 export default function LoginPage() {
   const router = useRouter();
   const loadMe = useStore((s) => s.loadMe);
+  const setUser = useStore((s) => s.setUser);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -24,8 +25,10 @@ export default function LoginPage() {
     setBusy(true);
     setErr("");
     try {
-      await login(username, password);
-      await loadMe();
+      const u = await login(username, password);
+      // kontrakt: token javobida user+permissions keladi; bo'lmasa /api/me/
+      if (u) setUser(u);
+      else await loadMe();
       setSuccess(true);
       setTimeout(() => router.replace("/"), 700);
     } catch (ex) {

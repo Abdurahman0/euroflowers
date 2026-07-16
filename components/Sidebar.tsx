@@ -3,25 +3,28 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import { motion } from "framer-motion";
-import { useStore } from "@/lib/store";
+import { usePerm, useStore } from "@/lib/store";
 import { Icon } from "./icons";
-import type { Role, ScreenId } from "@/lib/types";
+import type { PermissionPage, ScreenId } from "@/lib/types";
 
-const NAV: { id: ScreenId; href: string; label: string; roles: Role[] }[] = [
-  { id: "dashboard", href: "/", label: "Dashboard", roles: ["admin", "operator", "florist", "warehouse", "content"] },
-  { id: "chat", href: "/chat", label: "AI chatlar", roles: ["admin", "operator"] },
-  { id: "crm", href: "/crm", label: "CRM", roles: ["admin", "operator"] },
-  { id: "sklad", href: "/sklad", label: "Sklad", roles: ["admin", "warehouse", "florist"] },
-  { id: "katalog", href: "/katalog", label: "Katalog", roles: ["admin", "operator", "florist", "warehouse", "content"] },
-  { id: "postlar", href: "/postlar", label: "Postlar", roles: ["admin", "operator", "content"] },
-  { id: "sozlamalar", href: "/sozlamalar", label: "Sozlamalar", roles: ["admin"] },
+/** NAV sahifalari backend ruxsat sahifalariga bog'langan (kontrakt: can_view) */
+const NAV: { id: ScreenId; href: string; label: string; page: PermissionPage }[] = [
+  { id: "dashboard", href: "/", label: "Dashboard", page: "dashboard" },
+  { id: "chat", href: "/chat", label: "AI chatlar", page: "conversations" },
+  { id: "crm", href: "/crm", label: "CRM", page: "crm" },
+  { id: "sklad", href: "/sklad", label: "Sklad", page: "inventory" },
+  { id: "gullar", href: "/gullar", label: "Gullar", page: "inventory" },
+  { id: "katalog", href: "/katalog", label: "Katalog", page: "catalog" },
+  { id: "postlar", href: "/postlar", label: "Postlar", page: "social_posts" },
+  { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", page: "notifications" },
+  { id: "sozlamalar", href: "/sozlamalar", label: "Sozlamalar", page: "settings" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { sideOpen, toggleSide, user, notifs } = useStore();
-  const role = user?.profile.role ?? "admin";
+  const { sideOpen, toggleSide, notifs } = useStore();
+  const { canView } = usePerm();
   const yangiLead = notifs.filter((n) => !n.is_read && n.notification_type === "lead").length;
 
   // tor ekranlarda avtomatik yig'iladi — kontent doim ustuvor
@@ -63,7 +66,7 @@ export default function Sidebar() {
 
       {/* nav */}
       <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
-        {NAV.filter((n) => n.roles.includes(role)).map((n) => {
+        {NAV.filter((n) => canView(n.page)).map((n) => {
           const active = pathname === n.href;
           return (
             <button

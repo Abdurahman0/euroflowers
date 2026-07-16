@@ -1,6 +1,21 @@
 // ===== Backend API types (mirror DRF serializers) =====
 
-export type Role = "admin" | "operator" | "florist" | "warehouse" | "content";
+export type Role = "developer" | "admin" | "operator" | "florist" | "warehouse" | "content";
+
+/** Sahifa darajasidagi ruxsatlar (kontrakt: can_view — ochish, can_control — amallar) */
+export type PermissionPage =
+  | "dashboard" | "inventory" | "catalog" | "crm" | "customers" | "conversations"
+  | "social_posts" | "notifications" | "settings" | "ai_settings" | "integrations"
+  | "users" | "mini_app" | "audit";
+
+export type PagePermission = {
+  id?: number;
+  user?: number;
+  page: PermissionPage;
+  label?: string;
+  can_view: boolean;
+  can_control: boolean;
+};
 export type Language = "uz" | "ru";
 
 export type Branch = {
@@ -28,6 +43,8 @@ export type User = {
   email: string;
   is_active?: boolean;
   profile: UserProfile;
+  /** kontrakt: har bir foydalanuvchi sahifa ruxsatlari bilan keladi */
+  permissions?: PagePermission[];
 };
 
 export type Customer = {
@@ -203,6 +220,11 @@ export type SocialPost = {
   is_targeted: boolean;
   is_active: boolean;
   branch: number;
+  /** Instagram bog'lash maydonlari (kontrakt: story/post/reel linking) */
+  instagram_username?: string;
+  story_share_id?: string;
+  webhook_story_id?: string;
+  webhook_story_url?: string;
 };
 
 export type Sender = "customer" | "ai" | "operator" | "system";
@@ -342,9 +364,50 @@ export type BusinessSettings = {
 
 export type UploadResponse = { url: string; path: string };
 
+/** AI sozlamalari — faqat developer (kontrakt) */
+export type AISettings = {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  openai_model: string;
+  system_prompt: string;
+  temperature: number;
+  is_active: boolean;
+};
+
+/** Integratsiya kalitlari — faqat developer (kontrakt) */
+export type IntegrationSettings = {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  instagram_access_token: string;
+  instagram_account_id: string;
+  instagram_business_id: string;
+  instagram_verify_token: string;
+  telegram_bot_token: string;
+  extra: Record<string, unknown> | null;
+};
+
+/** Instagram webhook hodisasi — debug jadvali uchun (kontrakt) */
+export type InstagramEvent = {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  event_type: string;
+  sender_id: string;
+  recipient_id: string;
+  message_id: string;
+  text: string;
+  media_id: string;
+  story_id: string;
+  story_url: string;
+  extracted: Record<string, unknown> | null;
+  raw_payload: Record<string, unknown> | null;
+};
+
 // ===== UI types =====
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "chat" | "crm" | "sklad" | "katalog" | "postlar" | "sozlamalar";
+export type ScreenId = "dashboard" | "chat" | "crm" | "sklad" | "gullar" | "katalog" | "postlar" | "bildirishnomalar" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";

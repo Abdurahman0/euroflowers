@@ -1,8 +1,8 @@
 "use client";
 import type {
-  AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard, Flower,
-  FlowerVariant, InstagramSettings, Lead, Message, Notification, Packaging, Paginated, SocialPost,
-  StockBatch, StockMovement, User,
+  AISettings, AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
+  Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, Message,
+  Notification, Packaging, PagePermission, Paginated, SocialPost, StockBatch, StockMovement, User,
 } from "./types";
 
 /**
@@ -33,8 +33,11 @@ const branches: Branch[] = [
 
 // ===== Foydalanuvchilar =====
 
+const ALL_PAGES = ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "settings", "ai_settings", "integrations", "users", "mini_app", "audit"] as const;
+const fullPerms: PagePermission[] = ALL_PAGES.map((page, i) => ({ id: i + 1, page, can_view: true, can_control: true }));
+
 const users: User[] = [
-  { id: 1, username: "admin", first_name: "Dilnoza", last_name: "Karimova", email: "dilnoza@euroflowers.uz", is_active: true, profile: { role: "admin", language: "uz", branches } },
+  { id: 1, username: "admin", first_name: "Dilnoza", last_name: "Karimova", email: "dilnoza@euroflowers.uz", is_active: true, profile: { role: "admin", language: "uz", branches }, permissions: fullPerms },
   { id: 2, username: "aziza", first_name: "Aziza", last_name: "Tosheva", email: "aziza@euroflowers.uz", is_active: true, profile: { role: "operator", language: "uz", branches: [branches[0]] } },
   { id: 3, username: "malika", first_name: "Malika", last_name: "Yusupova", email: "malika@euroflowers.uz", is_active: true, profile: { role: "florist", language: "ru", branches: [branches[0]] } },
   { id: 4, username: "sardor", first_name: "Sardor", last_name: "Aliyev", email: "sardor@euroflowers.uz", is_active: true, profile: { role: "warehouse", language: "uz", branches: [branches[1]] } },
@@ -302,6 +305,30 @@ const packaging: Packaging[] = [
   { id: 3, created_at: ago(100), updated_at: ago(5), packaging_type: "box", name_uz: "Shlyapa qutisi", name_ru: "Шляпная коробка", size: "M", capacity_min_stems: 11, capacity_max_stems: 31, cost_price: "38000", sale_price: "80000", quantity: 15, image_url: "", is_active: true, branch: 1 },
 ];
 
+const aiSettings: AISettings = {
+  id: 1, created_at: ago(200), updated_at: ago(1),
+  openai_model: "gpt-4o-mini",
+  system_prompt: "Sen EuroFlowers gul do'konining samimiy sotuv yordamchisisan. Narxlarni taxminiy ayt, katta buyurtmalarni operatorga uzat.",
+  temperature: 0.7, is_active: true,
+};
+
+const integrations: IntegrationSettings = {
+  id: 1, created_at: ago(200), updated_at: ago(2),
+  instagram_access_token: "IGQ***demo***",
+  instagram_account_id: "17800001",
+  instagram_business_id: "10203040",
+  instagram_verify_token: "ef-verify",
+  telegram_bot_token: "7000000000:demo",
+  extra: null,
+};
+
+const igEvents: InstagramEvent[] = [
+  { id: 1, created_at: ago(0, 1), updated_at: ago(0, 1), event_type: "message", sender_id: "17801", recipient_id: "17800001", message_id: "mid.1", text: "101 dona qizil atirgul bormi?", media_id: "", story_id: "", story_url: "", extracted: null, raw_payload: null },
+  { id: 2, created_at: ago(0, 3), updated_at: ago(0, 3), event_type: "story_reply", sender_id: "17802", recipient_id: "17800001", message_id: "mid.2", text: "Bu qancha turadi?", media_id: "", story_id: "18101433071220523", story_url: "https://instagram.com/stories/demo", extracted: null, raw_payload: null },
+  { id: 3, created_at: ago(0, 6), updated_at: ago(0, 6), event_type: "media_send", sender_id: "17803", recipient_id: "17800001", message_id: "mid.3", text: "", media_id: "18448508641115058", story_id: "", story_url: "", extracted: null, raw_payload: null },
+  { id: 4, created_at: ago(1, 2), updated_at: ago(1, 2), event_type: "story_send", sender_id: "17804", recipient_id: "17800001", message_id: "mid.4", text: "", media_id: "", story_id: "18101433071220524", story_url: "", extracted: null, raw_payload: null },
+];
+
 const audit: AuditLog[] = [
   { id: 1, user_detail: users[0], action: "update", entity_type: "catalog", entity_id: "4", before: { status: "available" }, after: { status: "sold" }, created_at: ago(0, 3), user: 1 },
   { id: 2, user_detail: users[3], action: "create", entity_type: "stock_batch", entity_id: "3", before: null, after: { received_stems: 500 }, created_at: ago(0, 6), user: 4 },
@@ -325,6 +352,8 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
 
   // --- yozuvlar: demo rejimda muvaffaqiyatli javob qaytariladi, saqlanmaydi ---
   if (method !== "GET") {
+    if (p === "/api/ai/settings/") return out({ ...aiSettings, ...body, updated_at: ago(0) });
+    if (p === "/api/integrations/") return out({ ...integrations, ...body, updated_at: ago(0) });
     if (p === "/api/notifications/read_all/") return out({ updated: 0 });
     if (/\/api\/notifications\/\d+\/read\//.test(p)) {
       const n = notifications.find((x) => x.id === idOf(/notifications\/(\d+)/));
@@ -365,9 +394,21 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   if (p === "/api/social-posts/") return out(page(posts));
   if (p === "/api/conversations/") return out(page(conversations));
   if (/\/api\/conversations\/\d+\//.test(p)) return out(conversations.find((x) => x.id === idOf(/conversations\/(\d+)/)) ?? conversations[0]);
-  if (p === "/api/notifications/") return out(page(notifications));
+  if (p === "/api/notifications/") {
+    const query = new URLSearchParams(path.split("?")[1] ?? "");
+    let ns = notifications;
+    const tp = query.get("notification_type");
+    if (tp) ns = ns.filter((n) => n.notification_type === tp);
+    const ir = query.get("is_read");
+    if (ir != null && ir !== "") ns = ns.filter((n) => String(n.is_read) === ir);
+    return out(page(ns));
+  }
   if (p === "/api/users/") return out(page(users));
   if (p === "/api/instagram/status/") return out(instagram);
+  if (p === "/api/ai/settings/") return out(aiSettings);
+  if (p === "/api/integrations/") return out(integrations);
+  if (p === "/api/instagram/events/") return out(page(igEvents));
+  if (p === "/api/permissions/") return out(page(fullPerms));
   if (p === "/api/settings/") return out(settings);
   if (p === "/api/packaging/") return out(page(packaging));
   if (p === "/api/audit/") return out(page(audit));

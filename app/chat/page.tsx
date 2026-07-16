@@ -289,7 +289,7 @@ export default function ChatPage() {
   if (loading) return <FlowerLoader />;
 
   return (
-    <div className="flex h-[80vh] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
+    <div className="flex h-[calc(100dvh-210px)] min-h-[460px] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
       {/* suhbatlar ro'yxati */}
       <div className="flex max-h-[30vh] min-h-0 min-w-0 flex-col gap-3 md:max-h-none md:h-full md:min-w-[230px] md:max-w-[340px] md:flex-1 md:basis-60">
         <div className="glass flex items-center gap-2 !rounded-[14px] px-3.5 py-1 text-[13px]" style={{ color: "var(--muted)" }}>
@@ -302,7 +302,7 @@ export default function ChatPage() {
             style={{ color: "var(--text)" }}
           />
         </div>
-        <div className="glass flex min-h-0 flex-1 flex-col gap-0.5 overflow-auto !rounded-[16px] p-2">
+        <div data-lenis-prevent className="glass flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain !rounded-[16px] p-2">
           {fConvs.map((c) => (
             <button
               key={c.id}
@@ -373,7 +373,7 @@ export default function ChatPage() {
             </div>
 
             {/* xabarlar */}
-            <div className="flex flex-1 flex-col overflow-auto px-5 pb-4 pt-2">
+            <div data-lenis-prevent className="flex flex-1 flex-col overflow-y-auto overscroll-contain px-5 pb-4 pt-2">
               {conv.messages.map((m, i) => {
                 const prev = conv.messages[i - 1];
                 const next = conv.messages[i + 1];
