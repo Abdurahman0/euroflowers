@@ -26,6 +26,8 @@ import {
   UserGroupIcon,
   ViewIcon,
   ViewOffIcon,
+  VolumeHighIcon,
+  VolumeOffIcon,
 } from "@hugeicons/core-free-icons";
 
 /**
@@ -62,6 +64,8 @@ const ICONS: Record<string, typeof FlowerIcon> = {
   lock: LockPasswordIcon,
   eye: ViewIcon,
   eyeOff: ViewOffIcon,
+  volumeOn: VolumeHighIcon,
+  volumeOff: VolumeOffIcon,
 };
 
 export function Icon({ name, size = 17 }: { name: string; size?: number }) {

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { login, ApiError } from "@/lib/api";
@@ -11,7 +11,9 @@ import { Icon } from "@/components/icons";
  * jonli piyon natyurmorti butun ekranni qoplaydi (buket chapga langar),
  * o'ng tomonda muzli shisha karta "suzadi" — rasm karta orqali jilolanadi.
  * Video to'liq kadr (watermark delogo bilan olib tashlangan), 1s krossfeyd
- * bilan uzluksiz aylanadi.
+ * bilan uzluksiz aylanadi; ambient ovoz sukut bo'yicha o'chiq, pastki-chap
+ * chip orqali yoqiladi. Mobil / saveData / reduced-motion — video umuman
+ * yuklanmaydi, faqat poster.
  */
 
 const VIDEO = "/videos/login-scene-full.mp4";
@@ -35,11 +37,46 @@ export default function LoginPage() {
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [reduced, setReduced] = useState(false);
+  // video faqat shu bayroq true bo'lganda DOM'ga qo'yiladi — mobil qurilma
+  // mp4'ni umuman yuklab olmasligi kerak (display:none emas, shartli render)
+  const [showVideo, setShowVideo] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fadeRef = useRef(0);
 
   useEffect(() => {
-    setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const conn = (navigator as { connection?: { saveData?: boolean } }).connection;
+    const desktop = window.matchMedia("(min-width: 768px)").matches;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setShowVideo(desktop && !reduce && !conn?.saveData);
+    return () => cancelAnimationFrame(fadeRef.current);
   }, []);
+
+  /* ovoz: 1.5s davomida 0 ↔ 0.35 orasida silliq o'tish, hech qachon balandroq emas */
+  const fadeVolume = (to: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    cancelAnimationFrame(fadeRef.current);
+    if (to > 0 && v.muted) {
+      v.volume = 0;
+      v.muted = false;
+    }
+    const from = v.volume;
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / 1500);
+      v.volume = from + (to - from) * t;
+      if (t < 1) fadeRef.current = requestAnimationFrame(step);
+      else if (to === 0) v.muted = true;
+    };
+    fadeRef.current = requestAnimationFrame(step);
+  };
+
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    fadeVolume(next ? 0.35 : 0);
+  };
 
   const fail = (msg: string) => {
     setErr(msg);
@@ -88,12 +125,12 @@ export default function LoginPage() {
     <div className="relative min-h-dvh overflow-hidden" style={{ background: CREAM }}>
       {/* ==== FON: to'liq ekran jonli natyurmort ==== */}
       <div className="absolute inset-0" aria-hidden>
-        {reduced ? (
-          // harakat kamaytirilgan rejim — faqat poster
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={POSTER} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: "left center" }} />
-        ) : (
+        {/* poster har doim ostida — mobil/saveData/reduced-motion uchun yagona fon */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={POSTER} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: "left center" }} />
+        {showVideo && (
           <video
+            ref={videoRef}
             className="pointer-events-none absolute inset-0 h-full w-full object-cover"
             style={{ objectPosition: "left center" }}
             src={VIDEO}
@@ -107,6 +144,21 @@ export default function LoginPage() {
           />
         )}
       </div>
+
+      {/* ==== OVOZ TUGMASI — faqat video bor desktopda ==== */}
+      {showVideo && (
+        <button
+          type="button"
+          onClick={toggleSound}
+          className="sound-chip fixed bottom-5 left-5 z-20 flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-200 hover:scale-105 active:scale-95"
+          style={{ color: INK }}
+          title={soundOn ? "Tovushni o'chirish" : "Tovushni yoqish"}
+          aria-label={soundOn ? "Tovushni o'chirish" : "Tovushni yoqish"}
+          aria-pressed={soundOn}
+        >
+          <Icon name={soundOn ? "volumeOn" : "volumeOff"} size={17} />
+        </button>
+      )}
 
       {/* ==== SUZUVCHI SHISHA KARTA — o'ng 40% ichida markazda ==== */}
       <div className="relative z-10 flex min-h-dvh items-center justify-center px-5 py-10 md:justify-end">
@@ -235,6 +287,18 @@ export default function LoginPage() {
             .login-card {
               background: rgba(250, 246, 242, 0.85);
             }
+          }
+        }
+        .sound-chip {
+          background: rgba(250, 246, 242, 0.92);
+          border: 1px solid rgba(255, 255, 255, 0.5);
+          box-shadow: 0 8px 24px rgba(180, 130, 120, 0.22);
+        }
+        @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+          .sound-chip {
+            background: rgba(250, 246, 242, 0.55);
+            -webkit-backdrop-filter: blur(16px) saturate(1.15);
+            backdrop-filter: blur(16px) saturate(1.15);
           }
         }
         .login-inp::placeholder {
