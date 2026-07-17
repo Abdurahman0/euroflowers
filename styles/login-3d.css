@@ -1,0 +1,16 @@
+/* Login 3D sahna konteyneri — premium, sokin, hech narsa chalg'itmaydi. */
+
+.login3d-wrap {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  will-change: transform;
+}
+
+/* buket ortidagi yagona bezak: deyarli ko'rinmas iliq gradient */
+.login3d-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 52% at 47% 60%, rgba(244, 214, 199, 0.11), transparent 72%);
+}
