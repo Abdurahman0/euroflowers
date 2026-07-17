@@ -1,7 +1,9 @@
 "use client";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  ApiIcon,
   ArrowDown01Icon,
+  ClipboardClockIcon,
   FlowerPotIcon,
   Attachment01Icon,
   BubbleChatIcon,
@@ -46,6 +48,8 @@ const ICONS: Record<string, typeof FlowerIcon> = {
   bildirishnomalar: Notification03Icon,
   postlar: Image01Icon,
   xodimlar: UserGroup03Icon,
+  integratsiyalar: ApiIcon,
+  audit: ClipboardClockIcon,
   sozlamalar: Settings01Icon,
   bell: Notification03Icon,
   palette: PaintBoardIcon,

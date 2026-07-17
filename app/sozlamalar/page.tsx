@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import { AISettingsSection, AuditSection, InstagramEventsSection, IntegrationsSection } from "@/components/DevSections";
+import { AISettingsSection } from "@/components/DevSections";
 import { fmt, fmtDate, initials } from "@/lib/format";
 import { Icon } from "@/components/icons";
 import { ROLE_LABEL } from "@/components/badges";
@@ -204,11 +204,9 @@ export default function SozlamalarPage() {
         </div>
       </section>
 
-      {/* Developer / audit bo'limlari — ruxsatga qarab ko'rinadi */}
+      {/* Developer bo'limi — ruxsatga qarab ko'rinadi; integratsiyalar va
+          audit jurnali alohida sahifalarga ko'chdi */}
       <AISettingsSection />
-      <IntegrationsSection />
-      <InstagramEventsSection />
-      <AuditSection />
 
     </div>
   );

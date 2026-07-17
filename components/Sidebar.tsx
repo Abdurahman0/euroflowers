@@ -18,6 +18,8 @@ const NAV: { id: ScreenId; href: string; label: string; page: PermissionPage }[]
   { id: "postlar", href: "/postlar", label: "Postlar", page: "social_posts" },
   { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", page: "notifications" },
   { id: "xodimlar", href: "/xodimlar", label: "Xodimlar", page: "users" },
+  { id: "integratsiyalar", href: "/integratsiyalar", label: "Integratsiyalar", page: "integrations" },
+  { id: "audit", href: "/audit", label: "Audit jurnali", page: "audit" },
   { id: "sozlamalar", href: "/sozlamalar", label: "Sozlamalar", page: "settings" },
 ];
 

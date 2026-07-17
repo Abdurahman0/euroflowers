@@ -19,6 +19,8 @@ const TITLES: Record<string, string> = {
   "/postlar": "Instagram postlar",
   "/bildirishnomalar": "Bildirishnomalar",
   "/xodimlar": "Xodimlar — jamoa",
+  "/integratsiyalar": "Integratsiyalar",
+  "/audit": "Audit jurnali",
   "/sozlamalar": "Sozlamalar",
 };
 
