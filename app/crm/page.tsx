@@ -140,11 +140,11 @@ export default function CrmPage() {
           </div>
           {fLeads.map((l, ri) => (
             <button key={l.id} onClick={() => setSelLead(l)} className="row-lux grid w-full grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
-              <span>
-                <span className="block font-bold">{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</span>
-                <span className="text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.masked_phone || "tel yo'q"}</span>
+              <span className="min-w-0">
+                <span className="block truncate font-bold" title={l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}>{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</span>
+                <span className="block truncate text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.masked_phone || "tel yo'q"}</span>
               </span>
-              <span style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</span>
+              <span className="min-w-0 truncate" style={{ color: "var(--mut)" }} title={l.request_uz || l.request_ru}>{l.request_uz || l.request_ru}</span>
               <span><span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span></span>
               <span className="font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
               <span><span className={STATUS_BADGE[l.status]}>{STATUS_LABEL[l.status]}</span></span>
@@ -163,13 +163,13 @@ export default function CrmPage() {
             </div>
             {customers.map((c, ri) => (
               <button key={c.id} onClick={() => setSelClient(c)} className="row-lux grid w-full grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[14px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
-                <span className="flex items-center gap-2.5">
-                  <span className="flex h-[34px] w-[34px] -rotate-3 items-center justify-center rounded-[11px] bg-tint text-[13px] font-bold text-tintink">{initials(c.name || c.instagram_username)}</span>
-                  <span className="font-bold">{c.name || `@${c.instagram_username}`}</span>
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-[34px] w-[34px] shrink-0 -rotate-3 items-center justify-center rounded-[11px] bg-tint text-[13px] font-bold text-tintink">{initials(c.name || c.instagram_username)}</span>
+                  <span className="truncate font-bold" title={c.name || `@${c.instagram_username}`}>{c.name || `@${c.instagram_username}`}</span>
                   {c.is_blocked && <span className="rounded-full bg-rose px-2 py-0.5 text-[11px] font-bold text-roseink">BLOK</span>}
                 </span>
                 <span>{c.masked_phone || "—"}</span>
-                <span className="font-semibold" style={{ color: "var(--acc)" }}>@{c.instagram_username || "—"}</span>
+                <span className="min-w-0 truncate font-semibold" style={{ color: "var(--acc)" }} title={`@${c.instagram_username || "—"}`}>@{c.instagram_username || "—"}</span>
                 <span className="font-bold">{c.purchases_count}</span>
                 <span className="font-bold">{parseFloat(c.total_spent) > 0 ? fmt(c.total_spent) : "—"}</span>
                 <span style={{ color: "var(--mut)" }}>{fmtTime(c.created_at)}</span>

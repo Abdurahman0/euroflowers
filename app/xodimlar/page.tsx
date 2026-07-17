@@ -1,4 +1,5 @@
 "use client";
+import { Pencil, Plus, Power } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
@@ -95,7 +96,7 @@ export default function XodimlarPage() {
           ))}
           {control && (
             <button onClick={() => setUserModal({ open: true, edit: null })} className="btn-primary !flex-none px-5">
-              + Xodim qo&apos;shish
+              <Plus size={18} strokeWidth={1.75} /> Xodim qo&apos;shish
             </button>
           )}
         </div>
@@ -112,11 +113,11 @@ export default function XodimlarPage() {
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint text-[13px] font-semibold text-tintink">{initials(fullName(u))}</div>
               <div className="min-w-0 flex-1">
-                <div className="text-[14px] font-semibold">
+                <div className="truncate text-[14px] font-semibold" title={fullName(u)}>
                   {fullName(u)}
                   {u.id === user?.id && <span className="ml-1.5 text-[12px] font-medium" style={{ color: "var(--muted)" }}>(siz)</span>}
                 </div>
-                <div className="text-[12px]" style={{ color: "var(--muted)" }}>{u.email || u.username}</div>
+                <div className="truncate text-[12px]" style={{ color: "var(--muted)" }} title={u.email || u.username}>{u.email || u.username}</div>
               </div>
               {u.is_active === false && <span className="rounded-full bg-rose px-2 py-0.5 text-[11px] font-bold text-roseink">NOFAOL</span>}
               <span className="hidden rounded-full border bg-tint px-3 py-0.5 text-[11px] font-semibold text-tintink sm:inline" style={{ borderColor: "var(--line2)" }}>
@@ -127,19 +128,19 @@ export default function XodimlarPage() {
                   <button
                     onClick={(e) => { e.stopPropagation(); setUserModal({ open: true, edit: u }); }}
                     title="Tahrirlash"
-                    className="rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-[var(--hover)]"
-                    style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+                    aria-label="Tahrirlash"
+                    className="icon-btn"
                   >
-                    ✎
+                    <Pencil size={16} strokeWidth={1.75} />
                   </button>
                   {u.is_active !== false && u.id !== user?.id && (
                     <button
                       onClick={(e) => { e.stopPropagation(); deactivate(u); }}
                       title="Nofaollashtirish"
-                      className="rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-[var(--danger-soft)]"
-                      style={{ borderColor: "var(--border)", color: "var(--danger-ink)" }}
+                      aria-label="Nofaollashtirish"
+                      className="icon-btn icon-btn-danger"
                     >
-                      ⏻
+                      <Power size={16} strokeWidth={1.75} />
                     </button>
                   )}
                 </span>

@@ -56,7 +56,7 @@ export default function ClientModal({ client, onClose }: { client: Customer; onC
         {leads?.map((l) => (
           <div key={l.id} className="flex items-center gap-3 rounded-[14px] border border-[color:var(--border)] px-3.5 py-2.5">
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-semibold">{l.request_uz || l.request_ru}</div>
+              <div className="truncate text-[13px] font-semibold" title={l.request_uz || l.request_ru}>{l.request_uz || l.request_ru}</div>
               <div className="text-[12px] text-[color:var(--muted)]">{fmtTime(l.created_at)} · {l.source || "—"}</div>
             </div>
             <span className="whitespace-nowrap text-[13px] font-bold" style={{ color: "var(--primary)" }}>{fmt(l.estimated_price)}</span>

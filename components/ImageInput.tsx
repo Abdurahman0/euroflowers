@@ -1,4 +1,5 @@
 "use client";
+import { Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -31,7 +32,7 @@ export default function ImageInput({ value, onChange }: { value: string; onChang
         <input className="inp flex-1" value={value} onChange={(e) => onChange(e.target.value)} placeholder="https://… yoki fayl yuklang" />
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pick} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={busy} className="whitespace-nowrap rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-2)] px-4 py-2.5 text-[13px] font-bold hover:bg-[color:var(--hover)] disabled:opacity-60">
-          {busy ? "Yuklanmoqda…" : "📁 Fayl tanlash"}
+          {busy ? "Yuklanmoqda…" : <span className="inline-flex items-center gap-1.5"><Upload size={16} strokeWidth={1.75} /> Fayl tanlash</span>}
         </button>
       </div>
       {value && (

@@ -1,4 +1,5 @@
 "use client";
+import { Pencil, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import ImageInput from "@/components/ImageInput";
@@ -243,8 +244,8 @@ export default function GullarPage() {
           <div className="mb-3.5 flex items-center justify-between">
             <h2 className="text-base font-bold">Gul turlari</h2>
             {control && (
-              <button onClick={() => setFlowerModal({ open: true, edit: null })} className="rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white transition-transform duration-200 hover:-translate-y-px" style={{ background: "var(--primary)" }}>
-                + Gul turi
+              <button onClick={() => setFlowerModal({ open: true, edit: null })} className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white transition-transform duration-200 hover:-translate-y-px" style={{ background: "var(--primary)" }}>
+                <Plus size={16} strokeWidth={1.75} /> Gul turi
               </button>
             )}
           </div>
@@ -256,17 +257,17 @@ export default function GullarPage() {
                   {f.image_url && <img src={f.image_url} alt="" className="h-full w-full object-cover" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-semibold">
+                  <div className="truncate text-[14px] font-semibold" title={f.name_uz || f.name_ru}>
                     {f.name_uz || f.name_ru}
                     {!f.is_active && <span className="ml-2 rounded-full px-2 py-px text-[11px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
                   </div>
-                  <div className="text-[12px]" style={{ color: "var(--muted)" }}>
+                  <div className="truncate text-[12px]" style={{ color: "var(--muted)" }}>
                     {f.season_start_month ? `Mavsum: ${MONTHS[f.season_start_month]} – ${MONTHS[f.season_end_month ?? f.season_start_month]}` : "Mavsum belgilanmagan"} · {variants.filter((v) => v.flower === f.id).length} nav
                   </div>
                 </div>
                 {control && (
-                  <button onClick={(e) => { e.stopPropagation(); setFlowerModal({ open: true, edit: f }); }} className="row-actions rounded-lg border px-2.5 py-1 text-[11px] font-bold hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
-                    Tahrirlash
+                  <button onClick={(e) => { e.stopPropagation(); setFlowerModal({ open: true, edit: f }); }} className="row-actions icon-btn" title="Tahrirlash" aria-label="Tahrirlash">
+                    <Pencil size={16} strokeWidth={1.75} />
                   </button>
                 )}
               </div>
@@ -280,8 +281,8 @@ export default function GullarPage() {
           <div className="mb-3.5 flex items-center justify-between">
             <h2 className="text-base font-bold">Navlar</h2>
             {control && (
-              <button onClick={() => setVariantModal({ open: true, edit: null })} disabled={flowers.length === 0} className="rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white transition-transform duration-200 hover:-translate-y-px disabled:opacity-50" style={{ background: "var(--primary)" }}>
-                + Nav
+              <button onClick={() => setVariantModal({ open: true, edit: null })} disabled={flowers.length === 0} className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white transition-transform duration-200 hover:-translate-y-px disabled:opacity-50" style={{ background: "var(--primary)" }}>
+                <Plus size={16} strokeWidth={1.75} /> Nav
               </button>
             )}
           </div>
@@ -293,17 +294,17 @@ export default function GullarPage() {
                   {v.image_url && <img src={v.image_url} alt="" className="h-full w-full object-cover" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-semibold">
+                  <div className="truncate text-[14px] font-semibold" title={`${v.flower_detail?.name_uz ?? ""} — ${v.name_uz || v.name_ru}`}>
                     {v.flower_detail?.name_uz} — {v.name_uz || v.name_ru}
                     {!v.is_active && <span className="ml-2 rounded-full px-2 py-px text-[11px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
                   </div>
-                  <div className="text-[12px]" style={{ color: "var(--muted)" }}>
+                  <div className="truncate text-[12px]" style={{ color: "var(--muted)" }}>
                     {v.color_uz || "rang yo'q"} · pochkada {v.default_stems_per_bunch} dona · min. {v.minimum_sale_stems} dona
                   </div>
                 </div>
                 {control && (
-                  <button onClick={(e) => { e.stopPropagation(); setVariantModal({ open: true, edit: v }); }} className="row-actions rounded-lg border px-2.5 py-1 text-[11px] font-bold hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
-                    Tahrirlash
+                  <button onClick={(e) => { e.stopPropagation(); setVariantModal({ open: true, edit: v }); }} className="row-actions icon-btn" title="Tahrirlash" aria-label="Tahrirlash">
+                    <Pencil size={16} strokeWidth={1.75} />
                   </button>
                 )}
               </div>

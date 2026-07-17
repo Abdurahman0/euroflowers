@@ -1,4 +1,5 @@
 "use client";
+import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export type SelectOption = {
@@ -40,7 +41,7 @@ export default function Select({
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
           {sel ? sel.label : <span className="opacity-50">{placeholder}</span>}
         </span>
-        <span className={`text-[11px] opacity-60 transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
+        <span className={`opacity-60 transition-transform duration-200 ${open ? "rotate-180" : ""}`}><ChevronDown size={16} strokeWidth={1.75} /></span>
       </button>
       {open && (
         <div data-lenis-prevent className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[212px] overflow-y-auto overscroll-contain rounded-[14px] border shadow-2xl" style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}>

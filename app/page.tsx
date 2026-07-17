@@ -85,7 +85,7 @@ export default function DashboardPage() {
                   {initials(l.customer_detail?.name || l.customer_detail?.instagram_username || "?")}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-bold">{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</div>
+                  <div className="truncate text-[14px] font-bold" title={l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}>{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</div>
                   <div className="truncate text-xs" style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</div>
                 </div>
                 <div className="text-right">
@@ -123,7 +123,7 @@ export default function DashboardPage() {
 
           {/* diqqat */}
           <motion.section variants={rise} className="glass-lite p-5">
-            <h2 className="mb-3 text-[16px]">⚡ Diqqat talab qiladi</h2>
+            <h2 className="mb-3 text-[16px]">Diqqat talab qiladi</h2>
             <div className="flex flex-col gap-2">
               {d.recent_notifications.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Hammasi joyida 🌷</p>}
               {d.recent_notifications.map((n) => (

@@ -1,5 +1,6 @@
 "use client";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Sparkles } from "lucide-react";
 import {
   ApiIcon,
   ArrowDown01Icon,
@@ -75,6 +76,8 @@ const ICONS: Record<string, typeof FlowerIcon> = {
 };
 
 export function Icon({ name, size = 17 }: { name: string; size?: number }) {
+  // AI bo'limi — spets-talab: lucide Sparkles
+  if (name === "ai") return <Sparkles size={size} strokeWidth={1.75} className="block shrink-0" aria-hidden />;
   const icon = ICONS[name];
   if (!icon) return null;
   return <HugeiconsIcon icon={icon} size={size} strokeWidth={1.5} color="currentColor" className="block shrink-0" aria-hidden />;

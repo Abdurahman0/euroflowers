@@ -1,4 +1,5 @@
 "use client";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import PostModal from "@/components/PostModal";
@@ -80,7 +81,7 @@ export default function PostlarPage() {
         </p>
         {control && (
           <button onClick={() => setModal({ open: true, post: null })} className="btn-primary !flex-none px-5">
-            + Post qo&apos;shish
+            <Plus size={18} strokeWidth={1.75} /> Post qo&apos;shish
           </button>
         )}
       </div>
@@ -94,13 +95,13 @@ export default function PostlarPage() {
             </div>
             <div className="min-w-[220px] flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-bold">{p.title_uz || p.title_ru}</h3>
+                <h3 className="max-w-[280px] truncate text-sm font-bold" title={p.title_uz || p.title_ru}>{p.title_uz || p.title_ru}</h3>
                 <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide ${p.is_targeted ? "text-white" : ""}`} style={p.is_targeted ? { background: "var(--side)", borderColor: "var(--side)" } : { borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface-2)" }}>
                   {p.is_targeted ? "TARGET YOQILGAN" : TYPE_LABEL[p.post_type] ?? p.post_type.toUpperCase()}
                 </span>
                 {!p.is_active && <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
               </div>
-              <p className="mt-1 text-[13px]" style={{ color: "var(--muted)" }}>{p.description_uz || p.description_ru || "Tavsif kiritilmagan"}</p>
+              <p className="mt-1 max-w-[420px] truncate text-[13px]" style={{ color: "var(--muted)" }} title={p.description_uz || p.description_ru || undefined}>{p.description_uz || p.description_ru || "Tavsif kiritilmagan"}</p>
               <p className="mt-0.5 text-xs" style={{ color: "var(--muted)" }}>
                 {p.flower_count > 0 && <>Gul soni: {p.flower_count} · </>}
                 {p.permalink ? (
@@ -126,12 +127,8 @@ export default function PostlarPage() {
             </div>
             {control && (
               <div className="flex flex-col gap-1.5">
-                <button onClick={() => setModal({ open: true, post: p })} className="rounded-[9px] border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
-                  Tahrirlash
-                </button>
-                <button onClick={() => setConfirmDel(p)} className="rounded-[9px] border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--danger-soft)]" style={{ borderColor: "var(--border)", color: "var(--danger-ink)" }}>
-                  O&apos;chirish
-                </button>
+                <button onClick={() => setModal({ open: true, post: p })} className="icon-btn border" style={{ borderColor: "var(--border)" }} title="Tahrirlash" aria-label="Tahrirlash"><Pencil size={16} strokeWidth={1.75} /></button>
+                <button onClick={() => setConfirmDel(p)} className="icon-btn icon-btn-danger border" style={{ borderColor: "var(--border)" }} title="O'chirish" aria-label="O'chirish"><Trash2 size={16} strokeWidth={1.75} /></button>
               </div>
             )}
           </article>

@@ -1,4 +1,5 @@
 "use client";
+import { X } from "lucide-react";
 import Drawer, { useDrawerClose } from "./Drawer";
 
 /**
@@ -40,7 +41,7 @@ export const ModalHeader = ({ icon, title, sub, onClose }: { icon: React.ReactNo
         className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-sm transition-colors duration-200 hover:bg-[var(--hover)]"
         style={{ color: "var(--text-2)" }}
       >
-        ✕
+        <X size={18} strokeWidth={1.75} />
       </button>
     </div>
   );

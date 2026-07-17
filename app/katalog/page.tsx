@@ -1,4 +1,5 @@
 "use client";
+import { Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
@@ -70,7 +71,7 @@ export default function KatalogPage() {
           Tayyor gullar katalogi — har biri Instagram story bilan birga tizimga kiritiladi
         </p>
         <button onClick={() => setFormOpen(true)} className="btn-primary ml-auto !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
-          ＋ Katalogga qo&apos;shish
+          <Plus size={18} strokeWidth={1.75} /> Katalogga qo&apos;shish
         </button>
       </div>
 

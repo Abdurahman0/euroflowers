@@ -223,7 +223,7 @@ export function InstagramEventsSection() {
             {events.map((e) => (
               <div key={e.id} className="row-lux grid grid-cols-[110px_1fr_130px_130px_90px] items-center gap-2 border-b px-3 py-2 text-[13px]" style={{ borderColor: "var(--line2)" }}>
                 <span className="font-semibold" style={{ color: "var(--text-2)" }}>{e.event_type}</span>
-                <span className="truncate">{e.text || e.story_url || "—"}</span>
+                <span className="truncate" title={e.text || e.story_url || undefined}>{e.text || e.story_url || "—"}</span>
                 <span className="truncate" style={{ color: "var(--muted)" }}>{e.sender_id || "—"}</span>
                 <span className="truncate" style={{ color: "var(--muted)" }}>{e.media_id || e.story_id || "—"}</span>
                 <span style={{ color: "var(--muted)" }}>{fmtTime(e.created_at)}</span>
@@ -264,7 +264,7 @@ export function AuditSection() {
               <div key={r.id} className="row-lux grid grid-cols-[140px_110px_1fr_90px] items-center gap-2 border-b px-3 py-2 text-[13px]" style={{ borderColor: "var(--line2)" }}>
                 <span className="truncate font-semibold" style={{ color: "var(--text-2)" }}>{r.user_detail ? r.user_detail.username : "tizim"}</span>
                 <span className="rounded-full border px-2 py-0.5 text-center text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>{r.action}</span>
-                <span className="truncate" style={{ color: "var(--muted)" }}>{r.entity_type} #{r.entity_id}</span>
+                <span className="truncate" style={{ color: "var(--muted)" }} title={`${r.entity_type} #${r.entity_id}`}>{r.entity_type} #{r.entity_id}</span>
                 <span style={{ color: "var(--muted)" }}>{fmtTime(r.created_at)}</span>
               </div>
             ))}

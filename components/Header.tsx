@@ -12,6 +12,7 @@ import clsx from "clsx";
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
   "/chat": "AI Instagram chatlar",
+  "/ai": "AI yordamchi",
   "/crm": "CRM — mijozlar va leadlar",
   "/sklad": "Sklad",
   "/gullar": "Gullar va navlar",

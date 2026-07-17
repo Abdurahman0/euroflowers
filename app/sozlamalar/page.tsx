@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import { AISettingsSection } from "@/components/DevSections";
 import { fmt, fmtDate, initials } from "@/lib/format";
 import { Icon } from "@/components/icons";
 import { ROLE_LABEL } from "@/components/badges";
@@ -141,17 +140,6 @@ export default function SozlamalarPage() {
         <p className="mt-2.5 text-xs" style={{ color: "var(--mut)" }}>AI savat/quti tavsiyasida shu narxlardan foydalanadi.</p>
       </section>
 
-      {/* AI qoidalari — serverdan */}
-      <section className="glass p-5 text-[#F0E9FA]" style={{ background: "color-mix(in srgb, var(--side) 82%, transparent)" }}>
-        <h2 className="mb-3.5 text-base font-bold">AI qoidalari</h2>
-        <ul className="flex flex-col gap-2 text-[13px] leading-relaxed opacity-90">
-          <li>• {st?.approximate_price_wording_uz || "Narxlar taxminiy beriladi."}</li>
-          <li>• {st?.min_sale_reminder_uz || "Minimal sotuv soni eslatiladi."}</li>
-          <li>• {st?.handoff_rules_uz || "Mijoz tayyor bo'lganda suhbat operatorga uzatiladi."}</li>
-          <li>• Buket/savat narxiga florist haqi qo&apos;shiladi: <b>{st ? fmt(st.default_florist_fee) : "—"}</b></li>
-        </ul>
-      </section>
-
       {/* Jamoa endi alohida sahifada — /xodimlar */}
       <section className="glass p-5">
         <h2 className="text-base font-semibold">Jamoa</h2>
@@ -204,9 +192,6 @@ export default function SozlamalarPage() {
         </div>
       </section>
 
-      {/* Developer bo'limi — ruxsatga qarab ko'rinadi; integratsiyalar va
-          audit jurnali alohida sahifalarga ko'chdi */}
-      <AISettingsSection />
 
     </div>
   );

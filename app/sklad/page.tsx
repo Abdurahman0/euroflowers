@@ -1,4 +1,5 @@
 "use client";
+import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
@@ -77,7 +78,7 @@ export default function SkladPage() {
           </div>
           <DateChips />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
-            ＋ Keldi qilish
+            <Plus size={18} strokeWidth={1.75} /> Keldi qilish
           </button>
         </div>
       </div>
@@ -152,14 +153,14 @@ export default function SkladPage() {
           return (
             <div key={m.id} className="row-lux flex items-center gap-3.5 border-t py-3" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(fMoves.indexOf(m) * 40, 480)}ms` }}>
               <div className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-base font-extrabold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`}>
-                {isIn ? "↓" : "↑"}
+                {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[14px] font-semibold">
+                <div className="truncate text-[14px] font-semibold" title={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} — ${m.quantity_stems} dona${m.reason ? ` · ${m.reason}` : ""}`}>
                   {v?.flower_detail?.name_uz} {v?.name_uz} — {m.quantity_stems} dona
                   {m.reason ? ` · ${m.reason}` : ""}
                 </div>
-                <div className="mt-0.5 text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>
+                <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>
               </div>
               <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
                 {MOVE_LABEL[m.movement_type] ?? m.movement_type.toUpperCase()}

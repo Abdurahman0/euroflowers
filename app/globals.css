@@ -216,6 +216,19 @@
   --surface: rgba(255, 255, 255, 0.88);
   --surface-solid: #ffffff;
   --surface-2: #faf1ef;
+  /* TO'LIQ blush qatlam palitrasi — osmon/nur/tuman ham pushtiga bo'yaladi
+     (ilgari faqat fon almashardi, bezak qatlamlari eski iliq-yashil
+     palitrada qolardi) */
+  --glow-a: #f6dce2;
+  --glow-b: #f6e6e3;
+  --glow-c: #fbeee9;
+  --fog-tint: rgba(255, 242, 244, 0.5);
+  --sun-ray-1: rgba(255, 231, 225, 0.32);
+  --sun-ray-2: rgba(255, 238, 233, 0.24);
+  --flower-glow: rgba(190, 110, 120, 0.2);
+  --petal-shadow: rgba(150, 70, 85, 0.16);
+  --gsky-2: 12%;
+  --gsky-3: 8%;
   --fog-k: 0.18;
   --fog-m1: 0.7;
   --fog-m2: 0.55;
@@ -549,6 +562,22 @@ html {
   }
 
   /* ---- jadval qatorlari ---- */
+  /* ---- amal ikonka tugmalari (lucide) — bir xil o'lcham/rang/hover ---- */
+  .icon-btn {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg;
+    color: var(--muted);
+    transition: color 180ms var(--ease), background-color 180ms var(--ease);
+  }
+  .icon-btn:hover {
+    color: var(--primary);
+    background: var(--hover);
+  }
+  /* o'chirish/xavfli amallar hover'i — aksent emas, yumshoq qizil */
+  .icon-btn-danger:hover {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+
   /* ---- ro'yxat qatori — bir xil hover xulqi butun ilovada ---- */
   .row-lux {
     position: relative;

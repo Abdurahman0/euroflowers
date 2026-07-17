@@ -1,4 +1,5 @@
 "use client";
+import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -108,11 +109,11 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
             <Field label={i === 0 ? "Dona" : ""}>
               <input className="inp" type="number" value={r.quantity_stems} onChange={(e) => setComp(comp.map((x, j) => (j === i ? { ...x, quantity_stems: e.target.value } : x)))} placeholder="25" />
             </Field>
-            <button type="button" onClick={() => setComp(comp.length > 1 ? comp.filter((_, j) => j !== i) : comp)} className="mb-[1px] flex h-[38px] w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--hover)] text-sm hover:bg-[color:var(--hover)]">✕</button>
+            <button type="button" onClick={() => setComp(comp.length > 1 ? comp.filter((_, j) => j !== i) : comp)} className="icon-btn icon-btn-danger mb-[1px] !h-[38px] !w-9 rounded-xl border border-[color:var(--border)]" title="Olib tashlash"><X size={16} strokeWidth={1.75} /></button>
           </div>
         ))}
         <button type="button" onClick={() => setComp([...comp, { stock_batch: batches[0]?.id ?? 0, quantity_stems: "" }])} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold hover:bg-[color:var(--hover)]">
-          ＋ Yana gul qo&apos;shish
+          <Plus size={16} strokeWidth={1.75} /> Yana gul qo&apos;shish
         </button>
       </div>
 

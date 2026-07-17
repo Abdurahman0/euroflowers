@@ -129,7 +129,7 @@ export default function BildirishnomalarPage() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <b className="text-[14px]">{n.title_uz || n.title_ru}</b>
+                    <b className="min-w-0 max-w-full truncate text-[14px]" title={n.title_uz || n.title_ru}>{n.title_uz || n.title_ru}</b>
                     <span className="rounded-full border px-2 py-px text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>{meta.label}</span>
                     {!n.is_read && <span className="h-2 w-2 rounded-full" style={{ background: "var(--primary)" }} aria-label="o'qilmagan" />}
                   </span>

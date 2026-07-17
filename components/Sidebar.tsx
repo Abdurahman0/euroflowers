@@ -11,6 +11,7 @@ import type { PermissionPage, ScreenId } from "@/lib/types";
 const NAV: { id: ScreenId; href: string; label: string; page: PermissionPage }[] = [
   { id: "dashboard", href: "/", label: "Dashboard", page: "dashboard" },
   { id: "chat", href: "/chat", label: "AI chatlar", page: "conversations" },
+  { id: "ai", href: "/ai", label: "AI yordamchi", page: "settings" },
   { id: "crm", href: "/crm", label: "CRM", page: "crm" },
   { id: "sklad", href: "/sklad", label: "Sklad", page: "inventory" },
   { id: "gullar", href: "/gullar", label: "Gullar", page: "inventory" },
