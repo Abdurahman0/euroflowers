@@ -5,7 +5,7 @@ export default function EmptyState({ title, sub }: { title: string; sub?: string
   return (
     <div className="flex flex-col items-center gap-2.5 px-5 py-9 text-center">
       <img
-        src="/flowers/textures/peony.png"
+        src="/flowers/textures/peony.webp"
         alt=""
         aria-hidden
         width={86}

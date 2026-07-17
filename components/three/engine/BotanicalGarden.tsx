@@ -1,9 +1,10 @@
 "use client";
-import SceneController, { usePrefersReducedMotion } from "./SceneController";
-import LightingController from "./LightingController";
-import FlowerParticles from "./FlowerParticles";
-import GardenFlora from "./GardenFlora";
+import dynamic from "next/dynamic";
+import { usePrefersReducedMotion } from "@/lib/motion";
 import { useTheme } from "@/lib/store";
+import { ENABLE_3D } from "@/lib/flags";
+
+const Garden3D = dynamic(() => import("./Garden3D"), { ssr: false });
 
 /**
  * Hashamatli botanika bog'i — FAQAT asosiy kontent paneli ortida.
@@ -12,10 +13,10 @@ import { useTheme } from "@/lib/store";
  *   2) daraxt shox-shabbalari — katta xira yashillik  (plx ×0.4)
  *   3) quyosh nurlari + tuman                          (statik shimmer)
  *   4) barglar va novdalar — SVG, xira, chayqaladi     (plx ×0.75 → maks 6px)
- *   5) Blender piyonlari — 3D, kuchli blur (DOF)       (kamera parallaksi)
- *   6) changcha — 3D zarra qatlami
- *   7) markaz vualı — kontent doim o'qiladigan bo'lib qoladi
- * UI komponentlariga tegilmaydi; pointer-events yo'q.
+ *   5) 3D qatlam (faqat ENABLE_3D) — uzoq gul + changcha
+ *   6) markaz vualı — kontent doim o'qiladigan bo'lib qoladi
+ * Barcha ranglar globals.css fon-qatlam tokenlaridan — mavzuga avtomatik
+ * ergashadi. UI komponentlariga tegilmaydi; pointer-events yo'q.
  */
 
 function Leaf({ size = 90, rotate = 0, flip = false }: { size?: number; rotate?: number; flip?: boolean }) {
@@ -53,25 +54,18 @@ export default function BotanicalGarden() {
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+      className="theme-fade pointer-events-none absolute inset-0 z-0 overflow-hidden"
       aria-hidden
-      style={
-        {
-          opacity: dark ? 0.7 : 0.92,
-          "--garden-leaf": dark ? "rgba(96, 140, 110, 0.36)" : "rgba(63, 115, 85, 0.4)",
-          "--garden-vein": dark ? "rgba(140, 180, 150, 0.4)" : "rgba(240, 248, 240, 0.5)",
-          "--garden-branch": dark ? "rgba(110, 92, 70, 0.5)" : "rgba(96, 76, 56, 0.45)",
-        } as React.CSSProperties
-      }
+      style={{ opacity: "var(--garden-op)" }}
     >
       {/* 1 — uzoq fon: bog' yorug'ligi (eng sekin qatlam) */}
       <div
-        className="absolute inset-0"
+        className="theme-fade absolute inset-0"
         style={{
           background: `linear-gradient(168deg,
-            color-mix(in srgb, var(--glow-c) ${dark ? 8 : 30}%, transparent) 0%,
-            color-mix(in srgb, #cfe4d4 ${dark ? 5 : 22}%, transparent) 42%,
-            color-mix(in srgb, #adceb8 ${dark ? 4 : 16}%, transparent) 100%)`,
+            color-mix(in srgb, var(--glow-c) var(--gsky-1), transparent) 0%,
+            color-mix(in srgb, #cfe4d4 var(--gsky-2), transparent) 42%,
+            color-mix(in srgb, #adceb8 var(--gsky-3), transparent) 100%)`,
           transform: "translate3d(calc(var(--plx-x, 0px) * 0.25), calc(var(--plx-y, 0px) * 0.25), 0)",
         }}
       />
@@ -79,20 +73,20 @@ export default function BotanicalGarden() {
       {/* 2 — daraxt shox-shabbalari: katta, juda xira yashil massalar */}
       <div className="absolute inset-0" style={{ transform: "translate3d(calc(var(--plx-x, 0px) * 0.4), calc(var(--plx-y, 0px) * 0.4), 0)" }}>
         <div className="absolute -left-[18%] -top-[22%] h-[70vh] w-[60vw] rounded-full blur-[70px]"
-          style={{ background: `radial-gradient(ellipse, rgba(47, 93, 67, ${dark ? 0.28 : 0.3}), transparent 68%)`, animation: reduced ? undefined : "gentleFloat 19s ease-in-out infinite" }} />
+          style={{ background: "radial-gradient(ellipse, var(--canopy-1), transparent 68%)", animation: reduced ? undefined : "gentleFloat 19s ease-in-out infinite" }} />
         <div className="absolute -right-[15%] -top-[12%] h-[56vh] w-[46vw] rounded-full blur-[80px]"
-          style={{ background: `radial-gradient(ellipse, rgba(63, 115, 85, ${dark ? 0.22 : 0.26}), transparent 66%)`, animation: reduced ? undefined : "gentleFloat 23s ease-in-out infinite reverse" }} />
+          style={{ background: "radial-gradient(ellipse, var(--canopy-2), transparent 66%)", animation: reduced ? undefined : "gentleFloat 23s ease-in-out infinite reverse" }} />
         <div className="absolute -bottom-[20%] left-[10%] h-[52vh] w-[70vw] rounded-full blur-[85px]"
-          style={{ background: `radial-gradient(ellipse, rgba(52, 98, 72, ${dark ? 0.24 : 0.24}), transparent 70%)`, animation: reduced ? undefined : "glowPulse 17s ease-in-out infinite" }} />
+          style={{ background: "radial-gradient(ellipse, var(--canopy-3), transparent 70%)", animation: reduced ? undefined : "glowPulse 17s ease-in-out infinite" }} />
       </div>
 
       {/* 3 — quyosh nurlari + tuman */}
-      <div className="absolute -top-[8%] left-[18%] h-[70vh] w-[16vw] -rotate-[18deg] blur-[36px]"
-        style={{ background: `linear-gradient(180deg, rgba(255, 246, 224, ${dark ? 0.07 : 0.3}), transparent 80%)`, animation: reduced ? undefined : "glowPulse 13s ease-in-out infinite" }} />
-      <div className="absolute -top-[6%] left-[34%] h-[62vh] w-[9vw] -rotate-[14deg] blur-[30px]"
-        style={{ background: `linear-gradient(180deg, rgba(255, 250, 235, ${dark ? 0.05 : 0.22}), transparent 78%)`, animation: reduced ? undefined : "glowPulse 16s ease-in-out infinite reverse" }} />
-      <div className="fog-band absolute left-[-30%] top-[30%] h-[30vh] w-[160%]"
-        style={{ opacity: `calc(var(--fog-k, 0.32) * ${dark ? 0.4 : 0.7})` }} />
+      <div className="theme-fade absolute -top-[8%] left-[18%] h-[70vh] w-[16vw] -rotate-[18deg] blur-[36px]"
+        style={{ background: "linear-gradient(180deg, var(--sun-ray-1), transparent 80%)", animation: reduced ? undefined : "glowPulse 13s ease-in-out infinite" }} />
+      <div className="theme-fade absolute -top-[6%] left-[34%] h-[62vh] w-[9vw] -rotate-[14deg] blur-[30px]"
+        style={{ background: "linear-gradient(180deg, var(--sun-ray-2), transparent 78%)", animation: reduced ? undefined : "glowPulse 16s ease-in-out infinite reverse" }} />
+      <div className="fog-band theme-fade absolute left-[-30%] top-[30%] h-[30vh] w-[160%]"
+        style={{ opacity: "calc(var(--fog-k, 0.32) * var(--fog-mg))" }} />
 
       {/* 4 — barglar va novdalar: xira, ohista chayqaladi (maks 6px parallaks) */}
       <div className="absolute inset-0" style={{ transform: "translate3d(calc(var(--plx-x, 0px) * 0.75), calc(var(--plx-y, 0px) * 0.75), 0)" }}>
@@ -117,20 +111,14 @@ export default function BotanicalGarden() {
         </div>
       </div>
 
-      {/* 5+6 — uzoq fon guli (og'ir Gauss blur = chuqur DOF) + changcha */}
-      <div className="absolute inset-0" style={{ filter: "blur(8px) saturate(0.95)" }}>
-        <SceneController parallax={0.35} windBase={0.4} reducedMotion={reduced} dpr={[1, 1.25]}>
-          <LightingController intensity={dark ? 0.6 : 0.9} moving={!reduced} dark={dark} />
-          <GardenFlora reducedMotion={reduced} />
-          <FlowerParticles count={54} reducedMotion={reduced} />
-        </SceneController>
-      </div>
+      {/* 5 — 3D qatlam: faqat bayroq yoqilganda (chunk aks holda yuklanmaydi) */}
+      {ENABLE_3D && <Garden3D dark={dark} reduced={reduced} />}
 
-      {/* 7 — markaz vualı: kontent zonasi doim tinch va o'qiladigan */}
+      {/* 6 — markaz vualı: kontent zonasi doim tinch va o'qiladigan */}
       <div
         className="absolute inset-0"
         style={{
-          background: `radial-gradient(ellipse 70% 62% at 50% 42%, color-mix(in srgb, var(--bg) ${dark ? 40 : 52}%, transparent), transparent 78%)`,
+          background: `radial-gradient(ellipse 70% 62% at 50% 42%, color-mix(in srgb, var(--bg) var(--veil-k), transparent), transparent 78%)`,
         }}
       />
 

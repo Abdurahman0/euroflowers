@@ -51,7 +51,7 @@ export default function Sidebar() {
       {/* logo */}
       <div className={clsx("flex items-center gap-2.5 border-b border-white/10 px-1 pb-4", !sideOpen && "justify-center px-0")}>
         <img
-          src="/flowers/textures/peony.png"
+          src="/flowers/textures/peony.webp"
           alt="EuroFlowers"
           className="h-9 w-9 shrink-0 object-contain transition-transform duration-300 hover:rotate-6 hover:scale-105"
           style={{ filter: "saturate(0.95) drop-shadow(0 2px 8px rgba(0,0,0,0.4))" }}

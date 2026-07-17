@@ -1,6 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useWebGL } from "@/lib/webgl";
+import { ENABLE_3D } from "@/lib/flags";
 
 const LoadingFlower = dynamic(() => import("./three/LoadingFlower"), {
   ssr: false,
@@ -25,7 +26,7 @@ export default function FlowerLoader({ label = "Yuklanmoqda…" }: { label?: str
   return (
     <div className="mt-8 flex flex-col items-center gap-1" role="status" aria-label={label}>
       <div className="flex h-[210px] w-[190px] items-center justify-center">
-        {glOk ? (
+        {ENABLE_3D && glOk ? (
           <LoadingFlower />
         ) : (
           // GPU yo'q — nafas oluvchi nur bilan kifoyalanamiz

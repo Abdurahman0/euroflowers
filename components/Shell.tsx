@@ -50,6 +50,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     localStorage.setItem("ef_theme", JSON.stringify({ id: theme.id, dark }));
   }, [theme, dark]);
 
+  // tab yashirin — barcha bezak animatsiyalar pauza (CPU/GPU tinim oladi)
+  useEffect(() => {
+    const fn = () => document.documentElement.classList.toggle("app-hidden", document.hidden);
+    document.addEventListener("visibilitychange", fn);
+    return () => document.removeEventListener("visibilitychange", fn);
+  }, []);
+
   useEffect(() => {
     if (isLogin) return;
     if (!isLoggedIn()) {

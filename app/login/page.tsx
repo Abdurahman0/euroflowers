@@ -175,7 +175,7 @@ export default function LoginPage() {
           {/* brend */}
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/flowers/textures/peony.png" alt="" className="h-11 w-11 object-contain" style={{ filter: "saturate(0.95) drop-shadow(0 3px 8px rgba(150,90,90,0.25))" }} />
+            <img src="/flowers/textures/peony.webp" alt="" className="h-11 w-11 object-contain" style={{ filter: "saturate(0.95) drop-shadow(0 3px 8px rgba(150,90,90,0.25))" }} />
             <div>
               <div className="font-serif-lux text-[21px] leading-tight" style={{ color: INK }}>EuroFlowers</div>
               <div className="text-[9.5px] font-semibold uppercase tracking-[3.5px]" style={{ color: ROSE }}>AI · Boutique</div>

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { PETAL_TEXTURES } from "@/components/three/engine/assets";
+import { isLowEnd } from "@/lib/perf";
 
 /**
  * Har 11–24 soniyada bir dasta gulbarg ekran bo'ylab tabiiy uchib o'tadi.
@@ -45,12 +46,19 @@ export default function PetalBurst() {
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // kuchsiz qurilma — avvalgi yengil zichlik (funksiya saqlanadi)
+    const low = isLowEnd();
     let timer: ReturnType<typeof setTimeout>;
     let id = 0;
     const schedule = () => {
       timer = setTimeout(() => {
+        // tab yashirin — bu partiyani o'tkazib yuboramiz, keyingisini kutamiz
+        if (document.hidden) {
+          schedule();
+          return;
+        }
         const texes = [PETAL_TEXTURES.white, PETAL_TEXTURES.blush, PETAL_TEXTURES.cream, PETAL_TEXTURES.pink];
-        const count = 8 + Math.floor(Math.random() * 7);
+        const count = low ? 4 + Math.floor(Math.random() * 5) : 8 + Math.floor(Math.random() * 7);
         setPetals(
           Array.from({ length: count }, () => ({
             id: id++,
@@ -67,7 +75,7 @@ export default function PetalBurst() {
         );
         setNonce((n) => n + 1);
         schedule();
-      }, 11000 + Math.random() * 13000);
+      }, low ? 20000 + Math.random() * 20000 : 11000 + Math.random() * 13000);
     };
     schedule();
     return () => clearTimeout(timer);
@@ -97,7 +105,9 @@ export default function PetalBurst() {
               backgroundImage: `url(${p.tex})`,
               backgroundSize: "cover",
               borderRadius: p.shape,
-              boxShadow: "inset 0 0 6px rgba(120,60,60,0.18)",
+              boxShadow: "inset 0 0 6px var(--petal-shadow)",
+              // tunda chuqurroq atirgul tusi — statik filtr, animatsiya emas
+              filter: "var(--petal-tint)",
             }}
           />
         ))}

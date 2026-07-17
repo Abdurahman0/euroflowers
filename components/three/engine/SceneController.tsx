@@ -1,11 +1,12 @@
 "use client";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Group } from "three";
 import WindController from "./WindController";
 import EnvironmentController from "./EnvironmentController";
 import { useWebGL } from "@/lib/webgl";
+import { usePrefersReducedMotion } from "@/lib/motion";
 
 /**
  * Sahna dvigateli: Canvas + shamol provayderi + ixtiyoriy kursor parallaksi.
@@ -13,17 +14,8 @@ import { useWebGL } from "@/lib/webgl";
  * frameloop siyosati bir joyda.
  */
 
-export const usePrefersReducedMotion = () => {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-    const fn = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mq.addEventListener("change", fn);
-    return () => mq.removeEventListener("change", fn);
-  }, []);
-  return reduced;
-};
+// meros: three'siz iste'molchilar to'g'ridan-to'g'ri @/lib/motion'dan olsin
+export { usePrefersReducedMotion } from "@/lib/motion";
 
 function ParallaxRig({ children, amount, reduced }: { children: React.ReactNode; amount: number; reduced: boolean }) {
   const ref = useRef<Group>(null);

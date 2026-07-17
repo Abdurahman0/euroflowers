@@ -15,20 +15,20 @@ export const FALLING_PETALS = "/flowers/animations/falling_petals.glb";
 
 /** DOM bezaklari uchun haqiqiy gul suratlari va gulbarg teksturalari */
 export const FLOWER_PHOTOS = {
-  peony: "/flowers/textures/peony.png",
-  pinkRose: "/flowers/textures/pink-rose.png",
-  hydrangeaPink: "/flowers/textures/hydrangea-pink.png",
-  hydrangeaWhite: "/flowers/textures/hydrangea-white.png",
-  hydrangeaBlue: "/flowers/textures/hydrangea-blue.png",
+  peony: "/flowers/textures/peony.webp",
+  pinkRose: "/flowers/textures/pink-rose.webp",
+  hydrangeaPink: "/flowers/textures/hydrangea-pink.webp",
+  hydrangeaWhite: "/flowers/textures/hydrangea-white.webp",
+  hydrangeaBlue: "/flowers/textures/hydrangea-blue.webp",
 } as const;
 
 export const PETAL_TEXTURES = {
-  white: "/flowers/textures/petals/petal_col_white.png",
-  cream: "/flowers/textures/petals/petal_col_cream.png",
-  blush: "/flowers/textures/petals/petal_col_blush.png",
-  pink: "/flowers/textures/petals/petal_col_pink.png",
-  rose: "/flowers/textures/petals/petal_col_rose.png",
-  red: "/flowers/textures/petals/petal_col_red.png",
+  white: "/flowers/textures/petals/petal_col_white.webp",
+  cream: "/flowers/textures/petals/petal_col_cream.webp",
+  blush: "/flowers/textures/petals/petal_col_blush.webp",
+  pink: "/flowers/textures/petals/petal_col_pink.webp",
+  rose: "/flowers/textures/petals/petal_col_rose.webp",
+  red: "/flowers/textures/petals/petal_col_red.webp",
 } as const;
 
 /** falling_petals.glb ichidagi material nomlari */

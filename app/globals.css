@@ -94,6 +94,37 @@
   --glow-b: #dbe8de;
   --glow-c: #f7efe2;
   --fog-k: 0.26;
+
+  /* ---- fon-qatlam palitrasi — HAR BIR bezak qatlami faqat shu
+     tokenlardan ichadi (komponentlarda hardcode rang yo'q) ---- */
+  --bg-base: var(--bg);
+  --sky-k: 26%;                                /* osmon gradienti kuchi */
+  --glow-a-k: 44%;                             /* chap-yuqori iliq nur */
+  --glow-warm: color-mix(in srgb, var(--primary) 18%, var(--glow-b));
+  --glow-warm-op: 0.4;
+  --glow-c-k: 52%;                             /* pastki nur */
+  --fog-tint: rgba(255, 253, 248, 0.5);
+  --fog-m1: 1;                                 /* tuman band kuchaytirgichlari */
+  --fog-m2: 0.75;
+  --fog-mg: 0.7;
+  --veil-k: 52%;                               /* markaz vual kuchi */
+  --petal-tint: none;                          /* PetalBurst gulbarg filtri */
+  --petal-shadow: rgba(120, 60, 60, 0.18);
+  --flower-dim: 1;                             /* fon gullari xiralashuvi */
+  --foliage-op: 0.16;
+  --flower-glow: rgba(120, 70, 60, 0.22);
+  --garden-op: 0.92;
+  --garden-leaf: rgba(63, 115, 85, 0.4);
+  --garden-vein: rgba(240, 248, 240, 0.5);
+  --garden-branch: rgba(96, 76, 56, 0.45);
+  --canopy-1: rgba(47, 93, 67, 0.3);
+  --canopy-2: rgba(63, 115, 85, 0.26);
+  --canopy-3: rgba(52, 98, 72, 0.24);
+  --sun-ray-1: rgba(255, 246, 224, 0.3);
+  --sun-ray-2: rgba(255, 250, 235, 0.22);
+  --gsky-1: 30%;                               /* bog' osmoni aralashuv foizlari */
+  --gsky-2: 22%;
+  --gsky-3: 16%;
 }
 
 /* ============ DARK — "Nocturne Atelier" ============ */
@@ -145,6 +176,35 @@
   --glow-b: rgba(219, 232, 222, 0.05);
   --glow-c: rgba(247, 239, 226, 0.05);
   --fog-k: 0.14;
+
+  /* ---- fon-qatlam palitrasi (tungi qiymatlar) ---- */
+  --sky-k: 7%;
+  --glow-a-k: 16%;
+  --glow-warm: color-mix(in srgb, var(--primary) 10%, var(--glow-b));
+  --glow-warm-op: 0.14;
+  --glow-c-k: 12%;
+  --fog-m1: 0.5;
+  --fog-m2: 0.4;
+  --fog-mg: 0.4;
+  --veil-k: 40%;
+  /* tunda gulbarglar chuqurroq atirgul tusini oladi — ko'rinib turadi */
+  --petal-tint: saturate(1.35) brightness(0.82);
+  --petal-shadow: rgba(90, 35, 45, 0.35);
+  --flower-dim: 0.72;
+  --foliage-op: 0.1;
+  --flower-glow: rgba(120, 70, 60, 0.35);
+  --garden-op: 0.7;
+  --garden-leaf: rgba(96, 140, 110, 0.36);
+  --garden-vein: rgba(140, 180, 150, 0.4);
+  --garden-branch: rgba(110, 92, 70, 0.5);
+  --canopy-1: rgba(47, 93, 67, 0.28);
+  --canopy-2: rgba(63, 115, 85, 0.22);
+  --canopy-3: rgba(52, 98, 72, 0.24);
+  --sun-ray-1: rgba(255, 246, 224, 0.07);
+  --sun-ray-2: rgba(255, 250, 235, 0.05);
+  --gsky-1: 8%;
+  --gsky-2: 5%;
+  --gsky-3: 4%;
 }
 
 /* ============================================================
@@ -459,7 +519,7 @@ a:hover {
 
 /* yumshoq tuman qatlami — juda sekin oqadi (botanika foni) */
 .fog-band {
-  background: radial-gradient(ellipse 60% 100% at 50% 50%, rgba(255, 253, 248, 0.5), transparent 70%);
+  background: radial-gradient(ellipse 60% 100% at 50% 50%, var(--fog-tint), transparent 70%);
   filter: blur(38px);
   animation: fogDrift 46s ease-in-out infinite alternate;
   transform: translate3d(calc(var(--plx-x, 0px) * 2), calc(var(--plx-y, 0px) * 2), 0);
@@ -472,6 +532,22 @@ a:hover {
 @keyframes fogDrift {
   from { translate: -4% 0; }
   to { translate: 4% -12px; }
+}
+
+/* mavzu almashganda fon qatlamlari yumshoq moslashadi — faqat arzon
+   xususiyatlar (opacity/background-color), layout/filtr emas */
+.theme-fade {
+  transition: opacity 600ms var(--ease), background-color 600ms var(--ease);
+}
+body {
+  transition: background-color 600ms var(--ease);
+}
+
+/* tab yashirin — barcha bezak animatsiyalar pauza (visibilitychange, Shell) */
+.app-hidden *,
+.app-hidden *::before,
+.app-hidden *::after {
+  animation-play-state: paused !important;
 }
 
 /* harakat kamaytirilgan rejim — barcha bezak animatsiyalar o'chadi */

@@ -5,7 +5,7 @@ export default function NotFound() {
   return (
     <div className="relative flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
       <img
-        src="/flowers/textures/peony.png"
+        src="/flowers/textures/peony.webp"
         alt=""
         aria-hidden
         width={150}
