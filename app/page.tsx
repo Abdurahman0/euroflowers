@@ -52,10 +52,10 @@ export default function DashboardPage() {
             <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: s.darkCard ? "rgba(255,255,255,0.68)" : "var(--muted)" }}>
               {s.label}
             </div>
-            <div className="font-serif-lux mt-2 whitespace-nowrap text-[24px] font-bold tracking-tight" style={{ color: s.darkCard ? "#ffffff" : "var(--text)" }}>
+            <div className="mt-2 whitespace-nowrap text-[24px] font-semibold tracking-tight" style={{ color: s.darkCard ? "#ffffff" : "var(--text)" }}>
               <CountUp value={s.num} format={s.money ? fmtMoney : undefined} />
             </div>
-            <div className="mt-1 text-[12.5px] font-medium" style={{ color: s.darkCard ? "rgba(255,255,255,0.78)" : "var(--text-2)" }}>
+            <div className="mt-1 text-[13px] font-medium" style={{ color: s.darkCard ? "rgba(255,255,255,0.78)" : "var(--text-2)" }}>
               {s.sub}
             </div>
             <MiniBloom />
@@ -67,8 +67,8 @@ export default function DashboardPage() {
         {/* so'nggi leadlar */}
         <motion.section variants={rise} className="glass-lite p-5">
           <div className="mb-3.5 flex items-center justify-between">
-            <h2 className="text-[17px]">So&apos;nggi leadlar</h2>
-            <Link href="/crm" className="text-[12.5px] font-bold" style={{ color: "var(--acc)" }}>CRM →</Link>
+            <h2 className="text-[16px]">So&apos;nggi leadlar</h2>
+            <Link href="/crm" className="text-[13px] font-bold" style={{ color: "var(--acc)" }}>CRM →</Link>
           </div>
           <div className="flex flex-col gap-2.5">
             {d.recent_leads.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Hozircha lead yo&apos;q.</p>}
@@ -81,11 +81,11 @@ export default function DashboardPage() {
                 className="card-hover flex items-center gap-3 rounded-[14px] border p-2.5"
                 style={{ borderColor: "var(--line2)" }}
               >
-                <div className="flex h-[38px] w-[38px] -rotate-3 items-center justify-center rounded-xl bg-tint text-[13.5px] font-bold text-tintink">
+                <div className="flex h-[38px] w-[38px] -rotate-3 items-center justify-center rounded-xl bg-tint text-[14px] font-bold text-tintink">
                   {initials(l.customer_detail?.name || l.customer_detail?.instagram_username || "?")}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-bold">{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</div>
+                  <div className="text-[14px] font-bold">{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</div>
                   <div className="truncate text-xs" style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</div>
                 </div>
                 <div className="text-right">
@@ -100,7 +100,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4">
           {/* lead pipeline — animatsiyali ustunlar */}
           <motion.section variants={rise} className="glass-lite p-5">
-            <h2 className="mb-3.5 text-[17px]">Lead pipeline</h2>
+            <h2 className="mb-3.5 text-[16px]">Lead pipeline</h2>
             <div className="flex flex-col gap-2.5">
               {d.lead_pipeline.map((p, i) => (
                 <div key={p.status} className="flex items-center gap-3">
@@ -123,7 +123,7 @@ export default function DashboardPage() {
 
           {/* diqqat */}
           <motion.section variants={rise} className="glass-lite p-5">
-            <h2 className="mb-3 text-[17px]">⚡ Diqqat talab qiladi</h2>
+            <h2 className="mb-3 text-[16px]">⚡ Diqqat talab qiladi</h2>
             <div className="flex flex-col gap-2">
               {d.recent_notifications.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Hammasi joyida 🌷</p>}
               {d.recent_notifications.map((n) => (
@@ -131,7 +131,7 @@ export default function DashboardPage() {
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold text-white" style={{ background: "var(--acc)" }}>!</span>
                   <div className="flex-1">
                     <p className="text-[13px] font-bold leading-snug">{n.title_uz || n.title_ru}</p>
-                    {(n.body_uz || n.body_ru) && <p className="text-[12.5px] leading-snug" style={{ color: "var(--mut)" }}>{n.body_uz || n.body_ru}</p>}
+                    {(n.body_uz || n.body_ru) && <p className="text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{n.body_uz || n.body_ru}</p>}
                     <p className="mt-0.5 text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(n.created_at)}</p>
                   </div>
                 </div>
@@ -142,10 +142,10 @@ export default function DashboardPage() {
           {/* filiallar bo'yicha sklad */}
           <motion.section variants={rise} className="glass-lite relative overflow-hidden p-5 text-[#F7F1E8]" style={{ background: "color-mix(in srgb, var(--side) 62%, transparent)" }}>
             <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full border-[18px] opacity-30" style={{ borderColor: "var(--accL)" }} />
-            <h2 className="text-[17px]" style={{ color: "#F7F1E8" }}>Filiallar bo&apos;yicha sklad</h2>
+            <h2 className="text-[16px]" style={{ color: "#F7F1E8" }}>Filiallar bo&apos;yicha sklad</h2>
             <div className="mt-3.5 flex flex-wrap gap-2">
               {d.branch_stock.map((b) => (
-                <Link key={b.branch__id} href="/sklad" className="rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[12.5px] !text-[#F7F1E8] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/25">
+                <Link key={b.branch__id} href="/sklad" className="rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[13px] !text-[#F7F1E8] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/25">
                   {b.branch__name} · {b.stems.toLocaleString("ru")} dona · {b.batches} partiya
                 </Link>
               ))}

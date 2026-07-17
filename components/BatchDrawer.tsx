@@ -28,9 +28,9 @@ const MOVE_OPTIONS: { value: MovementType; label: string }[] = [
 
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-[12px] border border-white/10 bg-white/[0.04] px-3 py-2.5">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-white/40">{label}</div>
-      <div className="mt-0.5 text-[13.5px] font-semibold">{value}</div>
+    <div className="rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2.5">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--muted)]">{label}</div>
+      <div className="mt-0.5 text-[14px] font-semibold">{value}</div>
     </div>
   );
 }
@@ -109,17 +109,17 @@ export default function BatchDrawer({
       sub={`Partiya №${b.batch_number} · ${b.branch_detail?.name}`}
       badges={
         <>
-          {b.remaining_stems === 0 && <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold">TUGADI</span>}
-          {low && <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white" style={{ background: "var(--danger)" }}>KAM QOLDI</span>}
-          {!b.is_active && <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold">NOFAOL</span>}
-          <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold text-white/70">{v?.color_uz}</span>
-          <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold text-white/70">{b.height_cm} sm</span>
+          {b.remaining_stems === 0 && <span className="rounded-full bg-[color:var(--surface-2)] px-2.5 py-0.5 text-[11px] font-bold">TUGADI</span>}
+          {low && <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white" style={{ background: "var(--danger)" }}>KAM QOLDI</span>}
+          {!b.is_active && <span className="rounded-full bg-[color:var(--surface-2)] px-2.5 py-0.5 text-[11px] font-bold">NOFAOL</span>}
+          <span className="rounded-full bg-[color:var(--hover)] px-2.5 py-0.5 text-[11px] font-bold text-[color:var(--text-2)]">{v?.color_uz}</span>
+          <span className="rounded-full bg-[color:var(--hover)] px-2.5 py-0.5 text-[11px] font-bold text-[color:var(--text-2)]">{b.height_cm} sm</span>
         </>
       }
     >
       {/* rasm */}
       {(b.image_url || v?.image_url) && (
-        <div className="mb-4 h-[160px] overflow-hidden rounded-[14px] border border-white/12">
+        <div className="mb-4 h-[160px] overflow-hidden rounded-[14px] border border-[color:var(--border)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={b.image_url || v.image_url} alt="" className="h-full w-full object-cover" />
         </div>
@@ -138,7 +138,7 @@ export default function BatchDrawer({
       </div>
 
       {b.notes && (
-        <div className="mt-3 rounded-[12px] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[13px] leading-relaxed text-white/75">
+        <div className="mt-3 rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2.5 text-[13px] leading-relaxed text-[color:var(--text-2)]">
           {b.notes}
         </div>
       )}
@@ -146,7 +146,7 @@ export default function BatchDrawer({
       {/* tezkor amal */}
       {control && b.is_active && (
         <div className="mt-5">
-          <div className="mb-2 text-[10.5px] font-extrabold uppercase tracking-[2px]" style={{ color: "var(--accL)" }}>Tezkor harakat</div>
+          <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[2px]" style={{ color: "var(--accL)" }}>Tezkor harakat</div>
           <div className="grid grid-cols-[1.2fr_1fr] gap-2.5">
             <Select value={mvType} options={MOVE_OPTIONS} onChange={(x) => setMvType(String(x) as MovementType)} />
             <input className="inp" inputMode="numeric" value={mvQty} onChange={(e) => setMvQty(e.target.value.replace(/\D/g, ""))} placeholder="Dona" aria-label="Miqdor (dona)" />
@@ -160,12 +160,12 @@ export default function BatchDrawer({
 
       {/* tarix — timeline */}
       <div className="mt-5">
-        <div className="mb-2 text-[10.5px] font-extrabold uppercase tracking-[2px]" style={{ color: "var(--accL)" }}>Harakatlar tarixi</div>
-        {movesErr && <p className="text-[12.5px] font-semibold text-[#e8a7a7]">{movesErr}</p>}
-        {!movesErr && moves === null && <p className="text-[12.5px] text-white/50">Yuklanmoqda…</p>}
-        {moves && moves.length === 0 && <p className="text-[12.5px] text-white/50">Bu partiyada hali harakat yo&apos;q.</p>}
+        <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[2px]" style={{ color: "var(--accL)" }}>Harakatlar tarixi</div>
+        {movesErr && <p className="text-[13px] font-semibold text-[color:var(--danger-ink)]">{movesErr}</p>}
+        {!movesErr && moves === null && <p className="text-[13px] text-[color:var(--muted)]">Yuklanmoqda…</p>}
+        {moves && moves.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Bu partiyada hali harakat yo&apos;q.</p>}
         {moves && moves.length > 0 && (
-          <ol className="relative ml-2 border-l border-white/12 pl-4">
+          <ol className="relative ml-2 border-l border-[color:var(--border)] pl-4">
             {moves.map((m) => {
               const isIn = MOVE_IN.has(m.movement_type);
               const who = m.performed_by_detail
@@ -176,9 +176,9 @@ export default function BatchDrawer({
                   <span className={clsx("absolute -left-[21.5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-[rgba(26,21,17,1)]", isIn ? "bg-[var(--success)]" : "bg-[var(--warning)]")} />
                   <div className="text-[13px] font-semibold">
                     {MOVE_LABEL[m.movement_type] ?? m.movement_type} · {m.quantity_stems} dona
-                    {m.reason ? <span className="font-normal text-white/60"> — {m.reason}</span> : null}
+                    {m.reason ? <span className="font-normal text-[color:var(--text-2)]"> — {m.reason}</span> : null}
                   </div>
-                  <div className="text-[11.5px] text-white/45">{who} · {fmtTime(m.created_at)}</div>
+                  <div className="text-[12px] text-[color:var(--muted)]">{who} · {fmtTime(m.created_at)}</div>
                 </li>
               );
             })}
@@ -187,7 +187,7 @@ export default function BatchDrawer({
       </div>
 
       {/* audit */}
-      <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-white/10 pt-4 text-[11.5px] text-white/45">
+      <div className="mt-5 grid grid-cols-2 gap-2.5 border-t border-[color:var(--border)] pt-4 text-[12px] text-[color:var(--muted)]">
         <span>Yaratilgan: {fmtTime(b.created_at)}</span>
         <span className="text-right">Yangilangan: {fmtTime(b.updated_at)}</span>
       </div>
@@ -196,12 +196,12 @@ export default function BatchDrawer({
       {control && b.is_active && (
         <div className="mt-4">
           {!confirmOff ? (
-            <button onClick={() => setConfirmOff(true)} className="w-full rounded-[12px] border border-white/15 py-2.5 text-[12.5px] font-bold text-[#e8a7a7] transition-colors duration-200 hover:bg-white/[0.06]">
+            <button onClick={() => setConfirmOff(true)} className="w-full rounded-[12px] border border-[color:var(--border)] py-2.5 text-[13px] font-bold text-[color:var(--danger-ink)] transition-colors duration-200 hover:bg-[color:var(--hover)]">
               Partiyani nofaollashtirish
             </button>
           ) : (
             <div className="flex gap-2.5">
-              <button onClick={() => setConfirmOff(false)} className="btn-ghost flex-1 !text-white/70 hover:!bg-white/10 hover:!text-white">Bekor</button>
+              <button onClick={() => setConfirmOff(false)} className="btn-ghost flex-1">Bekor</button>
               <button onClick={deactivate} disabled={saving} className={clsx("btn-danger flex-1", saving && "btn-loading")}>Tasdiqlash</button>
             </div>
           )}

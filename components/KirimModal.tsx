@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import Modal, { ModalHeader, Section, Field } from "./Modal";
+import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
@@ -101,14 +101,14 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
         <Field label="Pochka sotuv narxi (so'm)" span><input className="inp" type="number" value={f.sale_price_per_bunch} onChange={set("sale_price_per_bunch")} placeholder="avto: dona × pochka" /></Field>
       </div>
       {receivedStems > 0 && (
-        <p className="mt-2.5 text-[12.5px] text-white/65">Jami kirim: <b className="text-white">{receivedStems} dona</b></p>
+        <p className="mt-2.5 text-[13px] text-[color:var(--text-2)]">Jami kirim: <b className="text-[color:var(--text)]">{receivedStems} dona</b></p>
       )}
       <Section>Gul rasmi</Section>
       <ImageInput value={f.image_url} onChange={(url) => setF({ ...f, image_url: url })} />
-      <div className="mt-5 flex gap-2.5">
+      <ModalFooter>
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Kirimni saqlash"}</button>
-        <button onClick={onClose} className="rounded-[14px] border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold hover:bg-white/20">Bekor</button>
-      </div>
+        <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold hover:bg-[color:var(--hover)]">Bekor</button>
+      </ModalFooter>
     </Modal>
   );
 }

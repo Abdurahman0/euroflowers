@@ -60,7 +60,7 @@ export default function SkladPage() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <p className="text-[13.5px]" style={{ color: "var(--mut)" }}>
+        <p className="text-[14px]" style={{ color: "var(--mut)" }}>
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada
         </p>
         <div className="ml-auto flex items-center gap-2">
@@ -76,7 +76,7 @@ export default function SkladPage() {
             />
           </div>
           <DateChips />
-          <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+          <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
             ＋ Keldi qilish
           </button>
         </div>
@@ -98,8 +98,8 @@ export default function SkladPage() {
             >
               <div className="relative h-[120px] bg-bg2">
                 {(b.image_url || v?.image_url) && <img src={b.image_url || v.image_url} alt={v?.name_uz} className="h-full w-full object-cover" />}
-                {b.remaining_stems === 0 && <span className="absolute right-2 top-2 rotate-2 rounded-full border border-[#221833] bg-[#5a5a5a] px-2.5 py-0.5 text-[10px] font-bold text-white">TUGADI</span>}
-                {low && <span className="absolute right-2 top-2 rotate-2 rounded-full border border-[#221833] bg-[#E4572E] px-2.5 py-0.5 text-[10px] font-bold text-white">KAM QOLDI</span>}
+                {b.remaining_stems === 0 && <span className="absolute right-2 top-2 rotate-2 rounded-full border border-[#221833] bg-[#5a5a5a] px-2.5 py-0.5 text-[11px] font-bold text-white">TUGADI</span>}
+                {low && <span className="absolute right-2 top-2 rotate-2 rounded-full border border-[#221833] bg-[#E4572E] px-2.5 py-0.5 text-[11px] font-bold text-white">KAM QOLDI</span>}
               </div>
               <div className="flex flex-1 flex-col gap-2 p-3.5">
                 <div>
@@ -109,17 +109,17 @@ export default function SkladPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  <span className="rounded-full bg-tint px-2.5 py-0.5 text-[11.5px] font-semibold">{v?.color_uz}</span>
-                  <span className="rounded-full bg-tint px-2.5 py-0.5 text-[11.5px] font-semibold">{b.height_cm} sm</span>
-                  <span className="rounded-full bg-peach px-2.5 py-0.5 text-[11.5px] font-semibold">min. {b.minimum_sale_stems} dona</span>
+                  <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold">{v?.color_uz}</span>
+                  <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold">{b.height_cm} sm</span>
+                  <span className="rounded-full bg-peach px-2.5 py-0.5 text-[12px] font-semibold">min. {b.minimum_sale_stems} dona</span>
                 </div>
                 <div className="mt-auto flex items-end justify-between">
                   <div>
-                    <div className="text-[11.5px]" style={{ color: "var(--mut)" }}>Qoldiq</div>
+                    <div className="text-[12px]" style={{ color: "var(--mut)" }}>Qoldiq</div>
                     <div className="text-sm font-bold">{b.remaining_bunches} pochka · {b.remaining_stems} dona</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[11.5px]" style={{ color: "var(--mut)" }}>Dona narxi</div>
+                    <div className="text-[12px]" style={{ color: "var(--mut)" }}>Dona narxi</div>
                     <div className="text-sm font-bold" style={{ color: "var(--acc)" }}>{fmt(b.sale_price_per_stem)}</div>
                   </div>
                 </div>
@@ -155,13 +155,13 @@ export default function SkladPage() {
                 {isIn ? "↓" : "↑"}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-semibold">
+                <div className="text-[14px] font-semibold">
                   {v?.flower_detail?.name_uz} {v?.name_uz} — {m.quantity_stems} dona
                   {m.reason ? ` · ${m.reason}` : ""}
                 </div>
                 <div className="mt-0.5 text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>
               </div>
-              <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[10px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
+              <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
                 {MOVE_LABEL[m.movement_type] ?? m.movement_type.toUpperCase()}
               </span>
             </div>

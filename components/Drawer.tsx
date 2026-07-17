@@ -69,16 +69,16 @@ export default function Drawer({
         style={{ width: `min(${width}px, calc(100vw - 24px))` }}
       >
         {/* sarlavha — sticky */}
-        <div className="flex items-start gap-3 border-b border-white/10 p-5 pb-4">
+        <div className="flex items-start gap-3 border-b border-[color:var(--border)] p-5 pb-4">
           <div className="min-w-0 flex-1">
-            <div className="font-serif-lux text-[19px] leading-tight">{title}</div>
-            {sub && <div className="mt-0.5 text-[12.5px] text-white/55">{sub}</div>}
+            <div className="text-[18px] font-semibold leading-tight tracking-tight">{title}</div>
+            {sub && <div className="mt-0.5 text-[13px] text-[color:var(--muted)]">{sub}</div>}
             {badges && <div className="mt-2 flex flex-wrap items-center gap-1.5">{badges}</div>}
           </div>
           <button
             onClick={requestClose}
             aria-label="Yopish"
-            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-white/10 text-sm text-white/80 transition-colors duration-200 hover:bg-white/20 hover:text-white"
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[color:var(--hover)] text-sm text-[color:var(--text-2)] transition-colors duration-200 hover:bg-[color:var(--hover)] hover:text-[color:var(--text)]"
           >
             ✕
           </button>

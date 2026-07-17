@@ -16,8 +16,8 @@ export default function EmptyState({ title, sub }: { title: string; sub?: string
           animation: "gentleFloat 7s ease-in-out infinite",
         }}
       />
-      <p className="text-[13.5px] font-bold" style={{ color: "var(--ink)" }}>{title}</p>
-      {sub && <p className="max-w-[300px] text-[12.5px] leading-relaxed" style={{ color: "var(--mut)" }}>{sub}</p>}
+      <p className="text-[14px] font-bold" style={{ color: "var(--ink)" }}>{title}</p>
+      {sub && <p className="max-w-[300px] text-[13px] leading-relaxed" style={{ color: "var(--mut)" }}>{sub}</p>}
     </div>
   );
 }

@@ -17,6 +17,7 @@ const NAV: { id: ScreenId; href: string; label: string; page: PermissionPage }[]
   { id: "katalog", href: "/katalog", label: "Katalog", page: "catalog" },
   { id: "postlar", href: "/postlar", label: "Postlar", page: "social_posts" },
   { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", page: "notifications" },
+  { id: "xodimlar", href: "/xodimlar", label: "Xodimlar", page: "users" },
   { id: "sozlamalar", href: "/sozlamalar", label: "Sozlamalar", page: "settings" },
 ];
 
@@ -58,8 +59,8 @@ export default function Sidebar() {
         />
         {sideOpen && (
           <div className="min-w-0">
-            <div className="font-serif-lux truncate text-[17px] tracking-tight text-[#F5F0E8]">EuroFlowers</div>
-            <div className="text-[9px] font-semibold uppercase tracking-[3px] text-[#F5F0E8]/45">AI · Boutique</div>
+            <div className="truncate text-[16px] font-semibold tracking-tight text-[#F5F0E8]">EuroFlowers</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[3px] text-[#F5F0E8]/45">AI · Boutique</div>
           </div>
         )}
       </div>

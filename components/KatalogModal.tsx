@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import Modal, { ModalHeader, Section, Field } from "./Modal";
+import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
@@ -108,10 +108,10 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
             <Field label={i === 0 ? "Dona" : ""}>
               <input className="inp" type="number" value={r.quantity_stems} onChange={(e) => setComp(comp.map((x, j) => (j === i ? { ...x, quantity_stems: e.target.value } : x)))} placeholder="25" />
             </Field>
-            <button type="button" onClick={() => setComp(comp.length > 1 ? comp.filter((_, j) => j !== i) : comp)} className="mb-[1px] flex h-[38px] w-9 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-sm hover:bg-white/20">✕</button>
+            <button type="button" onClick={() => setComp(comp.length > 1 ? comp.filter((_, j) => j !== i) : comp)} className="mb-[1px] flex h-[38px] w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--hover)] text-sm hover:bg-[color:var(--hover)]">✕</button>
           </div>
         ))}
-        <button type="button" onClick={() => setComp([...comp, { stock_batch: batches[0]?.id ?? 0, quantity_stems: "" }])} className="self-start rounded-full border border-white/30 bg-white/10 px-3.5 py-1.5 text-[12px] font-bold hover:bg-white/20">
+        <button type="button" onClick={() => setComp([...comp, { stock_batch: batches[0]?.id ?? 0, quantity_stems: "" }])} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold hover:bg-[color:var(--hover)]">
           ＋ Yana gul qo&apos;shish
         </button>
       </div>
@@ -130,10 +130,10 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
         <Field label="Rasm"><ImageInput value={f.image_url} onChange={(url) => setF({ ...f, image_url: url })} /></Field>
       </div>
 
-      <div className="mt-5 flex gap-2.5">
+      <ModalFooter>
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Katalogga qo'shish"}</button>
-        <button onClick={onClose} className="rounded-[14px] border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold hover:bg-white/20">Bekor</button>
-      </div>
+        <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold hover:bg-[color:var(--hover)]">Bekor</button>
+      </ModalFooter>
     </Modal>
   );
 }

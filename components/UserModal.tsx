@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import Modal, { ModalHeader, Section, Field } from "./Modal";
+import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
@@ -152,7 +152,7 @@ export default function UserModal({
         </Field>
       </div>
       {(errors.username || errors.password) && (
-        <p className="mt-1.5 text-[12px] font-semibold text-[#e8a7a7]" role="alert">{errors.username || errors.password}</p>
+        <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.username || errors.password}</p>
       )}
 
       <Section>Rol va til</Section>
@@ -174,27 +174,27 @@ export default function UserModal({
               key={b.id}
               type="button"
               onClick={() => setBranchIds((ids) => (on ? ids.filter((x) => x !== b.id) : [...ids, b.id]))}
-              className={`rounded-full border px-3.5 py-1.5 text-[12px] font-semibold transition-colors duration-200 ${on ? "text-white" : "text-white/60 hover:bg-white/10"}`}
-              style={on ? { background: "var(--primary)", borderColor: "var(--primary)" } : { borderColor: "rgba(255,255,255,0.2)" }}
+              className={`rounded-full border px-3.5 py-1.5 text-[12px] font-semibold transition-colors duration-200 ${on ? "text-white" : "text-[color:var(--text-2)] hover:bg-[color:var(--hover)]"}`}
+              style={on ? { background: "var(--primary)", borderColor: "var(--primary)" } : { borderColor: "var(--border)" }}
               aria-pressed={on}
             >
               {b.name}
             </button>
           );
         })}
-        {branches.length === 0 && <p className="text-[12.5px] text-white/50">Filial topilmadi.</p>}
+        {branches.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Filial topilmadi.</p>}
       </div>
 
       <Section>Sahifa ruxsatlari</Section>
-      <div className="overflow-hidden rounded-[12px] border border-white/12">
-        <div className="grid grid-cols-[1fr_84px_84px] items-center gap-2 border-b border-white/10 bg-white/[0.05] px-3.5 py-2 text-[10.5px] font-bold uppercase tracking-wider text-white/50">
+      <div className="overflow-hidden rounded-[12px] border border-[color:var(--border)]">
+        <div className="grid grid-cols-[1fr_84px_84px] items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--surface-2)] px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider text-[color:var(--muted)]">
           <span>Sahifa</span>
           <span className="text-center">Ko&apos;rish</span>
           <span className="text-center">Boshqarish</span>
         </div>
         <div className="max-h-[240px] overflow-y-auto overscroll-contain">
           {visiblePages.map(({ page, label }) => (
-            <div key={page} className="grid grid-cols-[1fr_84px_84px] items-center gap-2 border-b border-white/[0.06] px-3.5 py-2 text-[13px] last:border-b-0">
+            <div key={page} className="grid grid-cols-[1fr_84px_84px] items-center gap-2 border-b border-[color:var(--line2)] px-3.5 py-2 text-[13px] last:border-b-0">
               <span>{label}</span>
               <span className="text-center">
                 <input type="checkbox" checked={perms[page].can_view} onChange={(e) => togglePerm(page, "can_view", e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" aria-label={`${label} — ko'rish`} />
@@ -206,14 +206,14 @@ export default function UserModal({
           ))}
         </div>
       </div>
-      <p className="mt-2 text-[11.5px] text-white/45">Ruxsat belgilanmagan bo&apos;lsa, rol bo&apos;yicha standart qoidalar amal qiladi.</p>
+      <p className="mt-2 text-[12px] text-[color:var(--muted)]">Ruxsat belgilanmagan bo&apos;lsa, rol bo&apos;yicha standart qoidalar amal qiladi.</p>
 
-      <div className="mt-6 flex gap-2.5">
-        <button onClick={onClose} className="btn-ghost !text-white/70 hover:!bg-white/10 hover:!text-white">Bekor qilish</button>
+      <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor qilish</button>
         <button onClick={save} disabled={saving} className={`btn-primary ${saving ? "btn-loading" : ""}`}>
           {editUser ? "Saqlash" : "Qo'shish"}
         </button>
-      </div>
+      </ModalFooter>
     </Modal>
   );
 }

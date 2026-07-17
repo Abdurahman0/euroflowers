@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import Modal, { ModalHeader, Section, Field } from "./Modal";
+import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import ImageInput from "./ImageInput";
 import Select from "./Select";
 import { api, ApiError } from "@/lib/api";
@@ -132,8 +132,8 @@ export default function PostModal({
           autoFocus={!post}
         />
       </Field>
-      {linkError && <p className="mt-1.5 text-[12px] font-semibold text-[#e8a7a7]" role="alert">{linkError}</p>}
-      {!linkError && linkHint && <p className="mt-1.5 text-[11.5px] text-white/45">{linkHint}</p>}
+      {linkError && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{linkError}</p>}
+      {!linkError && linkHint && <p className="mt-1.5 text-[12px] text-[color:var(--muted)]">{linkHint}</p>}
 
       <div className="mt-3 grid grid-cols-2 gap-3">
         <Field label="Tur">
@@ -167,7 +167,7 @@ export default function PostModal({
           <textarea className="inp min-h-[64px]" value={descRu} onChange={(e) => setDescRu(e.target.value)} placeholder="Состав, размер, доставка…" />
         </Field>
       </div>
-      {errors.title_uz && <p className="mt-1.5 text-[12px] font-semibold text-[#e8a7a7]" role="alert">{errors.title_uz}</p>}
+      {errors.title_uz && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.title_uz}</p>}
 
       <Section>Narx va maqsad</Section>
       <div className="grid grid-cols-2 gap-3">
@@ -178,7 +178,7 @@ export default function PostModal({
           <input className="inp" inputMode="numeric" value={flowerCount} onChange={(e) => setFlowerCount(e.target.value.replace(/\D/g, ""))} placeholder="25" />
         </Field>
       </div>
-      {errors.price && <p className="mt-1.5 text-[12px] font-semibold text-[#e8a7a7]" role="alert">{errors.price}</p>}
+      {errors.price && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.price}</p>}
       <div className="mt-3 flex items-center gap-6 text-[13px]">
         <label className="flex cursor-pointer items-center gap-2">
           <input type="checkbox" checked={targeted} onChange={(e) => setTargeted(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
@@ -193,12 +193,12 @@ export default function PostModal({
       <Section>Rasm</Section>
       <ImageInput value={image} onChange={setImage} />
 
-      <div className="mt-6 flex gap-2.5">
-        <button onClick={onClose} className="btn-ghost !text-white/70 hover:!bg-white/10 hover:!text-white">Bekor qilish</button>
+      <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor qilish</button>
         <button onClick={save} disabled={saving} className={`btn-primary ${saving ? "btn-loading" : ""}`}>
           {post ? "Saqlash" : "Qo'shish"}
         </button>
-      </div>
+      </ModalFooter>
     </Modal>
   );
 }

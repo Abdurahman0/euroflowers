@@ -26,18 +26,18 @@ const sideOf = (m: Message): Side => (m.sender === "customer" ? "left" : m.sende
 function Avatar({ m, custName }: { m: Message; custName: string }) {
   if (m.sender === "customer")
     return (
-      <span className="flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-bold" style={{ background: "var(--surface-solid)", borderColor: "var(--border)", color: "var(--text-2)" }}>
+      <span className="flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-bold" style={{ background: "var(--surface-solid)", borderColor: "var(--border)", color: "var(--text-2)" }}>
         {initials(custName)}
       </span>
     );
   if (m.sender === "ai")
     return (
-      <span className="flex h-7 w-7 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: "var(--primary)" }}>
+      <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-extrabold text-white" style={{ background: "var(--primary)" }}>
         AI
       </span>
     );
   return (
-    <span className="flex h-7 w-7 items-center justify-center rounded-full text-[9.5px] font-extrabold text-[#F5F0E8]" style={{ background: "var(--side)" }}>
+    <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-extrabold text-[#F5F0E8]" style={{ background: "var(--side)" }}>
       OP
     </span>
   );
@@ -97,7 +97,7 @@ function MessageRow({
           )}
           style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}
         >
-          <span className="px-1.5 text-[10.5px] font-medium" style={{ color: "var(--muted)" }}>{fmtTime(m.created_at)}</span>
+          <span className="px-1.5 text-[11px] font-medium" style={{ color: "var(--muted)" }}>{fmtTime(m.created_at)}</span>
           <button
             onClick={() => onCopy(m.text)}
             title="Nusxalash"
@@ -130,7 +130,7 @@ function MessageRow({
         {/* pufak */}
         <div
           className={clsx(
-            "whitespace-pre-line break-words px-4 py-2.5 text-[13.5px] leading-relaxed",
+            "whitespace-pre-line break-words px-4 py-2.5 text-[14px] leading-relaxed",
             isLeft
               ? clsx("rounded-[16px]", !groupWithNext && "rounded-bl-[6px]")
               : clsx("rounded-[16px]", !groupWithNext && "rounded-br-[6px]")
@@ -142,9 +142,9 @@ function MessageRow({
             <img src={img} alt="" className="mb-2 max-h-[260px] w-full rounded-[10px] object-cover" />
           )}
           {fileName && (
-            <span className="mb-2 flex items-center gap-2.5 rounded-[10px] border border-white/20 bg-white/10 px-3 py-2.5">
+            <span className="mb-2 flex items-center gap-2.5 rounded-[10px] border border-[color:var(--border)] bg-[color:var(--hover)] px-3 py-2.5">
               <Icon name="attachment" size={15} />
-              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{fileName}</span>
+              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{fileName}</span>
             </span>
           )}
           {m.text}
@@ -162,7 +162,7 @@ function MessageRow({
 
         {/* guruh oxiridagi vaqt */}
         {!groupWithNext && (
-          <span className={clsx("mt-1 text-[10.5px] font-medium", isLeft ? "ml-1" : "mr-1")} style={{ color: "var(--muted)" }}>
+          <span className={clsx("mt-1 text-[11px] font-medium", isLeft ? "ml-1" : "mr-1")} style={{ color: "var(--muted)" }}>
             {m.sender === "ai" ? "AI · " : m.sender === "operator" ? "Operator · " : ""}
             {fmtTime(m.created_at)}
           </span>
@@ -317,9 +317,9 @@ export default function ChatPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-[13.5px] font-semibold" style={{ color: "var(--text)" }}>{custName(c)}</span>
-                  {c.status === "operator" && <span className="rounded-full px-1.5 text-[9.5px] font-bold" style={{ background: "var(--warning-soft)", color: "var(--warning-ink)" }}>OPERATOR</span>}
-                  {c.status === "closed" && <span className="rounded-full px-1.5 text-[9.5px] font-bold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>YOPIQ</span>}
+                  <span className="truncate text-[14px] font-semibold" style={{ color: "var(--text)" }}>{custName(c)}</span>
+                  {c.status === "operator" && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--warning-soft)", color: "var(--warning-ink)" }}>OPERATOR</span>}
+                  {c.status === "closed" && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>YOPIQ</span>}
                 </div>
                 <div className="truncate text-xs" style={{ color: "var(--muted)" }}>{c.last_message?.text ?? "…"}</div>
               </div>
@@ -340,15 +340,15 @@ export default function ChatPage() {
                 {initials(custName(conv))}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-bold" style={{ color: "var(--text)" }}>
+                <div className="truncate text-[14px] font-bold" style={{ color: "var(--text)" }}>
                   {custName(conv)}{" "}
-                  <span className="text-[12.5px] font-medium" style={{ color: "var(--muted)" }}>@{conv.customer_detail?.instagram_username}</span>
+                  <span className="text-[13px] font-medium" style={{ color: "var(--muted)" }}>@{conv.customer_detail?.instagram_username}</span>
                 </div>
                 {conv.ai_summary && <div className="truncate text-xs font-semibold" style={{ color: "var(--text-2)" }}>{conv.ai_summary}</div>}
                 <div className="text-xs" style={{ color: "var(--muted)" }}>Instagram DM · {conv.customer_detail?.masked_phone || "tel yo'q"}</div>
               </div>
               <span
-                className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold"
+                className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-bold"
                 style={
                   conv.status === "ai"
                     ? { background: "var(--success-soft)", color: "var(--success-ink)", borderColor: "color-mix(in srgb, var(--success) 25%, transparent)" }
@@ -361,12 +361,12 @@ export default function ChatPage() {
                 {CONV_STATUS_LABEL[conv.status]}
               </span>
               {conv.status === "ai" && (
-                <button onClick={doHandoff} className="rounded-full border px-3 py-1.5 text-[11.5px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
+                <button onClick={doHandoff} className="rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
                   Operatorga olish
                 </button>
               )}
               {conv.status === "operator" && (
-                <button onClick={doResumeAi} className="rounded-full border px-3 py-1.5 text-[11.5px] font-bold transition-colors duration-200 hover:bg-[var(--success-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
+                <button onClick={doResumeAi} className="rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--success-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
                   AI&apos;ga qaytarish
                 </button>
               )}
@@ -395,7 +395,7 @@ export default function ChatPage() {
                   <div className="flex items-center gap-1.5 rounded-[16px] rounded-br-[6px] px-4 py-3.5" style={{ background: "var(--primary)" }}>
                     {[0, 0.2, 0.4].map((d) => <span key={d} className="h-1.5 w-1.5 animate-blink rounded-full bg-white" style={{ animationDelay: `${d}s` }} />)}
                   </div>
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: "var(--primary)" }}>AI</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-extrabold text-white" style={{ background: "var(--primary)" }}>AI</span>
                 </div>
               )}
               <div ref={bottomRef} />
@@ -442,7 +442,7 @@ export default function ChatPage() {
             </div>
           </>
         ) : (
-          <p className="m-auto max-w-[290px] text-center text-[13.5px] leading-relaxed" style={{ color: "var(--muted)" }}>
+          <p className="m-auto max-w-[290px] text-center text-[14px] leading-relaxed" style={{ color: "var(--muted)" }}>
             {convs.length ? "Suhbat yuklanmoqda…" : "Hozircha suhbat yo'q — Instagram webhook ulanganda DM'lar shu yerda ko'rinadi."}
           </p>
         )}

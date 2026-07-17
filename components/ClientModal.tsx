@@ -18,9 +18,9 @@ export default function ClientModal({ client, onClose }: { client: Customer; onC
   }, [client.id]);
 
   const Stat = ({ v, k }: { v: string; k: string }) => (
-    <div className="rounded-[14px] border border-white/25 p-3 text-center">
-      <div className="text-[15px] font-extrabold">{v}</div>
-      <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-white/60">{k}</div>
+    <div className="rounded-[14px] border border-[color:var(--border)] p-3 text-center">
+      <div className="text-[14px] font-extrabold">{v}</div>
+      <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-[color:var(--text-2)]">{k}</div>
     </div>
   );
 
@@ -29,12 +29,12 @@ export default function ClientModal({ client, onClose }: { client: Customer; onC
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl text-lg font-extrabold text-white" style={{ background: "linear-gradient(135deg,var(--acc),var(--accL))" }}>{initials(name)}</div>
         <div className="min-w-[140px] flex-1">
-          <div className="text-[19px] font-extrabold">{name}</div>
-          <div className="text-[13px] text-white/65">
-            {client.masked_phone || "telefon yo'q"} · <span style={{ color: "var(--accL)" }}>@{client.instagram_username || "—"}</span>
+          <div className="text-[18px] font-extrabold">{name}</div>
+          <div className="text-[13px] text-[color:var(--text-2)]">
+            {client.masked_phone || "telefon yo'q"} · <span style={{ color: "var(--primary)" }}>@{client.instagram_username || "—"}</span>
           </div>
         </div>
-        {client.purchases_count > 0 && <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-extrabold">DOIMIY MIJOZ</span>}
+        {client.purchases_count > 0 && <span className="rounded-full bg-[color:var(--surface-2)] px-3 py-1 text-[11px] font-extrabold">DOIMIY MIJOZ</span>}
         {client.is_blocked && <span className="rounded-full bg-rose px-3 py-1 text-[11px] font-extrabold text-roseink">BLOKLANGAN</span>}
       </div>
 
@@ -45,25 +45,25 @@ export default function ClientModal({ client, onClose }: { client: Customer; onC
       </div>
 
       {client.notes && (
-        <div className="mt-3.5 rounded-[14px] bg-white/[.13] px-4 py-3 text-[13px] leading-relaxed">
+        <div className="mt-3.5 rounded-[14px] bg-[color:var(--surface-2)] px-4 py-3 text-[13px] leading-relaxed">
           <b>Izoh:</b> {client.notes}
         </div>
       )}
 
       <div className="mt-4 text-sm font-bold">Leadlar tarixi</div>
       <div className="mt-2.5 flex flex-col gap-2">
-        {leads == null && <p className="text-[13px] text-white/55">Yuklanmoqda…</p>}
+        {leads == null && <p className="text-[13px] text-[color:var(--muted)]">Yuklanmoqda…</p>}
         {leads?.map((l) => (
-          <div key={l.id} className="flex items-center gap-3 rounded-[14px] border border-white/25 px-3.5 py-2.5">
+          <div key={l.id} className="flex items-center gap-3 rounded-[14px] border border-[color:var(--border)] px-3.5 py-2.5">
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-semibold">{l.request_uz || l.request_ru}</div>
-              <div className="text-[11.5px] text-white/55">{fmtTime(l.created_at)} · {l.source || "—"}</div>
+              <div className="text-[12px] text-[color:var(--muted)]">{fmtTime(l.created_at)} · {l.source || "—"}</div>
             </div>
-            <span className="whitespace-nowrap text-[13px] font-bold" style={{ color: "var(--accL)" }}>{fmt(l.estimated_price)}</span>
+            <span className="whitespace-nowrap text-[13px] font-bold" style={{ color: "var(--primary)" }}>{fmt(l.estimated_price)}</span>
             <span className={STATUS_BADGE[l.status]}>{STATUS_LABEL[l.status]}</span>
           </div>
         ))}
-        {leads?.length === 0 && <p className="text-[13px] text-white/55">Hozircha lead yo&apos;q.</p>}
+        {leads?.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Hozircha lead yo&apos;q.</p>}
       </div>
     </Modal>
   );

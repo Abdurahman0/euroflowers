@@ -18,6 +18,7 @@ const TITLES: Record<string, string> = {
   "/katalog": "Kunlik katalog",
   "/postlar": "Instagram postlar",
   "/bildirishnomalar": "Bildirishnomalar",
+  "/xodimlar": "Xodimlar — jamoa",
   "/sozlamalar": "Sozlamalar",
 };
 
@@ -106,7 +107,7 @@ export default function Header() {
           <Icon name="menu" size={16} />
         </button>
         <div className="min-w-0">
-          <h1 className="truncate text-[22px] tracking-tight">{TITLES[pathname] ?? "EuroFlowers"}</h1>
+          <h1 className="truncate text-[24px] tracking-tight">{TITLES[pathname] ?? "EuroFlowers"}</h1>
           <p className="truncate text-[12px] font-medium" style={{ color: "var(--muted)" }}>{dateStr}</p>
         </div>
       </div>
@@ -173,7 +174,7 @@ export default function Header() {
           >
             <Icon name="bell" size={16} />
             {unread > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white" style={{ background: "var(--danger)", boxShadow: "0 0 0 2px var(--bg)" }}>
+              <span className="absolute -right-1 -top-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 text-[11px] font-bold text-white" style={{ background: "var(--danger)", boxShadow: "0 0 0 2px var(--bg)" }}>
                 {unread}
               </span>
             )}
@@ -181,7 +182,7 @@ export default function Header() {
           {notifOpen && (
             <div className="glass-modal absolute right-0 top-[46px] z-50 max-h-[70vh] w-[min(410px,90vw)] origin-top-right overflow-y-auto overscroll-contain p-2 animate-[rowIn_0.22s_var(--ease)_both]" data-lenis-prevent>
               <div className="flex items-center justify-between px-3 pb-1.5 pt-2.5">
-                <span className="text-[15px] font-bold">Bildirishnomalar</span>
+                <span className="text-[14px] font-bold">Bildirishnomalar</span>
                 {unread > 0 && (
                   <button onClick={markAllNotifsRead} className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-white/20">
                     Barchasini o&apos;qish
@@ -194,8 +195,8 @@ export default function Header() {
                   <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: n.notification_type === "lead" ? "var(--success)" : "var(--danger)" }} />
                   <div className="flex-1">
                     <div className="text-[13px] font-bold leading-snug">{n.title_uz || n.title_ru}</div>
-                    {(n.body_uz || n.body_ru) && <div className="mt-0.5 text-[12.5px] leading-relaxed text-white/75">{n.body_uz || n.body_ru}</div>}
-                    <div className="mt-0.5 text-[11.5px] text-white/55">{fmtTime(n.created_at)}{!n.is_read && " · o'qilmagan"}</div>
+                    {(n.body_uz || n.body_ru) && <div className="mt-0.5 text-[13px] leading-relaxed text-white/75">{n.body_uz || n.body_ru}</div>}
+                    <div className="mt-0.5 text-[12px] text-white/55">{fmtTime(n.created_at)}{!n.is_read && " · o'qilmagan"}</div>
                   </div>
                 </button>
               ))}
@@ -216,8 +217,8 @@ export default function Header() {
               {fullName[0]?.toUpperCase() ?? "?"}
             </span>
             <span className="hidden min-w-0 text-left sm:block">
-              <span className="block max-w-[140px] truncate text-[12.5px] font-semibold leading-tight" style={{ color: "var(--text)" }}>{fullName}</span>
-              <span className="block text-[10.5px] leading-tight" style={{ color: "var(--muted)" }}>{ROLE_LABEL[role] ?? role}</span>
+              <span className="block max-w-[140px] truncate text-[13px] font-semibold leading-tight" style={{ color: "var(--text)" }}>{fullName}</span>
+              <span className="block text-[11px] leading-tight" style={{ color: "var(--muted)" }}>{ROLE_LABEL[role] ?? role}</span>
             </span>
             <span className={clsx("transition-transform duration-200", profileOpen && "rotate-180")} style={{ color: "var(--muted)" }}>
               <Icon name="chevron" size={14} />
@@ -230,13 +231,13 @@ export default function Header() {
                 <div className="text-[11px] text-white/55">{ROLE_LABEL[role] ?? role}</div>
               </div>
               <div className="pt-1.5">
-                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] font-medium text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white">
+                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white">
                   <Icon name="user" size={15} /> Profil
                 </button>
-                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] font-medium text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white">
+                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white">
                   <Icon name="sozlamalar" size={15} /> Sozlamalar
                 </button>
-                <button onClick={() => { setProfileOpen(false); logout(); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] font-medium transition-colors duration-200 hover:bg-white/10" style={{ color: "var(--danger-ink)" }}>
+                <button onClick={() => { setProfileOpen(false); logout(); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium transition-colors duration-200 hover:bg-white/10" style={{ color: "var(--danger-ink)" }}>
                   <Icon name="logout" size={15} /> Chiqish
                 </button>
               </div>

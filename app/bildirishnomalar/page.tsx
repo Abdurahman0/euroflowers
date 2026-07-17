@@ -103,7 +103,7 @@ export default function BildirishnomalarPage() {
 
       {loadErr && (
         <div className="mt-14 flex flex-col items-center gap-3">
-          <p className="text-[13.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{loadErr}</p>
+          <p className="text-[14px] font-semibold" style={{ color: "var(--danger-ink)" }}>{loadErr}</p>
           <button onClick={load} className="btn-secondary !flex-none px-6">Qayta urinish</button>
         </div>
       )}
@@ -129,14 +129,14 @@ export default function BildirishnomalarPage() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <b className="text-[13.5px]">{n.title_uz || n.title_ru}</b>
-                    <span className="rounded-full border px-2 py-px text-[10px] font-bold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>{meta.label}</span>
+                    <b className="text-[14px]">{n.title_uz || n.title_ru}</b>
+                    <span className="rounded-full border px-2 py-px text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>{meta.label}</span>
                     {!n.is_read && <span className="h-2 w-2 rounded-full" style={{ background: "var(--primary)" }} aria-label="o'qilmagan" />}
                   </span>
                   {(n.body_uz || n.body_ru) && (
-                    <span className="mt-0.5 block text-[12.5px] leading-relaxed" style={{ color: "var(--text-2)" }}>{n.body_uz || n.body_ru}</span>
+                    <span className="mt-0.5 block text-[13px] leading-relaxed" style={{ color: "var(--text-2)" }}>{n.body_uz || n.body_ru}</span>
                   )}
-                  <span className="mt-0.5 block text-[11.5px]" style={{ color: "var(--muted)" }}>{fmtTime(n.created_at)}</span>
+                  <span className="mt-0.5 block text-[12px]" style={{ color: "var(--muted)" }}>{fmtTime(n.created_at)}</span>
                 </span>
               </button>
             );

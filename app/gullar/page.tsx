@@ -2,7 +2,7 @@
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import ImageInput from "@/components/ImageInput";
-import Modal, { ModalHeader, Section, Field } from "@/components/Modal";
+import Modal, { ModalFooter, ModalHeader, Section, Field } from "@/components/Modal";
 import Select from "@/components/Select";
 import { Icon } from "@/components/icons";
 import { useCallback, useEffect, useState } from "react";
@@ -71,7 +71,7 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
           <textarea className="inp min-h-[56px]" value={descUz} onChange={(e) => setDescUz(e.target.value)} placeholder="Qisqacha izoh (ixtiyoriy)" />
         </Field>
       </div>
-      {errors.name_uz && <p className="mt-1.5 text-[12px] font-semibold text-[#e8a7a7]" role="alert">{errors.name_uz}</p>}
+      {errors.name_uz && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.name_uz}</p>}
       <Section>Mavsum</Section>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Boshlanishi">
@@ -87,10 +87,10 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
         <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
         Faol
       </label>
-      <div className="mt-6 flex gap-2.5">
-        <button onClick={onClose} className="btn-ghost !text-white/70 hover:!bg-white/10 hover:!text-white">Bekor qilish</button>
+      <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor qilish</button>
         <button onClick={save} disabled={saving} className={clsx("btn-primary", saving && "btn-loading")}>{flower ? "Saqlash" : "Qo'shish"}</button>
-      </div>
+      </ModalFooter>
     </Modal>
   );
 }
@@ -156,7 +156,7 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
           <input className="inp" value={colorRu} onChange={(e) => setColorRu(e.target.value)} placeholder="белый" />
         </Field>
       </div>
-      {(errors.name_uz || errors.flower) && <p className="mt-1.5 text-[12px] font-semibold text-[#e8a7a7]" role="alert">{errors.name_uz || errors.flower}</p>}
+      {(errors.name_uz || errors.flower) && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.name_uz || errors.flower}</p>}
       <Section>Sotuv qoidalari</Section>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Pochkada (dona)">
@@ -172,10 +172,10 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
         <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
         Faol
       </label>
-      <div className="mt-6 flex gap-2.5">
-        <button onClick={onClose} className="btn-ghost !text-white/70 hover:!bg-white/10 hover:!text-white">Bekor qilish</button>
+      <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor qilish</button>
         <button onClick={save} disabled={saving} className={clsx("btn-primary", saving && "btn-loading")}>{variant ? "Saqlash" : "Qo'shish"}</button>
-      </div>
+      </ModalFooter>
     </Modal>
   );
 }
@@ -218,7 +218,7 @@ export default function GullarPage() {
   if (loadErr)
     return (
       <div className="mt-14 flex flex-col items-center gap-3">
-        <p className="text-[13.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{loadErr}</p>
+        <p className="text-[14px] font-semibold" style={{ color: "var(--danger-ink)" }}>{loadErr}</p>
         <button onClick={() => { setLoading(true); load(); }} className="btn-secondary !flex-none px-6">Qayta urinish</button>
       </div>
     );
@@ -226,7 +226,7 @@ export default function GullarPage() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <p className="text-[13.5px]" style={{ color: "var(--muted)" }}>
+        <p className="text-[14px]" style={{ color: "var(--muted)" }}>
           {flowers.length} tur · {variants.length} nav — sklad va katalog shu ma&apos;lumotnomaga tayanadi.
         </p>
         <div className="ml-auto flex items-center gap-2">
@@ -250,22 +250,22 @@ export default function GullarPage() {
           </div>
           <div className="flex flex-col">
             {fFlowers.map((f, i) => (
-              <div key={f.id} className="row-lux group flex items-center gap-3 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms` }}>
+              <div key={f.id} onClick={() => control && setFlowerModal({ open: true, edit: f })} className="row-lux group flex items-center gap-3 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms` }}>
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[10px] border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {f.image_url && <img src={f.image_url} alt="" className="h-full w-full object-cover" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold">
+                  <div className="text-[14px] font-semibold">
                     {f.name_uz || f.name_ru}
-                    {!f.is_active && <span className="ml-2 rounded-full px-2 py-px text-[9.5px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
+                    {!f.is_active && <span className="ml-2 rounded-full px-2 py-px text-[11px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
                   </div>
-                  <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>
+                  <div className="text-[12px]" style={{ color: "var(--muted)" }}>
                     {f.season_start_month ? `Mavsum: ${MONTHS[f.season_start_month]} – ${MONTHS[f.season_end_month ?? f.season_start_month]}` : "Mavsum belgilanmagan"} · {variants.filter((v) => v.flower === f.id).length} nav
                   </div>
                 </div>
                 {control && (
-                  <button onClick={() => setFlowerModal({ open: true, edit: f })} className="rounded-lg border px-2.5 py-1 text-[11px] font-bold opacity-0 transition-all duration-200 hover:bg-[var(--hover)] group-hover:opacity-100" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
+                  <button onClick={(e) => { e.stopPropagation(); setFlowerModal({ open: true, edit: f }); }} className="row-actions rounded-lg border px-2.5 py-1 text-[11px] font-bold hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
                     Tahrirlash
                   </button>
                 )}
@@ -287,22 +287,22 @@ export default function GullarPage() {
           </div>
           <div className="flex flex-col">
             {fVariants.map((v, i) => (
-              <div key={v.id} className="row-lux group flex items-center gap-3 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms` }}>
+              <div key={v.id} onClick={() => control && setVariantModal({ open: true, edit: v })} className="row-lux group flex items-center gap-3 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms` }}>
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[10px] border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {v.image_url && <img src={v.image_url} alt="" className="h-full w-full object-cover" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold">
+                  <div className="text-[14px] font-semibold">
                     {v.flower_detail?.name_uz} — {v.name_uz || v.name_ru}
-                    {!v.is_active && <span className="ml-2 rounded-full px-2 py-px text-[9.5px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
+                    {!v.is_active && <span className="ml-2 rounded-full px-2 py-px text-[11px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
                   </div>
-                  <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>
+                  <div className="text-[12px]" style={{ color: "var(--muted)" }}>
                     {v.color_uz || "rang yo'q"} · pochkada {v.default_stems_per_bunch} dona · min. {v.minimum_sale_stems} dona
                   </div>
                 </div>
                 {control && (
-                  <button onClick={() => setVariantModal({ open: true, edit: v })} className="rounded-lg border px-2.5 py-1 text-[11px] font-bold opacity-0 transition-all duration-200 hover:bg-[var(--hover)] group-hover:opacity-100" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
+                  <button onClick={(e) => { e.stopPropagation(); setVariantModal({ open: true, edit: v }); }} className="row-actions rounded-lg border px-2.5 py-1 text-[11px] font-bold hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
                     Tahrirlash
                   </button>
                 )}

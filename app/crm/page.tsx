@@ -22,12 +22,12 @@ function LeadCard({ l, onOpen, onDrag, onDragEnd }: { l: Lead; onOpen: () => voi
   return (
     <div draggable onClick={onOpen} onDragStart={onDrag} onDragEnd={onDragEnd} className="glass cursor-grab !rounded-[15px] p-3.5 hover:!border-[var(--acc)]">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[13.5px] font-bold">{name}</span>
+        <span className="text-[14px] font-bold">{name}</span>
         <span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span>
       </div>
-      <p className="mt-1 text-[12.5px] leading-snug" style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</p>
+      <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</p>
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-[13.5px] font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
+        <span className="text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
         <span className="text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
       </div>
       <div className="mt-0.5 text-xs" style={{ color: "var(--mut)" }}>{l.customer_detail?.masked_phone || l.customer_detail?.phone || "tel yo'q"}</div>
@@ -117,8 +117,8 @@ export default function CrmPage() {
             return (
               <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="rounded-[18px] border-[1.5px] p-3" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>
                 <div className="flex items-center justify-between px-1.5 pb-2.5">
-                  <span className="text-[12.5px] font-bold tracking-wide">{STATUS_LABEL[st].toUpperCase()}</span>
-                  <span className="rounded-full px-2.5 text-[11.5px] font-bold text-white" style={{ background: "var(--side)" }}>{items.length}</span>
+                  <span className="text-[13px] font-bold tracking-wide">{STATUS_LABEL[st].toUpperCase()}</span>
+                  <span className="rounded-full px-2.5 text-[12px] font-bold text-white" style={{ background: "var(--side)" }}>{items.length}</span>
                 </div>
                 <div className="flex flex-col gap-2.5">
                   {/* drop slot — silliq ochiladi */}
@@ -142,7 +142,7 @@ export default function CrmPage() {
             <button key={l.id} onClick={() => setSelLead(l)} className="row-lux grid w-full grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
               <span>
                 <span className="block font-bold">{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</span>
-                <span className="text-[11.5px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.masked_phone || "tel yo'q"}</span>
+                <span className="text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.masked_phone || "tel yo'q"}</span>
               </span>
               <span style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</span>
               <span><span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span></span>
@@ -162,11 +162,11 @@ export default function CrmPage() {
               <span>Mijoz</span><span>Telefon</span><span>Instagram</span><span>Xaridlar</span><span>Jami summa</span><span>Qo&apos;shilgan</span>
             </div>
             {customers.map((c, ri) => (
-              <button key={c.id} onClick={() => setSelClient(c)} className="row-lux grid w-full grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[13.5px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
+              <button key={c.id} onClick={() => setSelClient(c)} className="row-lux grid w-full grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[14px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
                 <span className="flex items-center gap-2.5">
-                  <span className="flex h-[34px] w-[34px] -rotate-3 items-center justify-center rounded-[11px] bg-tint text-[12.5px] font-bold text-tintink">{initials(c.name || c.instagram_username)}</span>
+                  <span className="flex h-[34px] w-[34px] -rotate-3 items-center justify-center rounded-[11px] bg-tint text-[13px] font-bold text-tintink">{initials(c.name || c.instagram_username)}</span>
                   <span className="font-bold">{c.name || `@${c.instagram_username}`}</span>
-                  {c.is_blocked && <span className="rounded-full bg-rose px-2 py-0.5 text-[10px] font-bold text-roseink">BLOK</span>}
+                  {c.is_blocked && <span className="rounded-full bg-rose px-2 py-0.5 text-[11px] font-bold text-roseink">BLOK</span>}
                 </span>
                 <span>{c.masked_phone || "—"}</span>
                 <span className="font-semibold" style={{ color: "var(--acc)" }}>@{c.instagram_username || "—"}</span>
@@ -176,7 +176,7 @@ export default function CrmPage() {
               </button>
             ))}
           </div>
-          <p className="mt-2.5 text-[12.5px]" style={{ color: "var(--mut)" }}>
+          <p className="mt-2.5 text-[13px]" style={{ color: "var(--mut)" }}>
             Mijoz CRM&apos;ga client sifatida 1 marta tushadi; har yangi xarid istagi alohida lead bo&apos;lib qo&apos;shiladi.
           </p>
         </>

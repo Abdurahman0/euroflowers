@@ -36,30 +36,30 @@ export default function Select({
   return (
     <div ref={rootRef} className="relative">
       <button type="button" onClick={() => setOpen(!open)} className="inp flex items-center gap-2 text-left normal-case tracking-normal">
-        {sel?.dot && <span className="h-3 w-3 shrink-0 rounded-full border border-white/40" style={{ background: sel.dot }} />}
-        <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">
+        {sel?.dot && <span className="h-3 w-3 shrink-0 rounded-full border border-[color:var(--border-strong)]" style={{ background: sel.dot }} />}
+        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
           {sel ? sel.label : <span className="opacity-50">{placeholder}</span>}
         </span>
-        <span className={`text-[10px] opacity-60 transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
+        <span className={`text-[11px] opacity-60 transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
       </button>
       {open && (
-        <div data-lenis-prevent className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[212px] overflow-y-auto overscroll-contain rounded-[14px] border border-white/28 shadow-2xl backdrop-blur-3xl" style={{ background: "rgba(26,20,40,.92)" }}>
+        <div data-lenis-prevent className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[212px] overflow-y-auto overscroll-contain rounded-[14px] border shadow-2xl" style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}>
           {options.map((o) => (
             <button
               key={o.value}
               type="button"
               onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left normal-case tracking-normal hover:bg-white/10 ${o.value === value ? "bg-white/[.07]" : ""}`}
+              className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left normal-case tracking-normal hover:bg-[color:var(--hover)] ${o.value === value ? "bg-[color:var(--primary-soft)]" : ""}`}
             >
-              {o.dot && <span className="h-3 w-3 shrink-0 rounded-full border border-white/40" style={{ background: o.dot }} />}
+              {o.dot && <span className="h-3 w-3 shrink-0 rounded-full border border-[color:var(--border-strong)]" style={{ background: o.dot }} />}
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-semibold text-white">{o.label}</span>
-                {o.sub && <span className="block truncate text-[11px] text-white/55">{o.sub}</span>}
+                <span className="block truncate text-[13px] font-semibold">{o.label}</span>
+                {o.sub && <span className="block truncate text-[11px] text-[color:var(--muted)]">{o.sub}</span>}
               </span>
               {o.value === value && <span className="text-[11px]" style={{ color: "var(--accL)" }}>✓</span>}
             </button>
           ))}
-          {options.length === 0 && <p className="px-3.5 py-2.5 text-[12px] text-white/55">Variant topilmadi</p>}
+          {options.length === 0 && <p className="px-3.5 py-2.5 text-[12px] text-[color:var(--muted)]">Variant topilmadi</p>}
         </div>
       )}
     </div>

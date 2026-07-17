@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
-import { usePerm, useStore } from "@/lib/store";
-import UserModal from "@/components/UserModal";
+import { useStore } from "@/lib/store";
 import { AISettingsSection, AuditSection, InstagramEventsSection, IntegrationsSection } from "@/components/DevSections";
 import { fmt, fmtDate, initials } from "@/lib/format";
+import { Icon } from "@/components/icons";
 import { ROLE_LABEL } from "@/components/badges";
 import type { Branch, BusinessSettings, InstagramSettings, Packaging, User } from "@/lib/types";
 
@@ -25,12 +25,8 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 
 export default function SozlamalarPage() {
   const { user, showToast } = useStore();
-  const { canControl } = usePerm();
-  const usersControl = canControl("users");
-  const [userModal, setUserModal] = useState<{ open: boolean; edit: User | null }>({ open: false, edit: null });
   const [branches, setBranches] = useState<Branch[]>([]);
   const [packaging, setPackaging] = useState<Packaging[]>([]);
-  const [team, setTeam] = useState<User[]>([]);
   const [ig, setIg] = useState<InstagramSettings | null>(null);
   const [st, setSt] = useState<BusinessSettings | null>(null);
   const [fee, setFee] = useState("");
@@ -40,12 +36,11 @@ export default function SozlamalarPage() {
     Promise.all([
       api.branches(),
       api.packaging({ is_active: true }),
-      api.users(),
       api.instagramStatus(),
       api.settings(),
     ])
-      .then(([bs, ps, us, igs, sts]) => {
-        setBranches(bs); setPackaging(ps); setTeam(us); setIg(igs); setSt(sts);
+      .then(([bs, ps, igs, sts]) => {
+        setBranches(bs); setPackaging(ps); setIg(igs); setSt(sts);
         setFee(String(Math.round(parseFloat(sts.default_florist_fee) || 0)));
       })
       .catch((e) => showToast(e instanceof Error ? e.message : "Yuklashda xatolik"));
@@ -79,34 +74,16 @@ export default function SozlamalarPage() {
 
   const fullName = (u: User) => [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username;
 
-  const deactivate = async (u: User) => {
-    try {
-      const upd = await api.deactivateUser(u.id);
-      setTeam((ts) => ts.map((x) => (x.id === u.id ? { ...x, ...upd, is_active: false } : x)));
-      showToast(`✓ ${fullName(u)} nofaollashtirildi`);
-    } catch (e) {
-      showToast(e instanceof ApiError ? e.message : "Amalga oshmadi");
-    }
-  };
-
-  const onUserSaved = (u: User) => {
-    setTeam((ts) => {
-      const i = ts.findIndex((x) => x.id === u.id);
-      return i >= 0 ? ts.map((x) => (x.id === u.id ? u : x)) : [...ts, u];
-    });
-    setUserModal({ open: false, edit: null });
-  };
-
   return (
     <div className="grid items-start gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}>
       {/* Instagram — jonli status */}
       <section className="glass p-5">
         <h2 className="text-base font-bold">Instagram ulanishi</h2>
-        <p className="mb-3.5 text-[12.5px]" style={{ color: "var(--mut)" }}>AI shu akkaunt orqali DM va reply&apos;larga javob beradi</p>
+        <p className="mb-3.5 text-[13px]" style={{ color: "var(--mut)" }}>AI shu akkaunt orqali DM va reply&apos;larga javob beradi</p>
         <div className="flex items-center gap-3 rounded-[14px] border bg-tint px-4 py-3" style={{ borderColor: "var(--line)" }}>
           <div className="flex h-[42px] w-[42px] -rotate-3 items-center justify-center rounded-[13px] font-bold text-white" style={{ background: "var(--acc)" }}>EF</div>
           <div className="flex-1">
-            <div className="text-[13.5px] font-bold">@{ig?.account_username || "—"}</div>
+            <div className="text-[14px] font-bold">@{ig?.account_username || "—"}</div>
             {ig?.connected ? (
               <div className="text-xs font-bold text-mintink">
                 ● Ulangan{ig.token_expires_at ? ` · token ${fmtDate(ig.token_expires_at)} gacha` : ""}
@@ -136,12 +113,12 @@ export default function SozlamalarPage() {
       <section className="glass p-5">
         <h2 className="mb-3.5 text-base font-bold">Narx sozlamalari</h2>
         <div className="flex items-center justify-between gap-3 border-b py-2.5" style={{ borderColor: "var(--line2)" }}>
-          <span className="text-[13.5px]">Florist xizmat haqi</span>
+          <span className="text-[14px]">Florist xizmat haqi</span>
           <span className="flex items-center gap-2">
             <input
               value={fee}
               onChange={(e) => setFee(e.target.value.replace(/\D/g, ""))}
-              className="w-[110px] rounded-[10px] border bg-sfc px-2.5 py-1.5 text-right text-[13.5px] font-bold outline-none"
+              className="w-[110px] rounded-[10px] border bg-sfc px-2.5 py-1.5 text-right text-[14px] font-bold outline-none"
               style={{ borderColor: "var(--line)", color: "var(--ink)" }}
             />
             <button onClick={saveFee} disabled={savingFee} className="rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60" style={{ background: "var(--acc)" }}>
@@ -151,9 +128,9 @@ export default function SozlamalarPage() {
         </div>
         {packaging.map((p) => (
           <div key={p.id} className="flex items-center justify-between border-b py-2.5" style={{ borderColor: "var(--line2)" }}>
-            <span className="text-[13.5px]">
+            <span className="text-[14px]">
               {p.name_uz || p.name_ru}
-              <span className="ml-2 rounded-full bg-tint px-2 py-0.5 text-[10px] font-bold text-tintink">{PKG_LABEL[p.packaging_type] ?? p.packaging_type}</span>
+              <span className="ml-2 rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-tintink">{PKG_LABEL[p.packaging_type] ?? p.packaging_type}</span>
             </span>
             <span className="text-right">
               <b className="text-sm">{fmt(p.sale_price)}</b>
@@ -175,47 +152,15 @@ export default function SozlamalarPage() {
         </ul>
       </section>
 
-      {/* Jamoa — serverdan */}
+      {/* Jamoa endi alohida sahifada — /xodimlar */}
       <section className="glass p-5">
-        <div className="mb-3.5 flex items-center justify-between">
-          <h2 className="text-base font-bold">Jamoa</h2>
-          {usersControl && (
-            <button onClick={() => setUserModal({ open: true, edit: null })} className="rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white transition-transform duration-200 hover:-translate-y-px" style={{ background: "var(--primary)" }}>
-              + Xodim
-            </button>
-          )}
-        </div>
-        <div className="flex flex-col gap-3">
-          {team.map((u) => (
-            <div key={u.id} className="group flex items-center gap-3">
-              <div className="flex h-9 w-9 -rotate-3 items-center justify-center rounded-xl bg-tint text-[13px] font-bold text-tintink">{initials(fullName(u))}</div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-bold">
-                  {fullName(u)}
-                  {u.id === user?.id && <span className="ml-1.5 text-[11px] font-medium" style={{ color: "var(--mut)" }}>(siz)</span>}
-                </div>
-                <div className="text-[11.5px]" style={{ color: "var(--mut)" }}>{u.email || u.username}</div>
-              </div>
-              {u.is_active === false && <span className="rounded-full bg-rose px-2 py-0.5 text-[10px] font-bold text-roseink">NOFAOL</span>}
-              <span className="rounded-full border bg-tint px-3 py-0.5 text-[11px] font-bold text-tintink" style={{ borderColor: "var(--line2)" }}>
-                {ROLE_LABEL[u.profile?.role] ?? u.profile?.role ?? "—"}
-              </span>
-              {usersControl && (
-                <span className="flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                  <button onClick={() => setUserModal({ open: true, edit: u })} title="Tahrirlash" className="rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
-                    ✎
-                  </button>
-                  {u.is_active !== false && u.id !== user?.id && (
-                    <button onClick={() => deactivate(u)} title="Nofaollashtirish" className="rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-[var(--danger-soft)]" style={{ borderColor: "var(--border)", color: "var(--danger-ink)" }}>
-                      ⏻
-                    </button>
-                  )}
-                </span>
-              )}
-            </div>
-          ))}
-          {team.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Yuklanmoqda…</p>}
-        </div>
+        <h2 className="text-base font-semibold">Jamoa</h2>
+        <p className="mb-3 mt-1 text-[13px]" style={{ color: "var(--muted)" }}>
+          Xodimlar, rollar va ruxsatlar boshqaruvi alohida sahifaga ko&apos;chdi.
+        </p>
+        <a href="/xodimlar" className="btn-secondary !flex-none inline-flex px-5">
+          <Icon name="xodimlar" size={16} /> Xodimlar sahifasi →
+        </a>
       </section>
 
       {/* Filiallar */}
@@ -225,8 +170,8 @@ export default function SozlamalarPage() {
           {branches.map((b) => (
             <div key={b.id} className="rounded-[14px] border bg-tint px-4 py-3" style={{ borderColor: "var(--line2)" }}>
               <div className="flex items-center justify-between">
-                <span className="text-[13.5px] font-bold">{b.name}</span>
-                <span className="rounded-full border bg-sfc px-2.5 py-0.5 text-[10.5px] font-bold" style={{ borderColor: "var(--line2)" }}>{b.code}</span>
+                <span className="text-[14px] font-bold">{b.name}</span>
+                <span className="rounded-full border bg-sfc px-2.5 py-0.5 text-[11px] font-bold" style={{ borderColor: "var(--line2)" }}>{b.code}</span>
               </div>
               <div className="mt-1 text-xs" style={{ color: "var(--mut)" }}>{b.address || "manzil yo'q"} · {b.phone || "tel yo'q"}</div>
               {!b.is_active && <div className="mt-1 text-[11px] font-bold text-roseink">Nofaol</div>}
@@ -242,7 +187,7 @@ export default function SozlamalarPage() {
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 -rotate-3 items-center justify-center rounded-xl bg-tint text-[14px] font-bold text-tintink">{user ? initials(fullName(user)) : "…"}</div>
           <div className="flex-1">
-            <div className="text-[13.5px] font-bold">{user ? fullName(user) : "…"}</div>
+            <div className="text-[14px] font-bold">{user ? fullName(user) : "…"}</div>
             <div className="text-xs" style={{ color: "var(--mut)" }}>{user?.email || user?.username}</div>
           </div>
           <span className="rounded-full border bg-tint px-3 py-0.5 text-[11px] font-bold text-tintink" style={{ borderColor: "var(--line2)" }}>
@@ -265,9 +210,6 @@ export default function SozlamalarPage() {
       <InstagramEventsSection />
       <AuditSection />
 
-      {userModal.open && (
-        <UserModal editUser={userModal.edit} branches={branches} onClose={() => setUserModal({ open: false, edit: null })} onSaved={onUserSaved} />
-      )}
     </div>
   );
 }

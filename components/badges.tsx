@@ -1,7 +1,7 @@
 import type { CatalogStatus, ConversationStatus, LeadStatus } from "@/lib/types";
 
 /** Status/manba badge'lari — bitta joyda, hamma sahifada bir xil. */
-const B = "rounded-full px-2 py-0.5 text-[10.5px] font-bold whitespace-nowrap";
+const B = "rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap";
 
 export const STATUS_BADGE: Record<LeadStatus, string> = {
   new: `${B} bg-tint text-tintink`,
@@ -21,8 +21,8 @@ export const STATUS_LABEL: Record<LeadStatus, string> = {
 
 export const SOURCE_BADGE = (source: string): string =>
   source === "instagram"
-    ? "rounded-full border px-2.5 py-0.5 text-[10px] font-bold whitespace-nowrap text-white [background:var(--acc)] [border-color:var(--acc)]"
-    : "rounded-full border px-2.5 py-0.5 text-[10px] font-bold whitespace-nowrap bg-sfc [border-color:var(--line2)]";
+    ? "rounded-full border px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap text-white [background:var(--acc)] [border-color:var(--acc)]"
+    : "rounded-full border px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap bg-sfc [border-color:var(--line2)]";
 
 export const CATALOG_STATUS_LABEL: Record<CatalogStatus, string> = {
   draft: "Qoralama",
