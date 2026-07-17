@@ -16,7 +16,7 @@ import type { Conversation, Message } from "@/lib/types";
  *   • mijoz xabarlari — CHAPDA (neytral yuzada)
  *   • AI javoblari — O'NGDA (brend rangida)
  *   • operator javoblari — O'NGDA (to'q yuzada)
- * Guruhlash, hover amallar (nusxa/reaksiya/vaqt), typing, sticky kiritish.
+ * Guruhlash, hover amallar (nusxa/reaksiya/vaqt), sticky kiritish.
  */
 
 const REACTIONS = ["❤️", "👍", "🌸", "😄"];
@@ -184,9 +184,7 @@ export default function ChatPage() {
   const [conv, setConv] = useState<Conversation | null>(null);
   const [search, setSearch] = useState("");
   const [text, setText] = useState("");
-  const [asCustomer, setAsCustomer] = useState(false);
   const [sending, setSending] = useState(false);
-  const [typing, setTyping] = useState(false);
   const [reactions, setReactions] = useState<Record<number, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -223,26 +221,18 @@ export default function ChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conv?.messages.length, typing]);
+  }, [conv?.messages.length]);
 
   const send = async () => {
     if (!text.trim() || selId == null || sending) return;
     const t = text.trim();
     setSending(true);
     try {
-      if (asCustomer) {
-        // demo rejimi: mijoz nomidan yozib, AI javobini jonli ko'ramiz
-        setTyping(true);
-        await api.simulateMessage(selId, t);
-        setTyping(false);
-      } else {
-        await api.sendMessage(selId, t);
-      }
+      await api.sendMessage(selId, t);
       setText("");
       await loadConv(selId);
       loadList();
     } catch (e) {
-      setTyping(false);
       showToast(e instanceof ApiError ? e.message : "Yuborib bo'lmadi");
     } finally {
       setSending(false);
@@ -290,7 +280,7 @@ export default function ChatPage() {
   if (loading) return <FlowerLoader />;
 
   return (
-    <div className="flex h-[calc(100dvh-210px)] min-h-[460px] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
+    <div className="flex h-[80dvh] min-h-[460px] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
       {/* suhbatlar ro'yxati */}
       <div className="flex max-h-[30vh] min-h-0 min-w-0 flex-col gap-3 md:max-h-none md:h-full md:min-w-[230px] md:max-w-[340px] md:flex-1 md:basis-60">
         <SearchInput value={search} onChange={setSearch} placeholder="Qidirish — ism yoki @username" width="full" className="!rounded-[14px] px-3.5 py-1" />
@@ -382,27 +372,11 @@ export default function ChatPage() {
                   />
                 );
               })}
-              {typing && (
-                <div className="mt-4 flex items-end justify-end gap-2">
-                  <div className="flex items-center gap-1.5 rounded-[16px] rounded-br-[6px] px-4 py-3.5" style={{ background: "var(--primary)" }}>
-                    {[0, 0.2, 0.4].map((d) => <span key={d} className="h-1.5 w-1.5 animate-blink rounded-full bg-white" style={{ animationDelay: `${d}s` }} />)}
-                  </div>
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-extrabold text-white" style={{ background: "var(--primary)" }}>AI</span>
-                </div>
-              )}
               <div ref={bottomRef} />
             </div>
 
             {/* sticky kiritish paneli */}
             <div className="border-t px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-              <div className="mb-2 flex items-center gap-2">
-                <button onClick={() => setAsCustomer(false)} className={clsx("rounded-full px-3 py-1 text-[11px] font-bold transition-colors duration-200", !asCustomer ? "text-white" : "hover:bg-[var(--hover)]")} style={!asCustomer ? { background: "var(--primary)" } : { color: "var(--muted)" }}>
-                  Operator sifatida
-                </button>
-                <button onClick={() => setAsCustomer(true)} className={clsx("rounded-full px-3 py-1 text-[11px] font-bold transition-colors duration-200", asCustomer ? "text-white" : "hover:bg-[var(--hover)]")} style={asCustomer ? { background: "var(--side)" } : { color: "var(--muted)" }}>
-                  ▶ Demo: mijoz sifatida (AI javob beradi)
-                </button>
-              </div>
               <div className="flex items-center gap-2">
                 <input ref={fileRef} type="file" className="hidden" onChange={(e) => { if (e.target.files?.length) showToast(`"${e.target.files[0].name}" — ilova yuborish backend ulanganda ishlaydi`); e.target.value = ""; }} />
                 <button
@@ -417,7 +391,7 @@ export default function ChatPage() {
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-                  placeholder={asCustomer ? "Mijoz xabari — AI jonli javob beradi…" : "Operator javobi…"}
+                  placeholder="Operator javobi…"
                   className="h-10 flex-1 rounded-full border px-4 text-[13px] outline-none transition-shadow duration-200 placeholder:text-[color:var(--muted)] focus:shadow-[0_0_0_3px_var(--focus)]"
                   style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--surface-solid)" }}
                 />
