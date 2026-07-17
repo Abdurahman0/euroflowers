@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { PETAL_TEXTURES } from "@/components/three/engine/assets";
 
 /**
- * Har 20–40 soniyada bir necha gulbarg ekran bo'ylab tabiiy uchib o'tadi.
+ * Har 11–24 soniyada bir dasta gulbarg ekran bo'ylab tabiiy uchib o'tadi.
  * Gulbarglar — Blender'dan chiqarilgan haqiqiy piyon gulbarg teksturalari,
  * organik siluet niqobida. Fasl palitrasiga ergashadi. Takrorlanmaydi.
  */
@@ -50,7 +50,7 @@ export default function PetalBurst() {
     const schedule = () => {
       timer = setTimeout(() => {
         const texes = [PETAL_TEXTURES.white, PETAL_TEXTURES.blush, PETAL_TEXTURES.cream, PETAL_TEXTURES.pink];
-        const count = 4 + Math.floor(Math.random() * 5);
+        const count = 8 + Math.floor(Math.random() * 7);
         setPetals(
           Array.from({ length: count }, () => ({
             id: id++,
@@ -67,7 +67,7 @@ export default function PetalBurst() {
         );
         setNonce((n) => n + 1);
         schedule();
-      }, 20000 + Math.random() * 20000);
+      }, 11000 + Math.random() * 13000);
     };
     schedule();
     return () => clearTimeout(timer);

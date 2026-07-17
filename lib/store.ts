@@ -38,7 +38,8 @@ export const useStore = create<State>((set, get) => ({
   permissions: [],
   notifs: [],
   themeId: "pushti",
-  dark: false,
+  // standart — tungi mavzu; foydalanuvchi tanlovi (ef_theme) buni bosib o'tadi
+  dark: true,
   sideOpen: true,
   dateFilter: "oy",
   toast: "",

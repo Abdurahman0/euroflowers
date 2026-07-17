@@ -5,6 +5,7 @@ import * as THREE from "three";
 import type { Group } from "three";
 import WindController from "./WindController";
 import EnvironmentController from "./EnvironmentController";
+import { useWebGL } from "@/lib/webgl";
 
 /**
  * Sahna dvigateli: Canvas + shamol provayderi + ixtiyoriy kursor parallaksi.
@@ -61,6 +62,10 @@ export default function SceneController({
 }) {
   const autoReduced = usePrefersReducedMotion();
   const reduced = reducedMotion ?? autoReduced;
+  const glOk = useWebGL();
+
+  // GPU yo'q — 3D qatlam tashlab yuboriladi, CSS fon o'z holicha qoladi
+  if (!glOk) return null;
 
   return (
     <Canvas

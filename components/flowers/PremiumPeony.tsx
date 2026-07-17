@@ -7,6 +7,7 @@ import EnvironmentController from "@/components/three/engine/EnvironmentControll
 import { FlowerController } from "./FlowerController";
 import { useFlowerClock } from "./useFlowerClock";
 import { useFlowerParallax } from "./useFlowerParallax";
+import { useWebGL } from "@/lib/webgl";
 
 /**
  * Premium fotorealistik piyon — asosiy kontent yuqori-chap dekorativ elementi.
@@ -68,6 +69,25 @@ function PeonyModel() {
 
 export default function PremiumPeony() {
   const wrapRef = useFlowerParallax<HTMLDivElement>(5);
+  const glOk = useWebGL();
+
+  // GPU yo'q — 3D o'rniga xuddi shu piyonning statik surati (dizayn saqlanadi)
+  if (!glOk) {
+    return (
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-[218px] top-[7%] h-[clamp(340px,54vh,640px)] w-[clamp(340px,54vh,640px)] opacity-[.8] max-md:left-[36px] max-md:h-[220px] max-md:w-[220px] max-md:opacity-[.45]"
+        style={{
+          filter: "blur(0.8px) saturate(1.05)",
+          WebkitMaskImage: "radial-gradient(closest-side, black 52%, transparent 88%)",
+          maskImage: "radial-gradient(closest-side, black 52%, transparent 88%)",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/flowers/textures/peony.png" alt="" className="h-full w-full object-contain" />
+      </div>
+    );
+  }
 
   return (
     <div

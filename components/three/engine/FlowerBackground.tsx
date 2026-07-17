@@ -67,7 +67,7 @@ export default function FlowerBackground() {
       {/* 4-qatlam: 3D — kam sonli gulbarg + changcha (nozik atmosfera) */}
       <SceneController parallax={1} windBase={0.5} reducedMotion={reduced}>
         <LightingController intensity={dark ? 0.7 : 1} moving={!reduced} dark={dark} />
-        <RealPetals count={16} opacity={0.4} reducedMotion={reduced} />
+        <RealPetals count={28} opacity={0.4} reducedMotion={reduced} />
         <FlowerParticles count={50} reducedMotion={reduced} />
       </SceneController>
     </div>
