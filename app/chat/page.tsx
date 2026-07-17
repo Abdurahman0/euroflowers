@@ -1,4 +1,5 @@
 "use client";
+import SearchInput from "@/components/SearchInput";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -292,16 +293,7 @@ export default function ChatPage() {
     <div className="flex h-[calc(100dvh-210px)] min-h-[460px] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
       {/* suhbatlar ro'yxati */}
       <div className="flex max-h-[30vh] min-h-0 min-w-0 flex-col gap-3 md:max-h-none md:h-full md:min-w-[230px] md:max-w-[340px] md:flex-1 md:basis-60">
-        <div className="glass flex items-center gap-2 !rounded-[14px] px-3.5 py-1 text-[13px]" style={{ color: "var(--muted)" }}>
-          <Icon name="search" size={15} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Qidirish — ism yoki @username"
-            className="w-full bg-transparent py-1.5 text-[13px] outline-none placeholder:text-[color:var(--muted)]"
-            style={{ color: "var(--text)" }}
-          />
-        </div>
+        <SearchInput value={search} onChange={setSearch} placeholder="Qidirish — ism yoki @username" width="full" className="!rounded-[14px] px-3.5 py-1" />
         <div data-lenis-prevent className="glass flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain !rounded-[16px] p-2">
           {fConvs.map((c) => (
             <button

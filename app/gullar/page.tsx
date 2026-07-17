@@ -1,4 +1,5 @@
 "use client";
+import SearchInput from "@/components/SearchInput";
 import { Pencil, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -231,10 +232,7 @@ export default function GullarPage() {
           {flowers.length} tur · {variants.length} nav — sklad va katalog shu ma&apos;lumotnomaga tayanadi.
         </p>
         <div className="ml-auto flex items-center gap-2">
-          <div className="glass flex items-center gap-2 !rounded-[12px] px-3 py-0.5 text-[13px]" style={{ color: "var(--muted)" }}>
-            <Icon name="search" size={14} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Qidirish…" className="w-[150px] bg-transparent py-1.5 outline-none placeholder:text-[color:var(--muted)]" style={{ color: "var(--text)" }} aria-label="Gul qidirish" />
-          </div>
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Gul qidirish" />
         </div>
       </div>
 

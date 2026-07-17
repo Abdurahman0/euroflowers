@@ -1,4 +1,5 @@
 "use client";
+import SearchInput from "@/components/SearchInput";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -65,17 +66,7 @@ export default function SkladPage() {
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada
         </p>
         <div className="ml-auto flex items-center gap-2">
-          <div className="glass flex items-center gap-2 !rounded-[12px] px-3 py-0.5 text-[13px]" style={{ color: "var(--muted)" }}>
-            <Icon name="search" size={14} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Qidirish…"
-              className="w-[150px] bg-transparent py-1.5 outline-none placeholder:text-[color:var(--muted)]"
-              style={{ color: "var(--text)" }}
-              aria-label="Partiya qidirish"
-            />
-          </div>
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Partiya qidirish" />
           <DateChips />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Keldi qilish

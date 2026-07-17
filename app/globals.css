@@ -562,6 +562,21 @@ html {
   }
 
   /* ---- jadval qatorlari ---- */
+  /* ---- qidiruv maydoni — fokus halqasi ICHKI inputda emas, PILL'da ----
+     (ichki input yalang'och, global input:focus halqasi unga to'g'ri
+     kelmaydi — buning o'rniga qobiq focus-within bilan yonadi) */
+  .search-box {
+    transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
+  }
+  .search-box:focus-within {
+    border-color: color-mix(in srgb, var(--primary) 75%, var(--border)) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
+  }
+  .search-box input:focus {
+    border-color: transparent;
+    box-shadow: none;
+  }
+
   /* ---- amal ikonka tugmalari (lucide) — bir xil o'lcham/rang/hover ---- */
   .icon-btn {
     @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg;

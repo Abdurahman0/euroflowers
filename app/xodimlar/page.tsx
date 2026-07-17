@@ -1,4 +1,5 @@
 "use client";
+import SearchInput from "@/components/SearchInput";
 import { Pencil, Plus, Power } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
@@ -78,17 +79,7 @@ export default function XodimlarPage() {
           {team ? `${team.length} xodim · ${team.filter((u) => u.is_active !== false).length} faol` : "Yuklanmoqda…"}
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className="glass flex items-center gap-2 !rounded-[12px] px-3 py-0.5 text-[13px]" style={{ color: "var(--muted)" }}>
-            <Icon name="search" size={14} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Ism, login yoki email…"
-              className="w-[180px] bg-transparent py-1.5 outline-none placeholder:text-[color:var(--muted)]"
-              style={{ color: "var(--text)" }}
-              aria-label="Xodim qidirish"
-            />
-          </div>
+          <SearchInput value={search} onChange={setSearch} placeholder="Ism, login yoki email…" width={180} ariaLabel="Xodim qidirish" />
           {ROLE_OPTIONS.map((r) => (
             <button key={r || "all"} onClick={() => setRoleFilter(r)} className={`chip ${roleFilter === r ? "chip-active" : ""}`}>
               {r ? ROLE_LABEL[r] ?? r : "Barchasi"}

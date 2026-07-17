@@ -17,10 +17,19 @@ const COL_BG: Record<LeadStatus, string> = {
   new: "var(--tint)", qualified: "var(--bg2)", contacted: "var(--peach)", won: "var(--mint)", lost: "var(--bg2)",
 };
 
-function LeadCard({ l, onOpen, onDrag, onDragEnd }: { l: Lead; onOpen: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+function LeadCard({ l, dragging, onOpen, onDrag, onDragEnd }: { l: Lead; dragging: boolean; onOpen: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
   const name = l.customer_detail?.name || `@${l.customer_detail?.instagram_username ?? "—"}`;
   return (
-    <div draggable onClick={onOpen} onDragStart={onDrag} onDragEnd={onDragEnd} className="glass cursor-grab !rounded-[15px] p-3.5 hover:!border-[var(--acc)]">
+    <div
+      draggable
+      onClick={onOpen}
+      onDragStart={onDrag}
+      onDragEnd={onDragEnd}
+      className="glass cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
+      // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
+      // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
+      style={dragging ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" } : undefined}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[14px] font-bold">{name}</span>
         <span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span>
@@ -124,7 +133,27 @@ export default function CrmPage() {
                   {/* drop slot — silliq ochiladi */}
                   <div className="box-border rounded-[15px] border-2 border-dashed transition-all duration-250" style={{ height: isOver ? 84 : 0, marginBottom: isOver ? 0 : -10, borderColor: isOver ? "var(--acc)" : "transparent", background: isOver ? "rgba(255,255,255,.15)" : "transparent" }} />
                   {items.map((l) => (
-                    <LeadCard key={l.id} l={l} onOpen={() => setSelLead(l)} onDrag={(e) => { setDragId(l.id); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => { setDragId(null); setOverCol(null); }} />
+                    <LeadCard
+                      key={l.id}
+                      l={l}
+                      dragging={dragId === l.id}
+                      onOpen={() => setSelLead(l)}
+                      onDrag={(e) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        // ko'tarilgan nusxa: yengil qiyalik + soya + 1.03 masshtab
+                        const el = e.currentTarget as HTMLElement;
+                        const r = el.getBoundingClientRect();
+                        const clone = el.cloneNode(true) as HTMLElement;
+                        clone.style.cssText = `position:fixed;top:-1200px;left:-1200px;width:${r.width}px;box-sizing:border-box;transform:rotate(2.5deg) scale(1.03);box-shadow:0 18px 44px rgba(30,15,10,.3);border-radius:15px;background:var(--surface-solid);pointer-events:none;`;
+                        document.body.appendChild(clone);
+                        e.dataTransfer.setDragImage(clone, e.clientX - r.left, e.clientY - r.top);
+                        setTimeout(() => clone.remove(), 0);
+                        // sharpa uslubi brauzer snapshot olganidan KEYIN qo'llanadi —
+                        // aks holda ko'tarilgan nusxaning o'zi xira chiqib qoladi
+                        setTimeout(() => setDragId(l.id), 0);
+                      }}
+                      onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                    />
                   ))}
                 </div>
               </div>
