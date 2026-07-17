@@ -9,7 +9,9 @@ import {
   DashboardSquare01Icon,
   FlowerIcon,
   Image01Icon,
+  LockPasswordIcon,
   Logout03Icon,
+  Mail01Icon,
   Moon02Icon,
   Notification03Icon,
   PackageIcon,
@@ -22,6 +24,8 @@ import {
   Sun03Icon,
   UserCircleIcon,
   UserGroupIcon,
+  ViewIcon,
+  ViewOffIcon,
 } from "@hugeicons/core-free-icons";
 
 /**
@@ -54,6 +58,10 @@ const ICONS: Record<string, typeof FlowerIcon> = {
   smile: SmileIcon,
   sun: Sun03Icon,
   moon: Moon02Icon,
+  mail: Mail01Icon,
+  lock: LockPasswordIcon,
+  eye: ViewIcon,
+  eyeOff: ViewOffIcon,
 };
 
 export function Icon({ name, size = 17 }: { name: string; size?: number }) {

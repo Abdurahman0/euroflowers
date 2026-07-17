@@ -27,19 +27,24 @@ type Tokens = { access: string; refresh: string };
 export function getTokens(): Tokens | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(TOKEN_KEY);
+    const raw = localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
     return raw ? (JSON.parse(raw) as Tokens) : null;
   } catch {
     return null;
   }
 }
 
-export function setTokens(t: Tokens) {
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(t));
+/** remember=false — token faqat joriy sessiyada saqlanadi ("Meni eslab qol" o'chiq) */
+export function setTokens(t: Tokens, remember = true) {
+  const target = remember ? localStorage : sessionStorage;
+  const other = remember ? sessionStorage : localStorage;
+  target.setItem(TOKEN_KEY, JSON.stringify(t));
+  other.removeItem(TOKEN_KEY);
 }
 
 export function clearTokens() {
   localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 export function isLoggedIn(): boolean {
@@ -109,7 +114,7 @@ async function refreshAccess(): Promise<boolean> {
       });
       if (!res.ok) return false;
       const data = (await res.json()) as { access: string; refresh?: string };
-      setTokens({ access: data.access, refresh: data.refresh ?? t.refresh });
+      setTokens({ access: data.access, refresh: data.refresh ?? t.refresh }, localStorage.getItem(TOKEN_KEY) != null);
       return true;
     } catch {
       return false;
@@ -204,10 +209,10 @@ const list = async <T,>(path: string, params?: Params): Promise<T[]> => {
  * (Swagger sxemasi buni ko'rsatmaydi — kontrakt ustuvor, shu sababli
  * user'ni ixtiyoriy sifatida o'qiymiz; bo'lmasa /api/me/ ga tayaniladi).
  */
-export async function login(username: string, password: string): Promise<User | null> {
+export async function login(username: string, password: string, remember = true): Promise<User | null> {
   if (DEMO_MODE) {
     await new Promise((r) => setTimeout(r, 600));
-    setTokens({ access: "demo-access", refresh: "demo-refresh" });
+    setTokens({ access: "demo-access", refresh: "demo-refresh" }, remember);
     return null;
   }
   const ctrl = new AbortController();
@@ -229,7 +234,7 @@ export async function login(username: string, password: string): Promise<User | 
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, body);
   const data = body as Tokens & { user?: User; permissions?: PagePermission[] };
-  setTokens({ access: data.access, refresh: data.refresh });
+  setTokens({ access: data.access, refresh: data.refresh }, remember);
   if (data.user) {
     // top-level permissions ham bo'lishi mumkin — user ichidagiga ustama qilamiz
     return { ...data.user, permissions: data.user.permissions ?? data.permissions };
