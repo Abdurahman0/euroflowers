@@ -1,8 +1,7 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import Lenis from "lenis";
 import { useStore, useTheme } from "@/lib/store";
 import { isLoggedIn } from "@/lib/api";
 import Sidebar from "./Sidebar";
@@ -23,7 +22,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, userLoading, loadMe, loadNotifs, setTheme, setDark } = useStore();
   const isLogin = pathname.startsWith("/login");
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   // saqlangan mavzuni tiklash — bir marta, gidratsiyadan keyin
   useEffect(() => {
@@ -78,27 +76,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLogin]);
 
-  // silliq scroll — asosiy kontent panelida
-  useEffect(() => {
-    if (isLogin || !scrollRef.current) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const lenis = new Lenis({
-      wrapper: scrollRef.current,
-      duration: 1.1,
-      easing: (t: number) => 1 - Math.pow(1 - t, 3),
-    });
-    let raf = 0;
-    const loop = (time: number) => {
-      lenis.raf(time);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => {
-      cancelAnimationFrame(raf);
-      lenis.destroy();
-    };
-  }, [isLogin, pathname]);
-
+  // skroll — TABIIY (native): hech qanday smooth-scroll kutubxonasi yo'q,
+  // g'ildirak/trackpad aynan kutilgandek ishlaydi
   if (isLogin) {
     return (
       <div className="relative min-h-screen">
@@ -136,7 +115,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <main className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[26px]">
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
           <Header />
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-10 pt-6" style={{ scrollbarGutter: "stable" }}>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-10 pt-6" style={{ scrollbarGutter: "stable" }}>
             {userLoading && !user ? <FlowerLoader /> : children}
           </div>
         </div>

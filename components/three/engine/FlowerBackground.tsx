@@ -6,6 +6,7 @@ import { useTheme } from "@/lib/store";
 import { ENABLE_3D } from "@/lib/flags";
 import { isLowEnd } from "@/lib/perf";
 import BackgroundFlowers from "@/components/BackgroundFlowers";
+import FallingPetals from "@/components/FallingPetals";
 
 const Ambient3D = dynamic(() => import("./Ambient3D"), { ssr: false });
 
@@ -71,6 +72,9 @@ export default function FlowerBackground() {
 
       {/* 3-qatlam: pastki gidrangealar + o'ng-yuqori piyon (fon suratlari) */}
       <BackgroundFlowers />
+
+      {/* 3.5-qatlam: yuqoridan tushayotgan gulbarglar (DOM, arzon) */}
+      <FallingPetals />
 
       {/* 4-qatlam: 3D — faqat bayroq yoqilganda; chunk aks holda yuklanmaydi */}
       {ENABLE_3D && <Ambient3D dark={dark} reduced={reduced} petals={petals} />}
