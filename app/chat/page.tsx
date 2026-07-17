@@ -280,7 +280,7 @@ export default function ChatPage() {
   if (loading) return <FlowerLoader />;
 
   return (
-    <div className="flex h-[90dvh] min-h-[460px] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
+    <div className="flex h-[calc(100dvh-173px)] min-h-[460px] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
       {/* suhbatlar ro'yxati */}
       <div className="flex max-h-[30vh] min-h-0 min-w-0 flex-col gap-3 md:max-h-none md:h-full md:min-w-[230px] md:max-w-[340px] md:flex-1 md:basis-60">
         <SearchInput value={search} onChange={setSearch} placeholder="Qidirish — ism yoki @username" width="full" className="!rounded-[14px] px-3.5 py-1" />
