@@ -57,7 +57,7 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
   };
 
   return (
-    <Modal onClose={onClose} width={560}>
+    <Modal onClose={onClose} width={480}>
       <ModalHeader icon={<Icon name="katalog" size={20} />} title={flower ? "Gulni tahrirlash" : "Yangi gul turi"} sub="Sklad va katalog uchun ma'lumotnoma" onClose={onClose} />
       <Section>Nomi</Section>
       <div className="grid grid-cols-2 gap-3">
@@ -137,7 +137,7 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
   };
 
   return (
-    <Modal onClose={onClose} width={560}>
+    <Modal onClose={onClose} width={480}>
       <ModalHeader icon={<Icon name="gullar" size={20} />} title={variant ? "Navni tahrirlash" : "Yangi nav"} sub="Rang, o'lcham va sotuv qoidalari" onClose={onClose} />
       <Section>Gul turi</Section>
       <Select value={String(flowerId)} options={flowers.map((f) => ({ value: String(f.id), label: f.name_uz || f.name_ru }))} onChange={(v) => setFlowerId(+v)} />

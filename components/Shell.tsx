@@ -41,6 +41,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", dark);
+    root.dataset.theme = theme.id;
     // semantik tokenlar — aksent palitrasi butun tizimga tarqaladi
     root.style.setProperty("--primary", theme.accent);
     root.style.setProperty("--primary-strong", theme.strong);
@@ -56,6 +57,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     document.addEventListener("visibilitychange", fn);
     return () => document.removeEventListener("visibilitychange", fn);
   }, []);
+
+  // kanonik skroll: shell ichida body qulflanadi — yagona skroll main hududda
+  // (login o'zi boshqaradi, shuning uchun u yerda qulf yo'q)
+  useEffect(() => {
+    document.body.classList.toggle("app-locked", !isLogin);
+    return () => document.body.classList.remove("app-locked");
+  }, [isLogin]);
 
   useEffect(() => {
     if (isLogin) return;
@@ -101,7 +109,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="relative flex h-screen gap-4 overflow-hidden p-3.5 box-border">
+    <div className="relative flex h-dvh gap-4 overflow-hidden p-3.5 box-border">
       <ParallaxController />
 
       {/* ===== FON STEKI (z-0) — barcha botanika shu yerda, "fonga bosilgan" ===== */}

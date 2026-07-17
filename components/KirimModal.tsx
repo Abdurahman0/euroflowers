@@ -66,7 +66,7 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
   };
 
   return (
-    <Modal onClose={onClose} width={600}>
+    <Modal onClose={onClose} width={560}>
       <ModalHeader icon={<Icon name="sklad" />} title="Gul keldi qilish" sub="Sklad kirimi — yangi partiya" onClose={onClose} />
       <Section>Asosiy ma&apos;lumot</Section>
       <div className="grid grid-cols-2 gap-3">

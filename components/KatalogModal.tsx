@@ -68,7 +68,7 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
   };
 
   return (
-    <Modal onClose={onClose} width={640}>
+    <Modal onClose={onClose} width={560}>
       <ModalHeader icon={<Icon name="katalog" />} title="Katalogga qo'shish" sub="Tayyor gul — story havolasi bilan" onClose={onClose} />
       <Section>Asosiy</Section>
       <div className="grid grid-cols-2 gap-3">

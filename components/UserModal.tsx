@@ -128,7 +128,7 @@ export default function UserModal({
   };
 
   return (
-    <Modal onClose={onClose} width={640}>
+    <Modal onClose={onClose} width={560}>
       <ModalHeader
         icon={<Icon name="user" size={20} />}
         title={editUser ? "Xodimni tahrirlash" : "Yangi xodim"}

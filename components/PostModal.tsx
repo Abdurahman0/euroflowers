@@ -114,7 +114,7 @@ export default function PostModal({
   const linkError = errors.permalink || errors.media_id;
 
   return (
-    <Modal onClose={onClose} width={620}>
+    <Modal onClose={onClose} width={560}>
       <ModalHeader
         icon={<Icon name="postlar" size={20} />}
         title={post ? "Postni tahrirlash" : "Yangi Instagram post"}

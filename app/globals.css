@@ -207,9 +207,42 @@
   --gsky-3: 4%;
 }
 
+/* ============ PUSHTI (Rose Gold) — kunduzgi rejim yengillashtirilgan ============
+   Fon og'ir o'qilardi: blush diapazon #FBF3F1→#F6E9E7, tuman/vual ~30% past,
+   kartalar fondan bir pog'ona ochiqroq (ierarxiya saqlanadi). Tungi rejimga
+   tegilmagan. */
+:root[data-theme="pushti"]:not(.dark) {
+  --bg-subtle: #f6e9e7;
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-solid: #ffffff;
+  --surface-2: #faf1ef;
+  --fog-k: 0.18;
+  --fog-m1: 0.7;
+  --fog-m2: 0.55;
+  --fog-mg: 0.5;
+  --veil-k: 42%;
+  --garden-op: 0.78;
+  --canopy-1: rgba(47, 93, 67, 0.21);
+  --canopy-2: rgba(63, 115, 85, 0.18);
+  --canopy-3: rgba(52, 98, 72, 0.17);
+  --foliage-op: 0.11;
+  --glow-a: #f3dee2;
+  --glow-c: #f9f0e6;
+  /* matn kontrasti AA'da qoladi (tekshirilgan: #221d16 / #5c5348 / #857a6c) */
+  --muted: #857a6c;
+}
+
 /* ============================================================
    ASOS
    ============================================================ */
+
+/* kanonik sxema: html/body qulflangan, yagona skroll — Shell'dagi main hudud */
+html, body {
+  height: 100%;
+}
+body.app-locked {
+  overflow: hidden;
+}
 
 body {
   background: var(--bg);

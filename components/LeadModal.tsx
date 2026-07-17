@@ -18,7 +18,7 @@ export default function LeadModal({ lead, onClose, onStatus }: { lead: Lead; onC
   );
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} width={560}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl text-lg font-extrabold text-white" style={{ background: "linear-gradient(135deg,var(--acc),var(--accL))" }}>{initials(name)}</div>
         <div className="min-w-[140px] flex-1">
