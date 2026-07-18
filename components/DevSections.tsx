@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
+import FilterSelect from "@/components/FilterSelect";
 import { fmtTime } from "@/lib/format";
 import type { AISettings, AuditLog, InstagramEvent, IntegrationSettings } from "@/lib/types";
 
@@ -203,13 +204,12 @@ export function InstagramEventsSection() {
           <h2 className="text-base font-bold">Instagram hodisalari</h2>
           <p className="text-[12px]" style={{ color: "var(--muted)" }}>Webhook debug jadvali — oxirgi 30 ta hodisa</p>
         </div>
-        <div className="flex gap-1.5">
-          {EVENT_TYPES.map((t) => (
-            <button key={t || "all"} onClick={() => setType(t)} className={clsx("chip", type === t && "chip-active")}>
-              {t || "hammasi"}
-            </button>
-          ))}
-        </div>
+        <FilterSelect
+          value={type}
+          onChange={setType}
+          label="Turi"
+          options={EVENT_TYPES.map((t) => ({ value: t, label: t || "Barcha turlar" }))}
+        />
       </div>
       {err && <p className="text-[13px] font-semibold" style={{ color: "var(--danger-ink)" }}>{err}</p>}
       {!err && events === null && <p className="text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}

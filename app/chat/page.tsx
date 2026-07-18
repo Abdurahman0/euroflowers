@@ -1,4 +1,5 @@
 "use client";
+import { Trash2 } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -182,6 +183,8 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [selId, setSelId] = useState<number | null>(null);
   const [conv, setConv] = useState<Conversation | null>(null);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -247,6 +250,26 @@ export default function ChatPage() {
       loadList();
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "O'tkazib bo'lmadi");
+    }
+  };
+
+  const doDelete = async () => {
+    if (selId == null || deleting) return;
+    setDeleting(true);
+    try {
+      await api.deleteConversation(selId);
+      setConvs((cs) => {
+        const rest = cs.filter((c) => c.id !== selId);
+        setSelId(rest[0]?.id ?? null);
+        return rest;
+      });
+      setConv(null);
+      setConfirmDel(false);
+      showToast("✓ Suhbat o'chirildi");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "O'chirib bo'lmadi");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -352,6 +375,9 @@ export default function ChatPage() {
                   AI&apos;ga qaytarish
                 </button>
               )}
+              <button onClick={() => setConfirmDel(true)} className="icon-btn icon-btn-danger border" style={{ borderColor: "var(--border)" }} title="Suhbatni o'chirish" aria-label="Suhbatni o'chirish">
+                <Trash2 size={16} strokeWidth={1.75} />
+              </button>
             </div>
 
             {/* xabarlar */}
@@ -413,6 +439,20 @@ export default function ChatPage() {
           </p>
         )}
       </div>
+      {confirmDel && conv && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDel(false)} role="dialog" aria-modal="true" data-lenis-prevent>
+          <div className="glass-modal w-[min(380px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold">Suhbatni o&apos;chirish</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--text-2)]">
+              «{custName(conv)}» bilan suhbat butunlay o&apos;chirilsinmi? Bu amalni bekor qilib bo&apos;lmaydi.
+            </p>
+            <div className="mt-5 flex gap-2.5">
+              <button onClick={() => setConfirmDel(false)} className="btn-ghost flex-1">Bekor qilish</button>
+              <button onClick={doDelete} disabled={deleting} className={`btn-danger flex-1 ${deleting ? "btn-loading" : ""}`}>O&apos;chirish</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

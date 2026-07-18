@@ -1,5 +1,6 @@
 "use client";
 import SearchInput from "@/components/SearchInput";
+import FilterSelect from "@/components/FilterSelect";
 import { Pencil, Plus, Power } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
@@ -80,11 +81,12 @@ export default function XodimlarPage() {
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} placeholder="Ism, login yoki email…" width={180} ariaLabel="Xodim qidirish" />
-          {ROLE_OPTIONS.map((r) => (
-            <button key={r || "all"} onClick={() => setRoleFilter(r)} className={`chip ${roleFilter === r ? "chip-active" : ""}`}>
-              {r ? ROLE_LABEL[r] ?? r : "Barchasi"}
-            </button>
-          ))}
+          <FilterSelect
+            value={roleFilter}
+            onChange={setRoleFilter}
+            label="Rol"
+            options={ROLE_OPTIONS.map((r) => ({ value: r, label: r ? ROLE_LABEL[r] ?? r : "Barcha rollar" }))}
+          />
           {control && (
             <button onClick={() => setUserModal({ open: true, edit: null })} className="btn-primary !flex-none px-5">
               <Plus size={18} strokeWidth={1.75} /> Xodim qo&apos;shish

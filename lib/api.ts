@@ -325,6 +325,8 @@ export const api = {
     request<{ reply: string }>(`/api/conversations/${id}/simulate/`, { method: "POST", body: JSON.stringify({ text }) }),
   handoff: (id: number) =>
     request<Conversation>(`/api/conversations/${id}/handoff/`, { method: "POST", body: "{}" }),
+  deleteConversation: (id: number) =>
+    request<void>(`/api/conversations/${id}/`, { method: "DELETE" }),
   resumeAi: (id: number) =>
     request<Conversation>(`/api/conversations/${id}/resume_ai/`, { method: "POST", body: "{}" }),
 

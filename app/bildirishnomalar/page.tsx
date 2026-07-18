@@ -1,4 +1,5 @@
 "use client";
+import FilterSelect from "@/components/FilterSelect";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
@@ -86,11 +87,13 @@ export default function BildirishnomalarPage() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {TYPE_FILTERS.map((f) => (
-          <button key={f.value || "all"} onClick={() => setType(f.value)} className={clsx("chip", type === f.value && "chip-active")}>
-            {f.label}
-          </button>
-        ))}
+        <FilterSelect
+          value={type}
+          onChange={(v) => setType(v as typeof type)}
+          label="Turi"
+          align="left"
+          options={TYPE_FILTERS.map((f) => ({ value: f.value, label: f.value ? f.label : "Barcha turlar" }))}
+        />
         <button onClick={() => setOnlyUnread((v) => !v)} className={clsx("chip", onlyUnread && "chip-active")} aria-pressed={onlyUnread}>
           Faqat o&apos;qilmagan
         </button>
