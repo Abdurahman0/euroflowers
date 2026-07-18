@@ -71,8 +71,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     }
     if (!user) loadMe();
     loadNotifs();
-    const t = setInterval(loadNotifs, 60000);
-    return () => clearInterval(t);
+    // jonli bildirishnomalar — WS; polling faqat WS uzilganda ishlaydi
+    useStore.getState().connectNotifWS();
+    const t = setInterval(() => {
+      if (!useStore.getState().wsConnected) loadNotifs();
+    }, 60000);
+    return () => {
+      clearInterval(t);
+      useStore.getState().disconnectNotifWS();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLogin]);
 
