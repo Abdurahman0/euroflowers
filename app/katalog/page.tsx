@@ -2,6 +2,8 @@
 import { Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
+import SearchInput from "@/components/SearchInput";
+import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -15,22 +17,53 @@ const compositionText = (k: CatalogItem) =>
     .map((c) => `${c.batch_detail?.variant_detail?.flower_detail?.name_uz ?? ""} ${c.batch_detail?.variant_detail?.name_uz ?? ""} ${c.quantity_stems} dona`.trim())
     .join(" · ") || "Tarkib kiritilmagan";
 
+const STATUS_OPTS = [
+  { value: "", label: "Barcha holatlar" },
+  { value: "available", label: "Sotuvda" },
+  { value: "reserved", label: "Band" },
+  { value: "sold", label: "Sotildi" },
+  { value: "draft", label: "Qoralama" },
+  { value: "archived", label: "Arxiv" },
+];
+
+const ARR_OPTS = [
+  { value: "", label: "Barcha turlar" },
+  { value: "bouquet", label: "Buket" },
+  { value: "basket", label: "Savat" },
+  { value: "box", label: "Quti" },
+];
+
 export default function KatalogPage() {
   const { showToast, loadNotifs } = useStore();
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  // server filtrlari
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const [arrType, setArrType] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
     try {
-      setItems(await api.catalog({ ordering: "-created_at" }));
+      setItems(await api.catalog({
+        ordering: "-created_at",
+        search: q || undefined,
+        status: status || undefined,
+        arrangement_type: arrType || undefined,
+      }));
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, q, status, arrType]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -70,7 +103,12 @@ export default function KatalogPage() {
         <p className="text-[14px]" style={{ color: "var(--mut)" }}>
           Tayyor gullar katalogi — har biri Instagram story bilan birga tizimga kiritiladi
         </p>
-        <button onClick={() => setFormOpen(true)} className="btn-primary ml-auto !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Katalog qidirish" />
+          <FilterSelect value={status} options={STATUS_OPTS} onChange={setStatus} label="Holat" />
+          <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />
+        </div>
+        <button onClick={() => setFormOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
           <Plus size={18} strokeWidth={1.75} /> Katalogga qo&apos;shish
         </button>
       </div>

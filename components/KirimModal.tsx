@@ -18,6 +18,7 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
   const { user, showToast } = useStore();
   const branches = user?.profile.branches ?? [];
   const [variants, setVariants] = useState<FlowerVariant[]>([]);
+  const [flowerId, setFlowerId] = useState(0); // gul turi
   const [f, setF] = useState({ ...EMPTY, branch: branches[0]?.id ?? 0 });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
@@ -26,10 +27,36 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
     api.flowerVariants({ is_active: true })
       .then((vs) => {
         setVariants(vs);
-        setF((p) => ({ ...p, variant: p.variant || vs[0]?.id || 0 }));
+        const first = vs[0];
+        if (first) {
+          setFlowerId((p) => p || first.flower);
+          setF((p) => ({ ...p, variant: p.variant || first.id }));
+        }
       })
       .catch(() => showToast("Gul navlarini yuklab bo'lmadi"));
   }, [showToast]);
+
+  // gul turlari — variantlardan noyob flower ro'yxati
+  const flowers = useMemo(() => {
+    const map = new Map<number, string>();
+    variants.forEach((v) => {
+      if (v.flower_detail) map.set(v.flower, v.flower_detail.name_uz || v.flower_detail.name_ru);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [variants]);
+
+  // tanlangan turga tegishli navlar
+  const filteredVariants = useMemo(
+    () => variants.filter((v) => v.flower === flowerId),
+    [variants, flowerId]
+  );
+
+  // tur almashsa — nav shu turning birinchisiga o'tadi
+  const pickFlower = (id: number) => {
+    setFlowerId(id);
+    const first = variants.find((v) => v.flower === id);
+    setF((p) => ({ ...p, variant: first?.id ?? 0 }));
+  };
 
   const variant = useMemo(() => variants.find((v) => v.id === f.variant), [variants, f.variant]);
   const stemsPerBunch = +f.stems_per_bunch || variant?.default_stems_per_bunch || 20;
@@ -70,13 +97,22 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
       <ModalHeader icon={<Icon name="sklad" />} title="Gul keldi qilish" sub="Sklad kirimi — yangi partiya" onClose={onClose} />
       <Section>Asosiy ma&apos;lumot</Section>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Gul navi" span>
+        <Field label="Gul turi">
+          <Select
+            value={flowerId}
+            onChange={(v) => pickFlower(+v)}
+            placeholder="Turini tanlang"
+            options={flowers.map((fl) => ({ value: fl.id, label: fl.name }))}
+          />
+        </Field>
+        <Field label="Gul navi">
           <Select
             value={f.variant}
             onChange={(v) => setF({ ...f, variant: +v })}
-            options={variants.map((v) => ({
+            placeholder={flowerId ? "Navini tanlang" : "Avval turini tanlang"}
+            options={filteredVariants.map((v) => ({
               value: v.id,
-              label: `${v.flower_detail?.name_uz} — ${v.name_uz} (${v.color_uz})`,
+              label: `${v.name_uz} (${v.color_uz})`,
               sub: `pochkada ${v.default_stems_per_bunch} dona · min. ${v.minimum_sale_stems}`,
             }))}
           />

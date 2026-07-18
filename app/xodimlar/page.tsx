@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import UserModal from "@/components/UserModal";
+import Modal, { ModalFooter, ModalHeader } from "@/components/Modal";
 import EmptyState from "@/components/EmptyState";
 import { Icon } from "@/components/icons";
 import { initials } from "@/lib/format";
@@ -29,6 +30,8 @@ export default function XodimlarPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [userModal, setUserModal] = useState<{ open: boolean; edit: User | null }>({ open: false, edit: null });
+  const [confirmU, setConfirmU] = useState<User | null>(null); // nofaollashtirish tasdig'i
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   useEffect(() => {
     Promise.all([api.users(), api.branches()])
@@ -45,10 +48,24 @@ export default function XodimlarPage() {
   const fullName = (u: User) => [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username;
 
   const deactivate = async (u: User) => {
+    setConfirmBusy(true);
     try {
       const upd = await api.deactivateUser(u.id);
       setTeam((ts) => (ts ?? []).map((x) => (x.id === u.id ? { ...x, ...upd, is_active: false } : x)));
       showToast(`✓ ${fullName(u)} nofaollashtirildi`);
+      setConfirmU(null);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "Amalga oshmadi");
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
+  const reactivate = async (u: User) => {
+    try {
+      const upd = await api.updateUser(u.id, { is_active: true });
+      setTeam((ts) => (ts ?? []).map((x) => (x.id === u.id ? { ...x, ...upd, is_active: true } : x)));
+      showToast(`✓ ${fullName(u)} qayta faollashtirildi`);
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Amalga oshmadi");
     }
@@ -128,10 +145,21 @@ export default function XodimlarPage() {
                   </button>
                   {u.is_active !== false && u.id !== user?.id && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); deactivate(u); }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmU(u); }}
                       title="Nofaollashtirish"
                       aria-label="Nofaollashtirish"
                       className="icon-btn icon-btn-danger"
+                    >
+                      <Power size={16} strokeWidth={1.75} />
+                    </button>
+                  )}
+                  {u.is_active === false && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); reactivate(u); }}
+                      title="Qayta faollashtirish"
+                      aria-label="Qayta faollashtirish"
+                      className="icon-btn"
+                      style={{ color: "var(--mintink, #3d6b52)" }}
                     >
                       <Power size={16} strokeWidth={1.75} />
                     </button>
@@ -149,6 +177,35 @@ export default function XodimlarPage() {
 
       {userModal.open && (
         <UserModal editUser={userModal.edit} branches={branches} onClose={() => setUserModal({ open: false, edit: null })} onSaved={onUserSaved} />
+      )}
+
+      {/* nofaollashtirish tasdig'i */}
+      {confirmU && (
+        <Modal onClose={() => setConfirmU(null)} width={420}>
+          <ModalHeader
+            icon={<Power size={18} strokeWidth={1.75} />}
+            title="Nofaollashtirish"
+            sub="Xodim tizimga kira olmaydigan bo'ladi"
+            onClose={() => setConfirmU(null)}
+          />
+          <p className="mt-5 text-[14px] leading-relaxed text-white/80">
+            <b className="text-white">{fullName(confirmU)}</b> ({ROLE_LABEL[confirmU.profile?.role] ?? confirmU.profile?.role})
+            haqiqatan nofaollashtirilsinmi? Keyin xohlagan payt qayta faollashtirish mumkin.
+          </p>
+          <ModalFooter>
+            <button
+              onClick={() => deactivate(confirmU)}
+              disabled={confirmBusy}
+              className="flex-1 rounded-[14px] py-3 text-sm font-bold text-white disabled:opacity-60"
+              style={{ background: "#b8544f" }}
+            >
+              {confirmBusy ? "Bajarilmoqda…" : "Ha, nofaollashtirish"}
+            </button>
+            <button onClick={() => setConfirmU(null)} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold">
+              Bekor
+            </button>
+          </ModalFooter>
+        </Modal>
       )}
     </>
   );

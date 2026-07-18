@@ -3,6 +3,8 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import PostModal from "@/components/PostModal";
+import SearchInput from "@/components/SearchInput";
+import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
@@ -22,11 +24,28 @@ export default function PostlarPage() {
   const [modal, setModal] = useState<{ open: boolean; post: SocialPost | null }>({ open: false, post: null });
   const [confirmDel, setConfirmDel] = useState<SocialPost | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // server filtrlari
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
+  const [postType, setPostType] = useState("");
+  const [target, setTarget] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
     setLoadErr("");
     try {
-      const [ps, bs] = await Promise.all([api.socialPosts(), api.branches()]);
+      const [ps, bs] = await Promise.all([
+        api.socialPosts({
+          search: q || undefined,
+          post_type: postType || undefined,
+          is_targeted: target === "" ? undefined : target === "1",
+        }),
+        api.branches(),
+      ]);
       setPosts(ps);
       setBranches(bs);
     } catch (e) {
@@ -34,7 +53,7 @@ export default function PostlarPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [q, postType, target]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -79,6 +98,31 @@ export default function PostlarPage() {
         <p className="text-[14px]" style={{ color: "var(--muted)" }}>
           AI post reply&apos;larga shu bazadan javob beradi — har bir post havolasi bilan gul tarkibi va narxi kiritiladi.
         </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Post qidirish" />
+          <FilterSelect
+            value={postType}
+            onChange={setPostType}
+            label="Turi"
+            options={[
+              { value: "", label: "Barcha turlar" },
+              { value: "post", label: "Post" },
+              { value: "reel", label: "Reel" },
+              { value: "story", label: "Story" },
+              { value: "ad", label: "Reklama" },
+            ]}
+          />
+          <FilterSelect
+            value={target}
+            onChange={setTarget}
+            label="Target"
+            options={[
+              { value: "", label: "Hammasi" },
+              { value: "1", label: "Target yoqilgan" },
+              { value: "0", label: "Oddiy post" },
+            ]}
+          />
+        </div>
         {control && (
           <button onClick={() => setModal({ open: true, post: null })} className="btn-primary !flex-none px-5">
             <Plus size={18} strokeWidth={1.75} /> Post qo&apos;shish

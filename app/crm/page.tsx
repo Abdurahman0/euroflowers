@@ -1,15 +1,20 @@
 "use client";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
-import { useCallback, useEffect, useState } from "react";
+import SearchInput from "@/components/SearchInput";
+import FilterSelect from "@/components/FilterSelect";
+import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
-import { useStore } from "@/lib/store";
+import { usePerm, useStore } from "@/lib/store";
 import { dateAfterParam, fmt, fmtTime, initials } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import { STATUS_BADGE, STATUS_LABEL, SOURCE_BADGE } from "@/components/badges";
 import LeadModal from "@/components/LeadModal";
 import ClientModal from "@/components/ClientModal";
+import NewLeadModal from "@/components/NewLeadModal";
+import NewClientModal from "@/components/NewClientModal";
+import { Plus } from "lucide-react";
 import type { Customer, Lead, LeadStatus } from "@/lib/types";
 
 const COLS: LeadStatus[] = ["new", "qualified", "contacted", "won", "lost"];
@@ -44,8 +49,23 @@ function LeadCard({ l, dragging, onOpen, onDrag, onDragEnd }: { l: Lead; draggin
   );
 }
 
+const ARR_OPTS = [
+  { value: "", label: "Barcha turlar" },
+  { value: "bouquet", label: "Buket" },
+  { value: "basket", label: "Savat" },
+  { value: "stems", label: "Donalab" },
+  { value: "catalog", label: "Katalog" },
+];
+
+const LANG_OPTS = [
+  { value: "", label: "Barcha tillar" },
+  { value: "uz", label: "O'zbekcha" },
+  { value: "ru", label: "Ruscha" },
+];
+
 export default function CrmPage() {
-  const { showToast, dateFilter } = useStore();
+  const { user, showToast, dateFilter } = useStore();
+  const { canControl } = usePerm();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,13 +75,56 @@ export default function CrmPage() {
   const [selClient, setSelClient] = useState<Customer | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
   const [overCol, setOverCol] = useState<LeadStatus | null>(null);
+  const [newLead, setNewLead] = useState(false);
+  const [newClient, setNewClient] = useState(false);
+  const kanbanRef = useRef<HTMLDivElement>(null);
+  const [kanbanH, setKanbanH] = useState<number | null>(null);
+  // server tomonda ishlaydigan filtrlar
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState(""); // debounce qilingan qiymat
+  const [branch, setBranch] = useState("");
+  const [arrType, setArrType] = useState("");
+  const [lang, setLang] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const branchOpts = [
+    { value: "", label: "Barcha filiallar" },
+    ...(user?.profile.branches ?? []).map((b) => ({ value: String(b.id), label: b.name })),
+  ];
+
+  // kanban pastki chegarasi ham sidebar bilan bir chiziqda (chat kabi):
+  // viewport − ustki joylashuv − 14px (Shell tashqi paddingi)
+  useEffect(() => {
+    const measure = () => {
+      const top = kanbanRef.current?.getBoundingClientRect().top ?? 0;
+      setKanbanH(Math.max(window.innerHeight - top - 14, 420));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [loading, tab, view]);
 
   const load = useCallback(async () => {
     try {
       const [ls, cs] = await Promise.all([
-        // davr filtri server tomonda — created_at_after
-        api.leads({ ordering: "-created_at", created_at_after: dateAfterParam(dateFilter) }),
-        api.customers({ ordering: "-created_at" }),
+        // barcha filtrlar server tomonda
+        api.leads({
+          ordering: "-created_at",
+          created_at_after: dateAfterParam(dateFilter),
+          search: q || undefined,
+          branch: branch || undefined,
+          arrangement_type: arrType || undefined,
+        }),
+        api.customers({
+          ordering: "-created_at",
+          search: q || undefined,
+          branch: branch || undefined,
+          language: lang || undefined,
+        }),
       ]);
       setLeads(ls);
       setCustomers(cs);
@@ -70,7 +133,7 @@ export default function CrmPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, dateFilter]);
+  }, [showToast, dateFilter, q, branch, arrType, lang]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -104,8 +167,22 @@ export default function CrmPage() {
             {t === "leads" ? `Leadlar (${fLeads.length})` : `Mijozlar (${customers.length})`}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Lead/mijoz qidirish" />
+          <FilterSelect value={branch} options={branchOpts} onChange={setBranch} label="Filial" />
+          {tab === "leads" && <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />}
+          {tab === "clients" && <FilterSelect value={lang} options={LANG_OPTS} onChange={setLang} label="Til" />}
           <DateChips />
+          {tab === "leads" && canControl("crm") && (
+            <button onClick={() => setNewLead(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+              <Plus size={17} strokeWidth={1.75} /> Lead
+            </button>
+          )}
+          {tab === "clients" && canControl("customers") && (
+            <button onClick={() => setNewClient(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+              <Plus size={17} strokeWidth={1.75} /> Mijoz
+            </button>
+          )}
           {tab === "leads" && (
             <div className="glass flex gap-1 !rounded-xl p-1">
               {(["kanban", "table"] as const).map((v) => (
@@ -119,17 +196,22 @@ export default function CrmPage() {
       </div>
 
       {tab === "leads" && view === "kanban" && (
-        <div className="grid items-start gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))" }}>
+        <div
+          ref={kanbanRef}
+          className="mb-[-40px] grid gap-3.5"
+          style={{ gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", height: kanbanH ?? "calc(100dvh - 220px)" }}
+        >
           {COLS.map((st) => {
             const items = fLeads.filter((l) => l.status === st);
             const isOver = overCol === st && dragId != null;
             return (
-              <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="rounded-[18px] border-[1.5px] p-3" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>
-                <div className="flex items-center justify-between px-1.5 pb-2.5">
+              <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>
+                <div className="flex shrink-0 items-center justify-between px-1.5 pb-2.5">
                   <span className="text-[13px] font-bold tracking-wide">{STATUS_LABEL[st].toUpperCase()}</span>
                   <span className="rounded-full px-2.5 text-[12px] font-bold text-white" style={{ background: "var(--side)" }}>{items.length}</span>
                 </div>
-                <div className="flex flex-col gap-2.5">
+                {/* har ustun o'z ichida skrollanadi */}
+                <div data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5">
                   {/* drop slot — silliq ochiladi */}
                   <div className="box-border rounded-[15px] border-2 border-dashed transition-all duration-250" style={{ height: isOver ? 84 : 0, marginBottom: isOver ? 0 : -10, borderColor: isOver ? "var(--acc)" : "transparent", background: isOver ? "rgba(255,255,255,.15)" : "transparent" }} />
                   {items.map((l) => (
@@ -219,6 +301,19 @@ export default function CrmPage() {
         />
       )}
       {selClient != null && <ClientModal client={selClient} onClose={() => setSelClient(null)} />}
+      {newLead && (
+        <NewLeadModal
+          customers={customers}
+          onClose={() => setNewLead(false)}
+          onSaved={(l) => { setNewLead(false); setLeads((ls) => [l, ...ls]); }}
+        />
+      )}
+      {newClient && (
+        <NewClientModal
+          onClose={() => setNewClient(false)}
+          onSaved={(c) => { setNewClient(false); setCustomers((cs) => [c, ...cs]); }}
+        />
+      )}
     </>
   );
 }

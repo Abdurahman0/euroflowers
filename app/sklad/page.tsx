@@ -1,5 +1,6 @@
 "use client";
 import SearchInput from "@/components/SearchInput";
+import FilterSelect from "@/components/FilterSelect";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -19,20 +20,27 @@ const MOVE_LABEL: Record<string, string> = {
 const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
 
 export default function SkladPage() {
-  const { showToast, dateFilter } = useStore();
+  const { user, showToast, dateFilter } = useStore();
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [kirimOpen, setKirimOpen] = useState(false);
   const [selBatch, setSelBatch] = useState<StockBatch | null>(null);
   const [search, setSearch] = useState("");
+  // server filtrlari
+  const [branch, setBranch] = useState("");
+  const [moveType, setMoveType] = useState("");
 
   const load = useCallback(async () => {
     try {
       const [bs, ms] = await Promise.all([
-        api.stockBatches({ is_active: true, ordering: "-received_at" }),
-        // davr filtri server tomonda
-        api.stockMovements({ ordering: "-created_at", created_at_after: dateAfterParam(dateFilter) }),
+        api.stockBatches({ is_active: true, ordering: "-received_at", branch: branch || undefined }),
+        // davr + tur filtri server tomonda
+        api.stockMovements({
+          ordering: "-created_at",
+          created_at_after: dateAfterParam(dateFilter),
+          movement_type: moveType || undefined,
+        }),
       ]);
       setBatches(bs);
       setMoves(ms);
@@ -41,7 +49,7 @@ export default function SkladPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, dateFilter]);
+  }, [showToast, dateFilter, branch, moveType]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -65,8 +73,31 @@ export default function SkladPage() {
         <p className="text-[14px]" style={{ color: "var(--mut)" }}>
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada
         </p>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Partiya qidirish" />
+          <FilterSelect
+            value={branch}
+            onChange={setBranch}
+            label="Filial"
+            options={[
+              { value: "", label: "Barcha filiallar" },
+              ...(user?.profile.branches ?? []).map((b) => ({ value: String(b.id), label: b.name })),
+            ]}
+          />
+          <FilterSelect
+            value={moveType}
+            onChange={setMoveType}
+            label="Harakat"
+            options={[
+              { value: "", label: "Barcha harakatlar" },
+              { value: "in", label: "Kirim" },
+              { value: "out", label: "Chiqim" },
+              { value: "adjustment", label: "Tuzatish" },
+              { value: "waste", label: "Chiqit" },
+              { value: "transfer_in", label: "O'tkazma kirdi" },
+              { value: "transfer_out", label: "O'tkazma chiqdi" },
+            ]}
+          />
           <DateChips />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Keldi qilish

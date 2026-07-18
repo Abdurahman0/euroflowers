@@ -1,6 +1,7 @@
 "use client";
 import { Trash2 } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
+import FilterSelect from "@/components/FilterSelect";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,10 +18,9 @@ import type { Conversation, Message } from "@/lib/types";
  *   • mijoz xabarlari — CHAPDA (neytral yuzada)
  *   • AI javoblari — O'NGDA (brend rangida)
  *   • operator javoblari — O'NGDA (to'q yuzada)
- * Guruhlash, hover amallar (nusxa/reaksiya/vaqt), sticky kiritish.
+ * Guruhlash, hover amallar (nusxa/vaqt), sticky kiritish.
  */
 
-const REACTIONS = ["❤️", "👍", "🌸", "😄"];
 
 type Side = "left" | "right" | "center";
 const sideOf = (m: Message): Side => (m.sender === "customer" ? "left" : m.sender === "system" ? "center" : "right");
@@ -50,19 +50,14 @@ function MessageRow({
   custName,
   groupWithPrev,
   groupWithNext,
-  reaction,
-  onReact,
   onCopy,
 }: {
   m: Message;
   custName: string;
   groupWithPrev: boolean;
   groupWithNext: boolean;
-  reaction?: string;
-  onReact: (id: number, emoji: string) => void;
   onCopy: (text: string) => void;
 }) {
-  const [reactOpen, setReactOpen] = useState(false);
   const side = sideOf(m);
 
   if (side === "center")
@@ -108,25 +103,6 @@ function MessageRow({
           >
             <Icon name="copy" size={13} />
           </button>
-          <div className="relative">
-            <button
-              onClick={() => setReactOpen((v) => !v)}
-              title="Reaksiya"
-              className="flex h-6 w-6 items-center justify-center rounded-full transition-colors duration-200 hover:bg-[var(--hover)]"
-              style={{ color: "var(--text-2)" }}
-            >
-              <Icon name="smile" size={13} />
-            </button>
-            {reactOpen && (
-              <div className="absolute -top-9 left-1/2 z-20 flex -translate-x-1/2 gap-0.5 rounded-full border px-1.5 py-1 shadow-md animate-[rowIn_0.18s_var(--ease)_both]" style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}>
-                {REACTIONS.map((e) => (
-                  <button key={e} onClick={() => { onReact(m.id, e); setReactOpen(false); }} className="rounded-full px-1 text-[14px] transition-transform duration-150 hover:scale-125">
-                    {e}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* pufak */}
@@ -152,16 +128,6 @@ function MessageRow({
           {m.text}
         </div>
 
-        {/* reaksiya chipi */}
-        {reaction && (
-          <span
-            className={clsx("-mt-2 rounded-full border px-1.5 py-px text-[12px] shadow-xs", isLeft ? "ml-2 self-start" : "mr-2 self-end")}
-            style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}
-          >
-            {reaction}
-          </span>
-        )}
-
         {/* guruh oxiridagi vaqt */}
         {!groupWithNext && (
           <span className={clsx("mt-1 text-[11px] font-medium", isLeft ? "ml-1" : "mr-1")} style={{ color: "var(--muted)" }}>
@@ -186,15 +152,30 @@ export default function ChatPage() {
   const [confirmDel, setConfirmDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusF, setStatusF] = useState(""); // suhbat holati — server filtri
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [reactions, setReactions] = useState<Record<number, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [chatH, setChatH] = useState<number | null>(null);
+
+  // chat pastki chegarasi sidebar pastki chegarasi bilan bir xil:
+  // sidebar viewport pastidan 14px (Shell p-3.5) yuqorida tugaydi —
+  // balandlikni o'lchab, aynan shu chiziqqacha cho'zamiz
+  useEffect(() => {
+    const measure = () => {
+      const top = rootRef.current?.getBoundingClientRect().top ?? 0;
+      setChatH(Math.max(window.innerHeight - top - 14, 420));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [loading]);
 
   const loadList = useCallback(async () => {
     try {
-      const cs = await api.conversations({ ordering: "-last_message_at" });
+      const cs = await api.conversations({ ordering: "-last_message_at", status: statusF || undefined });
       setConvs(cs);
       setSelId((id) => id ?? cs[0]?.id ?? null);
     } catch (e) {
@@ -202,7 +183,7 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, statusF]);
 
   const loadConv = useCallback(async (id: number) => {
     try {
@@ -303,10 +284,27 @@ export default function ChatPage() {
   if (loading) return <FlowerLoader />;
 
   return (
-    <div className="flex h-[calc(100dvh-173px)] min-h-[460px] flex-col items-stretch gap-4 overflow-hidden md:flex-row">
+    <div
+      ref={rootRef}
+      className="mb-[-40px] flex min-h-[460px] flex-col items-stretch gap-4 overflow-hidden md:flex-row"
+      style={{ height: chatH ?? "calc(100dvh - 173px)" }}
+    >
       {/* suhbatlar ro'yxati */}
       <div className="flex max-h-[30vh] min-h-0 min-w-0 flex-col gap-3 md:max-h-none md:h-full md:min-w-[230px] md:max-w-[340px] md:flex-1 md:basis-60">
-        <SearchInput value={search} onChange={setSearch} placeholder="Qidirish — ism yoki @username" width="full" className="!rounded-[14px] px-3.5 py-1" />
+        <div className="flex items-center gap-2">
+          <SearchInput value={search} onChange={setSearch} placeholder="Qidirish — ism yoki @username" width="full" className="min-w-0 flex-1 !rounded-[14px] px-3.5 py-1" />
+          <FilterSelect
+            value={statusF}
+            onChange={setStatusF}
+            label="Holat"
+            options={[
+              { value: "", label: "Barcha suhbatlar" },
+              { value: "ai", label: "AI faol" },
+              { value: "operator", label: "Operatorda" },
+              { value: "closed", label: "Yopilgan" },
+            ]}
+          />
+        </div>
         <div data-lenis-prevent className="glass flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain !rounded-[16px] p-2">
           {fConvs.map((c) => (
             <button
@@ -392,8 +390,6 @@ export default function ChatPage() {
                     custName={custName(conv)}
                     groupWithPrev={!!prev && prev.sender === m.sender}
                     groupWithNext={!!next && next.sender === m.sender}
-                    reaction={reactions[m.id]}
-                    onReact={(id, e) => setReactions((r) => ({ ...r, [id]: r[id] === e ? "" : e }))}
                     onCopy={copyText}
                   />
                 );

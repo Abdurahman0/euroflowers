@@ -272,6 +272,8 @@ export const api = {
 
   customers: (p?: Params) => list<Customer>("/api/customers/", p),
   customer: (id: number) => request<Customer>(`/api/customers/${id}/`),
+  createCustomer: (data: Partial<Customer>) =>
+    request<Customer>("/api/customers/", { method: "POST", body: JSON.stringify(data) }),
   updateCustomer: (id: number, data: Partial<Customer>) =>
     request<Customer>(`/api/customers/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
