@@ -52,7 +52,7 @@ export default function LoginPage() {
     return () => cancelAnimationFrame(fadeRef.current);
   }, []);
 
-  /* ovoz: 1.5s davomida 0 ↔ 0.35 orasida silliq o'tish, hech qachon balandroq emas */
+  /* ovoz: 1.5s davomida 0 ↔ 0.6 orasida silliq o'tish, hech qachon balandroq emas */
   const fadeVolume = (to: number) => {
     const v = videoRef.current;
     if (!v) return;
@@ -64,8 +64,9 @@ export default function LoginPage() {
     const from = v.volume;
     const start = performance.now();
     const step = (now: number) => {
-      const t = Math.min(1, (now - start) / 1500);
-      v.volume = from + (to - from) * t;
+      // rAF timestamp start'dan oldin kelishi mumkin — ikkala tomondan qisamiz
+      const t = Math.min(1, Math.max(0, (now - start) / 1500));
+      v.volume = Math.min(1, Math.max(0, from + (to - from) * t));
       if (t < 1) fadeRef.current = requestAnimationFrame(step);
       else if (to === 0) v.muted = true;
     };
@@ -75,7 +76,7 @@ export default function LoginPage() {
   const toggleSound = () => {
     const next = !soundOn;
     setSoundOn(next);
-    fadeVolume(next ? 0.35 : 0);
+    fadeVolume(next ? 0.6 : 0);
   };
 
   const fail = (msg: string) => {

@@ -93,7 +93,7 @@ export default function XodimlarPage() {
     <>
       {/* qidiruv/filtr qatori + asosiy amal */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <p className="text-[14px]" style={{ color: "var(--muted)" }}>
+        <p className="note-chip text-[14px]" style={{ color: "var(--muted)" }}>
           {team ? `${team.length} xodim · ${team.filter((u) => u.is_active !== false).length} faol` : "Yuklanmoqda…"}
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">

@@ -206,7 +206,7 @@ export default function CrmPage() {
             const isOver = overCol === st && dragId != null;
             return (
               <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>
-                <div className="flex shrink-0 items-center justify-between px-1.5 pb-2.5">
+                <div className="kanban-head flex shrink-0 items-center justify-between px-1.5 pb-2.5">
                   <span className="text-[13px] font-bold tracking-wide">{STATUS_LABEL[st].toUpperCase()}</span>
                   <span className="rounded-full px-2.5 text-[12px] font-bold text-white" style={{ background: "var(--side)" }}>{items.length}</span>
                 </div>

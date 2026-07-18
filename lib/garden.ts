@@ -11,8 +11,10 @@ export function fadeVolume(el: HTMLVideoElement, to: number, ms = 1500, onDone?:
   const from = el.volume;
   const start = performance.now();
   const tick = (now: number) => {
-    const t = Math.min((now - start) / ms, 1);
-    el.volume = from + (to - from) * (t * (2 - t)); // easeOutQuad
+    // rAF timestamp kadr boshiga tegishli — start'dan OLDIN kelishi mumkin,
+    // shuning uchun ikkala tomondan qisamiz; volume esa qat'iy [0,1]
+    const t = Math.min(Math.max((now - start) / ms, 0), 1);
+    el.volume = Math.min(1, Math.max(0, from + (to - from) * (t * (2 - t)))); // easeOutQuad
     if (t < 1) requestAnimationFrame(tick);
     else onDone?.();
   };

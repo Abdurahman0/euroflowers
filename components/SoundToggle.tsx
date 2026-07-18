@@ -11,7 +11,7 @@ import { gardenRef, fadeVolume } from "@/lib/garden";
  */
 export default function SoundToggle({
   targetRef,
-  volume = 0.25,
+  volume = 0.55,
   className = "",
 }: {
   /** berilmasa — global bog' videosi */

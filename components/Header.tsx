@@ -107,7 +107,7 @@ export default function Header() {
   }, [notifOpen, temaOpen, profileOpen]);
 
   return (
-    <header className="relative z-20 flex items-center justify-between gap-4 border-b px-6 pb-4 pt-4" style={{ borderColor: "var(--border)" }}>
+    <header className="relative z-20 mx-3.5 mt-3.5 flex items-center justify-between gap-4 rounded-2xl border px-6 py-4" style={{ borderColor: "var(--border)" }}>
       <div className="flex min-w-0 items-center gap-3">
         <button onClick={toggleSide} className={clsx(iconBtnCls, "shrink-0")} style={iconBtnStyle} title="Sidebar" aria-label="Sidebarni ochish/yopish">
           <Icon name="menu" size={16} />

@@ -95,7 +95,7 @@ export default function PostlarPage() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[14px]" style={{ color: "var(--muted)" }}>
+        <p className="note-chip text-[14px]" style={{ color: "var(--muted)" }}>
           AI post reply&apos;larga shu bazadan javob beradi — har bir post havolasi bilan gul tarkibi va narxi kiritiladi.
         </p>
         <div className="flex flex-wrap items-center gap-2">

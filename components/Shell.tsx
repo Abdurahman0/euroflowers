@@ -39,6 +39,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       setVideoMounted(true);
       return;
     }
+    // rasm rejimiga qaytdik: element yo'qoladi — ovoz holati ham nolga
+    // (yangi video element doim mute boshlanadi; holat mos bo'lsin)
+    useStore.getState().setSoundOn(false);
     const t = setTimeout(() => setVideoMounted(false), 450);
     return () => clearTimeout(t);
   }, [showVideo]);
@@ -182,7 +185,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         {/* muhit tovushi — faqat video rejimda */}
         {showVideo && !gardenPosterOnly && (
           <div className="absolute bottom-3 left-3 z-20">
-            <SoundToggle volume={0.25} />
+            <SoundToggle volume={0.55} />
           </div>
         )}
       </main>

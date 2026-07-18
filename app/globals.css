@@ -127,27 +127,95 @@
   --gsky-3: 16%;
 }
 
-/* Video fon rejimi: xom yorqin video ustida shisha yuzalar zichroq bo'ladi —
-   videoni emas, panellarni kuchaytiramiz (o'qiluvchanlik shundan keladi) */
+/* ============ VIDEO FON REJIMI — Apple uslubidagi "liquid glass".
+   Yengil, havodor yuzalar: past opacity + KUCHLI blur (28px) — video shisha
+   ortida yumshoq rang maydonlariga aylanadi, matn esa aniq qoladi.
+   Yorug' qirra (light-edge) + ustki blik + yumshoq soya — Apple retsepti.
+   To'liq ekranli yuvish TAQIQLANGAN. Hammasi .bg-video ichida. ============ */
 .bg-video {
-  --surface: rgba(255, 255, 253, 0.93);
+  /* light-edge tokenlari */
+  --lg-out: rgba(255, 255, 255, 0.12);
+  --lg-in: rgba(255, 255, 255, 0.35);
+  --lg-hl: rgba(255, 255, 255, 0.25);
+  --lg-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  /* ikkinchi darajali matnlar chuqurroq — blur ko'taradi, matn cho'kmasin */
+  --muted: #574e42;
+  --text-2: #3a3128;
 }
 .bg-video.dark {
-  --surface: rgba(30, 25, 20, 0.93);
+  --lg-out: rgba(255, 255, 255, 0.06);
+  --lg-in: rgba(255, 255, 255, 0.14);
+  --lg-hl: rgba(255, 255, 255, 0.1);
+  --lg-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+  --muted: #cfc5b5;
+  --text-2: #ece4d7;
+  /* aksent matnlar (narxlar, havolalar) yorug' shisha ustida cho'kmasin —
+     bir pog'ona to'yinganroq/ochroq rose */
+  --acc: #f2a0b4;
+  --primary: #eb8ba1;
 }
-/* katta panellar (glass-lite) ham zichlashadi */
+
+/* kartalar / vidjetlar — 70% */
+.bg-video .glass,
 .bg-video .glass-lite {
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  backdrop-filter: blur(5px) saturate(1.4);
+  border-color: var(--lg-out);
+  box-shadow:
+    inset 0 1px 0 var(--lg-hl),
+    inset 1px 0 0 color-mix(in srgb, var(--lg-in) 55%, transparent),
+    var(--lg-shadow);
 }
-/* header — o'z yuzasi (to'liq ekran emas, UI paneli): sarlavha yorqin video
-   ustida ham doim o'qiladi */
+/* sidebar — 72% (inline uslubni bosib o'tamiz) */
+.bg-video aside {
+  background: color-mix(in srgb, var(--side) 72%, transparent) !important;
+  backdrop-filter: blur(7px) saturate(1.4);
+  border-color: var(--lg-out) !important;
+  box-shadow: inset 0 1px 0 var(--lg-hl), var(--lg-shadow);
+}
+/* top bar — 72% */
 .bg-video header {
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(10px) saturate(1.1);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(7px) saturate(1.4);
+  border-color: var(--lg-out);
+  box-shadow: inset 0 1px 0 var(--lg-hl), var(--lg-shadow);
+}
+/* modal / drawer — 78% (fokus yuzasi biroz zichroq) */
+.bg-video .glass-modal {
+  background: color-mix(in srgb, var(--surface-solid) 78%, transparent);
+  backdrop-filter: blur(9px) saturate(1.4);
+  border-color: var(--lg-in);
+  box-shadow: inset 0 1px 0 var(--lg-hl), 0 24px 64px rgba(0, 0, 0, 0.3);
+}
+/* ===== "yalang'och" elementlar — chip yuzalar, 68% =====
+   Qoida: hech bir matn xom video ustida yotmaydi — panel yoki chip. */
+.bg-video .chip,
+.bg-video .bg-sfc {
+  background: color-mix(in srgb, var(--surface) 68%, transparent) !important;
+  backdrop-filter: blur(5px) saturate(1.4);
+  border-color: var(--lg-out) !important;
+  box-shadow: inset 0 1px 0 var(--lg-hl);
+}
+.bg-video .kanban-head {
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+  backdrop-filter: blur(5px) saturate(1.4);
+  border: 1px solid var(--lg-out);
+  box-shadow: inset 0 1px 0 var(--lg-hl);
+  border-radius: 12px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+}
+.bg-video .note-chip {
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+  backdrop-filter: blur(5px) saturate(1.4);
+  border: 1px solid var(--lg-out);
+  box-shadow: inset 0 1px 0 var(--lg-hl);
+  border-radius: 12px;
+  padding: 6px 12px;
 }
 /* DIQQAT: video rejimda main/viewport ustiga hech qanday to'liq yuvish
-   qo'yilmaydi — video ranglari fayldagidek ko'rinadi; kontrast faqat
-   panellarning o'z yuzalaridan keladi */
+   qo'yilmaydi — video ranglari fayldagidek ko'rinadi; o'qiluvchanlikni
+   liquid glass yuzalarning kuchli bluri ta'minlaydi */
 
 /* ============ DARK — "Nocturne Atelier" ============ */
 .dark {

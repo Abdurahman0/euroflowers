@@ -100,7 +100,7 @@ export default function KatalogPage() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <p className="text-[14px]" style={{ color: "var(--mut)" }}>
+        <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
           Tayyor gullar katalogi — har biri Instagram story bilan birga tizimga kiritiladi
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
