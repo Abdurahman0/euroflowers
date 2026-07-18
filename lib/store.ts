@@ -14,6 +14,15 @@ type State = {
   notifs: Notification[];
   /** bildirishnoma WS ulangan — polling shunda o'chadi */
   wsConnected: boolean;
+  /** fon bog' videosi ovozi (sessiya ichida saqlanadi, reload'da mute) */
+  soundOn: boolean;
+  setSoundOn: (v: boolean) => void;
+  /** past quvvat rejimi — video o'rniga poster, ovoz tugmasi yashirin */
+  gardenPosterOnly: boolean;
+  setGardenPosterOnly: (v: boolean) => void;
+  /** orqa fon rejimi: "rasm" — statik gul dekor (standart), "video" — bog' videosi */
+  bgMode: "rasm" | "video";
+  setBgMode: (m: "rasm" | "video") => void;
   // ui
   themeId: ThemeId;
   dark: boolean;
@@ -49,6 +58,12 @@ export const useStore = create<State>((set, get) => ({
   permissions: [],
   notifs: [],
   wsConnected: false,
+  soundOn: false,
+  setSoundOn: (soundOn) => set({ soundOn }),
+  gardenPosterOnly: false,
+  setGardenPosterOnly: (gardenPosterOnly) => set({ gardenPosterOnly }),
+  bgMode: "rasm",
+  setBgMode: (bgMode) => set({ bgMode }),
   themeId: "pushti",
   // standart — tungi mavzu; foydalanuvchi tanlovi (ef_theme) buni bosib o'tadi
   dark: true,

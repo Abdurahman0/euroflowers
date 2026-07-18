@@ -329,6 +329,9 @@ export const api = {
     request<Conversation>(`/api/conversations/${id}/handoff/`, { method: "POST", body: "{}" }),
   deleteConversation: (id: number) =>
     request<void>(`/api/conversations/${id}/`, { method: "DELETE" }),
+  /** AI'ni vaqtincha/doimiy pauza qilish: {minutes} yoki {paused_until}; ikkalasisiz — doimiy */
+  pauseAi: (id: number, data: { minutes?: number; paused_until?: string; reason?: string }) =>
+    request<Conversation>(`/api/conversations/${id}/pause_ai/`, { method: "POST", body: JSON.stringify(data) }),
   resumeAi: (id: number) =>
     request<Conversation>(`/api/conversations/${id}/resume_ai/`, { method: "POST", body: "{}" }),
 

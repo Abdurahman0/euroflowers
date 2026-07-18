@@ -127,6 +127,28 @@
   --gsky-3: 16%;
 }
 
+/* Video fon rejimi: xom yorqin video ustida shisha yuzalar zichroq bo'ladi —
+   videoni emas, panellarni kuchaytiramiz (o'qiluvchanlik shundan keladi) */
+.bg-video {
+  --surface: rgba(255, 255, 253, 0.93);
+}
+.bg-video.dark {
+  --surface: rgba(30, 25, 20, 0.93);
+}
+/* katta panellar (glass-lite) ham zichlashadi */
+.bg-video .glass-lite {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+}
+/* header — o'z yuzasi (to'liq ekran emas, UI paneli): sarlavha yorqin video
+   ustida ham doim o'qiladi */
+.bg-video header {
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(10px) saturate(1.1);
+}
+/* DIQQAT: video rejimda main/viewport ustiga hech qanday to'liq yuvish
+   qo'yilmaydi — video ranglari fayldagidek ko'rinadi; kontrast faqat
+   panellarning o'z yuzalaridan keladi */
+
 /* ============ DARK — "Nocturne Atelier" ============ */
 .dark {
   --bg: #141110;

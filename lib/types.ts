@@ -252,6 +252,9 @@ export type Conversation = {
   status: ConversationStatus;
   last_message_at: string;
   ai_summary: string;
+  /** AI pauzada — shu vaqtgacha (null = pauza yo'q) */
+  ai_paused_until: string | null;
+  ai_pause_reason: string;
   customer: number;
   branch: number;
   social_post: number | null;

@@ -207,6 +207,7 @@ const mkConv = (id: number, c: Customer, status: Conversation["status"], summary
   id, customer_detail: c, messages: msgs, last_message: msgs[msgs.length - 1] ?? null,
   created_at: msgs[0]?.created_at ?? ago(1), updated_at: msgs[msgs.length - 1]?.created_at ?? ago(0),
   status, last_message_at: msgs[msgs.length - 1]?.created_at ?? ago(0), ai_summary: summary,
+  ai_paused_until: null, ai_pause_reason: "",
   customer: c.id, branch: 1, social_post: null, assigned_to: status === "operator" ? 2 : null,
 });
 

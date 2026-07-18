@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { useStore, useTheme } from "@/lib/store";
@@ -7,6 +7,8 @@ import { isLoggedIn } from "@/lib/api";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import Toast from "./Toast";
+import GardenBackground from "./GardenBackground";
+import SoundToggle from "./SoundToggle";
 import FlowerLoader from "./FlowerLoader";
 import PetalBurst from "./PetalBurst";
 
@@ -20,8 +22,38 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { theme, dark } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
-  const { user, userLoading, loadMe, loadNotifs, setTheme, setDark } = useStore();
+  const { user, userLoading, loadMe, loadNotifs, setTheme, setDark, gardenPosterOnly, bgMode, setBgMode } = useStore();
   const isLogin = pathname.startsWith("/login");
+
+  // video rejimda element krossfeyd tugaguncha (400ms) DOM'da qoladi;
+  // "rasm" bilan yangi ochilishda esa umuman mount bo'lmaydi (mp4 so'rovi yo'q)
+  const showVideo = bgMode === "video";
+  const [videoMounted, setVideoMounted] = useState(showVideo);
+  // video rejimda shisha yuzalar zichlashadi (globals: .bg-video)
+  useEffect(() => {
+    document.documentElement.classList.toggle("bg-video", showVideo);
+    return () => document.documentElement.classList.remove("bg-video");
+  }, [showVideo]);
+  useEffect(() => {
+    if (showVideo) {
+      setVideoMounted(true);
+      return;
+    }
+    const t = setTimeout(() => setVideoMounted(false), 450);
+    return () => clearTimeout(t);
+  }, [showVideo]);
+
+  // orqa fon rejimi + ravshanligini tiklash/saqlash — mavzu bilan bir xil mexanizm
+  useEffect(() => {
+    const saved = localStorage.getItem("ef_bgmode");
+    if (saved === "video" || saved === "rasm") setBgMode(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const bgSaveArmed = useRef(false);
+  useEffect(() => {
+    if (bgSaveArmed.current) localStorage.setItem("ef_bgmode", bgMode);
+    else bgSaveArmed.current = true;
+  }, [bgMode]);
 
   // saqlangan mavzuni tiklash — bir marta, gidratsiyadan keyin
   useEffect(() => {
@@ -36,6 +68,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const themeSaveArmed = useRef(false);
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", dark);
@@ -46,7 +79,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     root.style.setProperty("--accL", theme.accL);
     root.style.setProperty("--side", theme.dark);
     root.style.setProperty("--bg", dark ? theme.dark : theme.light);
-    localStorage.setItem("ef_theme", JSON.stringify({ id: theme.id, dark }));
+    // birinchi ishga tushishda YOZMAYMIZ — aks holda tiklash effekti qo'llagan
+    // saqlangan qiymatni eski (standart) holat bosib o'tadi (StrictMode poygasi)
+    if (themeSaveArmed.current) {
+      localStorage.setItem("ef_theme", JSON.stringify({ id: theme.id, dark }));
+    } else {
+      themeSaveArmed.current = true;
+    }
   }, [theme, dark]);
 
   // tab yashirin — barcha bezak animatsiyalar pauza (CPU/GPU tinim oladi)
@@ -98,22 +137,36 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className="relative flex h-dvh gap-4 overflow-hidden p-3.5 box-border">
       <ParallaxController />
 
+      {/* ===== BOG' VIDEOSI + TEMA PARDASI — faqat "video" rejimda ===== */}
+      {videoMounted && <GardenBackground active={showVideo} />}
+
       {/* ===== FON STEKI (z-0) — barcha botanika shu yerda, "fonga bosilgan" ===== */}
       <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
-        {/* atmosfera: gradientlar, tuman, siyrak gulbarglar */}
+        {/* atmosfera: gradientlar, tuman, siyrak gulbarglar (ichida statik
+            gul suratlari bgMode bo'yicha o'zi yashirinadi) */}
         <AmbientScene />
-        {/* botanika bog'i: daraxtlar, barglar, uzoq gul (kuchli blur) */}
-        <BotanicalGarden />
-        {/* yaqin fon guli: premium piyon — biroz tiniqroq, baribir fonda */}
-        <PremiumPeony />
+        {/* STATIK dekorativ gullar — video rejimda BUTUNLAY yashirin:
+            xom video ustida hech qanday surat-gul qolmasligi kerak */}
+        <div
+          className="transition-opacity duration-[400ms] ease-out"
+          style={{ opacity: showVideo ? 0 : 1 }}
+        >
+          {/* botanika bog'i: daraxtlar, barglar, uzoq gul (kuchli blur) */}
+          <BotanicalGarden />
+          {/* yaqin fon guli: premium piyon (3D yoki surat fallback) */}
+          <PremiumPeony />
+        </div>
       </div>
 
-      {/* ===== SHISHA VUAL (z-[1]) — juda yengil tekislovchi qatlam (blur YO'Q, gullar ko'rinadi) ===== */}
-      <div
-        className="pointer-events-none absolute inset-0 z-[1]"
-        aria-hidden
-        style={{ background: "color-mix(in srgb, var(--bg) 6%, transparent)" }}
-      />
+      {/* ===== SHISHA VUAL (z-[1]) — faqat RASM rejimda; video rejimda hech
+           qanday to'liq ekranli yuvish yo'q (video ranglari fayldagidek) ===== */}
+      {!showVideo && (
+        <div
+          className="pointer-events-none absolute inset-0 z-[1]"
+          aria-hidden
+          style={{ background: "color-mix(in srgb, var(--bg) 6%, transparent)" }}
+        />
+      )}
 
       <PetalBurst />
 
@@ -126,6 +179,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {userLoading && !user ? <FlowerLoader /> : children}
           </div>
         </div>
+        {/* muhit tovushi — faqat video rejimda */}
+        {showVideo && !gardenPosterOnly && (
+          <div className="absolute bottom-3 left-3 z-20">
+            <SoundToggle volume={0.25} />
+          </div>
+        )}
       </main>
       <Toast />
     </div>

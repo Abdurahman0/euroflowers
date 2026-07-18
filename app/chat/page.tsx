@@ -1,7 +1,8 @@
 "use client";
-import { Trash2 } from "lucide-react";
+import { MoonStar, Trash2 } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
+import PauseAIModal from "@/components/PauseAIModal";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -150,6 +151,7 @@ export default function ChatPage() {
   const [selId, setSelId] = useState<number | null>(null);
   const [conv, setConv] = useState<Conversation | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [pauseOpen, setPauseOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState(""); // suhbat holati — server filtri
@@ -363,12 +365,33 @@ export default function ChatPage() {
                 <span className="h-[7px] w-[7px] rounded-full" style={{ background: conv.status === "ai" ? "var(--success)" : conv.status === "operator" ? "var(--warning)" : "var(--muted)" }} />
                 {CONV_STATUS_LABEL[conv.status]}
               </span>
+              {/* AI pauzada — badge (vaqtli yoki doimiy) */}
+              {conv.ai_paused_until != null || (conv.status !== "ai" && conv.ai_pause_reason) ? (
+                <span
+                  className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-bold"
+                  style={{ background: "var(--warning-soft)", color: "var(--warning-ink)", borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)" }}
+                  title={conv.ai_pause_reason || undefined}
+                >
+                  <MoonStar size={12} strokeWidth={2} />
+                  {conv.ai_paused_until ? `Pauza · ${fmtTime(conv.ai_paused_until)} gacha` : "Pauza"}
+                </span>
+              ) : null}
               {conv.status === "ai" && (
-                <button onClick={doHandoff} className="rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
-                  Operatorga olish
-                </button>
+                <>
+                  <button
+                    onClick={() => setPauseOpen(true)}
+                    className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]"
+                    style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+                    title="AI'ni vaqtincha yoki doimiy o'chirish"
+                  >
+                    <MoonStar size={13} strokeWidth={1.75} /> Pauza
+                  </button>
+                  <button onClick={doHandoff} className="rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
+                    Operatorga olish
+                  </button>
+                </>
               )}
-              {conv.status === "operator" && (
+              {(conv.status === "operator" || conv.ai_paused_until != null) && (
                 <button onClick={doResumeAi} className="rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--success-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
                   AI&apos;ga qaytarish
                 </button>
@@ -435,6 +458,13 @@ export default function ChatPage() {
           </p>
         )}
       </div>
+      {pauseOpen && conv && (
+        <PauseAIModal
+          conv={conv}
+          onClose={() => setPauseOpen(false)}
+          onPaused={(c) => { setPauseOpen(false); setConv(c); loadList(); }}
+        />
+      )}
       {confirmDel && conv && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDel(false)} role="dialog" aria-modal="true" data-lenis-prevent>
           <div className="glass-modal w-[min(380px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>

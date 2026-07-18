@@ -8,6 +8,7 @@ import { ROLE_LABEL } from "./badges";
 import { fmtTime } from "@/lib/format";
 import { Icon } from "./icons";
 import clsx from "clsx";
+import { Film, Image as ImageIcon } from "lucide-react";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -36,7 +37,9 @@ const iconBtnStyle = { borderColor: "var(--border)", background: "var(--surface)
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { toggleSide, notifs, markNotifRead, markAllNotifsRead, themeId, setTheme, dark, setDark, user } = useStore();
+  const { toggleSide, notifs, markNotifRead, markAllNotifsRead, themeId, setTheme, dark, setDark, user, bgMode, setBgMode } = useStore();
+  const [isMobileEnv, setIsMobileEnv] = useState(false);
+  useEffect(() => setIsMobileEnv(window.innerWidth < 768), []);
   const [notifOpen, setNotifOpen] = useState(false);
   const [temaOpen, setTemaOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -161,6 +164,32 @@ export default function Header() {
                   />
                 ))}
               </div>
+
+              {/* orqa fon rejimi: statik gul dekor yoki bog' videosi */}
+              <div className="mb-2 mt-4 text-[13px] font-bold">Orqa fon</div>
+              <div className="flex gap-1 rounded-[12px] border border-white/15 bg-white/[.06] p-1">
+                {([
+                  ["rasm", "Rasm", ImageIcon],
+                  ["video", "Video", Film],
+                ] as const).map(([val, label, IconC]) => (
+                  <button
+                    key={val}
+                    onClick={() => setBgMode(val)}
+                    aria-pressed={bgMode === val}
+                    className={clsx(
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-[9px] py-1.5 text-[12.5px] font-bold transition-all duration-200",
+                      bgMode === val ? "text-white shadow" : "text-white/60 hover:text-white/85"
+                    )}
+                    style={bgMode === val ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" } : undefined}
+                  >
+                    <IconC size={13} strokeWidth={1.75} /> {label}
+                  </button>
+                ))}
+              </div>
+              {isMobileEnv && bgMode === "video" && (
+                <p className="mt-1.5 text-[11px] text-white/45">Video faqat kompyuterda — bu qurilmada rasm ko&apos;rinadi.</p>
+              )}
+
             </div>
           )}
         </div>
