@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { login, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { Icon } from "@/components/icons";
+import SoundToggle from "@/components/SoundToggle";
 
 /**
  * Login — Ghibli uslubidagi to'liq ekran sahna:
@@ -40,44 +41,21 @@ export default function LoginPage() {
   // video faqat shu bayroq true bo'lganda DOM'ga qo'yiladi — mobil qurilma
   // mp4'ni umuman yuklab olmasligi kerak (display:none emas, shartli render)
   const [showVideo, setShowVideo] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const fadeRef = useRef(0);
 
   useEffect(() => {
     const conn = (navigator as { connection?: { saveData?: boolean } }).connection;
     const desktop = window.matchMedia("(min-width: 768px)").matches;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setShowVideo(desktop && !reduce && !conn?.saveData);
-    return () => cancelAnimationFrame(fadeRef.current);
   }, []);
 
-  /* ovoz: 1.5s davomida 0 ↔ 0.6 orasida silliq o'tish, hech qachon balandroq emas */
-  const fadeVolume = (to: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    cancelAnimationFrame(fadeRef.current);
-    if (to > 0 && v.muted) {
-      v.volume = 0;
-      v.muted = false;
-    }
-    const from = v.volume;
-    const start = performance.now();
-    const step = (now: number) => {
-      // rAF timestamp start'dan oldin kelishi mumkin — ikkala tomondan qisamiz
-      const t = Math.min(1, Math.max(0, (now - start) / 1500));
-      v.volume = Math.min(1, Math.max(0, from + (to - from) * t));
-      if (t < 1) fadeRef.current = requestAnimationFrame(step);
-      else if (to === 0) v.muted = true;
-    };
-    fadeRef.current = requestAnimationFrame(step);
-  };
-
-  const toggleSound = () => {
-    const next = !soundOn;
-    setSoundOn(next);
-    fadeVolume(next ? 0.6 : 0);
-  };
+  // ovoz holati store'da umumiy (SoundToggle) — login kirish/chiqishда nolga,
+  // aks holda CRM'dagi yangi mute video bilan chip holati mos kelmay qoladi
+  useEffect(() => {
+    useStore.getState().setSoundOn(false);
+    return () => useStore.getState().setSoundOn(false);
+  }, []);
 
   const fail = (msg: string) => {
     setErr(msg);
@@ -146,19 +124,11 @@ export default function LoginPage() {
         )}
       </div>
 
-      {/* ==== OVOZ TUGMASI — faqat video bor desktopda ==== */}
+      {/* ==== OVOZ TUGMASI — faqat video bor desktopda (CRM bilan bir xil chip) ==== */}
       {showVideo && (
-        <button
-          type="button"
-          onClick={toggleSound}
-          className="sound-chip fixed bottom-5 left-5 z-20 flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-200 hover:scale-105 active:scale-95"
-          style={{ color: INK }}
-          title={soundOn ? "Tovushni o'chirish" : "Tovushni yoqish"}
-          aria-label={soundOn ? "Tovushni o'chirish" : "Tovushni yoqish"}
-          aria-pressed={soundOn}
-        >
-          <Icon name={soundOn ? "volumeOn" : "volumeOff"} size={17} />
-        </button>
+        <div className="fixed bottom-5 left-5 z-20">
+          <SoundToggle targetRef={videoRef} volume={0.55} />
+        </div>
       )}
 
       {/* ==== SUZUVCHI SHISHA KARTA — o'ng 40% ichida markazda ==== */}
@@ -288,18 +258,6 @@ export default function LoginPage() {
             .login-card {
               background: rgba(250, 246, 242, 0.85);
             }
-          }
-        }
-        .sound-chip {
-          background: rgba(250, 246, 242, 0.92);
-          border: 1px solid rgba(255, 255, 255, 0.5);
-          box-shadow: 0 8px 24px rgba(180, 130, 120, 0.22);
-        }
-        @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-          .sound-chip {
-            background: rgba(250, 246, 242, 0.55);
-            -webkit-backdrop-filter: blur(16px) saturate(1.15);
-            backdrop-filter: blur(16px) saturate(1.15);
           }
         }
         .login-inp::placeholder {
