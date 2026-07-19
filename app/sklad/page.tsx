@@ -1,5 +1,6 @@
 "use client";
 import SearchInput from "@/components/SearchInput";
+import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
@@ -7,7 +8,7 @@ import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import { dateAfterParam, fmt, fmtDate, fmtTime } from "@/lib/format";
+import { dateAfterParam, fmt, fmtDate, fmtTime, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import KirimModal from "@/components/KirimModal";
 import BatchDrawer from "@/components/BatchDrawer";
@@ -20,7 +21,7 @@ const MOVE_LABEL: Record<string, string> = {
 const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
 
 export default function SkladPage() {
-  const { user, showToast, dateFilter } = useStore();
+  const { user, showToast, dateFilter, dateRange, setDateFilter } = useStore();
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ export default function SkladPage() {
         // davr + tur filtri server tomonda
         api.stockMovements({
           ordering: "-created_at",
-          created_at_after: dateAfterParam(dateFilter),
+          ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
           movement_type: moveType || undefined,
         }),
       ]);
@@ -49,7 +50,7 @@ export default function SkladPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, dateFilter, branch, moveType]);
+  }, [showToast, dateFilter, dateRange, branch, moveType]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -99,6 +100,10 @@ export default function SkladPage() {
             ]}
           />
           <DateChips />
+          <ClearFilters
+            show={!!(search || branch || moveType || dateRange || dateFilter !== "oy")}
+            onClear={() => { setSearch(""); setBranch(""); setMoveType(""); setDateFilter("oy"); }}
+          />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Keldi qilish
           </button>

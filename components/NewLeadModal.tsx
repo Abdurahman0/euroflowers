@@ -68,8 +68,8 @@ export default function NewLeadModal({
             placeholder={customers.length ? "Mijozni tanlang" : "Avval mijoz qo'shing"}
             options={customers.map((c) => ({
               value: c.id,
-              label: c.name || `@${c.instagram_username}` || c.masked_phone || `#${c.id}`,
-              sub: c.masked_phone || undefined,
+              label: c.name || `@${c.instagram_username}` || c.phone || c.masked_phone || `#${c.id}`,
+              sub: c.phone || c.masked_phone || undefined,
             }))}
           />
         </Field>

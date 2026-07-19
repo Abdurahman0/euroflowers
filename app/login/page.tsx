@@ -6,6 +6,7 @@ import { login, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { Icon } from "@/components/icons";
 import SoundToggle from "@/components/SoundToggle";
+import UiModeSwitch from "@/components/UiModeSwitch";
 
 /**
  * Login — Ghibli uslubidagi to'liq ekran sahna:
@@ -42,13 +43,43 @@ export default function LoginPage() {
   // mp4'ni umuman yuklab olmasligi kerak (display:none emas, shartli render)
   const [showVideo, setShowVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const uiMode = useStore((s) => s.uiMode);
+  const lite = uiMode === "yengil";
+  const [modeHint, setModeHint] = useState("");
+  // premium media: yengilga o'tilganda 450ms so'nib, keyin DOM'dan chiqadi
+  const [mediaMounted, setMediaMounted] = useState(true);
+  useEffect(() => {
+    if (!lite) {
+      setMediaMounted(true);
+      return;
+    }
+    const t = setTimeout(() => setMediaMounted(false), 450);
+    return () => clearTimeout(t);
+  }, [lite]);
 
+  useEffect(() => {
+    const conn = (navigator as { connection?: { saveData?: boolean; deviceMemory?: number } }).connection;
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const desktop = window.matchMedia("(min-width: 768px)").matches;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const saved = localStorage.getItem("ef_uimode");
+    const weak = (nav.deviceMemory !== undefined && nav.deviceMemory <= 4) || !!conn?.saveData || reduce;
+    // saqlangan tanlov yo'q + qurilma kuchsiz — Yengil taklif qilinadi
+    if (!saved && weak) {
+      useStore.getState().setUiMode("yengil");
+      setModeHint("Qurilmangiz uchun tavsiya");
+    }
+    const liteNow = saved ? saved === "yengil" : (weak || useStore.getState().uiMode === "yengil");
+    setShowVideo(desktop && !reduce && !conn?.saveData && !liteNow);
+  }, []);
+
+  // jonli almashish: rejim o'zgarsa video darhol yoqiladi/o'chadi
   useEffect(() => {
     const conn = (navigator as { connection?: { saveData?: boolean } }).connection;
     const desktop = window.matchMedia("(min-width: 768px)").matches;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    setShowVideo(desktop && !reduce && !conn?.saveData);
-  }, []);
+    setShowVideo(desktop && !reduce && !conn?.saveData && !lite);
+  }, [lite]);
 
   // ovoz holati store'da umumiy (SoundToggle) — login kirish/chiqishда nolga,
   // aks holda CRM'dagi yangi mute video bilan chip holati mos kelmay qoladi
@@ -102,8 +133,12 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-dvh overflow-hidden" style={{ background: CREAM }}>
-      {/* ==== FON: to'liq ekran jonli natyurmort ==== */}
+      {/* ==== FON ==== */}
       <div className="absolute inset-0" aria-hidden>
+        {/* YENGIL: ikki yaqin ohangli tinch gradient — hech qanday media */}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(160deg, #FBF5F0 0%, #F3E7E1 55%, #EFDFD9 100%)" }} />
+        {mediaMounted && (
+        <div className="absolute inset-0 transition-opacity duration-[400ms] ease-out" style={{ opacity: lite ? 0 : 1 }}>
         {/* poster har doim ostida — mobil/saveData/reduced-motion uchun yagona fon */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={POSTER} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: "left center" }} />
@@ -122,6 +157,8 @@ export default function LoginPage() {
             tabIndex={-1}
           />
         )}
+        </div>
+        )}
       </div>
 
       {/* ==== OVOZ TUGMASI — faqat video bor desktopda (CRM bilan bir xil chip) ==== */}
@@ -132,8 +169,8 @@ export default function LoginPage() {
       )}
 
       {/* ==== SUZUVCHI SHISHA KARTA — o'ng 40% ichida markazda ==== */}
-      <div className="relative z-10 flex min-h-dvh items-center justify-center px-5 py-10 md:justify-end">
-        <div className="flex w-full justify-center md:w-[40%]">
+      <div className={`relative z-10 flex min-h-dvh items-center justify-center px-5 py-10 ${lite ? "" : "md:justify-end"}`}>
+        <div className={`flex w-full justify-center ${lite ? "" : "md:w-[40%]"}`}>
         <motion.form
           onSubmit={submit}
           initial={{ opacity: 0, y: 22 }}
@@ -208,6 +245,21 @@ export default function LoginPage() {
             </span>
           </label>
 
+          {/* interfeys rejimi — tanlov butun CRM'ga qo'llanadi */}
+          <div
+            className="mt-5"
+            style={{
+              "--primary": ROSE,
+              "--primary-strong": "#B87E88",
+              "--primary-soft": "rgba(201, 144, 154, 0.13)",
+              "--border": LINE,
+              "--border-strong": "rgba(120, 95, 80, 0.32)",
+              "--muted": MUTED,
+              "--text": INK,
+            } as React.CSSProperties}
+          >
+            <UiModeSwitch hint={modeHint || undefined} />
+          </div>
 
           {/* xato */}
           {err && (

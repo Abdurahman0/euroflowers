@@ -42,6 +42,15 @@ export const dateAfterParam = (filter: "bugun" | "hafta" | "oy"): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+/** Maxsus oraliq → {created_at_after, created_at_before} (before — keyingi kun,
+    DRF "<" solishtiradi, "to" kuni ham qamrab olinadi). */
+export const rangeParams = (r: { from: string; to: string }): { created_at_after: string; created_at_before: string } => {
+  const d = new Date(r.to + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  const before = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { created_at_after: r.from, created_at_before: before };
+};
+
 /** created_at date filtri: bugun / 7 kun / 30 kun. */
 export const inDateFilter = (iso: string, filter: "bugun" | "hafta" | "oy"): boolean => {
   const d = new Date(iso);

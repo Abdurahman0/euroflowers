@@ -82,6 +82,16 @@ const leads: Lead[] = [
   mkLead(6, customers[5], "contacted", "Ona kuniga nafis buket, 500 ming atrofida", "520000", "bouquet", 2, 6),
   mkLead(7, customers[2], "won", "Ofis uchun haftalik gul yetkazish", "1500000", "", 4, 2),
   mkLead(8, customers[0], "lost", "Import qora atirgul so'radi — mavjud emas", null, "stems", 6, 4),
+  mkLead(
+    9,
+    customers[1],
+    "new",
+    "📅 Yetkazish: Bugun (2026-07-19), 09:00 – 12:00\n📍 Manzil: 9, Xadra (C-14, Shayhontohur Tumani, Toshkent, 100000, Oʻzbekiston — juda uzun manzil misoli, qo'shimcha mo'ljal: metro chiqishi yonidagi biznes markaz\n🗺 Lokatsiya: 41.325960,69.248253 — https://yandex.uz/maps/?pt=69.24825322894111,41.32596027598443&z=17\n💳 To'lov: Click\n💌 Kartochka: \"Ona, sizni yaxshi ko'raman!\"",
+    "980000",
+    "catalog",
+    0,
+    1
+  ),
 ];
 
 // ===== Gullar va navlar =====

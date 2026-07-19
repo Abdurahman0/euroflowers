@@ -7,6 +7,7 @@ import { isLoggedIn } from "@/lib/api";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import Toast from "./Toast";
+import NotifToast from "./NotifToast";
 import GardenBackground from "./GardenBackground";
 import SoundToggle from "./SoundToggle";
 import FlowerLoader from "./FlowerLoader";
@@ -22,12 +23,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { theme, dark } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
-  const { user, userLoading, loadMe, loadNotifs, setTheme, setDark, gardenPosterOnly, bgMode, setBgMode, sideOpen, toggleSide } = useStore();
+  const { user, userLoading, loadMe, loadNotifs, setTheme, setDark, gardenPosterOnly, bgMode, setBgMode, sideOpen, toggleSide, uiMode, setUiMode } = useStore();
   const isLogin = pathname.startsWith("/login");
 
   // video rejimda element krossfeyd tugaguncha (400ms) DOM'da qoladi;
   // "rasm" bilan yangi ochilishda esa umuman mount bo'lmaydi (mp4 so'rovi yo'q)
-  const showVideo = bgMode === "video";
+  // YENGIL rejim: hech qanday dekor/video/effekt — faqat toza yuzalar
+  const lite = uiMode === "yengil";
+  const showVideo = bgMode === "video" && !lite;
   const [videoMounted, setVideoMounted] = useState(showVideo);
   // video rejimda shisha yuzalar zichlashadi (globals: .bg-video)
   useEffect(() => {
@@ -46,10 +49,34 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(t);
   }, [showVideo]);
 
-  // orqa fon rejimi + ravshanligini tiklash/saqlash — mavzu bilan bir xil mexanizm
+  // yengil rejimda ildizga ui-lite klassi — blur/animatsiyalar CSS'da o'chadi
+  useEffect(() => {
+    document.documentElement.classList.toggle("ui-lite", lite);
+    return () => document.documentElement.classList.remove("ui-lite");
+  }, [lite]);
+
+  // dekor qatlami: yengilga o'tishda 400ms so'nib, keyin butunlay unmount
+  const [decorMounted, setDecorMounted] = useState(!lite);
+  useEffect(() => {
+    if (!lite) {
+      setDecorMounted(true);
+      return;
+    }
+    const t = setTimeout(() => setDecorMounted(false), 450);
+    return () => clearTimeout(t);
+  }, [lite]);
+
+  // orqa fon rejimi + interfeys rejimini tiklash — mavzu bilan bir xil mexanizm
   useEffect(() => {
     const saved = localStorage.getItem("ef_bgmode");
     if (saved === "video" || saved === "rasm") setBgMode(saved);
+    const savedUi = localStorage.getItem("ef_uimode");
+    if (savedUi === "premium" || savedUi === "yengil") {
+      setUiMode(savedUi);
+      // yengil saqlangan bo'lsa dekor DARHOL unmount — fade kutmaymiz,
+      // aks holda gidratsiya oynasida gul teksturalari so'ralib qoladi
+      if (savedUi === "yengil") setDecorMounted(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const bgSaveArmed = useRef(false);
@@ -138,13 +165,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative flex h-dvh gap-2 overflow-hidden p-2 box-border sm:gap-3 sm:p-3 lg:gap-4 lg:p-3.5">
-      <ParallaxController />
+      {decorMounted && <ParallaxController />}
 
       {/* ===== BOG' VIDEOSI + TEMA PARDASI — faqat "video" rejimda ===== */}
-      {videoMounted && <GardenBackground active={showVideo} />}
+      {videoMounted && !lite && <GardenBackground active={showVideo} />}
 
-      {/* ===== FON STEKI (z-0) — barcha botanika shu yerda, "fonga bosilgan" ===== */}
-      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
+      {/* ===== FON STEKI (z-0) — yengil rejimda so'nib, so'ng unmount ===== */}
+      {decorMounted && (
+      <div
+        className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-[400ms] ease-out"
+        style={{ opacity: lite ? 0 : 1 }}
+        aria-hidden
+      >
         {/* atmosfera: gradientlar, tuman, siyrak gulbarglar (ichida statik
             gul suratlari bgMode bo'yicha o'zi yashirinadi) */}
         <AmbientScene />
@@ -160,18 +192,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <PremiumPeony />
         </div>
       </div>
+      )}
 
-      {/* ===== SHISHA VUAL (z-[1]) — faqat RASM rejimda; video rejimda hech
-           qanday to'liq ekranli yuvish yo'q (video ranglari fayldagidek) ===== */}
-      {!showVideo && (
+      {/* ===== SHISHA VUAL (z-[1]) — faqat RASM rejimda; yengilda yo'q ===== */}
+      {decorMounted && !showVideo && (
         <div
-          className="pointer-events-none absolute inset-0 z-[1]"
+          className="pointer-events-none absolute inset-0 z-[1] transition-opacity duration-[400ms]"
           aria-hidden
-          style={{ background: "color-mix(in srgb, var(--bg) 6%, transparent)" }}
+          style={{ background: "color-mix(in srgb, var(--bg) 6%, transparent)", opacity: lite ? 0 : 1 }}
         />
       )}
 
-      <PetalBurst />
+      {decorMounted && <PetalBurst />}
 
       {/* ===== UI (z-10+) — har doim fokusda ===== */}
       {sideOpen && (
@@ -197,6 +229,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         )}
       </main>
       <Toast />
+      <NotifToast />
     </div>
   );
 }

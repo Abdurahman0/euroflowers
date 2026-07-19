@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { fmt, fmtDate, initials } from "@/lib/format";
 import { Icon } from "@/components/icons";
+import UiModeSwitch from "@/components/UiModeSwitch";
 import { ROLE_LABEL } from "@/components/badges";
 import type { Branch, BusinessSettings, InstagramSettings, Packaging, User } from "@/lib/types";
 
@@ -75,6 +76,15 @@ export default function SozlamalarPage() {
 
   return (
     <div className="grid items-start gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}>
+      {/* Interfeys rejimi — login'dagi tanlov bilan bitta kalit (ef_uimode) */}
+      <section className="glass p-5">
+        <h2 className="mb-1 text-base font-bold">Interfeys rejimi</h2>
+        <p className="mb-3 text-[13px]" style={{ color: "var(--muted)" }}>
+          Darhol qo&apos;llanadi — qayta yuklash shart emas.
+        </p>
+        <UiModeSwitch />
+      </section>
+
       {/* Instagram — jonli status */}
       <section className="glass p-5">
         <h2 className="text-base font-bold">Instagram ulanishi</h2>

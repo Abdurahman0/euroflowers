@@ -31,7 +31,7 @@ export default function ClientModal({ client, onClose }: { client: Customer; onC
         <div className="min-w-[140px] flex-1">
           <div className="text-[18px] font-extrabold">{name}</div>
           <div className="text-[13px] text-[color:var(--text-2)]">
-            {client.masked_phone || "telefon yo'q"} · <span style={{ color: "var(--primary)" }}>@{client.instagram_username || "—"}</span>
+            {client.phone || client.masked_phone || "telefon yo'q"} · <span style={{ color: "var(--primary)" }}>@{client.instagram_username || "—"}</span>
           </div>
         </div>
         {client.purchases_count > 0 && <span className="rounded-full bg-[color:var(--surface-2)] px-3 py-1 text-[11px] font-extrabold">DOIMIY MIJOZ</span>}

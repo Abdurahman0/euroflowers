@@ -2,12 +2,13 @@
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
+import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
-import { dateAfterParam, fmt, fmtTime, initials } from "@/lib/format";
+import { dateAfterParam, fmt, fmtTime, initials, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import { STATUS_BADGE, STATUS_LABEL, SOURCE_BADGE } from "@/components/badges";
 import LeadModal from "@/components/LeadModal";
@@ -30,21 +31,21 @@ function LeadCard({ l, dragging, onOpen, onDrag, onDragEnd }: { l: Lead; draggin
       onClick={onOpen}
       onDragStart={onDrag}
       onDragEnd={onDragEnd}
-      className="glass cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
+      className="glass cursor-grab overflow-hidden !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
       // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
       // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
       style={dragging ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" } : undefined}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[14px] font-bold">{name}</span>
-        <span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span>
+        <span className="min-w-0 truncate text-[14px] font-bold" title={name}>{name}</span>
+        <span className={clsx(SOURCE_BADGE(l.source), "shrink-0")}>{l.source || "—"}</span>
       </div>
-      <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</p>
+      <p className="clamp-3 mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</p>
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
-        <span className="text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
+        <span className="min-w-0 truncate text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
+        <span className="shrink-0 text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
       </div>
-      <div className="mt-0.5 text-xs" style={{ color: "var(--mut)" }}>{l.customer_detail?.masked_phone || l.customer_detail?.phone || "tel yo'q"}</div>
+      <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{l.customer_detail?.phone || l.customer_detail?.masked_phone || "tel yo'q"}</div>
     </div>
   );
 }
@@ -64,7 +65,7 @@ const LANG_OPTS = [
 ];
 
 export default function CrmPage() {
-  const { user, showToast, dateFilter } = useStore();
+  const { user, showToast, dateFilter, dateRange, setDateFilter } = useStore();
   const { canControl } = usePerm();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -114,7 +115,7 @@ export default function CrmPage() {
         // barcha filtrlar server tomonda
         api.leads({
           ordering: "-created_at",
-          created_at_after: dateAfterParam(dateFilter),
+          ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
           search: q || undefined,
           branch: branch || undefined,
           arrangement_type: arrType || undefined,
@@ -133,7 +134,7 @@ export default function CrmPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, dateFilter, q, branch, arrType, lang]);
+  }, [showToast, dateFilter, dateRange, q, branch, arrType, lang]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -173,6 +174,10 @@ export default function CrmPage() {
           {tab === "leads" && <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />}
           {tab === "clients" && <FilterSelect value={lang} options={LANG_OPTS} onChange={setLang} label="Til" />}
           <DateChips />
+          <ClearFilters
+            show={!!(search || branch || arrType || lang || dateRange || dateFilter !== "oy")}
+            onClear={() => { setSearch(""); setBranch(""); setArrType(""); setLang(""); setDateFilter("oy"); }}
+          />
           {tab === "leads" && canControl("crm") && (
             <button onClick={() => setNewLead(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
               <Plus size={17} strokeWidth={1.75} /> Lead
@@ -253,7 +258,7 @@ export default function CrmPage() {
             <button key={l.id} onClick={() => setSelLead(l)} className="row-lux grid w-full min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
               <span className="min-w-0">
                 <span className="block truncate font-bold" title={l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}>{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</span>
-                <span className="block truncate text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.masked_phone || "tel yo'q"}</span>
+                <span className="block truncate text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.phone || l.customer_detail?.masked_phone || "tel yo'q"}</span>
               </span>
               <span className="min-w-0 truncate" style={{ color: "var(--mut)" }} title={l.request_uz || l.request_ru}>{l.request_uz || l.request_ru}</span>
               <span><span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span></span>
@@ -279,7 +284,7 @@ export default function CrmPage() {
                   <span className="truncate font-bold" title={c.name || `@${c.instagram_username}`}>{c.name || `@${c.instagram_username}`}</span>
                   {c.is_blocked && <span className="rounded-full bg-rose px-2 py-0.5 text-[11px] font-bold text-roseink">BLOK</span>}
                 </span>
-                <span>{c.masked_phone || "—"}</span>
+                <span>{c.phone || c.masked_phone || "—"}</span>
                 <span className="min-w-0 truncate font-semibold" style={{ color: "var(--acc)" }} title={`@${c.instagram_username || "—"}`}>@{c.instagram_username || "—"}</span>
                 <span className="font-bold">{c.purchases_count}</span>
                 <span className="font-bold">{parseFloat(c.total_spent) > 0 ? fmt(c.total_spent) : "—"}</span>

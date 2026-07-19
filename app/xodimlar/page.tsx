@@ -1,5 +1,6 @@
 "use client";
 import SearchInput from "@/components/SearchInput";
+import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { Pencil, Plus, Power } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -104,6 +105,7 @@ export default function XodimlarPage() {
             label="Rol"
             options={ROLE_OPTIONS.map((r) => ({ value: r, label: r ? ROLE_LABEL[r] ?? r : "Barcha rollar" }))}
           />
+          <ClearFilters show={!!(search || roleFilter)} onClear={() => { setSearch(""); setRoleFilter(""); }} />
           {control && (
             <button onClick={() => setUserModal({ open: true, edit: null })} className="btn-primary !flex-none px-5">
               <Plus size={18} strokeWidth={1.75} /> Xodim qo&apos;shish

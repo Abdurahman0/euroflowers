@@ -1,6 +1,7 @@
 "use client";
 import { ArrowLeft, MoonStar, Trash2 } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
+import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import PauseAIModal from "@/components/PauseAIModal";
 import EmptyState from "@/components/EmptyState";
@@ -308,6 +309,7 @@ export default function ChatPage() {
               { value: "closed", label: "Yopilgan" },
             ]}
           />
+          <ClearFilters show={!!(search || statusF)} onClear={() => { setSearch(""); setStatusF(""); }} />
         </div>
         <div data-lenis-prevent className="glass flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain !rounded-[16px] p-2">
           {fConvs.map((c) => (
@@ -355,7 +357,7 @@ export default function ChatPage() {
                   <span className="text-[13px] font-medium" style={{ color: "var(--muted)" }}>@{conv.customer_detail?.instagram_username}</span>
                 </div>
                 {conv.ai_summary && <div className="truncate text-xs font-semibold" style={{ color: "var(--text-2)" }}>{conv.ai_summary}</div>}
-                <div className="truncate text-xs" style={{ color: "var(--muted)" }}>Instagram DM · {conv.customer_detail?.masked_phone || "tel yo'q"}</div>
+                <div className="truncate text-xs" style={{ color: "var(--muted)" }}>Instagram DM · {conv.customer_detail?.phone || conv.customer_detail?.masked_phone || "tel yo'q"}</div>
               </div>
               <span
                 className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-bold"

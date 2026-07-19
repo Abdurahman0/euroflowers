@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { THEMES } from "./data";
 import { api } from "./api";
 import { notifSocketUrl } from "./ws";
-import type { DateFilter, Notification, PagePermission, PermissionPage, Role, ThemeId, User } from "./types";
+import type { DateFilter, DateRange, Notification, PagePermission, PermissionPage, Role, ThemeId, User } from "./types";
 
 type State = {
   // sessiya
@@ -20,6 +20,9 @@ type State = {
   /** past quvvat rejimi — video o'rniga poster, ovoz tugmasi yashirin */
   gardenPosterOnly: boolean;
   setGardenPosterOnly: (v: boolean) => void;
+  /** interfeys rejimi: "premium" — to'liq dekor/effektlar, "yengil" — tez va oddiy */
+  uiMode: "premium" | "yengil";
+  setUiMode: (m: "premium" | "yengil") => void;
   /** orqa fon rejimi: "rasm" — statik gul dekor (standart), "video" — bog' videosi */
   bgMode: "rasm" | "video";
   setBgMode: (m: "rasm" | "video") => void;
@@ -28,7 +31,11 @@ type State = {
   dark: boolean;
   sideOpen: boolean;
   dateFilter: DateFilter;
+  /** null — segment (bugun/7/30) amalda; aks holda maxsus kalendar oraliq */
+  dateRange: DateRange | null;
   toast: string;
+  /** yangi kelgan bildirishnoma uchun bosiladigan toast-karta */
+  notifToast: Notification | null;
   // actions
   loadMe: () => Promise<void>;
   loadNotifs: () => Promise<void>;
@@ -41,10 +48,16 @@ type State = {
   setDark: (d: boolean) => void;
   toggleSide: () => void;
   setDateFilter: (f: DateFilter) => void;
+  setDateRange: (r: DateRange | null) => void;
   showToast: (t: string) => void;
+  pushNotifToast: (n: Notification) => void;
+  clearNotifToast: () => void;
 };
 
 let toastTimer: ReturnType<typeof setTimeout>;
+let notifToastTimer: ReturnType<typeof setTimeout>;
+// polling orqali kelganda 'yangi'ni aniqlash uchun — oldin ko'rilgan idlar
+let seenNotifIds: Set<number> | null = null;
 
 // WS holati — store'dan tashqarida (re-render kerak emas)
 let notifWS: WebSocket | null = null;
@@ -62,6 +75,11 @@ export const useStore = create<State>((set, get) => ({
   setSoundOn: (soundOn) => set({ soundOn }),
   gardenPosterOnly: false,
   setGardenPosterOnly: (gardenPosterOnly) => set({ gardenPosterOnly }),
+  uiMode: "premium",
+  setUiMode: (uiMode) => {
+    if (typeof window !== "undefined") localStorage.setItem("ef_uimode", uiMode);
+    set({ uiMode });
+  },
   bgMode: "rasm",
   setBgMode: (bgMode) => set({ bgMode }),
   themeId: "pushti",
@@ -69,7 +87,9 @@ export const useStore = create<State>((set, get) => ({
   dark: true,
   sideOpen: true,
   dateFilter: "oy",
+  dateRange: null,
   toast: "",
+  notifToast: null,
 
   loadMe: async () => {
     set({ userLoading: true });
@@ -84,6 +104,12 @@ export const useStore = create<State>((set, get) => ({
   loadNotifs: async () => {
     try {
       const notifs = await api.notifications({ ordering: "-created_at" });
+      // polling fallback ham yangi bildirishnomani toast qiladi (WS'siz rejim)
+      if (seenNotifIds) {
+        const fresh = notifs.find((n) => !n.is_read && !seenNotifIds!.has(n.id));
+        if (fresh) get().pushNotifToast(fresh);
+      }
+      seenNotifIds = new Set(notifs.map((n) => n.id));
       set({ notifs });
     } catch {
       /* header notifikatsiyasi — jim o'tkazamiz */
@@ -140,7 +166,7 @@ export const useStore = create<State>((set, get) => ({
               ? s.notifs.map((x) => (x.id === n.id ? ({ ...x, ...n } as Notification) : x))
               : [n as Notification, ...s.notifs],
           }));
-          if (!n.is_read) get().showToast(`🔔 ${n.title_uz || n.title_ru || "Yangi bildirishnoma"}`);
+          if (!n.is_read) get().pushNotifToast(n as Notification);
         } else {
           // noma'lum xabar turi — ro'yxatni qayta o'qish arzon va doim to'g'ri
           get().loadNotifs();
@@ -179,14 +205,31 @@ export const useStore = create<State>((set, get) => ({
   setTheme: (themeId) => set({ themeId }),
   setDark: (dark) => set({ dark }),
   toggleSide: () => set((s) => ({ sideOpen: !s.sideOpen })),
-  setDateFilter: (dateFilter) => set({ dateFilter }),
+  setDateFilter: (dateFilter) => set({ dateFilter, dateRange: null }),
+  setDateRange: (dateRange) => set({ dateRange }),
 
   showToast: (toast) => {
     clearTimeout(toastTimer);
     set({ toast });
     toastTimer = setTimeout(() => set({ toast: "" }), 3800);
   },
+
+  pushNotifToast: (n) => {
+    seenNotifIds?.add(n.id); // keyingi poll qayta toast qilmasin
+    clearTimeout(notifToastTimer);
+    set({ notifToast: n });
+    notifToastTimer = setTimeout(() => set({ notifToast: null }), 6000);
+  },
+  clearNotifToast: () => {
+    clearTimeout(notifToastTimer);
+    set({ notifToast: null });
+  },
 }));
+
+// e2e/debug: store'ga konsoldan kirish (window.__efStore)
+if (typeof window !== "undefined") {
+  (window as unknown as { __efStore?: typeof useStore }).__efStore = useStore;
+}
 
 /**
  * Ruxsat tekshiruvi. Backend ruxsat ro'yxati bo'lsa — u ustuvor;

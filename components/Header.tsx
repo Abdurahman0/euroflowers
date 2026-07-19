@@ -37,7 +37,7 @@ const iconBtnStyle = { borderColor: "var(--border)", background: "var(--surface)
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { toggleSide, notifs, markNotifRead, markAllNotifsRead, themeId, setTheme, dark, setDark, user, bgMode, setBgMode } = useStore();
+  const { toggleSide, notifs, markNotifRead, markAllNotifsRead, themeId, setTheme, dark, setDark, user, bgMode, setBgMode, uiMode } = useStore();
   const [isMobileEnv, setIsMobileEnv] = useState(false);
   useEffect(() => setIsMobileEnv(window.innerWidth < 768), []);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -165,7 +165,8 @@ export default function Header() {
                 ))}
               </div>
 
-              {/* orqa fon rejimi: statik gul dekor yoki bog' videosi */}
+              {/* orqa fon rejimi — yengil rejimda inert, ko'rsatilmaydi */}
+              {uiMode === "premium" && (<>
               <div className="mb-2 mt-4 text-[13px] font-bold">Orqa fon</div>
               <div className="flex gap-1 rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface-2)] p-1">
                 {([
@@ -189,6 +190,7 @@ export default function Header() {
               {isMobileEnv && bgMode === "video" && (
                 <p className="mt-1.5 text-[11px] text-[color:var(--muted)]">Video faqat kompyuterda — bu qurilmada rasm ko&apos;rinadi.</p>
               )}
+              </>)}
 
             </div>
           )}

@@ -699,6 +699,23 @@ html {
     box-shadow: none;
   }
 
+  /* ---- uzun matn qisqartmalari ---- */
+  /* 3 qatorga qisqartirish + URL-uzunlikdagi tokenlar ham ichkarida sinadi */
+  .clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  /* to'liq matn ko'rinishi (drawer) — uzilmas satrlar baribir o'raladi */
+  .wrap-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-line;
+  }
+
   /* ---- amal ikonka tugmalari (lucide) — bir xil o'lcham/rang/hover ---- */
   .icon-btn {
     @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg;
@@ -834,6 +851,51 @@ body {
 .app-hidden *::before,
 .app-hidden *::after {
   animation-play-state: paused !important;
+}
+
+/* ============================================================
+   YENGIL REJIM (ui-lite) — dekorsiz, blursiz, tinch interfeys.
+   Xuddi shu maket/masofalar/tipografiya — faqat qattiq yuzalar.
+   Eng katta yutuq: hech qanday backdrop-filter yo'q.
+   ============================================================ */
+.ui-lite .glass,
+.ui-lite .glass-lite {
+  background: var(--surface-solid);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-xs);
+}
+.ui-lite .glass-modal,
+.ui-lite .search-box,
+.ui-lite .chip,
+.ui-lite .note-chip,
+.ui-lite .kanban-head,
+.ui-lite .bg-sfc,
+.ui-lite header {
+  backdrop-filter: none !important;
+}
+.ui-lite .bg-sfc {
+  background: var(--surface-solid) !important;
+}
+.ui-lite .note-chip,
+.ui-lite .kanban-head {
+  background: var(--surface-2);
+}
+/* sidebar ham qattiq yuza (inline blur bosib o'tiladi) */
+.ui-lite aside {
+  backdrop-filter: none !important;
+  background: var(--side) !important;
+}
+.ui-lite aside.drawer-panel {
+  background: var(--surface-solid) !important;
+}
+/* dekorativ mikro-bezaklar o'chadi; funksional o'tishlar qoladi */
+.ui-lite .mini-bloom {
+  display: none;
+}
+.ui-lite .card-hover:hover,
+.ui-lite .btn-primary:hover:not(:disabled),
+.ui-lite .btn-danger:hover:not(:disabled) {
+  transform: none;
 }
 
 /* ============================================================

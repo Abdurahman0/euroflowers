@@ -7,6 +7,79 @@ import type { Lead, LeadStatus } from "@/lib/types";
 
 const ACTIONS: LeadStatus[] = ["qualified", "contacted", "won", "lost"];
 
+/**
+ * Mini-app buyurtma eslatmasi ma'lum tuzilishga ega (📅/📍/🗺/💳/💌 qatorlar) —
+ * uni tartibli belgilangan qatorlarga ajratamiz. Yandex havolasi matn sifatida
+ * KO'RSATILMAYDI — "Xaritada ochish" tugmasi bo'ladi. Ajratib bo'lmasa null.
+ */
+const NOTE_ICONS: [string, string][] = [
+  ["📅", "Yetkazish"],
+  ["📍", "Manzil"],
+  ["🗺", "Lokatsiya"],
+  ["💳", "To'lov"],
+  ["💌", "Kartochka"],
+];
+
+function parseMiniAppNote(text: string): { rows: { icon: string; label: string; value: string; href?: string }[]; extra: string } | null {
+  if (!/📅|📍/.test(text)) return null;
+  const rows: { icon: string; label: string; value: string; href?: string }[] = [];
+  const extra: string[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const hit = NOTE_ICONS.find(([ic]) => line.startsWith(ic));
+    if (!hit) {
+      extra.push(line);
+      continue;
+    }
+    const [icon, label] = hit;
+    // yorliq qismini olib tashlaymiz: "📅 Yetkazish: ..." -> "..."
+    let value = line.slice(icon.length).replace(/^[^:]*:\s*/, "").trim() || line.slice(icon.length).trim();
+    let href: string | undefined;
+    if (icon === "🗺") {
+      href = value.match(/https?:\/\/\S+/)?.[0];
+      value = value.replace(/\s*[—–-]?\s*https?:\/\/\S+/, "").trim();
+    }
+    rows.push({ icon, label, value, href });
+  }
+  return rows.length ? { rows, extra: extra.join("\n") } : null;
+}
+
+/** So'rov matni: mini-app tuzilishi bo'lsa — belgilangan qatorlar, aks holda o'raladigan matn. */
+function NoteBlock({ text }: { text: string }) {
+  const parsed = parseMiniAppNote(text);
+  if (!parsed) {
+    return <p className="wrap-anywhere text-[13px] font-semibold leading-relaxed">{text}</p>;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {parsed.rows.map((r, i) => (
+        <div key={i} className="flex items-start gap-2.5">
+          <span className="w-5 shrink-0 text-center text-[13px]" aria-hidden>{r.icon}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">{r.label}</span>
+            {r.icon === "🗺" && r.href ? (
+              <a
+                href={r.href}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="mt-0.5 inline-flex items-center gap-1 text-[13px] font-semibold underline-offset-2 hover:underline"
+                style={{ color: "var(--primary)" }}
+              >
+                Xaritada ochish ↗{r.value ? <span className="font-normal text-[color:var(--muted)]"> · {r.value}</span> : null}
+              </a>
+            ) : (
+              <span className="wrap-anywhere block text-[13px] font-semibold">{r.value}</span>
+            )}
+          </span>
+        </div>
+      ))}
+      {parsed.extra && <p className="wrap-anywhere text-[13px] leading-relaxed text-[color:var(--text-2)]">{parsed.extra}</p>}
+    </div>
+  );
+}
+
 export default function LeadModal({ lead, onClose, onStatus }: { lead: Lead; onClose: () => void; onStatus: (st: LeadStatus) => void }) {
   const name = lead.customer_detail?.name || `@${lead.customer_detail?.instagram_username ?? "—"}`;
 
@@ -23,14 +96,19 @@ export default function LeadModal({ lead, onClose, onStatus }: { lead: Lead; onC
         <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl text-lg font-extrabold text-white" style={{ background: "linear-gradient(135deg,var(--acc),var(--accL))" }}>{initials(name)}</div>
         <div className="min-w-[140px] flex-1">
           <div className="text-[18px] font-extrabold">{name}</div>
-          <div className="text-[13px] text-[color:var(--text-2)]">{lead.customer_detail?.masked_phone || "telefon yo'q"}</div>
+          <div className="text-[13px] text-[color:var(--text-2)]">{lead.customer_detail?.phone || lead.customer_detail?.masked_phone || "telefon yo'q"}</div>
         </div>
         <span className={SOURCE_BADGE(lead.source)}>{lead.source || "—"}</span>
         <span className={STATUS_BADGE[lead.status]}>{STATUS_LABEL[lead.status]}</span>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-[color:var(--border)]">
-        <Row k="So'rov" v={lead.request_uz || lead.request_ru || "—"} />
+      {/* so'rov — to'liq matn / mini-app tuzilishi */}
+      <div className="mt-4 rounded-2xl border border-[color:var(--border)] px-4 py-3">
+        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[1.5px]" style={{ color: "var(--primary)" }}>So&apos;rov</div>
+        <NoteBlock text={lead.request_uz || lead.request_ru || "—"} />
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-[color:var(--border)]">
         <Row k="Taxminiy narx" v={fmt(lead.estimated_price)} accent />
         <Row k="Turi" v={lead.arrangement_type ? ARRANGEMENT_LABEL[lead.arrangement_type] ?? lead.arrangement_type : "—"} />
         <Row k="Instagram" v={lead.customer_detail?.instagram_username ? `@${lead.customer_detail.instagram_username}` : "—"} />

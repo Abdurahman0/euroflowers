@@ -1,5 +1,6 @@
 "use client";
 import FilterSelect from "@/components/FilterSelect";
+import ClearFilters from "@/components/ClearFilters";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
@@ -97,6 +98,7 @@ export default function BildirishnomalarPage() {
         <button onClick={() => setOnlyUnread((v) => !v)} className={clsx("chip", onlyUnread && "chip-active")} aria-pressed={onlyUnread}>
           Faqat o&apos;qilmagan
         </button>
+        <ClearFilters show={!!(type || onlyUnread)} onClear={() => { setType(""); setOnlyUnread(false); }} />
         {control && unread > 0 && (
           <button onClick={markAll} disabled={markingAll} className={clsx("btn-secondary ml-auto !h-8 !flex-none px-4 !text-[12px]", markingAll && "btn-loading")}>
             Barchasini o&apos;qish ({unread})
