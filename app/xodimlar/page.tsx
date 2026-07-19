@@ -121,7 +121,7 @@ export default function XodimlarPage() {
               className={`row-lux group flex items-center gap-3 border-t py-3 first:border-t-0 ${u.id === user?.id ? "row-lux-active" : ""}`}
               style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms` }}
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint text-[13px] font-semibold text-tintink">{initials(fullName(u))}</div>
+              <div className="avatar-lead flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[13px] font-semibold">{initials(fullName(u))}</div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14px] font-semibold" title={fullName(u)}>
                   {fullName(u)}

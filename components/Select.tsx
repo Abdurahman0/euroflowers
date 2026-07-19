@@ -57,7 +57,7 @@ export default function Select({
                 <span className="block truncate text-[13px] font-semibold">{o.label}</span>
                 {o.sub && <span className="block truncate text-[11px] text-[color:var(--muted)]">{o.sub}</span>}
               </span>
-              {o.value === value && <span className="text-[11px]" style={{ color: "var(--accL)" }}>✓</span>}
+              {o.value === value && <span className="text-[11px]" style={{ color: "var(--primary)" }}>✓</span>}
             </button>
           ))}
           {options.length === 0 && <p className="px-3.5 py-2.5 text-[12px] text-[color:var(--muted)]">Variant topilmadi</p>}

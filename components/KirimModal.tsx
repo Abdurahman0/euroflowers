@@ -96,7 +96,7 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
     <Modal onClose={onClose} width={560}>
       <ModalHeader icon={<Icon name="sklad" />} title="Gul keldi qilish" sub="Sklad kirimi — yangi partiya" onClose={onClose} />
       <Section>Asosiy ma&apos;lumot</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Gul turi">
           <Select
             value={flowerId}
@@ -127,7 +127,7 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
         <Field label="Partiya raqami"><input className="inp" value={f.batch_number} onChange={set("batch_number")} placeholder="bo'sh — avto" /></Field>
       </div>
       <Section>Miqdor va narx</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="60" /></Field>
         <Field label="Pochka soni"><input className="inp" type="number" value={f.bunches} onChange={set("bunches")} placeholder="8" /></Field>
         <Field label="Pochkada dona"><input className="inp" type="number" value={f.stems_per_bunch} onChange={set("stems_per_bunch")} placeholder={String(variant?.default_stems_per_bunch ?? 20)} /></Field>

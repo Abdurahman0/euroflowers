@@ -137,7 +137,7 @@ export default function UserModal({
       />
 
       <Section>Hisob</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Login">
           <input className="inp" value={username} onChange={(e) => { setUsername(e.target.value); setErrors((x) => ({ ...x, username: "" })); }} autoFocus={!editUser} autoComplete="off" />
         </Field>
@@ -156,7 +156,7 @@ export default function UserModal({
       )}
 
       <Section>Rol va til</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Rol">
           <Select value={role} options={roleOptions} onChange={(v) => setRole(String(v) as Role)} />
         </Field>

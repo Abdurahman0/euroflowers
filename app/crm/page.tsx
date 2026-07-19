@@ -198,14 +198,14 @@ export default function CrmPage() {
       {tab === "leads" && view === "kanban" && (
         <div
           ref={kanbanRef}
-          className="mb-[-40px] grid gap-3.5"
+          className="mb-[-40px] gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:overflow-x-auto max-lg:overscroll-x-contain lg:grid"
           style={{ gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", height: kanbanH ?? "calc(100dvh - 220px)" }}
         >
           {COLS.map((st) => {
             const items = fLeads.filter((l) => l.status === st);
             const isOver = overCol === st && dragId != null;
             return (
-              <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>
+              <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>
                 <div className="kanban-head flex shrink-0 items-center justify-between px-1.5 pb-2.5">
                   <span className="text-[13px] font-bold tracking-wide">{STATUS_LABEL[st].toUpperCase()}</span>
                   <span className="rounded-full px-2.5 text-[12px] font-bold text-white" style={{ background: "var(--side)" }}>{items.length}</span>
@@ -245,12 +245,12 @@ export default function CrmPage() {
       )}
 
       {tab === "leads" && view === "table" && (
-        <div className="glass overflow-hidden !rounded-[20px]">
-          <div className="grid grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
+        <div className="glass overflow-hidden !rounded-[20px] max-md:overflow-x-auto">
+          <div className="grid min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
             <span>Mijoz</span><span>So&apos;rov</span><span>Manba</span><span>Taxminiy narx</span><span>Status</span><span>Vaqt</span>
           </div>
           {fLeads.map((l, ri) => (
-            <button key={l.id} onClick={() => setSelLead(l)} className="row-lux grid w-full grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
+            <button key={l.id} onClick={() => setSelLead(l)} className="row-lux grid w-full min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
               <span className="min-w-0">
                 <span className="block truncate font-bold" title={l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}>{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</span>
                 <span className="block truncate text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.masked_phone || "tel yo'q"}</span>
@@ -268,14 +268,14 @@ export default function CrmPage() {
 
       {tab === "clients" && (
         <>
-          <div className="glass overflow-hidden !rounded-[20px]">
-            <div className="grid grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
+          <div className="glass overflow-hidden !rounded-[20px] max-md:overflow-x-auto">
+            <div className="grid min-w-[680px] grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
               <span>Mijoz</span><span>Telefon</span><span>Instagram</span><span>Xaridlar</span><span>Jami summa</span><span>Qo&apos;shilgan</span>
             </div>
             {customers.map((c, ri) => (
-              <button key={c.id} onClick={() => setSelClient(c)} className="row-lux grid w-full grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[14px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
+              <button key={c.id} onClick={() => setSelClient(c)} className="row-lux grid w-full min-w-[680px] grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[14px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
                 <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="flex h-[34px] w-[34px] shrink-0 -rotate-3 items-center justify-center rounded-[11px] bg-tint text-[13px] font-bold text-tintink">{initials(c.name || c.instagram_username)}</span>
+                  <span className="avatar-lead flex h-[34px] w-[34px] shrink-0 -rotate-3 items-center justify-center rounded-[11px] text-[13px] font-bold">{initials(c.name || c.instagram_username)}</span>
                   <span className="truncate font-bold" title={c.name || `@${c.instagram_username}`}>{c.name || `@${c.instagram_username}`}</span>
                   {c.is_blocked && <span className="rounded-full bg-rose px-2 py-0.5 text-[11px] font-bold text-roseink">BLOK</span>}
                 </span>

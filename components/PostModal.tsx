@@ -153,7 +153,7 @@ export default function PostModal({
       </div>
 
       <Section>Kontent</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Sarlavha (UZ)">
           <input className="inp" value={titleUz} onChange={(e) => { setTitleUz(e.target.value); setErrors((x) => ({ ...x, title_uz: "" })); }} placeholder="Nafis piyonlar to'plami" />
         </Field>
@@ -170,7 +170,7 @@ export default function PostModal({
       {errors.title_uz && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.title_uz}</p>}
 
       <Section>Narx va maqsad</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Narx (so'm)">
           <input className="inp" inputMode="numeric" value={price} onChange={(e) => { setPrice(e.target.value.replace(/\D/g, "")); setErrors((x) => ({ ...x, price: "" })); }} placeholder="850000" />
         </Field>

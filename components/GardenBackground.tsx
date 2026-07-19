@@ -14,6 +14,12 @@ const POSTER = "/crm-garden-bg.webp";
  *   mobil (<768px) · saveData/2g · deviceMemory ≤ 4 · prefers-reduced-motion
  */
 export default function GardenBackground({ active = true }: { active?: boolean }) {
+  // mount'da 0 dan boshlanadi — rasm→video o'tishi "pop" emas, krossfeyd bo'ladi
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
   const setGardenPosterOnly = useStore((s) => s.setGardenPosterOnly);
   const videoRef = useRef<HTMLVideoElement>(null);
   // null = hali aniqlanmagan (SSR/birinchi renderda hech narsa yuklamaymiz)
@@ -62,7 +68,7 @@ export default function GardenBackground({ active = true }: { active?: boolean }
 
   return (
     // rejim almashganda 400ms yumshoq krossfeyd — layout siljimaydi
-    <div className="transition-opacity duration-[400ms] ease-out" style={{ opacity: active ? 1 : 0 }}>
+    <div className="transition-opacity duration-[600ms] ease-out" style={{ opacity: active && entered ? 1 : 0 }}>
       {/* 1) video / poster — eng pastki qatlam */}
       <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
         {allowVideo === true && (

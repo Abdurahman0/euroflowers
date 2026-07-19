@@ -126,7 +126,7 @@ export default function BatchDrawer({
       )}
 
       {/* meta */}
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <Meta label="Qoldiq" value={`${b.remaining_stems} dona · ${b.remaining_bunches} pochka`} />
         <Meta label="Qabul qilingan" value={`${b.received_stems} dona`} />
         <Meta label="Dona narxi" value={fmt(b.sale_price_per_stem)} />
@@ -146,7 +146,7 @@ export default function BatchDrawer({
       {/* tezkor amal */}
       {control && b.is_active && (
         <div className="mt-5">
-          <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[2px]" style={{ color: "var(--accL)" }}>Tezkor harakat</div>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[2px]" style={{ color: "var(--primary)" }}>Tezkor harakat</div>
           <div className="grid grid-cols-[1.2fr_1fr] gap-2.5">
             <Select value={mvType} options={MOVE_OPTIONS} onChange={(x) => setMvType(String(x) as MovementType)} />
             <input className="inp" inputMode="numeric" value={mvQty} onChange={(e) => setMvQty(e.target.value.replace(/\D/g, ""))} placeholder="Dona" aria-label="Miqdor (dona)" />
@@ -160,7 +160,7 @@ export default function BatchDrawer({
 
       {/* tarix — timeline */}
       <div className="mt-5">
-        <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[2px]" style={{ color: "var(--accL)" }}>Harakatlar tarixi</div>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[2px]" style={{ color: "var(--primary)" }}>Harakatlar tarixi</div>
         {movesErr && <p className="text-[13px] font-semibold text-[color:var(--danger-ink)]">{movesErr}</p>}
         {!movesErr && moves === null && <p className="text-[13px] text-[color:var(--muted)]">Yuklanmoqda…</p>}
         {moves && moves.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Bu partiyada hali harakat yo&apos;q.</p>}
@@ -173,7 +173,7 @@ export default function BatchDrawer({
                 : "Tizim";
               return (
                 <li key={m.id} className="relative pb-3.5 last:pb-0">
-                  <span className={clsx("absolute -left-[21.5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-[rgba(26,21,17,1)]", isIn ? "bg-[var(--success)]" : "bg-[var(--warning)]")} />
+                  <span className={clsx("absolute -left-[21.5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-[color:var(--surface-solid)]", isIn ? "bg-[var(--success)]" : "bg-[var(--warning)]")} />
                   <div className="text-[13px] font-semibold">
                     {MOVE_LABEL[m.movement_type] ?? m.movement_type} · {m.quantity_stems} dona
                     {m.reason ? <span className="font-normal text-[color:var(--text-2)]"> — {m.reason}</span> : null}

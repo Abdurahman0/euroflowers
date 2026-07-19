@@ -84,7 +84,7 @@ export function AISettingsSection() {
       {err && <p className="text-[13px] font-semibold" style={{ color: "var(--danger-ink)" }}>{err}</p>}
       {st && (
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
               Model
               <input className="rounded-[10px] border px-3 py-2 text-[13px] outline-none focus:shadow-[0_0_0_3px_var(--focus)]" style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text)" }} value={model} onChange={(e) => setModel(e.target.value)} disabled={!canControl("ai_settings")} />
@@ -217,11 +217,11 @@ export function InstagramEventsSection() {
       {events && events.length > 0 && (
         <div className="overflow-x-auto">
           <div className="min-w-[680px]">
-            <div className="grid grid-cols-[110px_1fr_130px_130px_90px] gap-2 border-b px-3 py-2 text-[11px] font-bold uppercase tracking-wider" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+            <div className="grid min-w-[600px] grid-cols-[110px_1fr_130px_130px_90px] gap-2 border-b px-3 py-2 text-[11px] font-bold uppercase tracking-wider" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
               <span>Turi</span><span>Matn / media</span><span>Yuboruvchi</span><span>Media/Story ID</span><span>Vaqt</span>
             </div>
             {events.map((e) => (
-              <div key={e.id} className="row-lux grid grid-cols-[110px_1fr_130px_130px_90px] items-center gap-2 border-b px-3 py-2 text-[13px]" style={{ borderColor: "var(--line2)" }}>
+              <div key={e.id} className="row-lux grid min-w-[600px] grid-cols-[110px_1fr_130px_130px_90px] items-center gap-2 border-b px-3 py-2 text-[13px]" style={{ borderColor: "var(--line2)" }}>
                 <span className="font-semibold" style={{ color: "var(--text-2)" }}>{e.event_type}</span>
                 <span className="truncate" title={e.text || e.story_url || undefined}>{e.text || e.story_url || "—"}</span>
                 <span className="truncate" style={{ color: "var(--muted)" }}>{e.sender_id || "—"}</span>
@@ -261,7 +261,7 @@ export function AuditSection() {
         <div className="overflow-x-auto">
           <div className="min-w-[560px]">
             {rows.map((r) => (
-              <div key={r.id} className="row-lux grid grid-cols-[140px_110px_1fr_90px] items-center gap-2 border-b px-3 py-2 text-[13px]" style={{ borderColor: "var(--line2)" }}>
+              <div key={r.id} className="row-lux grid min-w-[520px] grid-cols-[140px_110px_1fr_90px] items-center gap-2 border-b px-3 py-2 text-[13px]" style={{ borderColor: "var(--line2)" }}>
                 <span className="truncate font-semibold" style={{ color: "var(--text-2)" }}>{r.user_detail ? r.user_detail.username : "tizim"}</span>
                 <span className="rounded-full border px-2 py-0.5 text-center text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>{r.action}</span>
                 <span className="truncate" style={{ color: "var(--muted)" }} title={`${r.entity_type} #${r.entity_id}`}>{r.entity_type} #{r.entity_id}</span>

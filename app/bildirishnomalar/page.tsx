@@ -114,7 +114,7 @@ export default function BildirishnomalarPage() {
       {!loadErr && items === null && <FlowerLoader />}
 
       {items && (
-        <div className="glass !rounded-[18px] p-2">
+        <div className="glass reading-glass !rounded-[18px] p-2">
           {items.map((n, i) => {
             const meta = TYPE_META[n.notification_type] ?? TYPE_META.lead;
             return (
@@ -122,7 +122,7 @@ export default function BildirishnomalarPage() {
                 key={n.id}
                 onClick={() => markOne(n)}
                 className={clsx(
-                  "row-lux flex w-full items-start gap-3 rounded-[12px] px-3.5 py-3 text-left",
+                  "row-lux notif-row flex w-full items-start gap-3 rounded-[12px] px-3.5 py-3 text-left",
                   n.is_read && "opacity-60"
                 )}
                 style={{ animationDelay: `${Math.min(i * 35, 420)}ms` }}

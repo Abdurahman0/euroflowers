@@ -107,18 +107,18 @@ export default function Header() {
   }, [notifOpen, temaOpen, profileOpen]);
 
   return (
-    <header className="relative z-20 mx-3.5 mt-3.5 flex items-center justify-between gap-4 rounded-2xl border px-6 py-4" style={{ borderColor: "var(--border)" }}>
+    <header className="relative z-20 mx-2 mt-2 flex items-center justify-between gap-2 rounded-2xl border px-3 py-3 sm:mx-3.5 sm:mt-3.5 sm:gap-4 sm:px-6 sm:py-4" style={{ borderColor: "var(--border)" }}>
       <div className="flex min-w-0 items-center gap-3">
         <button onClick={toggleSide} className={clsx(iconBtnCls, "shrink-0")} style={iconBtnStyle} title="Sidebar" aria-label="Sidebarni ochish/yopish">
           <Icon name="menu" size={16} />
         </button>
         <div className="min-w-0">
-          <h1 className="truncate text-[24px] tracking-tight">{TITLES[pathname] ?? "EuroFlowers"}</h1>
-          <p className="truncate text-[12px] font-medium" style={{ color: "var(--muted)" }}>{dateStr}</p>
+          <h1 className="truncate text-[18px] tracking-tight sm:text-[24px]">{TITLES[pathname] ?? "EuroFlowers"}</h1>
+          <p className="hidden truncate text-[12px] font-medium sm:block" style={{ color: "var(--muted)" }}>{dateStr}</p>
         </div>
       </div>
 
-      <div ref={popRef} className="flex items-center gap-2.5">
+      <div ref={popRef} className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
         {/* mavzu almashtirgich — yagona tugma: ☀ ↔ 🌙, ikonkasi silliq aylanadi */}
         <button
           onClick={flipTheme}
@@ -137,8 +137,8 @@ export default function Header() {
           </span>
         </button>
 
-        {/* aksent palitrasi */}
-        <div className="relative">
+        {/* aksent palitrasi — eng tor ekranda yashirin */}
+        <div className="relative max-[479px]:hidden">
           <button
             onClick={() => { setTemaOpen(!temaOpen); setNotifOpen(false); }}
             className={iconBtnCls}
@@ -150,7 +150,7 @@ export default function Header() {
             <Icon name="palette" size={16} />
           </button>
           {temaOpen && (
-            <div className="glass-modal absolute right-0 top-[46px] z-50 w-56 origin-top-right p-3.5 animate-[rowIn_0.22s_var(--ease)_both]">
+            <div className="glass-modal reading-glass absolute right-0 top-[46px] z-50 w-56 origin-top-right p-3.5 animate-[rowIn_0.22s_var(--ease)_both]">
               <div className="mb-2.5 text-[13px] font-bold">Rang mavzusi</div>
               <div className="flex flex-wrap gap-2">
                 {THEMES.map((t) => (
@@ -159,7 +159,7 @@ export default function Header() {
                     title={t.nomi}
                     onClick={() => setTheme(t.id)}
                     aria-label={t.nomi}
-                    className={clsx("h-8 w-8 rounded-full border transition-transform duration-200 hover:scale-110", themeId === t.id && "ring-2 ring-white/80")}
+                    className={clsx("h-8 w-8 rounded-full border transition-transform duration-200 hover:scale-110", themeId === t.id && "ring-2 ring-[color:var(--primary)] ring-offset-2 ring-offset-[color:var(--surface-solid)]")}
                     style={{ background: t.accent, borderColor: "rgba(255,255,255,0.2)" }}
                   />
                 ))}
@@ -167,7 +167,7 @@ export default function Header() {
 
               {/* orqa fon rejimi: statik gul dekor yoki bog' videosi */}
               <div className="mb-2 mt-4 text-[13px] font-bold">Orqa fon</div>
-              <div className="flex gap-1 rounded-[12px] border border-white/15 bg-white/[.06] p-1">
+              <div className="flex gap-1 rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface-2)] p-1">
                 {([
                   ["rasm", "Rasm", ImageIcon],
                   ["video", "Video", Film],
@@ -178,7 +178,7 @@ export default function Header() {
                     aria-pressed={bgMode === val}
                     className={clsx(
                       "flex flex-1 items-center justify-center gap-1.5 rounded-[9px] py-1.5 text-[12.5px] font-bold transition-all duration-200",
-                      bgMode === val ? "text-white shadow" : "text-white/60 hover:text-white/85"
+                      bgMode === val ? "text-white shadow" : "text-[color:var(--muted)] hover:text-[color:var(--text)]"
                     )}
                     style={bgMode === val ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" } : undefined}
                   >
@@ -187,7 +187,7 @@ export default function Header() {
                 ))}
               </div>
               {isMobileEnv && bgMode === "video" && (
-                <p className="mt-1.5 text-[11px] text-white/45">Video faqat kompyuterda — bu qurilmada rasm ko&apos;rinadi.</p>
+                <p className="mt-1.5 text-[11px] text-[color:var(--muted)]">Video faqat kompyuterda — bu qurilmada rasm ko&apos;rinadi.</p>
               )}
 
             </div>
@@ -212,23 +212,23 @@ export default function Header() {
             )}
           </button>
           {notifOpen && (
-            <div className="glass-modal absolute right-0 top-[46px] z-50 max-h-[70vh] w-[min(410px,90vw)] origin-top-right overflow-y-auto overscroll-contain p-2 animate-[rowIn_0.22s_var(--ease)_both]" data-lenis-prevent>
+            <div className="glass-modal reading-glass absolute right-0 top-[46px] z-50 max-h-[70vh] w-[min(410px,90vw)] origin-top-right overflow-y-auto overscroll-contain p-2 animate-[rowIn_0.22s_var(--ease)_both]" data-lenis-prevent>
               <div className="flex items-center justify-between px-3 pb-1.5 pt-2.5">
                 <span className="text-[14px] font-bold">Bildirishnomalar</span>
                 {unread > 0 && (
-                  <button onClick={markAllNotifsRead} className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-white/20">
+                  <button onClick={markAllNotifsRead} className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2.5 py-1 text-[11px] font-bold transition-colors duration-200 hover:bg-[color:var(--hover)]">
                     Barchasini o&apos;qish
                   </button>
                 )}
               </div>
-              {notifs.length === 0 && <p className="px-3 pb-3 text-[13px] text-white/55">Bildirishnoma yo&apos;q.</p>}
+              {notifs.length === 0 && <p className="px-3 pb-3 text-[13px] text-[color:var(--muted)]">Bildirishnoma yo&apos;q.</p>}
               {notifs.map((n) => (
-                <button key={n.id} onClick={() => !n.is_read && markNotifRead(n.id)} className={clsx("flex w-full items-start gap-2.5 rounded-xl p-3 text-left transition-colors duration-200 hover:bg-white/10", n.is_read && "opacity-55")}>
+                <button key={n.id} onClick={() => { if (!n.is_read) markNotifRead(n.id); setNotifOpen(false); router.push("/bildirishnomalar"); }} className={clsx("flex w-full items-start gap-2.5 rounded-xl p-3 text-left transition-colors duration-200 hover:bg-[color:var(--hover)]", n.is_read && "opacity-70")}>
                   <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: n.notification_type === "lead" ? "var(--success)" : "var(--danger)" }} />
                   <div className="flex-1">
                     <div className="text-[13px] font-bold leading-snug">{n.title_uz || n.title_ru}</div>
-                    {(n.body_uz || n.body_ru) && <div className="mt-0.5 text-[13px] leading-relaxed text-white/75">{n.body_uz || n.body_ru}</div>}
-                    <div className="mt-0.5 text-[12px] text-white/55">{fmtTime(n.created_at)}{!n.is_read && " · o'qilmagan"}</div>
+                    {(n.body_uz || n.body_ru) && <div className="mt-0.5 text-[13px] leading-relaxed text-[color:var(--text-2)]">{n.body_uz || n.body_ru}</div>}
+                    <div className="mt-0.5 text-[12px] text-[color:var(--muted)]">{fmtTime(n.created_at)}{!n.is_read && " · o'qilmagan"}</div>
                   </div>
                 </button>
               ))}
@@ -257,19 +257,19 @@ export default function Header() {
             </span>
           </button>
           {profileOpen && (
-            <div className="glass-modal absolute right-0 top-[46px] z-50 w-52 origin-top-right p-1.5 animate-[rowIn_0.22s_var(--ease)_both]">
-              <div className="border-b border-white/10 px-3 pb-2.5 pt-2">
+            <div className="glass-modal reading-glass absolute right-0 top-[46px] z-50 w-52 origin-top-right p-1.5 animate-[rowIn_0.22s_var(--ease)_both]">
+              <div className="border-b border-[color:var(--border)] px-3 pb-2.5 pt-2">
                 <div className="truncate text-[13px] font-bold">{fullName}</div>
-                <div className="text-[11px] text-white/55">{ROLE_LABEL[role] ?? role}</div>
+                <div className="text-[11px] text-[color:var(--muted)]">{ROLE_LABEL[role] ?? role}</div>
               </div>
               <div className="pt-1.5">
-                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white">
+                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-[color:var(--text-2)] transition-colors duration-200 hover:bg-[color:var(--hover)] hover:text-[color:var(--text)]">
                   <Icon name="user" size={15} /> Profil
                 </button>
-                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white">
+                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-[color:var(--text-2)] transition-colors duration-200 hover:bg-[color:var(--hover)] hover:text-[color:var(--text)]">
                   <Icon name="sozlamalar" size={15} /> Sozlamalar
                 </button>
-                <button onClick={() => { setProfileOpen(false); logout(); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium transition-colors duration-200 hover:bg-white/10" style={{ color: "var(--danger-ink)" }}>
+                <button onClick={() => { setProfileOpen(false); logout(); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium transition-colors duration-200 hover:bg-[color:var(--danger-soft)]" style={{ color: "var(--danger-ink)" }}>
                   <Icon name="logout" size={15} /> Chiqish
                 </button>
               </div>

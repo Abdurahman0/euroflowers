@@ -72,7 +72,7 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
     <Modal onClose={onClose} width={560}>
       <ModalHeader icon={<Icon name="katalog" />} title="Katalogga qo'shish" sub="Tayyor gul — story havolasi bilan" onClose={onClose} />
       <Section>Asosiy</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (uz)"><input className="inp" value={f.name_uz} onChange={set("name_uz")} placeholder="Yozgi nafosat" /></Field>
         <Field label="Nomi (ru)"><input className="inp" value={f.name_ru} onChange={set("name_ru")} placeholder="bo'sh — uz nomi olinadi" /></Field>
         <Field label="Turi">
@@ -118,7 +118,7 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
       </div>
 
       <Section>O&apos;lchov va narx</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="60" /></Field>
         <Field label="Narxi (so'm)"><input className="inp" type="number" value={f.price} onChange={set("price")} placeholder="675000" /></Field>
         <Field label="Florist haqi (so'm)"><input className="inp" type="number" value={f.florist_fee} onChange={set("florist_fee")} placeholder="50000" /></Field>

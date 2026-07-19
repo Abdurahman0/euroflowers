@@ -22,7 +22,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { theme, dark } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
-  const { user, userLoading, loadMe, loadNotifs, setTheme, setDark, gardenPosterOnly, bgMode, setBgMode } = useStore();
+  const { user, userLoading, loadMe, loadNotifs, setTheme, setDark, gardenPosterOnly, bgMode, setBgMode, sideOpen, toggleSide } = useStore();
   const isLogin = pathname.startsWith("/login");
 
   // video rejimda element krossfeyd tugaguncha (400ms) DOM'da qoladi;
@@ -42,7 +42,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     // rasm rejimiga qaytdik: element yo'qoladi — ovoz holati ham nolga
     // (yangi video element doim mute boshlanadi; holat mos bo'lsin)
     useStore.getState().setSoundOn(false);
-    const t = setTimeout(() => setVideoMounted(false), 450);
+    const t = setTimeout(() => setVideoMounted(false), 650);
     return () => clearTimeout(t);
   }, [showVideo]);
 
@@ -137,7 +137,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="relative flex h-dvh gap-4 overflow-hidden p-3.5 box-border">
+    <div className="relative flex h-dvh gap-2 overflow-hidden p-2 box-border sm:gap-3 sm:p-3 lg:gap-4 lg:p-3.5">
       <ParallaxController />
 
       {/* ===== BOG' VIDEOSI + TEMA PARDASI — faqat "video" rejimda ===== */}
@@ -151,7 +151,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         {/* STATIK dekorativ gullar — video rejimda BUTUNLAY yashirin:
             xom video ustida hech qanday surat-gul qolmasligi kerak */}
         <div
-          className="transition-opacity duration-[400ms] ease-out"
+          className="transition-opacity duration-[600ms] ease-out"
           style={{ opacity: showVideo ? 0 : 1 }}
         >
           {/* botanika bog'i: daraxtlar, barglar, uzoq gul (kuchli blur) */}
@@ -174,11 +174,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <PetalBurst />
 
       {/* ===== UI (z-10+) — har doim fokusda ===== */}
+      {sideOpen && (
+        <div
+          className="fixed inset-0 z-[75] bg-black/35 backdrop-blur-[2px] md:hidden"
+          onClick={toggleSide}
+          aria-hidden
+        />
+      )}
       <Sidebar />
       <main className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[26px]">
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
           <Header />
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-10 pt-6" style={{ scrollbarGutter: "stable" }}>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-10 pt-4 sm:px-4 lg:px-6 lg:pt-6" style={{ scrollbarGutter: "stable" }}>
             {userLoading && !user ? <FlowerLoader /> : children}
           </div>
         </div>

@@ -126,7 +126,7 @@ export default function LoginPage() {
 
       {/* ==== OVOZ TUGMASI — faqat video bor desktopda (CRM bilan bir xil chip) ==== */}
       {showVideo && (
-        <div className="fixed bottom-5 left-5 z-20">
+        <div className="fixed z-20" style={{ bottom: "max(1.25rem, env(safe-area-inset-bottom))", left: "max(1.25rem, env(safe-area-inset-left))" }}>
           <SoundToggle targetRef={videoRef} volume={0.55} />
         </div>
       )}

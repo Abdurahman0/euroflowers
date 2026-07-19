@@ -43,8 +43,12 @@ export default function Sidebar() {
     <aside
       className={clsx(
         "relative z-10 flex flex-col overflow-hidden rounded-xl border border-white/10",
-        "transition-[width,min-width,padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
-        sideOpen ? "w-[240px] min-w-[240px] px-3 pb-3 pt-5" : "w-[60px] min-w-[60px] px-1.5 pb-3 pt-5"
+        "transition-[width,min-width,padding,transform] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        sideOpen ? "w-[240px] min-w-[240px] px-3 pb-3 pt-5" : "w-[60px] min-w-[60px] px-1.5 pb-3 pt-5",
+        // <768px: chap chetdan suzib chiquvchi drawer (overlay); yopiq holda ekrandan tashqarida
+        "max-md:fixed max-md:inset-y-2 max-md:left-2 max-md:z-[80] max-md:w-[256px] max-md:min-w-[256px] max-md:px-3",
+        "max-md:pb-[calc(12px+env(safe-area-inset-bottom))]",
+        sideOpen ? "max-md:translate-x-0" : "max-md:-translate-x-[120%]"
       )}
       style={{
         background: "color-mix(in srgb, var(--side) 94%, transparent)",
@@ -75,7 +79,10 @@ export default function Sidebar() {
           return (
             <button
               key={n.id}
-              onClick={() => router.push(n.href)}
+              onClick={() => {
+                router.push(n.href);
+                if (window.matchMedia("(max-width: 767px)").matches) toggleSide();
+              }}
               title={sideOpen ? undefined : n.label}
               className={clsx(
                 "group relative flex items-center rounded-[10px] text-[13px] outline-none",

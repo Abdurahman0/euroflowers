@@ -1,5 +1,5 @@
 "use client";
-import { MoonStar, Trash2 } from "lucide-react";
+import { ArrowLeft, MoonStar, Trash2 } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
 import PauseAIModal from "@/components/PauseAIModal";
@@ -151,6 +151,8 @@ export default function ChatPage() {
   const [selId, setSelId] = useState<number | null>(null);
   const [conv, setConv] = useState<Conversation | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
+  // <768px: bitta panel ko'rinadi — ro'yxat yoki suhbat (orqaga bilan qaytiladi)
+  const [mobileConv, setMobileConv] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
@@ -292,7 +294,7 @@ export default function ChatPage() {
       style={{ height: chatH ?? "calc(100dvh - 173px)" }}
     >
       {/* suhbatlar ro'yxati */}
-      <div className="flex max-h-[30vh] min-h-0 min-w-0 flex-col gap-3 md:max-h-none md:h-full md:min-w-[230px] md:max-w-[340px] md:flex-1 md:basis-60">
+      <div className={clsx("flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:h-full md:min-w-[230px] md:max-w-[340px] md:basis-60", mobileConv && "max-md:hidden")}>
         <div className="flex items-center gap-2">
           <SearchInput value={search} onChange={setSearch} placeholder="Qidirish — ism yoki @username" width="full" className="min-w-0 flex-1 !rounded-[14px] px-3.5 py-1" />
           <FilterSelect
@@ -311,7 +313,7 @@ export default function ChatPage() {
           {fConvs.map((c) => (
             <button
               key={c.id}
-              onClick={() => setSelId(c.id)}
+              onClick={() => { setSelId(c.id); setMobileConv(true); }}
               className={clsx(
                 "flex items-center gap-2.5 rounded-[12px] p-2.5 text-left transition-colors duration-200",
                 selId === c.id ? "bg-[var(--primary-soft)]" : "hover:bg-[var(--hover)]"
@@ -336,21 +338,24 @@ export default function ChatPage() {
       </div>
 
       {/* suhbat oynasi */}
-      <div className="glass flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden !rounded-[18px] md:h-full md:min-w-[300px] md:flex-[2] md:basis-80">
+      <div className={clsx("glass flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden !rounded-[18px] md:h-full md:min-w-[300px] md:flex-[2] md:basis-80", !mobileConv && "max-md:hidden")}>
         {conv ? (
           <>
             {/* sarlavha */}
-            <div className="flex items-center gap-3 border-b px-5 py-3.5" style={{ borderColor: "var(--border)" }}>
-              <div className="flex h-[42px] w-[42px] items-center justify-center rounded-full border font-bold" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-3 sm:px-5 sm:py-3.5" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => setMobileConv(false)} className="icon-btn md:hidden" aria-label="Suhbatlar ro'yxatiga qaytish" title="Orqaga">
+                <ArrowLeft size={18} strokeWidth={1.75} />
+              </button>
+              <div className="hidden h-[42px] w-[42px] items-center justify-center rounded-full border font-bold sm:flex" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
                 {initials(custName(conv))}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-[150px] flex-1">
                 <div className="truncate text-[14px] font-bold" style={{ color: "var(--text)" }}>
                   {custName(conv)}{" "}
                   <span className="text-[13px] font-medium" style={{ color: "var(--muted)" }}>@{conv.customer_detail?.instagram_username}</span>
                 </div>
                 {conv.ai_summary && <div className="truncate text-xs font-semibold" style={{ color: "var(--text-2)" }}>{conv.ai_summary}</div>}
-                <div className="text-xs" style={{ color: "var(--muted)" }}>Instagram DM · {conv.customer_detail?.masked_phone || "tel yo'q"}</div>
+                <div className="truncate text-xs" style={{ color: "var(--muted)" }}>Instagram DM · {conv.customer_detail?.masked_phone || "tel yo'q"}</div>
               </div>
               <span
                 className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-bold"
@@ -421,7 +426,7 @@ export default function ChatPage() {
             </div>
 
             {/* sticky kiritish paneli */}
-            <div className="border-t px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+            <div className="border-t px-3 py-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
               <div className="flex items-center gap-2">
                 <input ref={fileRef} type="file" className="hidden" onChange={(e) => { if (e.target.files?.length) showToast(`"${e.target.files[0].name}" — ilova yuborish backend ulanganda ishlaydi`); e.target.value = ""; }} />
                 <button

@@ -81,7 +81,7 @@ export default function DashboardPage() {
                 className="card-hover flex items-center gap-3 rounded-[14px] border p-2.5"
                 style={{ borderColor: "var(--line2)" }}
               >
-                <div className="flex h-[38px] w-[38px] -rotate-3 items-center justify-center rounded-xl bg-tint text-[14px] font-bold text-tintink">
+                <div className="avatar-lead flex h-[38px] w-[38px] -rotate-3 items-center justify-center rounded-xl text-[14px] font-bold">
                   {initials(l.customer_detail?.name || l.customer_detail?.instagram_username || "?")}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -122,7 +122,7 @@ export default function DashboardPage() {
           </motion.section>
 
           {/* diqqat */}
-          <motion.section variants={rise} className="glass-lite p-5">
+          <motion.section variants={rise} className="glass-lite reading-glass p-5">
             <h2 className="mb-3 text-[16px]">Diqqat talab qiladi</h2>
             <div className="flex flex-col gap-2">
               {d.recent_notifications.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Hammasi joyida 🌷</p>}

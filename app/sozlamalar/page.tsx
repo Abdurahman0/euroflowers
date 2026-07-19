@@ -173,7 +173,7 @@ export default function SozlamalarPage() {
       <section className="glass p-5">
         <h2 className="mb-3.5 text-base font-bold">Hisob</h2>
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 -rotate-3 items-center justify-center rounded-xl bg-tint text-[14px] font-bold text-tintink">{user ? initials(fullName(user)) : "…"}</div>
+          <div className="avatar-lead flex h-11 w-11 -rotate-3 items-center justify-center rounded-xl text-[14px] font-bold">{user ? initials(fullName(user)) : "…"}</div>
           <div className="flex-1">
             <div className="text-[14px] font-bold">{user ? fullName(user) : "…"}</div>
             <div className="text-xs" style={{ color: "var(--mut)" }}>{user?.email || user?.username}</div>

@@ -113,7 +113,7 @@ export default function Drawer({
           initial={{ x: "100%" }}
           animate={{ x: closing ? "100%" : 0 }}
           transition={{ duration: 0.28, ease: [0, 0, 0.2, 1] }}
-          className="fixed inset-y-0 right-0 flex flex-col border-l max-md:!w-screen max-md:rounded-none md:rounded-l-[20px]"
+          className="drawer-panel fixed inset-y-0 right-0 flex flex-col border-l max-md:!w-screen max-md:rounded-none md:rounded-l-[20px]"
           style={{
             width: `min(${width}px, 90vw)`,
             background: "var(--surface-solid)",

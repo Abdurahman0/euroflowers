@@ -62,7 +62,7 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
     <Modal onClose={onClose} width={480}>
       <ModalHeader icon={<Icon name="katalog" size={20} />} title={flower ? "Gulni tahrirlash" : "Yangi gul turi"} sub="Sklad va katalog uchun ma'lumotnoma" onClose={onClose} />
       <Section>Nomi</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (UZ)">
           <input className="inp" value={nameUz} onChange={(e) => { setNameUz(e.target.value); setErrors({}); }} placeholder="Piyon" autoFocus={!flower} />
         </Field>
@@ -75,7 +75,7 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
       </div>
       {errors.name_uz && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.name_uz}</p>}
       <Section>Mavsum</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Boshlanishi">
           <Select value={seasonStart} options={monthOptions} onChange={(v) => setSeasonStart(String(v))} />
         </Field>
@@ -144,7 +144,7 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
       <Section>Gul turi</Section>
       <Select value={String(flowerId)} options={flowers.map((f) => ({ value: String(f.id), label: f.name_uz || f.name_ru }))} onChange={(v) => setFlowerId(+v)} />
       <Section>Nomi va rangi</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (UZ)">
           <input className="inp" value={nameUz} onChange={(e) => { setNameUz(e.target.value); setErrors({}); }} placeholder="Oq piyon 50sm" autoFocus={!variant} />
         </Field>
@@ -160,7 +160,7 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
       </div>
       {(errors.name_uz || errors.flower) && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.name_uz || errors.flower}</p>}
       <Section>Sotuv qoidalari</Section>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Pochkada (dona)">
           <input className="inp" inputMode="numeric" value={perBunch} onChange={(e) => setPerBunch(e.target.value.replace(/\D/g, ""))} />
         </Field>
