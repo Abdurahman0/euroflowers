@@ -23,6 +23,18 @@ const COL_BG: Record<LeadStatus, string> = {
   new: "var(--tint)", qualified: "var(--bg2)", contacted: "var(--peach)", won: "var(--mint)", lost: "var(--bg2)",
 };
 
+/** Karta preview: mini-app eslatmalarida URL qatori tashlanadi, emoji
+    prefikslar tozalanadi — 3 qatorli qisqartma toza matndan boshlanadi. */
+const notePreview = (t: string): string => {
+  if (!t.includes("\n")) return t;
+  return t
+    .split("\n")
+    .filter((l) => !/https?:\/\//.test(l))
+    .map((l) => l.replace(/^[\uD800-\uDFFF\uFE0F\s]+/, "").trim())
+    .filter(Boolean)
+    .join(" · ");
+};
+
 function LeadCard({ l, dragging, onOpen, onDrag, onDragEnd }: { l: Lead; dragging: boolean; onOpen: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
   const name = l.customer_detail?.name || `@${l.customer_detail?.instagram_username ?? "—"}`;
   return (
@@ -31,7 +43,7 @@ function LeadCard({ l, dragging, onOpen, onDrag, onDragEnd }: { l: Lead; draggin
       onClick={onOpen}
       onDragStart={onDrag}
       onDragEnd={onDragEnd}
-      className="glass cursor-grab overflow-hidden !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
+      className="glass shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
       // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
       // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
       style={dragging ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" } : undefined}
@@ -40,7 +52,7 @@ function LeadCard({ l, dragging, onOpen, onDrag, onDragEnd }: { l: Lead; draggin
         <span className="min-w-0 truncate text-[14px] font-bold" title={name}>{name}</span>
         <span className={clsx(SOURCE_BADGE(l.source), "shrink-0")}>{l.source || "—"}</span>
       </div>
-      <p className="clamp-3 mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{l.request_uz || l.request_ru}</p>
+      <p className="clamp-3 mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{notePreview(l.request_uz || l.request_ru || "")}</p>
       <div className="mt-2 flex items-center justify-between">
         <span className="min-w-0 truncate text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
         <span className="shrink-0 text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
