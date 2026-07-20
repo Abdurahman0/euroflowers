@@ -18,10 +18,11 @@ const NOTE_ICONS: [string, string][] = [
   ["🗺", "Lokatsiya"],
   ["💳", "To'lov"],
   ["💌", "Kartochka"],
+  ["🌸", "Gullar"],
 ];
 
 function parseMiniAppNote(text: string): { rows: { icon: string; label: string; value: string; href?: string }[]; extra: string } | null {
-  if (!/📅|📍/.test(text)) return null;
+  if (!/📅|📍|🌸/.test(text)) return null;
   const rows: { icon: string; label: string; value: string; href?: string }[] = [];
   const extra: string[] = [];
   for (const raw of text.split("\n")) {
