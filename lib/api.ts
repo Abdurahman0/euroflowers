@@ -233,11 +233,15 @@ export async function login(username: string, password: string, remember = true)
   }
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, body);
-  const data = body as Tokens & { user?: User; permissions?: PagePermission[] };
+  const data = body as Tokens & { user?: User; permissions?: PagePermission[]; permission_matrix?: PagePermission[] };
   setTokens({ access: data.access, refresh: data.refresh }, remember);
   if (data.user) {
-    // top-level permissions ham bo'lishi mumkin — user ichidagiga ustama qilamiz
-    return { ...data.user, permissions: data.user.permissions ?? data.permissions };
+    // permission_matrix (to'liq, avtoritativ) > permissions — qaysi biri bo'lsa
+    return {
+      ...data.user,
+      permission_matrix: data.user.permission_matrix ?? data.permission_matrix,
+      permissions: data.user.permissions ?? data.permissions,
+    };
   }
   return null;
 }

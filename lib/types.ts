@@ -45,6 +45,8 @@ export type User = {
   profile: UserProfile;
   /** kontrakt: har bir foydalanuvchi sahifa ruxsatlari bilan keladi */
   permissions?: PagePermission[];
+  /** backend to'liq ruxsat matritsasi (/api/me) — mavjud bo'lsa AVTORITATIV */
+  permission_matrix?: PagePermission[];
 };
 
 export type Customer = {

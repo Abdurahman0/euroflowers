@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { useStore, useTheme } from "@/lib/store";
+import { usePerm, useStore, useTheme } from "@/lib/store";
+import type { PermissionPage } from "@/lib/types";
 import { isLoggedIn } from "@/lib/api";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
@@ -18,6 +19,24 @@ const ParallaxController = dynamic(() => import("./three/engine/ParallaxControll
 const BotanicalGarden = dynamic(() => import("./three/engine/BotanicalGarden"), { ssr: false });
 const PremiumPeony = dynamic(() => import("./flowers/PremiumPeony"), { ssr: false });
 
+/** Marshrut → ruxsat sahifasi — Sidebar NAV bilan bir xil xarita.
+    Ruxsati yo'q sahifa to'g'ridan-to'g'ri URL orqali ham ochilmaydi. */
+const ROUTE_PERM: Record<string, PermissionPage> = {
+  "/": "dashboard",
+  "/chat": "conversations",
+  "/ai": "settings",
+  "/crm": "crm",
+  "/sklad": "inventory",
+  "/gullar": "inventory",
+  "/katalog": "catalog",
+  "/postlar": "social_posts",
+  "/bildirishnomalar": "notifications",
+  "/xodimlar": "users",
+  "/integratsiyalar": "integrations",
+  "/audit": "audit",
+  "/sozlamalar": "settings",
+};
+
 /** Butun ilova qobig'i: tema CSS o'zgaruvchilari, tirik fon, auth-guard, sidebar + main panel. */
 export default function Shell({ children }: { children: React.ReactNode }) {
   const { theme, dark } = useTheme();
@@ -25,6 +44,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, userLoading, loadMe, loadNotifs, setTheme, setDark, gardenPosterOnly, bgMode, setBgMode, sideOpen, toggleSide, uiMode, setUiMode } = useStore();
   const isLogin = pathname.startsWith("/login");
+  const { canView } = usePerm();
+  const permPage = ROUTE_PERM[pathname];
+  // foydalanuvchi yuklangach: ruxsatsiz sahifa ko'rsatilmaydi
+  const routeAllowed = !user || !permPage || canView(permPage);
 
   // video rejimda element krossfeyd tugaguncha (400ms) DOM'da qoladi;
   // "rasm" bilan yangi ochilishda esa umuman mount bo'lmaydi (mp4 so'rovi yo'q)
@@ -218,7 +241,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
           <Header />
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-10 pt-4 sm:px-4 lg:px-6 lg:pt-6" style={{ scrollbarGutter: "stable" }}>
-            {userLoading && !user ? <FlowerLoader /> : children}
+            {userLoading && !user ? (
+              <FlowerLoader />
+            ) : routeAllowed ? (
+              children
+            ) : (
+              <div className="mt-16 flex flex-col items-center gap-2 text-center">
+                <p className="text-[16px] font-semibold">Bu sahifaga ruxsatingiz yo&apos;q</p>
+                <p className="text-[13px]" style={{ color: "var(--muted)" }}>
+                  Administrator sizga kerakli ruxsatni berishi mumkin.
+                </p>
+              </div>
+            )}
           </div>
         </div>
         {/* muhit tovushi — faqat video rejimda */}

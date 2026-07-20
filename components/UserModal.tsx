@@ -24,11 +24,11 @@ const PAGES: { page: PermissionPage; label: string }[] = [
   { page: "social_posts", label: "Postlar" },
   { page: "notifications", label: "Bildirishnomalar" },
   { page: "settings", label: "Sozlamalar" },
-  { page: "users", label: "Xodimlar" },
+  { page: "users", label: "Jamoa" },
   { page: "audit", label: "Audit" },
   { page: "ai_settings", label: "AI sozlamalari" },
   { page: "integrations", label: "Integratsiyalar" },
-  { page: "mini_app", label: "Mini ilova" },
+  { page: "mini_app", label: "Mini app" },
 ];
 
 const ROLES: Role[] = ["admin", "operator", "florist", "warehouse", "content", "developer"];

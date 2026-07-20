@@ -95,7 +95,7 @@ export const useStore = create<State>((set, get) => ({
     set({ userLoading: true });
     try {
       const user = await api.me();
-      set({ user, permissions: user.permissions ?? [], userLoading: false });
+      set({ user, permissions: user.permission_matrix ?? user.permissions ?? [], userLoading: false });
     } catch {
       set({ user: null, permissions: [], userLoading: false });
     }
@@ -201,7 +201,7 @@ export const useStore = create<State>((set, get) => ({
     set({ wsConnected: false });
   },
 
-  setUser: (user) => set({ user, permissions: user?.permissions ?? [], userLoading: false }),
+  setUser: (user) => set({ user, permissions: user?.permission_matrix ?? user?.permissions ?? [], userLoading: false }),
   setTheme: (themeId) => set({ themeId }),
   setDark: (dark) => set({ dark }),
   toggleSide: () => set((s) => ({ sideOpen: !s.sideOpen })),
@@ -252,6 +252,9 @@ export function checkPerm(
 ): boolean {
   const p = permissions.find((x) => x.page === page);
   if (p) return kind === "view" ? p.can_view : p.can_control;
+  // backend to'liq matritsa yuborgan — unda YO'Q sahifa = ruxsat YO'Q
+  // (rol bo'yicha zaxira faqat matritsa umuman kelmaganda ishlaydi)
+  if (permissions.length > 0) return false;
   if (!role) return false;
   return ROLE_FALLBACK[role]?.includes(page) ?? false;
 }
