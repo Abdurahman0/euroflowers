@@ -266,6 +266,10 @@ export const api = {
   dashboard: () => request<Dashboard>("/api/dashboard/"),
 
   branches: (p?: Params) => list<Branch>("/api/branches/", p),
+  createBranch: (data: Partial<Branch>) =>
+    request<Branch>("/api/branches/", { method: "POST", body: JSON.stringify(data) }),
+  updateBranch: (id: number, data: Partial<Branch>) =>
+    request<Branch>(`/api/branches/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
   leads: (p?: Params) => list<Lead>("/api/leads/", p),
   lead: (id: number) => request<Lead>(`/api/leads/${id}/`),
