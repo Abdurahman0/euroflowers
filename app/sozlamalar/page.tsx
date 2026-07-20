@@ -1,8 +1,9 @@
 "use client";
+import { Check, Pencil, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
-import { useStore } from "@/lib/store";
+import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtDate, initials } from "@/lib/format";
 import { Icon } from "@/components/icons";
 import UiModeSwitch from "@/components/UiModeSwitch";
@@ -25,11 +26,16 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 
 export default function SozlamalarPage() {
   const { user, showToast } = useStore();
+  const { canControl } = usePerm();
+  const usersControlSafe = canControl("settings");
   const [branches, setBranches] = useState<Branch[]>([]);
   const [packaging, setPackaging] = useState<Packaging[]>([]);
   const [ig, setIg] = useState<InstagramSettings | null>(null);
   const [st, setSt] = useState<BusinessSettings | null>(null);
   const [fee, setFee] = useState("");
+  // o'ram/savat narx-qoldiq tahriri: qaysi qator ochiq + qiymatlar
+  const [pkgEdit, setPkgEdit] = useState<{ id: number; price: string; qty: string } | null>(null);
+  const [pkgSaving, setPkgSaving] = useState(false);
   const [savingFee, setSavingFee] = useState(false);
 
   useEffect(() => {
@@ -55,6 +61,24 @@ export default function SozlamalarPage() {
     } catch {
       setIg(prev);
       showToast("Saqlab bo'lmadi");
+    }
+  };
+
+  const savePkg = async () => {
+    if (!pkgEdit) return;
+    setPkgSaving(true);
+    try {
+      const upd = await api.updatePackaging(pkgEdit.id, {
+        sale_price: String(+pkgEdit.price || 0),
+        quantity: +pkgEdit.qty || 0,
+      });
+      setPackaging((ps) => ps.map((x) => (x.id === upd.id ? { ...x, ...upd } : x)));
+      showToast("✓ Narx yangilandi");
+      setPkgEdit(null);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "Saqlab bo'lmadi");
+    } finally {
+      setPkgSaving(false);
     }
   };
 
@@ -118,36 +142,89 @@ export default function SozlamalarPage() {
         )}
       </section>
 
-      {/* Narx sozlamalari */}
+      {/* Narx sozlamalari — narx va qoldiq shu yerda tahrirlanadi */}
       <section className="glass p-5">
-        <h2 className="mb-3.5 text-base font-bold">Narx sozlamalari</h2>
-        <div className="flex items-center justify-between gap-3 border-b py-2.5" style={{ borderColor: "var(--line2)" }}>
-          <span className="text-[14px]">Florist xizmat haqi</span>
+        <h2 className="mb-1 text-base font-bold">Narx sozlamalari</h2>
+        <p className="mb-3 text-[13px]" style={{ color: "var(--muted)" }}>
+          AI savat/quti tavsiyasida shu narxlardan foydalanadi.
+        </p>
+
+        {/* florist haqi — alohida ajratilgan qator */}
+        <div className="flex items-center justify-between gap-3 rounded-[12px] border px-3.5 py-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <span className="text-[13px] font-semibold">Florist xizmat haqi</span>
           <span className="flex items-center gap-2">
             <input
               value={fee}
               onChange={(e) => setFee(e.target.value.replace(/\D/g, ""))}
-              className="w-[110px] rounded-[10px] border bg-sfc px-2.5 py-1.5 text-right text-[14px] font-bold outline-none"
-              style={{ borderColor: "var(--line)", color: "var(--ink)" }}
+              inputMode="numeric"
+              aria-label="Florist xizmat haqi (so'm)"
+              className="inp !h-9 !w-[110px] !px-2.5 text-right !text-[13px] font-bold"
             />
-            <button onClick={saveFee} disabled={savingFee} className="rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60" style={{ background: "var(--acc)" }}>
-              {savingFee ? "…" : "Saqlash"}
+            <button onClick={saveFee} disabled={savingFee} className={`btn-primary !h-9 !flex-none px-3.5 !text-[12px] ${savingFee ? "btn-loading" : ""}`}>
+              Saqlash
             </button>
           </span>
         </div>
-        {packaging.map((p) => (
-          <div key={p.id} className="flex items-center justify-between border-b py-2.5" style={{ borderColor: "var(--line2)" }}>
-            <span className="text-[14px]">
-              {p.name_uz || p.name_ru}
-              <span className="ml-2 rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-tintink">{PKG_LABEL[p.packaging_type] ?? p.packaging_type}</span>
-            </span>
-            <span className="text-right">
-              <b className="text-sm">{fmt(p.sale_price)}</b>
-              <span className="block text-[11px]" style={{ color: "var(--mut)" }}>{p.quantity} dona bor</span>
-            </span>
-          </div>
-        ))}
-        <p className="mt-2.5 text-xs" style={{ color: "var(--mut)" }}>AI savat/quti tavsiyasida shu narxlardan foydalanadi.</p>
+
+        {/* o'ram/savat/quti — har bir qator tahrirlanadi */}
+        <div className="mt-3 flex flex-col">
+          {packaging.map((p) => {
+            const editing = pkgEdit?.id === p.id;
+            return (
+              <div key={p.id} className="row-lux group flex flex-wrap items-center gap-x-3 gap-y-2 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)" }}
+                onClick={() => !editing && usersControlSafe && setPkgEdit({ id: p.id, price: String(Math.round(+p.sale_price) || 0), qty: String(p.quantity) })}
+              >
+                <span className="rounded-[9px] bg-tint px-2 py-1 text-[11px] font-bold text-tintink">{PKG_LABEL[p.packaging_type] ?? p.packaging_type}</span>
+                <span className="min-w-[90px] flex-1 truncate text-[14px] font-medium" title={p.name_uz || p.name_ru}>{p.name_uz || p.name_ru}</span>
+                {editing ? (
+                  <span className="flex w-full items-center justify-end gap-1.5 sm:w-auto" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      value={pkgEdit.price}
+                      onChange={(e) => setPkgEdit({ ...pkgEdit, price: e.target.value.replace(/\D/g, "") })}
+                      onKeyDown={(e) => e.key === "Enter" && savePkg()}
+                      inputMode="numeric"
+                      autoFocus
+                      aria-label="Sotuv narxi (so'm)"
+                      className="inp !h-9 !w-[96px] !px-2 text-right !text-[13px] font-bold"
+                    />
+                    <input
+                      value={pkgEdit.qty}
+                      onChange={(e) => setPkgEdit({ ...pkgEdit, qty: e.target.value.replace(/\D/g, "") })}
+                      onKeyDown={(e) => e.key === "Enter" && savePkg()}
+                      inputMode="numeric"
+                      aria-label="Qoldiq (dona)"
+                      className="inp !h-9 !w-[64px] !px-2 text-right !text-[13px]"
+                    />
+                    <button onClick={savePkg} disabled={pkgSaving} title="Saqlash" aria-label="Saqlash" className="icon-btn !h-9 !w-9" style={{ color: "var(--success-ink)" }}>
+                      <Check size={16} strokeWidth={2} />
+                    </button>
+                    <button onClick={() => setPkgEdit(null)} title="Bekor" aria-label="Bekor" className="icon-btn icon-btn-danger !h-9 !w-9">
+                      <X size={16} strokeWidth={1.75} />
+                    </button>
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-right">
+                      <b className="text-sm">{fmt(p.sale_price)}</b>
+                      <span className="block text-[11px]" style={{ color: "var(--muted)" }}>{p.quantity} dona bor</span>
+                    </span>
+                    {usersControlSafe && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setPkgEdit({ id: p.id, price: String(Math.round(+p.sale_price) || 0), qty: String(p.quantity) }); }}
+                        title="Narxni tahrirlash"
+                        aria-label="Narxni tahrirlash"
+                        className="row-actions icon-btn"
+                      >
+                        <Pencil size={16} strokeWidth={1.75} />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {packaging.length === 0 && <p className="py-2 text-[13px]" style={{ color: "var(--muted)" }}>O&apos;ram/savat topilmadi.</p>}
+        </div>
       </section>
 
       {/* Jamoa endi alohida sahifada — /xodimlar */}
