@@ -40,7 +40,8 @@ const emptyPerms = (): PermState =>
 
 const permsFromUser = (u: User | null): PermState => {
   const st = emptyPerms();
-  for (const p of u?.permissions ?? []) {
+  // backend endi to'liq matritsani beradi — u ustuvor
+  for (const p of u?.permission_matrix ?? u?.permissions ?? []) {
     if (st[p.page]) st[p.page] = { can_view: p.can_view, can_control: p.can_control };
   }
   return st;
@@ -101,8 +102,11 @@ export default function UserModal({
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
+    // TAHRIRDA to'liq matritsa (false qiymatlar ham) — aks holda backend eski
+    // qatorni saqlab qoladi va ruxsatni OLIB TASHLAB bo'lmaydi.
+    // Yaratishda faqat belgilanganlar — qolganiga rol standartlari amal qiladi.
     const permissions: Partial<PagePermission>[] = Object.entries(perms)
-      .filter(([, v]) => v.can_view || v.can_control)
+      .filter(([, v]) => editUser != null || v.can_view || v.can_control)
       .map(([page, v]) => ({ page: page as PermissionPage, can_view: v.can_view, can_control: v.can_control }));
 
     const payload: Record<string, unknown> = {
@@ -118,6 +122,10 @@ export default function UserModal({
     try {
       const saved = editUser ? await api.updateUser(editUser.id, payload) : await api.createUser(payload);
       showToast(editUser ? "✓ Xodim yangilandi" : "✓ Xodim qo'shildi");
+      // o'z hisobini tahrirlagan bo'lsa — joriy sessiya ruxsatlari ham yangilansin
+      if (editUser && editUser.id === useStore.getState().user?.id) {
+        useStore.getState().loadMe();
+      }
       onSaved(saved);
     } catch (e) {
       if (e instanceof ApiError && e.fieldErrors) setErrors(e.fieldErrors);
