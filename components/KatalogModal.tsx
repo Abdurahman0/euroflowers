@@ -14,7 +14,7 @@ type CompRow = { stock_batch: number; quantity_stems: string };
 
 const EMPTY = {
   name_uz: "", name_ru: "", arrangement_type: "bouquet" as ArrangementType, height_cm: "",
-  price: "", florist_fee: "", instagram_story_url: "", description_uz: "", image_url: "", branch: 0,
+  price: "", florist_fee: "", quantity_total: "1", instagram_story_url: "", description_uz: "", image_url: "", branch: 0,
 };
 
 export default function KatalogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
@@ -52,6 +52,7 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
         height_cm: +f.height_cm || null,
         price: String(+f.price),
         florist_fee: f.florist_fee ? String(+f.florist_fee) : undefined,
+        quantity_total: Math.max(+f.quantity_total || 1, 1),
         status: "available",
         instagram_story_url: f.instagram_story_url,
         description_uz: f.description_uz,
@@ -122,7 +123,13 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
         <Field label="Bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="60" /></Field>
         <Field label="Narxi (so'm)"><input className="inp" type="number" value={f.price} onChange={set("price")} placeholder="675000" /></Field>
         <Field label="Florist haqi (so'm)"><input className="inp" type="number" value={f.florist_fee} onChange={set("florist_fee")} placeholder="50000" /></Field>
+        <Field label="Soni (nechta tayyorlanadi)">
+          <input className="inp" type="number" min={1} value={f.quantity_total} onChange={set("quantity_total")} placeholder="1" />
+        </Field>
       </div>
+      <p className="mt-1.5 text-[12px]" style={{ color: "var(--muted)" }}>
+        Sklad tekshiruvi: soni × tarkibdagi dona &le; partiya qoldig&apos;i bo&apos;lishi kerak, aks holda saqlanmaydi.
+      </p>
 
       <Section>Instagram va tavsif</Section>
       <div className="grid gap-3">

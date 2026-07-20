@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
-import { fmt, fmtTime, initials } from "@/lib/format";
+import { useStore } from "@/lib/store";
+import { dateAfterParam, fmt, fmtTime, initials } from "@/lib/format";
 import { STATUS_BADGE, STATUS_LABEL } from "@/components/badges";
 import CountUp from "@/components/CountUp";
+import DateChips from "@/components/DateChips";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
 import type { Dashboard } from "@/lib/types";
@@ -21,13 +23,20 @@ const rise = {
   show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
 };
 
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 export default function DashboardPage() {
+  const { dateFilter, dateRange } = useStore();
   const [d, setD] = useState<Dashboard | null>(null);
   const [err, setErr] = useState("");
 
+  // davr filtri (Bugun/7/30 yoki maxsus oraliq) → /api/dashboard/?from&to
+  const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
+  const to = dateRange ? dateRange.to : ymd(new Date());
+
   useEffect(() => {
-    api.dashboard().then(setD).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
-  }, []);
+    api.dashboard({ from, to }).then(setD).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
+  }, [from, to]);
 
   if (err) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--roseink, #a04a4a)" }}>{err}</p>;
   if (!d) return <FlowerLoader />;
@@ -44,8 +53,40 @@ export default function DashboardPage() {
   const statBg = ["var(--side)", "var(--primary)", "var(--surface)", "var(--surface)", "var(--surface)", "var(--surface)"];
   const maxPipe = Math.max(...d.lead_pipeline.map((p) => p.count), 1);
 
+  // backend davr statistikasi (?from&to) — mavjud bo'lsa alohida qator
+  const periodStats: { label: string; num: number; money?: boolean; sub?: string }[] =
+    d.period_revenue !== undefined
+      ? [
+          { label: "Davr savdosi", num: +(d.period_revenue ?? 0), money: true, sub: `so'm · ${d.period_orders ?? 0} buyurtma` },
+          { label: "Leadlar", num: d.period_leads ?? 0 },
+          { label: "Yangi mijozlar", num: d.period_customers ?? 0 },
+          { label: "Suhbatlar", num: d.period_conversations ?? 0 },
+          { label: "Florist daromadi", num: +(d.florist_revenue ?? 0), money: true, sub: "so'm" },
+          { label: "Sotilgan gul", num: d.flowers_sold_stems ?? 0, sub: "dona" },
+        ]
+      : [];
+
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="relative">
+      <motion.div variants={rise} className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[15px] font-bold" style={{ color: "var(--text-2)" }}>Davr statistikasi</h2>
+        <DateChips />
+      </motion.div>
+
+      {periodStats.length > 0 && (
+        <motion.div variants={rise} className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))" }}>
+          {periodStats.map((s) => (
+            <div key={s.label} className="glass-lite p-3.5">
+              <div className="text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: "var(--muted)" }}>{s.label}</div>
+              <div className="mt-1 whitespace-nowrap text-[19px] font-semibold tracking-tight">
+                <CountUp value={s.num} format={s.money ? fmtMoney : undefined} />
+              </div>
+              {s.sub && <div className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>{s.sub}</div>}
+            </div>
+          ))}
+        </motion.div>
+      )}
+
       <motion.div variants={rise} className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(205px,1fr))" }}>
         {stats.map((s, i) => (
           <Link key={s.label} href={s.href} className="glass-lite card-hover group relative block overflow-hidden p-4" style={{ background: statBg[i] }}>

@@ -70,6 +70,23 @@ export type Customer = {
 export type LeadStatus = "new" | "qualified" | "contacted" | "won" | "lost";
 export type LeadArrangementType = "bouquet" | "basket" | "stems" | "catalog" | "";
 
+/** Lead ichidagi gul sarfi qatori (backend: stock_usage) */
+export type LeadStockUsage = {
+  id?: number;
+  stock_batch: number;
+  batch_detail?: StockBatch;
+  quantity_stems: number;
+  quantity_bunches?: string;
+};
+
+/** Lead ichidagi material/savat sarfi qatori (backend: packaging_usage) */
+export type LeadPackagingUsage = {
+  id?: number;
+  packaging: number;
+  packaging_detail?: Packaging;
+  quantity: number;
+};
+
 export type Lead = {
   id: number;
   customer_detail: Customer;
@@ -81,6 +98,7 @@ export type Lead = {
   request_ru: string;
   arrangement_type: LeadArrangementType;
   estimated_price: string | null;
+  florist_fee?: string | null;
   desired_date: string | null;
   source: string;
   customer: number;
@@ -88,6 +106,20 @@ export type Lead = {
   conversation: number | null;
   social_post: number | null;
   assigned_to: number | null;
+  /** «won»da backend sklad kamaytirgan vaqt (null — hali yechilmagan) */
+  stock_deducted_at?: string | null;
+  stock_usage?: LeadStockUsage[];
+  packaging_usage?: LeadPackagingUsage[];
+};
+
+/** Lead yaratish/yangilash so'rovi — backend telefon orqali mijozni topadi yoki yaratadi */
+export type LeadInput = Partial<
+  Omit<Lead, "customer_detail" | "branch_detail" | "stock_usage" | "packaging_usage">
+> & {
+  customer_name?: string;
+  customer_phone?: string;
+  stock_usage_input?: { stock_batch: number; quantity_stems: number; quantity_bunches?: string }[];
+  packaging_usage_input?: { packaging: number; quantity: number }[];
 };
 
 export type Flower = {
@@ -177,6 +209,10 @@ export type CatalogComposition = {
 
 export type CatalogItem = {
   id: number;
+  /** katalogga qo'yilgan tayyor buket soni / sotilgani / skladdan yechilgani */
+  quantity_total?: number;
+  quantity_sold?: number;
+  quantity_stock_deducted?: number;
   composition: CatalogComposition[];
   branch_detail: Branch;
   social_post_detail: SocialPost | null;
@@ -300,6 +336,23 @@ export type Packaging = {
   branch: number;
 };
 
+/** Material sklad harakati (backend: /api/material-movements/, ichkarida Packaging) */
+export type MaterialMovement = {
+  id: number;
+  packaging_detail?: Packaging;
+  material_detail?: Packaging;
+  created_at: string;
+  updated_at?: string;
+  movement_type: string;
+  quantity: number;
+  reason: string;
+  reference_type?: string;
+  reference_id?: number | null;
+  packaging?: number;
+  performed_by?: number | null;
+  performed_by_detail?: User | null;
+};
+
 export type AuditLog = {
   id: number;
   user_detail: User | null;
@@ -313,6 +366,15 @@ export type AuditLog = {
 };
 
 export type Dashboard = {
+  /** ?from&to davri statistikasi (backend qo'shgan yangi maydonlar) */
+  period?: { from: string; to: string };
+  period_revenue?: number | string;
+  period_orders?: number;
+  period_leads?: number;
+  period_customers?: number;
+  period_conversations?: number;
+  florist_revenue?: number | string;
+  flowers_sold_stems?: number;
   revenue_today: number | string;
   orders_today: number;
   revenue_7d: number | string;

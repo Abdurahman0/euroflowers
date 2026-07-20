@@ -1,9 +1,13 @@
 "use client";
 import clsx from "clsx";
-import { fmt, fmtTime, initials } from "@/lib/format";
+import { useEffect, useState } from "react";
+import { fmt, fmtDate, fmtTime, initials } from "@/lib/format";
+import { api, ApiError } from "@/lib/api";
+import { usePerm, useStore } from "@/lib/store";
 import Modal from "./Modal";
+import { StockUsagePicker, MaterialUsagePicker, batchLabel, type PackRow, type StockRow } from "./UsagePicker";
 import { ARRANGEMENT_LABEL, STATUS_LABEL, STATUS_BADGE, SOURCE_BADGE } from "./badges";
-import type { Lead, LeadStatus } from "@/lib/types";
+import type { Lead, LeadStatus, Packaging, StockBatch } from "@/lib/types";
 
 const ACTIONS: LeadStatus[] = ["qualified", "contacted", "won", "lost"];
 
@@ -81,8 +85,87 @@ function NoteBlock({ text }: { text: string }) {
   );
 }
 
-export default function LeadModal({ lead, onClose, onStatus }: { lead: Lead; onClose: () => void; onStatus: (st: LeadStatus) => void }) {
+export default function LeadModal({
+  lead,
+  onClose,
+  onStatus,
+  onUpdated,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onStatus: (st: LeadStatus) => void;
+  onUpdated?: (l: Lead) => void;
+}) {
+  const showToast = useStore((s) => s.showToast);
+  const { canControl } = usePerm();
+  const control = canControl("crm");
   const name = lead.customer_detail?.name || `@${lead.customer_detail?.instagram_username ?? "—"}`;
+
+  const stockUsage = lead.stock_usage ?? [];
+  const packUsage = lead.packaging_usage ?? [];
+  const hasUsage = stockUsage.length > 0 || packUsage.length > 0;
+  const deducted = !!lead.stock_deducted_at;
+
+  // sarfni tahrirlash — «Sotildi»gacha; backend won'da shu qatorlar bo'yicha kamaytiradi
+  const [editing, setEditing] = useState(false);
+  const [batches, setBatches] = useState<StockBatch[]>([]);
+  const [materials, setMaterials] = useState<Packaging[]>([]);
+  const [stockRows, setStockRows] = useState<StockRow[]>([]);
+  const [packRows, setPackRows] = useState<PackRow[]>([]);
+  const [fee, setFee] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [confirmWon, setConfirmWon] = useState(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+    api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+  }, [editing]);
+
+  const startEdit = () => {
+    setStockRows(stockUsage.map((u) => ({ stock_batch: u.stock_batch, quantity_stems: u.quantity_stems })));
+    setPackRows(packUsage.map((u) => ({ packaging: u.packaging, quantity: u.quantity })));
+    setFee(lead.florist_fee ? String(Math.round(+lead.florist_fee)) : "");
+    setEditing(true);
+  };
+
+  const saveUsage = async () => {
+    setSaving(true);
+    try {
+      const upd = await api.updateLead(lead.id, {
+        florist_fee: fee ? String(+fee) : null,
+        stock_usage_input: stockRows.map((r) => {
+          const b = batches.find((x) => x.id === r.stock_batch);
+          const perBunch = b?.stems_per_bunch || 0;
+          return {
+            stock_batch: r.stock_batch,
+            quantity_stems: r.quantity_stems,
+            ...(perBunch > 0 ? { quantity_bunches: (r.quantity_stems / perBunch).toFixed(2) } : {}),
+          };
+        }),
+        packaging_usage_input: packRows,
+      });
+      showToast("✓ Sklad sarfi saqlandi");
+      setEditing(false);
+      onUpdated?.(upd);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "Sarfni saqlab bo'lmadi");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clickStatus = (st: LeadStatus) => {
+    // «Sotildi»da backend skladdan avtomatik yechadi — sarf bo'sh bo'lsa ogohlantirib,
+    // ikkinchi bosishda davom etamiz
+    if (st === "won" && lead.status !== "won" && !hasUsage && !confirmWon) {
+      setConfirmWon(true);
+      showToast("Diqqat: sarf kiritilmagan — sklad kamaymaydi. Davom etish uchun yana bosing");
+      return;
+    }
+    setConfirmWon(false);
+    onStatus(st);
+  };
 
   const Row = ({ k, v, accent }: { k: string; v: string; accent?: boolean }) => (
     <div className="flex justify-between gap-3.5 border-t border-[color:var(--border)] px-4 py-3 first:border-t-0">
@@ -109,12 +192,74 @@ export default function LeadModal({ lead, onClose, onStatus }: { lead: Lead; onC
         <NoteBlock text={lead.request_uz || lead.request_ru || "—"} />
       </div>
 
+      {/* sklad sarfi — won bo'lganda backend shu qatorlar bo'yicha kamaytiradi */}
+      <div className="mt-3 rounded-2xl border border-[color:var(--border)] px-4 py-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-[1.5px]" style={{ color: "var(--primary)" }}>Sklad sarfi</span>
+          {deducted ? (
+            <span className="rounded-full bg-mint px-2.5 py-0.5 text-[11px] font-bold text-mintink">✓ Skladdan yechildi · {fmtTime(lead.stock_deducted_at)}</span>
+          ) : control && !editing ? (
+            <button type="button" onClick={startEdit} className="text-[12px] font-semibold underline-offset-2 hover:underline" style={{ color: "var(--primary)" }}>
+              {hasUsage ? "Tahrirlash" : "Sarf kiritish"}
+            </button>
+          ) : null}
+        </div>
+
+        {!editing && (
+          <>
+            {hasUsage ? (
+              <div className="flex flex-col gap-1">
+                {stockUsage.map((u, i) => (
+                  <div key={`s${i}`} className="flex justify-between gap-3 text-[13px]">
+                    <span className="min-w-0 truncate">🌸 {u.batch_detail ? batchLabel(u.batch_detail) : `Partiya #${u.stock_batch}`}</span>
+                    <span className="shrink-0 font-semibold">{u.quantity_stems} dona</span>
+                  </div>
+                ))}
+                {packUsage.map((u, i) => (
+                  <div key={`p${i}`} className="flex justify-between gap-3 text-[13px]">
+                    <span className="min-w-0 truncate">🧺 {u.packaging_detail ? u.packaging_detail.name_uz || u.packaging_detail.name_ru : `Material #${u.packaging}`}</span>
+                    <span className="shrink-0 font-semibold">{u.quantity} dona</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[13px]" style={{ color: "var(--muted)" }}>Sarf kiritilmagan.</p>
+            )}
+            {!deducted && !hasUsage && lead.status !== "won" && (
+              <p className="mt-2 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold leading-snug text-peachink">
+                ⚠ «Sotildi» qilishdan oldin gul/material sarfini kiriting — sklad qoldig&apos;i avtomatik kamayishi uchun.
+              </p>
+            )}
+          </>
+        )}
+
+        {editing && (
+          <div className="flex flex-col gap-3">
+            <StockUsagePicker batches={batches} rows={stockRows} onChange={setStockRows} />
+            <MaterialUsagePicker materials={materials} rows={packRows} onChange={setPackRows} />
+            <label className="flex items-center justify-between gap-3 text-[13px]">
+              <span style={{ color: "var(--text-2)" }}>Florist haqi (so&apos;m)</span>
+              <input className="inp !w-[130px] text-right" type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="50000" />
+            </label>
+            <div className="flex gap-2">
+              <button type="button" onClick={saveUsage} disabled={saving} className="btn-primary !flex-none !px-4 !py-2 text-[13px] disabled:opacity-60">
+                {saving ? "Saqlanmoqda…" : "Sarfni saqlash"}
+              </button>
+              <button type="button" onClick={() => setEditing(false)} className="rounded-[12px] border border-[color:var(--border-strong)] px-4 py-2 text-[13px] font-bold">
+                Bekor
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="mt-3 rounded-2xl border border-[color:var(--border)]">
         <Row k="Taxminiy narx" v={fmt(lead.estimated_price)} accent />
+        {lead.florist_fee != null && +lead.florist_fee > 0 && <Row k="Florist haqi" v={fmt(lead.florist_fee)} />}
         <Row k="Turi" v={lead.arrangement_type ? ARRANGEMENT_LABEL[lead.arrangement_type] ?? lead.arrangement_type : "—"} />
         <Row k="Instagram" v={lead.customer_detail?.instagram_username ? `@${lead.customer_detail.instagram_username}` : "—"} />
         <Row k="Filial" v={lead.branch_detail?.name ?? "—"} />
-        <Row k="Kerakli sana" v={lead.desired_date ?? "—"} />
+        <Row k="Kerakli sana" v={fmtDate(lead.desired_date)} />
         <Row k="Tushgan vaqti" v={fmtTime(lead.created_at)} />
       </div>
 
@@ -126,8 +271,19 @@ export default function LeadModal({ lead, onClose, onStatus }: { lead: Lead; onC
 
       <div className="mt-4 flex flex-wrap gap-2">
         {ACTIONS.map((st) => (
-          <button key={st} onClick={() => onStatus(st)} className="min-w-[100px] flex-1 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold" style={lead.status === st ? { background: "var(--acc)", borderColor: "var(--acc)", color: "#fff" } : undefined}>
-            {STATUS_LABEL[st]}
+          <button
+            key={st}
+            onClick={() => clickStatus(st)}
+            className="min-w-[100px] flex-1 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold"
+            style={
+              lead.status === st
+                ? { background: "var(--acc)", borderColor: "var(--acc)", color: "#fff" }
+                : st === "won" && confirmWon
+                  ? { borderColor: "var(--acc)", color: "var(--acc)" }
+                  : undefined
+            }
+          >
+            {st === "won" && confirmWon && lead.status !== "won" ? "Baribir sotildi?" : STATUS_LABEL[st]}
           </button>
         ))}
       </div>

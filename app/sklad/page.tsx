@@ -12,6 +12,8 @@ import { dateAfterParam, fmt, fmtDate, fmtTime, rangeParams } from "@/lib/format
 import DateChips from "@/components/DateChips";
 import KirimModal from "@/components/KirimModal";
 import BatchDrawer from "@/components/BatchDrawer";
+import MaterialSklad from "@/components/MaterialSklad";
+import clsx from "clsx";
 import { Icon } from "@/components/icons";
 import type { StockBatch, StockMovement } from "@/lib/types";
 
@@ -22,6 +24,8 @@ const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
 
 export default function SkladPage() {
   const { user, showToast, dateFilter, dateRange, setDateFilter } = useStore();
+  // ikki bo'lim: gul sklad (partiyalar) va material sklad (o'ram/savat/quti)
+  const [tab, setTab] = useState<"gul" | "material">("gul");
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,8 +72,34 @@ export default function SkladPage() {
 
   if (loading) return <FlowerLoader />;
 
+  const tabBar = (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      {(["gul", "material"] as const).map((t) => (
+        <button
+          key={t}
+          onClick={() => setTab(t)}
+          aria-pressed={tab === t}
+          className={clsx("rounded-full border-[1.5px] px-5 py-2 text-[13px] font-bold", tab === t ? "text-white" : "bg-sfc")}
+          style={tab === t ? { background: "var(--acc)", borderColor: "var(--acc)" } : { borderColor: "var(--line)", color: "var(--mut)" }}
+        >
+          {t === "gul" ? "Gul sklad" : "Material sklad"}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab === "material") {
+    return (
+      <>
+        {tabBar}
+        <MaterialSklad />
+      </>
+    );
+  }
+
   return (
     <>
+      {tabBar}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada

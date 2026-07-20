@@ -82,6 +82,13 @@ const leads: Lead[] = [
   mkLead(6, customers[5], "contacted", "Ona kuniga nafis buket, 500 ming atrofida", "520000", "bouquet", 2, 6),
   mkLead(7, customers[2], "won", "Ofis uchun haftalik gul yetkazish", "1500000", "", 4, 2),
   mkLead(8, customers[0], "lost", "Import qora atirgul so'radi — mavjud emas", null, "stems", 6, 4),
+  {
+    ...mkLead(10, customers[2], "qualified", "3 pochka Freedom atirguldan savat", "1750000", "basket", 0, 4),
+    florist_fee: "50000",
+    stock_usage: [{ id: 1, stock_batch: 3, quantity_stems: 30, quantity_bunches: "3.00" }],
+    packaging_usage: [{ id: 1, packaging: 2, quantity: 1 }],
+    stock_deducted_at: null,
+  },
   mkLead(
     9,
     customers[1],
@@ -184,6 +191,10 @@ const mkItem = (
   img: string, days: number, post: SocialPost | null
 ): CatalogItem => ({
   id,
+  // yangi kontrakt: soni bilan ishlash (id=3 — qisman sotilgan, chiqim kutilmoqda)
+  quantity_total: id === 3 ? 5 : 1,
+  quantity_sold: id === 3 ? 2 : status === "sold" ? 1 : 0,
+  quantity_stock_deducted: id === 3 ? 1 : status === "sold" ? 1 : 0,
   composition: [
     { id: id * 10 + 1, stock_batch: batches[0].id, batch_detail: batches[0], quantity_stems: 15, quantity_bunches: "1.5" },
     { id: id * 10 + 2, stock_batch: batches[2].id, batch_detail: batches[2], quantity_stems: 10, quantity_bunches: "1.0" },
@@ -262,6 +273,14 @@ const notifications: Notification[] = [
 // ===== Dashboard =====
 
 const dashboard: Dashboard = {
+  period: { from: ago(30), to: ago(0) },
+  period_revenue: "12000000.00",
+  period_orders: 18,
+  period_leads: 52,
+  period_customers: 31,
+  period_conversations: 140,
+  florist_revenue: "900000.00",
+  flowers_sold_stems: 620,
   revenue_today: 3250000,
   orders_today: 7,
   revenue_7d: 18400000,
@@ -316,6 +335,15 @@ const packaging: Packaging[] = [
   { id: 3, created_at: ago(100), updated_at: ago(5), packaging_type: "box", name_uz: "Shlyapa qutisi", name_ru: "Шляпная коробка", size: "M", capacity_min_stems: 11, capacity_max_stems: 31, cost_price: "38000", sale_price: "80000", quantity: 15, image_url: "", is_active: true, branch: 1 },
 ];
 
+// lead #10 sarf detallari — batches/packaging pastda e'lon qilingani uchun shu yerda bog'lanadi
+{
+  const l10 = leads.find((l) => l.id === 10);
+  if (l10) {
+    l10.stock_usage![0].batch_detail = batches[2];
+    l10.packaging_usage![0].packaging_detail = packaging[1];
+  }
+}
+
 const aiSettings: AISettings = {
   id: 1, created_at: ago(200), updated_at: ago(1),
   openai_model: "gpt-4o-mini",
@@ -338,6 +366,13 @@ const igEvents: InstagramEvent[] = [
   { id: 2, created_at: ago(0, 3), updated_at: ago(0, 3), event_type: "story_reply", sender_id: "17802", recipient_id: "17800001", message_id: "mid.2", text: "Bu qancha turadi?", media_id: "", story_id: "18101433071220523", story_url: "https://instagram.com/stories/demo", extracted: null, raw_payload: null },
   { id: 3, created_at: ago(0, 6), updated_at: ago(0, 6), event_type: "media_send", sender_id: "17803", recipient_id: "17800001", message_id: "mid.3", text: "", media_id: "18448508641115058", story_id: "", story_url: "", extracted: null, raw_payload: null },
   { id: 4, created_at: ago(1, 2), updated_at: ago(1, 2), event_type: "story_send", sender_id: "17804", recipient_id: "17800001", message_id: "mid.4", text: "", media_id: "", story_id: "18101433071220524", story_url: "", extracted: null, raw_payload: null },
+];
+
+// material harakatlari (backend: /api/material-movements/)
+const materialMoves = [
+  { id: 1, packaging_detail: packaging[0], created_at: ago(0, 4), movement_type: "in", quantity: 50, reason: "Yangi partiya keldi", performed_by_detail: users[3], packaging: 1 },
+  { id: 2, packaging_detail: packaging[1], created_at: ago(0, 7), movement_type: "out", quantity: 2, reason: "Lead #10 — sotildi", performed_by_detail: users[1], packaging: 2 },
+  { id: 3, packaging_detail: packaging[2], created_at: ago(1, 3), movement_type: "out", quantity: 1, reason: "Katalog: Pastel kompozitsiya", performed_by_detail: null, packaging: 3 },
 ];
 
 const audit: AuditLog[] = [
@@ -380,9 +415,68 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       const c = conversations.find((x) => x.id === idOf(/conversations\/(\d+)/)) ?? conversations[0];
       return out({ ...c, status: p.includes("handoff") ? "operator" : "ai" });
     }
-    if (/\/api\/catalog\/\d+\/(sell|deduct_stock)\//.test(p)) {
+    if (/\/api\/catalog\/\d+\/sell\//.test(p)) {
+      // qisman sotish: quantity_sold oshadi; hammasi sotilsa status=sold
       const it = catalog.find((x) => x.id === idOf(/catalog\/(\d+)/)) ?? catalog[0];
-      return out({ ...it, status: "sold", sold_at: ago(0), stock_deducted_at: ago(0) });
+      const total = it.quantity_total ?? 1;
+      const sold = Math.min((it.quantity_sold ?? 0) + (Number(body.quantity) || 1), total);
+      return out({ ...it, quantity_sold: sold, status: sold >= total ? "sold" : it.status, sold_at: sold >= total ? ago(0) : it.sold_at });
+    }
+    if (/\/api\/catalog\/\d+\/deduct_stock\//.test(p)) {
+      // quantity berilmasa sotilgan-u yechilmagan hammasi yechiladi
+      const it = catalog.find((x) => x.id === idOf(/catalog\/(\d+)/)) ?? catalog[0];
+      const sold = it.quantity_sold ?? 0;
+      const dedu = Math.min((it.quantity_stock_deducted ?? 0) + (Number(body.quantity) || sold - (it.quantity_stock_deducted ?? 0)), sold);
+      return out({ ...it, quantity_stock_deducted: dedu, stock_deducted_at: ago(0) });
+    }
+    if (/\/api\/materials\/\d+\/movement\//.test(p)) {
+      const m = packaging.find((x) => x.id === idOf(/materials\/(\d+)/)) ?? packaging[0];
+      const delta = (body.movement_type === "out" ? -1 : 1) * (Number(body.quantity) || 0);
+      return out({ ...m, quantity: Math.max(m.quantity + delta, 0) });
+    }
+    if (p === "/api/leads/" && method === "POST") {
+      // yangi kontrakt: customer_name/customer_phone bilan mijoz avtomatik yaratiladi
+      const c = body.customer
+        ? customers.find((x) => x.id === body.customer) ?? customers[0]
+        : { ...customers[0], id: 999, name: String(body.customer_name ?? ""), phone: String(body.customer_phone ?? ""), instagram_username: "" };
+      const su = Array.isArray(body.stock_usage_input) ? (body.stock_usage_input as { stock_batch: number; quantity_stems: number; quantity_bunches?: string }[]) : [];
+      const pu = Array.isArray(body.packaging_usage_input) ? (body.packaging_usage_input as { packaging: number; quantity: number }[]) : [];
+      return out({
+        ...mkLead(999, c as Customer, "new", String(body.request_uz ?? ""), (body.estimated_price as string) ?? null, (body.arrangement_type as Lead["arrangement_type"]) ?? "", 0, 0),
+        source: "manual",
+        florist_fee: (body.florist_fee as string) ?? null,
+        stock_deducted_at: null,
+        stock_usage: su.map((r, i) => ({ id: i + 1, ...r, batch_detail: batches.find((b) => b.id === r.stock_batch) })),
+        packaging_usage: pu.map((r, i) => ({ id: i + 1, ...r, packaging_detail: packaging.find((m) => m.id === r.packaging) })),
+      });
+    }
+    if (/\/api\/leads\/\d+\//.test(p) && method === "PATCH") {
+      // won bo'lsa backend sklad kamaytiradi — demo'da stock_deducted_at belgilanadi
+      const l = leads.find((x) => x.id === idOf(/leads\/(\d+)/)) ?? leads[0];
+      const su = Array.isArray(body.stock_usage_input)
+        ? (body.stock_usage_input as { stock_batch: number; quantity_stems: number; quantity_bunches?: string }[]).map((r, i) => ({
+            id: i + 1, ...r, batch_detail: batches.find((b) => b.id === r.stock_batch),
+          }))
+        : l.stock_usage;
+      const pu = Array.isArray(body.packaging_usage_input)
+        ? (body.packaging_usage_input as { packaging: number; quantity: number }[]).map((r, i) => ({
+            id: i + 1, ...r, packaging_detail: packaging.find((m) => m.id === r.packaging),
+          }))
+        : l.packaging_usage;
+      const upd: Lead = {
+        ...l,
+        ...(body.status ? { status: body.status as Lead["status"] } : {}),
+        ...(body.florist_fee !== undefined ? { florist_fee: body.florist_fee as string | null } : {}),
+        stock_usage: su,
+        packaging_usage: pu,
+        stock_deducted_at:
+          body.status === "won" && !l.stock_deducted_at && ((su?.length ?? 0) > 0 || (pu?.length ?? 0) > 0)
+            ? ago(0)
+            : l.stock_deducted_at ?? null,
+        updated_at: ago(0),
+      };
+      Object.assign(l, upd);
+      return out(upd);
     }
     if (p === "/api/uploads/") return out({ url: IMG.peony, path: IMG.peony });
     // umumiy yaratish/yangilash: yuborilganini id va sana bilan qaytaramiz
@@ -421,7 +515,12 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   if (p === "/api/instagram/events/") return out(page(igEvents));
   if (p === "/api/permissions/") return out(page(fullPerms));
   if (p === "/api/settings/") return out(settings);
-  if (p === "/api/packaging/") return out(page(packaging));
+  if (p === "/api/packaging/" || p === "/api/materials/") {
+    const query = new URLSearchParams(path.split("?")[1] ?? "");
+    const tp = query.get("packaging_type");
+    return out(page(tp ? packaging.filter((m) => m.packaging_type === tp) : packaging));
+  }
+  if (p === "/api/material-movements/" || p === "/api/packaging-movements/") return out(page(materialMoves));
   if (p === "/api/audit/") return out(page(audit));
 
   // noma'lum yo'l — bo'sh ro'yxat

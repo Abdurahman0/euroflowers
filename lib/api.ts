@@ -1,9 +1,9 @@
 "use client";
 import type {
   AISettings, AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
-  Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, Message,
-  Notification, Packaging, PagePermission, Paginated, SocialPost, StockBatch, StockMovement,
-  UploadResponse, User,
+  Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
+  MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, SocialPost,
+  StockBatch, StockMovement, UploadResponse, User,
 } from "./types";
 
 /**
@@ -263,7 +263,8 @@ export function logout() {
 
 export const api = {
   me: () => request<User>("/api/me/"),
-  dashboard: () => request<Dashboard>("/api/dashboard/"),
+  /** davr statistikasi uchun ?from=YYYY-MM-DD&to=YYYY-MM-DD berish mumkin */
+  dashboard: (p?: { from?: string; to?: string }) => request<Dashboard>(`/api/dashboard/${qs(p)}`),
 
   branches: (p?: Params) => list<Branch>("/api/branches/", p),
   createBranch: (data: Partial<Branch>) =>
@@ -273,9 +274,9 @@ export const api = {
 
   leads: (p?: Params) => list<Lead>("/api/leads/", p),
   lead: (id: number) => request<Lead>(`/api/leads/${id}/`),
-  createLead: (data: Partial<Lead>) =>
+  createLead: (data: LeadInput) =>
     request<Lead>("/api/leads/", { method: "POST", body: JSON.stringify(data) }),
-  updateLead: (id: number, data: Partial<Lead>) =>
+  updateLead: (id: number, data: LeadInput) =>
     request<Lead>(`/api/leads/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
   customers: (p?: Params) => list<Customer>("/api/customers/", p),
@@ -314,10 +315,12 @@ export const api = {
     request<CatalogItem>("/api/catalog/", { method: "POST", body: JSON.stringify(data) }),
   updateCatalogItem: (id: number, data: Record<string, unknown>) =>
     request<CatalogItem>(`/api/catalog/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
-  sellCatalogItem: (id: number) =>
-    request<CatalogItem>(`/api/catalog/${id}/sell/`, { method: "POST", body: "{}" }),
-  deductCatalogStock: (id: number) =>
-    request<CatalogItem>(`/api/catalog/${id}/deduct_stock/`, { method: "POST", body: "{}" }),
+  /** quantity berilmasa backend 1 ta deb oladi */
+  sellCatalogItem: (id: number, quantity?: number) =>
+    request<CatalogItem>(`/api/catalog/${id}/sell/`, { method: "POST", body: JSON.stringify(quantity ? { quantity } : {}) }),
+  /** quantity berilmasa sotilgan-u hali yechilmagan hamma son yechiladi */
+  deductCatalogStock: (id: number, quantity?: number) =>
+    request<CatalogItem>(`/api/catalog/${id}/deduct_stock/`, { method: "POST", body: JSON.stringify(quantity ? { quantity } : {}) }),
 
   socialPosts: (p?: Params) => list<SocialPost>("/api/social-posts/", p),
   createSocialPost: (data: Partial<SocialPost>) =>
@@ -396,6 +399,16 @@ export const api = {
     request<Packaging>("/api/packaging/", { method: "POST", body: JSON.stringify(data) }),
   updatePackaging: (id: number, data: Partial<Packaging>) =>
     request<Packaging>(`/api/packaging/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  /** Material sklad — /api/materials/* aliaslar (ichkarida Packaging modeli) */
+  materials: (p?: Params) => list<Packaging>("/api/materials/", p),
+  createMaterial: (data: Partial<Packaging>) =>
+    request<Packaging>("/api/materials/", { method: "POST", body: JSON.stringify(data) }),
+  updateMaterial: (id: number, data: Partial<Packaging>) =>
+    request<Packaging>(`/api/materials/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  materialMovement: (id: number, data: { movement_type: string; quantity: number; reason?: string }) =>
+    request<Packaging>(`/api/materials/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
+  materialMovements: (p?: Params) => list<MaterialMovement>("/api/material-movements/", p),
 
   audit: (p?: Params) => list<AuditLog>("/api/audit/", p),
 

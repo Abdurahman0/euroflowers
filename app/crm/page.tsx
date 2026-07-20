@@ -152,59 +152,28 @@ export default function CrmPage() {
 
   const fLeads = leads;
 
-  /** Lead «Sotildi»ga o'tganda 🌸 Gullar qatoridagi pozitsiyalar skladdan
-      avtomatik chiqim qilinadi (mos partiya topilsa; sabab: Lead #id). */
-  const deductStockForLead = async (lead: Lead) => {
-    const m = (lead.request_uz || lead.request_ru || "").match(/🌸 Gullar: ([^\n]+)/);
-    if (!m) return;
-    const items = m[1]
-      .split(";")
-      .map((part) => {
-        const mm = part.trim().match(/^(.+?) × (\d+)$/);
-        return mm ? { label: mm[1].trim(), qty: +mm[2] } : null;
-      })
-      .filter((x): x is { label: string; qty: number } => !!x);
-    if (!items.length) return;
-    try {
-      const batches = await api.stockBatches({ is_active: true });
-      const batchLabel = (b: (typeof batches)[number]) =>
-        `${b.variant_detail?.flower_detail?.name_uz ?? ""} — ${b.variant_detail?.name_uz || b.variant_detail?.name_ru || ""}`.trim();
-      const done: string[] = [];
-      const missed: string[] = [];
-      for (const it of items) {
-        const b =
-          batches.find((x) => batchLabel(x) === it.label && x.remaining_stems >= it.qty) ??
-          batches.find((x) => batchLabel(x) === it.label && x.remaining_stems > 0);
-        if (!b) {
-          missed.push(it.label);
-          continue;
-        }
-        const qty = Math.min(it.qty, b.remaining_stems);
-        await api.batchMovement(b.id, { movement_type: "out", quantity_stems: qty, reason: `Lead #${lead.id} — sotildi` });
-        done.push(`${it.label} × ${qty}`);
-      }
-      if (done.length || missed.length) {
-        showToast(
-          `${done.length ? `✓ Skladdan chiqim: ${done.join(", ")}` : ""}${done.length && missed.length ? " · " : ""}${missed.length ? `Topilmadi: ${missed.join(", ")}` : ""}`
-        );
-      }
-    } catch {
-      showToast("Sklad chiqimini avtomatik qayd etib bo'lmadi — Skladda qo'lda kiriting");
-    }
-  };
-
+  /** Statusni backendga yozamiz. «Sotildi»da sklad kamaytirishni BACKEND o'zi
+      bajaradi (lead.stock_usage/packaging_usage bo'yicha); qoldiq yetmasa 400
+      qaytadi va status o'zgarishi bekor bo'ladi — biz optimistik holatni qaytaramiz. */
   const setLeadStatus = async (id: number, st: LeadStatus) => {
     const prev = leads;
-    const prevStatus = leads.find((l) => l.id === id)?.status;
+    // await'dan OLDIN o'qiladi — javob kelgach solishtirish uchun
+    const wasDeducted = !!leads.find((l) => l.id === id)?.stock_deducted_at;
     setLeads((ls) => ls.map((l) => (l.id === id ? { ...l, status: st } : l)));
     try {
       const upd = await api.updateLead(id, { status: st });
       setLeads((ls) => ls.map((l) => (l.id === id ? upd : l)));
-      showToast(`Lead «${STATUS_LABEL[st]}» ustuniga ko'chirildi`);
-      // faqat birinchi marta "won"ga o'tganda — ikki marta chiqim bo'lmasin
-      if (st === "won" && prevStatus !== "won") deductStockForLead(upd);
+      setSelLead((s) => (s?.id === id ? upd : s));
+      if (st === "won" && upd.stock_deducted_at && !wasDeducted) {
+        showToast("✓ Sotildi — sklad qoldig'i avtomatik kamaytirildi");
+      } else if (st === "won" && !upd.stock_deducted_at && !(upd.stock_usage?.length || upd.packaging_usage?.length)) {
+        showToast("Sotildi. Diqqat: sarf kiritilmagani uchun sklad kamaymadi");
+      } else {
+        showToast(`Lead «${STATUS_LABEL[st]}» ustuniga ko'chirildi`);
+      }
     } catch (e) {
       setLeads(prev);
+      setSelLead((s) => (s?.id === id ? (prev.find((l) => l.id === id) ?? s) : s));
       showToast(e instanceof Error ? e.message : "Statusni saqlab bo'lmadi");
     }
   };
@@ -359,6 +328,7 @@ export default function CrmPage() {
           lead={selLead}
           onClose={() => setSelLead(null)}
           onStatus={(st) => { setLeadStatus(selLead.id, st); setSelLead({ ...selLead, status: st }); }}
+          onUpdated={(upd) => { setSelLead(upd); setLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l))); }}
         />
       )}
       {selClient != null && <ClientModal client={selClient} onClose={() => setSelClient(null)} />}

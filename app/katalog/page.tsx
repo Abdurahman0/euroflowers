@@ -69,11 +69,15 @@ export default function KatalogPage() {
 
   const patchItem = (upd: CatalogItem) => setItems((xs) => xs.map((x) => (x.id === upd.id ? upd : x)));
 
-  const markSold = async (k: CatalogItem) => {
+  // nechta sotilganini kartada tanlash (standart: 1)
+  const [sellQty, setSellQty] = useState<Record<number, string>>({});
+
+  const markSold = async (k: CatalogItem, qty: number) => {
     setBusyId(k.id);
     try {
-      patchItem(await api.sellCatalogItem(k.id));
-      showToast(`✓ «${k.name_uz}» sotildi deb belgilandi`);
+      patchItem(await api.sellCatalogItem(k.id, qty > 1 ? qty : undefined));
+      showToast(`✓ «${k.name_uz}»: ${qty} ta sotildi deb belgilandi`);
+      setSellQty((m) => ({ ...m, [k.id]: "1" }));
       loadNotifs();
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Belgilab bo'lmadi");
@@ -82,6 +86,7 @@ export default function KatalogPage() {
     }
   };
 
+  /** quantity bermasak backend sotilgan-u hali yechilmagan HAMMA sonni yechadi */
   const deduct = async (k: CatalogItem) => {
     setBusyId(k.id);
     try {
@@ -115,7 +120,14 @@ export default function KatalogPage() {
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(275px,1fr))" }}>
         {items.map((k) => {
-          const pendingDeduct = k.status === "sold" && !k.stock_deducted_at;
+          // yangi kontrakt: soni bilan ishlash; eski yozuvlar uchun statusga tayanamiz
+          const total = k.quantity_total ?? 1;
+          const sold = k.quantity_sold ?? (k.status === "sold" ? total : 0);
+          const dedu = k.quantity_stock_deducted ?? (k.stock_deducted_at ? sold : 0);
+          const pending = Math.max(sold - dedu, 0);
+          const left = Math.max(total - sold, 0);
+          const sellable = left > 0 && (k.status === "available" || k.status === "reserved" || k.status === "draft");
+          const qty = Math.min(Math.max(+(sellQty[k.id] ?? "1") || 1, 1), left || 1);
           return (
             <article key={k.id} className="glass card-hover flex flex-col overflow-hidden !rounded-[20px]">
               <div className="relative h-[190px] bg-bg2">
@@ -142,25 +154,47 @@ export default function KatalogPage() {
                   </a>
                 )}
 
-                {pendingDeduct && (
+                {/* soni: jami / sotildi / skladdan yechildi / kutilmoqda */}
+                {k.quantity_total != null && (
+                  <div className="flex flex-wrap gap-1.5 text-[11.5px] font-bold">
+                    <span className="rounded-full bg-tint px-2.5 py-0.5">Jami: {total}</span>
+                    <span className="rounded-full bg-tint px-2.5 py-0.5">Sotildi: {sold}</span>
+                    <span className="rounded-full bg-mint px-2.5 py-0.5 text-mintink">Yechildi: {dedu}</span>
+                    {pending > 0 && <span className="rounded-full bg-peach px-2.5 py-0.5 text-peachink">Kutilmoqda: {pending}</span>}
+                  </div>
+                )}
+
+                {pending > 0 && (
                   <div className="rounded-[13px] border-[1.5px] bg-tint p-3" style={{ borderColor: "var(--line)" }}>
-                    <p className="mb-2 text-[13px] font-bold">⚠ Skladdan hali kamaytirilmagan. Kamaytirilsinmi?</p>
+                    <p className="mb-2 text-[13px] font-bold">⚠ {pending} ta sotuv skladdan hali kamaytirilmagan. Kamaytirilsinmi?</p>
                     <div className="flex gap-2">
                       <button onClick={() => deduct(k)} disabled={busyId === k.id} className="flex-1 rounded-[10px] py-2 text-[13px] font-bold text-white disabled:opacity-60" style={{ background: "var(--side)" }}>
-                        {busyId === k.id ? "…" : "Ha, kamaytirish"}
+                        {busyId === k.id ? "…" : `Ha, kamaytirish (${pending} ta)`}
                       </button>
                     </div>
                   </div>
                 )}
 
-                {k.status === "sold" && k.stock_deducted_at && (
+                {sold > 0 && pending === 0 && k.stock_deducted_at && (
                   <div className="rounded-[11px] bg-mint px-3 py-2 text-xs font-bold text-mintink">✓ Sklad kamaytirilgan · {fmtTime(k.stock_deducted_at)}</div>
                 )}
 
-                {(k.status === "available" || k.status === "reserved" || k.status === "draft") && (
-                  <button onClick={() => markSold(k)} disabled={busyId === k.id} className="mt-auto rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint disabled:opacity-60" style={{ borderColor: "var(--line)" }}>
-                    {busyId === k.id ? "…" : "Sotildi deb belgilash"}
-                  </button>
+                {sellable && (
+                  <div className="mt-auto flex items-center gap-2">
+                    {total > 1 && (
+                      <input
+                        className="inp !w-[56px] shrink-0 text-right"
+                        inputMode="numeric"
+                        value={sellQty[k.id] ?? "1"}
+                        onChange={(e) => setSellQty((m) => ({ ...m, [k.id]: e.target.value.replace(/\D/g, "") }))}
+                        aria-label="Sotilgan soni"
+                        title={`Qoldiq: ${left} ta`}
+                      />
+                    )}
+                    <button onClick={() => markSold(k, qty)} disabled={busyId === k.id} className="min-w-0 flex-1 rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint disabled:opacity-60" style={{ borderColor: "var(--line)" }}>
+                      {busyId === k.id ? "…" : total > 1 ? `Sotildi (${left} ta qoldi)` : "Sotildi deb belgilash"}
+                    </button>
+                  </div>
                 )}
               </div>
             </article>
