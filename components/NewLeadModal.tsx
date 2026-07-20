@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
+import DatePicker from "./DatePicker";
 import { Icon } from "./icons";
 import type { Customer, FlowerVariant, Lead, StockBatch } from "@/lib/types";
 
@@ -39,6 +40,7 @@ export default function NewLeadModal({
   const [items, setItems] = useState<{ v: FlowerVariant; qty: number }[]>([]);
   const [pickVariant, setPickVariant] = useState<number>(0);
   const [pickQty, setPickQty] = useState("10");
+  const [priceTouched, setPriceTouched] = useState(false);
 
   useEffect(() => {
     api.flowerVariants({ is_active: true }).then(setVariants).catch(() => {});
@@ -60,6 +62,15 @@ export default function NewLeadModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [items, batches]
   );
+
+  // gullar tanlanganda taxminiy narx AVTOMATIK to'ladi (qo'lda kiritilgunga qadar)
+  useEffect(() => {
+    if (priceTouched) return;
+    if (items.length && flowersTotal != null) {
+      setF((prev) => ({ ...prev, estimated_price: String(flowersTotal) }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowersTotal, items.length, priceTouched]);
 
   const addItem = () => {
     const v = variants.find((x) => x.id === pickVariant);
@@ -165,11 +176,11 @@ export default function NewLeadModal({
             {items.length > 0 && flowersTotal != null && (
               <button
                 type="button"
-                onClick={() => setF({ ...f, estimated_price: String(flowersTotal) })}
+                onClick={() => { setPriceTouched(false); setF({ ...f, estimated_price: String(flowersTotal) }); }}
                 className="self-start text-[12px] font-semibold underline-offset-2 hover:underline normal-case tracking-normal"
                 style={{ color: "var(--primary)" }}
               >
-                Sklad narxi bo&apos;yicha: {flowersTotal.toLocaleString("ru")} so&apos;m — narxga qo&apos;llash
+                Sklad narxi bo&apos;yicha: {flowersTotal.toLocaleString("ru")} so&apos;m — qayta qo&apos;llash
               </button>
             )}
           </span>
@@ -188,10 +199,10 @@ export default function NewLeadModal({
           />
         </Field>
         <Field label="Taxminiy narx (so'm)">
-          <input className="inp" type="number" value={f.estimated_price} onChange={(e) => setF({ ...f, estimated_price: e.target.value })} placeholder="750000" />
+          <input className="inp" type="number" value={f.estimated_price} onChange={(e) => { setPriceTouched(true); setF({ ...f, estimated_price: e.target.value }); }} placeholder="750000" />
         </Field>
         <Field label="Kerakli sana">
-          <input className="inp" type="date" value={f.desired_date} onChange={(e) => setF({ ...f, desired_date: e.target.value })} />
+          <DatePicker value={f.desired_date} onChange={(v) => setF({ ...f, desired_date: v })} disablePast placeholder="Yetkazish sanasi" ariaLabel="Kerakli sana" />
         </Field>
         <Field label="Filial">
           <Select
