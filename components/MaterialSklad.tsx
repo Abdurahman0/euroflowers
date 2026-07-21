@@ -101,8 +101,8 @@ function MaterialModal({ material, onClose, onSaved }: { material: Packaging | n
         </Field>
       </div>
       <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor</button>
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : material ? "Saqlash" : "Qo'shish"}</button>
-        <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold">Bekor</button>
       </ModalFooter>
     </Modal>
   );
@@ -158,8 +158,8 @@ function MoveModal({ material, onClose, onDone }: { material: Packaging; onClose
         </Field>
       </div>
       <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor</button>
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Saqlash"}</button>
-        <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold">Bekor</button>
       </ModalFooter>
     </Modal>
   );

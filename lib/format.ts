@@ -34,11 +34,13 @@ export const fmtDate = (iso: string | null | undefined): string => {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
 };
 
-/** DateFilter → backend `created_at_after` qiymati (YYYY-MM-DD). */
+/** DateFilter → backend `created_at_after` qiymati (YYYY-MM-DD).
+    Chip ko'rsatadigan oraliq bilan AYNAN bir xil: "7 kun" = bugun bilan 7 kun
+    (bugun−6), "30 kun" = bugun−29 — bitta ortiqcha kun qo'shilmaydi. */
 export const dateAfterParam = (filter: "bugun" | "hafta" | "oy"): string => {
   const d = new Date();
-  if (filter === "hafta") d.setDate(d.getDate() - 7);
-  if (filter === "oy") d.setDate(d.getDate() - 30);
+  if (filter === "hafta") d.setDate(d.getDate() - 6);
+  if (filter === "oy") d.setDate(d.getDate() - 29);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
@@ -49,6 +51,15 @@ export const rangeParams = (r: { from: string; to: string }): { created_at_after
   d.setDate(d.getDate() + 1);
   const before = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   return { created_at_after: r.from, created_at_before: before };
+};
+
+/** ISO datetime → lokal "YYYY-MM-DDTHH:mm" (DatePicker withTime qiymati). */
+export const toLocalInput = (iso: string | null | undefined): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
 /** Sklad harakati lead'ga bog'liq bo'lsa — o'sha kanban kartasiga o'tish uchun ID

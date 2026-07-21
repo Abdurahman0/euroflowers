@@ -2,8 +2,8 @@
 import type {
   AISettings, AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
   Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
-  MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, SocialPost,
-  StockBatch, StockMovement, UploadResponse, User,
+  LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated,
+  SocialPost, StockBatch, StockMovement, UploadResponse, User,
 } from "./types";
 
 /**
@@ -271,6 +271,15 @@ export const api = {
     request<Branch>("/api/branches/", { method: "POST", body: JSON.stringify(data) }),
   updateBranch: (id: number, data: Partial<Branch>) =>
     request<Branch>(`/api/branches/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  /** Dinamik lead statuslari — kanban ustunlari shu yerdan chiziladi */
+  leadStatuses: (p?: Params) => list<LeadStatusDef>("/api/lead-statuses/", { is_active: true, ordering: "order", ...p }),
+  createLeadStatus: (data: Partial<LeadStatusDef>) =>
+    request<LeadStatusDef>("/api/lead-statuses/", { method: "POST", body: JSON.stringify(data) }),
+  updateLeadStatus: (id: number, data: Partial<LeadStatusDef>) =>
+    request<LeadStatusDef>(`/api/lead-statuses/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteLeadStatus: (id: number) =>
+    request<void>(`/api/lead-statuses/${id}/`, { method: "DELETE" }),
 
   leads: (p?: Params) => list<Lead>("/api/leads/", p),
   lead: (id: number) => request<Lead>(`/api/leads/${id}/`),

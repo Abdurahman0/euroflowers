@@ -6,7 +6,7 @@ import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
 import { StockUsagePicker, MaterialUsagePicker, type PackRow, type StockRow } from "./UsagePicker";
-import { fmtTime } from "@/lib/format";
+import { fmtTime, toLocalInput } from "@/lib/format";
 import { Icon } from "./icons";
 import type { Lead, Packaging, StockBatch } from "@/lib/types";
 
@@ -34,9 +34,11 @@ export default function EditLeadModal({
     arrangement_type: lead.arrangement_type || "",
     estimated_price: lead.estimated_price ? String(Math.round(+lead.estimated_price)) : "",
     florist_fee: lead.florist_fee ? String(Math.round(+lead.florist_fee)) : "",
-    desired_date: lead.desired_date ? lead.desired_date.slice(0, 10) : "",
+    delivery_at: toLocalInput(lead.delivery_at) || (lead.desired_date ? lead.desired_date.slice(0, 10) + "T18:00" : ""),
+    recall_at: toLocalInput(lead.recall_at),
     branch: lead.branch,
   });
+  const [customRecall, setCustomRecall] = useState(!!lead.recall_at);
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [materials, setMaterials] = useState<Packaging[]>([]);
   const [stockRows, setStockRows] = useState<StockRow[]>(
@@ -75,7 +77,8 @@ export default function EditLeadModal({
         arrangement_type: (f.arrangement_type || "") as Lead["arrangement_type"],
         estimated_price: f.estimated_price ? String(+f.estimated_price) : null,
         florist_fee: f.florist_fee ? String(+f.florist_fee) : null,
-        desired_date: f.desired_date || null,
+        delivery_at: f.delivery_at ? new Date(f.delivery_at).toISOString() : null,
+        recall_at: customRecall && f.recall_at ? new Date(f.recall_at).toISOString() : null,
         branch: f.branch,
         // sklad yechilgandan keyin sarf o'zgartirilmaydi
         ...(deducted
@@ -179,8 +182,8 @@ export default function EditLeadModal({
         <Field label="Taxminiy narx (so'm)">
           <input className="inp" type="number" value={f.estimated_price} onChange={(e) => setF({ ...f, estimated_price: e.target.value })} placeholder="750000" />
         </Field>
-        <Field label="Kerakli sana">
-          <DatePicker value={f.desired_date} onChange={(v) => setF({ ...f, desired_date: v })} disablePast placeholder="Yetkazish sanasi" ariaLabel="Kerakli sana" />
+        <Field label="Yetkazish vaqti">
+          <DatePicker value={f.delivery_at} onChange={(v) => setF({ ...f, delivery_at: v })} disablePast withTime placeholder="Sana va vaqt" ariaLabel="Yetkazish vaqti" />
         </Field>
         <Field label="Filial">
           <Select
@@ -189,6 +192,21 @@ export default function EditLeadModal({
             options={branches.map((b) => ({ value: b.id, label: b.name, sub: b.code }))}
           />
         </Field>
+        {f.delivery_at && (
+          <div className="col-span-full -mt-1 flex flex-col gap-2">
+            <label className="flex cursor-pointer items-center gap-2 text-[12.5px] normal-case tracking-normal" style={{ color: "var(--text-2)" }}>
+              <input type="checkbox" checked={customRecall} onChange={(e) => setCustomRecall(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
+              Qo&apos;ng&apos;iroq eslatmasini o&apos;zim belgilayman
+              <span style={{ color: "var(--muted)" }}>(aks holda avtomatik: yetkazishdan 1 soat oldin)</span>
+            </label>
+            {customRecall && (
+              <DatePicker value={f.recall_at} onChange={(v) => setF({ ...f, recall_at: v })} disablePast withTime placeholder="Eslatma sanasi va vaqti" ariaLabel="Eslatma vaqti" />
+            )}
+            {lead.recall_sent_at && (
+              <p className="text-[12px] normal-case tracking-normal" style={{ color: "var(--muted)" }}>Eslatma yuborilgan: {fmtTime(lead.recall_sent_at)}</p>
+            )}
+          </div>
+        )}
       </div>
       {!deducted && (stockRows.length > 0 || packRows.length > 0) && suggested > 0 && (
         <button
@@ -201,8 +219,8 @@ export default function EditLeadModal({
         </button>
       )}
       <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor</button>
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Saqlash"}</button>
-        <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold">Bekor</button>
       </ModalFooter>
     </Modal>
   );

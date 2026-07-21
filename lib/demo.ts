@@ -1,7 +1,7 @@
 "use client";
 import type {
   AISettings, AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
-  Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, Message,
+  Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadStatusDef, Message,
   Notification, Packaging, PagePermission, Paginated, SocialPost, StockBatch, StockMovement, User,
 } from "./types";
 
@@ -30,6 +30,17 @@ const branches: Branch[] = [
   { id: 1, created_at: ago(400), updated_at: ago(10), name: "Chilonzor", code: "CHZ", address: "Chilonzor 12-kvartal, Bunyodkor 45", phone: "+998 71 200 11 22", is_active: true },
   { id: 2, created_at: ago(300), updated_at: ago(8), name: "Yunusobod", code: "YUN", address: "Yunusobod 4-mavze, Amir Temur 108", phone: "+998 71 200 33 44", is_active: true },
 ];
+
+// ===== Lead statuslari (dinamik) =====
+
+const leadStatuses: LeadStatusDef[] = [
+  { id: 1, key: "new", name_uz: "Yangi", name_ru: "Новый", color: "#c2703f", order: 10, is_active: true },
+  { id: 2, key: "qualified", name_uz: "Malakali", name_ru: "Квалифицирован", color: "#8a8a8a", order: 20, is_active: true },
+  { id: 3, key: "contacted", name_uz: "Aloqada", name_ru: "На связи", color: "#b3873a", order: 30, is_active: true },
+  { id: 4, key: "won", name_uz: "Sotildi", name_ru: "Продан", color: "#3d8a5f", order: 40, is_active: true },
+  { id: 5, key: "lost", name_uz: "Bekor", name_ru: "Отменён", color: "#a04a4a", order: 50, is_active: true },
+];
+const statusDetail = (key: string) => leadStatuses.find((s) => s.key === key) ?? null;
 
 // ===== Foydalanuvchilar =====
 
@@ -68,8 +79,12 @@ const mkLead = (
   type: Lead["arrangement_type"], days: number, hours: number
 ): Lead => ({
   id, customer_detail: c, branch_detail: branches[(id % 2)], created_at: ago(days, hours), updated_at: ago(0, 1),
-  status, request_uz: req, request_ru: req, arrangement_type: type, estimated_price: price,
-  desired_date: status === "won" ? null : ago(-2), source: id % 2 ? "instagram_dm" : "story_reply",
+  status, status_detail: statusDetail(status), request_uz: req, request_ru: req, arrangement_type: type, estimated_price: price,
+  desired_date: status === "won" ? null : ago(-2),
+  delivery_at: id % 3 === 1 ? ago(-1, -3) : null,
+  recall_at: id % 3 === 1 ? ago(-1, -2) : null,
+  recall_sent_at: null,
+  source: id % 2 ? "instagram_dm" : "story_reply",
   customer: c.id, branch: (id % 2) + 1, conversation: id, social_post: id % 3 === 0 ? 1 : null, assigned_to: 2,
 });
 
@@ -359,6 +374,7 @@ const integrations: IntegrationSettings = {
   instagram_business_id: "10203040",
   instagram_verify_token: "ef-verify",
   telegram_bot_token: "7000000000:demo",
+  telegram_group_chat_id: "-1001234567890",
   extra: null,
 };
 
@@ -447,6 +463,21 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       const delta = (body.movement_type === "out" ? -1 : 1) * (Number(body.quantity) || 0);
       return out({ ...m, quantity: Math.max(m.quantity + delta, 0) });
     }
+    if (p === "/api/lead-statuses/" && method === "POST") {
+      const st: LeadStatusDef = { id: 100 + leadStatuses.length, key: String(body.key ?? "custom"), name_uz: String(body.name_uz ?? ""), name_ru: String(body.name_ru ?? ""), color: String(body.color ?? "#888888"), order: Number(body.order) || 100, is_active: true };
+      leadStatuses.push(st);
+      return out(st);
+    }
+    if (/\/api\/lead-statuses\/\d+\//.test(p) && method === "PATCH") {
+      const st = leadStatuses.find((x) => x.id === idOf(/lead-statuses\/(\d+)/)) ?? leadStatuses[0];
+      Object.assign(st, body);
+      return out(st);
+    }
+    if (/\/api\/lead-statuses\/\d+\//.test(p) && method === "DELETE") {
+      const i = leadStatuses.findIndex((x) => x.id === idOf(/lead-statuses\/(\d+)/));
+      if (i >= 0) leadStatuses.splice(i, 1);
+      return out(undefined);
+    }
     if (p === "/api/leads/" && method === "POST") {
       // yangi kontrakt: customer_name/customer_phone bilan mijoz avtomatik yaratiladi
       const c = body.customer
@@ -482,6 +513,7 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       const upd: Lead = {
         ...l,
         ...(rest as Partial<Lead>),
+        ...(body.status ? { status_detail: statusDetail(String(body.status)) } : {}),
         stock_usage: su,
         packaging_usage: pu,
         stock_deducted_at:
@@ -502,6 +534,7 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   if (p === "/api/me/") return out(users[0]);
   if (p === "/api/dashboard/") return out(dashboard);
   if (p === "/api/branches/") return out(page(branches));
+  if (p === "/api/lead-statuses/") return out(page(leadStatuses));
   if (p === "/api/leads/") return out(page(leads));
   if (/\/api\/leads\/\d+\//.test(p)) return out(leads.find((x) => x.id === idOf(/leads\/(\d+)/)) ?? leads[0]);
   if (p === "/api/customers/") return out(page(customers));

@@ -67,7 +67,22 @@ export type Customer = {
   branch: number | null;
 };
 
-export type LeadStatus = "new" | "qualified" | "contacted" | "won" | "lost";
+/** Statuslar endi backenddan boshqariladi — key ixtiyoriy string bo'lishi mumkin
+    (standartlari: new/qualified/contacted/won/lost) */
+export type LeadStatus = string;
+
+/** Dinamik lead statusi (backend: /api/lead-statuses/) */
+export type LeadStatusDef = {
+  id: number;
+  key: string;
+  name_uz: string;
+  name_ru: string;
+  color: string; // hex, masalan #2563eb
+  order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
 export type LeadArrangementType = "bouquet" | "basket" | "stems" | "catalog" | "";
 
 /** Lead ichidagi gul sarfi qatori (backend: stock_usage) */
@@ -94,12 +109,19 @@ export type Lead = {
   created_at: string;
   updated_at: string;
   status: LeadStatus;
+  /** dinamik status tafsiloti (nom, rang) — mavjud bo'lsa ustuvor */
+  status_detail?: LeadStatusDef | null;
   request_uz: string;
   request_ru: string;
   arrangement_type: LeadArrangementType;
   estimated_price: string | null;
   florist_fee?: string | null;
   desired_date: string | null;
+  /** yetkazish vaqti (datetime); recall_at yuborilmasa backend −1 soat qiladi */
+  delivery_at?: string | null;
+  recall_at?: string | null;
+  /** eslatma yuborilgan vaqt — faqat o'qish uchun */
+  recall_sent_at?: string | null;
   source: string;
   customer: number;
   branch: number;
@@ -114,7 +136,7 @@ export type Lead = {
 
 /** Lead yaratish/yangilash so'rovi — backend telefon orqali mijozni topadi yoki yaratadi */
 export type LeadInput = Partial<
-  Omit<Lead, "customer_detail" | "branch_detail" | "stock_usage" | "packaging_usage">
+  Omit<Lead, "customer_detail" | "branch_detail" | "status_detail" | "stock_usage" | "packaging_usage">
 > & {
   customer_name?: string;
   customer_phone?: string;
@@ -452,6 +474,8 @@ export type IntegrationSettings = {
   instagram_business_id: string;
   instagram_verify_token: string;
   telegram_bot_token: string;
+  /** Recall xabarlari yuboriladigan Telegram guruh chat ID (bo'sh — .env fallback) */
+  telegram_group_chat_id?: string;
   extra: Record<string, unknown> | null;
 };
 

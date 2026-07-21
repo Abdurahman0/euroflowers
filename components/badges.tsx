@@ -1,9 +1,9 @@
-import type { CatalogStatus, ConversationStatus, LeadStatus } from "@/lib/types";
+import type { CatalogStatus, ConversationStatus, LeadStatus, LeadStatusDef } from "@/lib/types";
 
 /** Status/manba badge'lari — bitta joyda, hamma sahifada bir xil. */
 const B = "rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap";
 
-export const STATUS_BADGE: Record<LeadStatus, string> = {
+export const STATUS_BADGE: Record<string, string> = {
   new: `${B} bg-tint text-tintink`,
   qualified: `${B} bg-sfc border [border-color:var(--line2)]`,
   contacted: `${B} bg-peach text-peachink`,
@@ -11,12 +11,33 @@ export const STATUS_BADGE: Record<LeadStatus, string> = {
   lost: `${B} bg-rose text-roseink`,
 };
 
-export const STATUS_LABEL: Record<LeadStatus, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   new: "Yangi",
   qualified: "Malakali",
   contacted: "Aloqada",
   won: "Sotildi",
   lost: "Bekor",
+};
+
+/* ===== DINAMIK statuslar (backend /api/lead-statuses/) ===== */
+
+/** Status nomi: status_detail (yoki statuslar ro'yxati) → eski lug'at → key. */
+export const statusName = (key: LeadStatus, detail?: LeadStatusDef | null): string =>
+  detail?.name_uz || detail?.name_ru || STATUS_LABEL[key] || key;
+
+/** Rangli badge: backend `color`dan yumshoq fon + to'q matn (har ikkala temada o'qiladi). */
+export const statusBadgeProps = (key: LeadStatus, detail?: LeadStatusDef | null): { className: string; style?: React.CSSProperties } => {
+  if (detail?.color) {
+    return {
+      className: `${B} border`,
+      style: {
+        background: `color-mix(in srgb, ${detail.color} 16%, var(--surface-solid))`,
+        borderColor: `color-mix(in srgb, ${detail.color} 40%, transparent)`,
+        color: `color-mix(in srgb, ${detail.color} 72%, var(--text))`,
+      },
+    };
+  }
+  return { className: STATUS_BADGE[key] ?? `${B} bg-sfc border [border-color:var(--line2)]` };
 };
 
 export const SOURCE_BADGE = (source: string): string =>

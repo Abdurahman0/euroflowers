@@ -6,11 +6,15 @@ import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import Modal from "./Modal";
 import { StockUsagePicker, MaterialUsagePicker, batchLabel, type PackRow, type StockRow } from "./UsagePicker";
-import { ARRANGEMENT_LABEL, STATUS_LABEL, STATUS_BADGE, SOURCE_BADGE } from "./badges";
-import type { Lead, LeadStatus, Packaging, StockBatch } from "@/lib/types";
+import { ARRANGEMENT_LABEL, statusBadgeProps, statusName, SOURCE_BADGE } from "./badges";
+import type { Lead, LeadStatus, LeadStatusDef, Packaging, StockBatch } from "@/lib/types";
 
-// «Malakali» bosqichi ish jarayonida ishlatilmaydi — amal tugmalaridan olib tashlangan
-const ACTIONS: LeadStatus[] = ["contacted", "won", "lost"];
+// zaxira amallar — statuslar prop kelmasa (eski chaqiruvlar uchun)
+const FALLBACK_ACTIONS: { key: string; name_uz: string }[] = [
+  { key: "contacted", name_uz: "Aloqada" },
+  { key: "won", name_uz: "Sotildi" },
+  { key: "lost", name_uz: "Bekor" },
+];
 
 /**
  * Mini-app buyurtma eslatmasi ma'lum tuzilishga ega (📅/📍/🗺/💳/💌 qatorlar) —
@@ -88,11 +92,14 @@ function NoteBlock({ text }: { text: string }) {
 
 export default function LeadModal({
   lead,
+  statuses,
   onClose,
   onStatus,
   onUpdated,
 }: {
   lead: Lead;
+  /** dinamik statuslar (backend) — amal tugmalari shulardan chiziladi */
+  statuses?: LeadStatusDef[];
   onClose: () => void;
   onStatus: (st: LeadStatus) => void;
   onUpdated?: (l: Lead) => void;
@@ -222,7 +229,11 @@ export default function LeadModal({
           <div className="text-[13px] text-[color:var(--text-2)]">{lead.customer_detail?.phone || lead.customer_detail?.masked_phone || "telefon yo'q"}</div>
         </div>
         <span className={SOURCE_BADGE(lead.source)}>{lead.source || "—"}</span>
-        <span className={STATUS_BADGE[lead.status]}>{STATUS_LABEL[lead.status]}</span>
+        {(() => {
+          const det = lead.status_detail ?? statuses?.find((s) => s.key === lead.status);
+          const bp = statusBadgeProps(lead.status, det);
+          return <span className={bp.className} style={bp.style}>{statusName(lead.status, det)}</span>;
+        })()}
       </div>
 
       {/* so'rov — to'liq matn / mini-app tuzilishi */}
@@ -298,7 +309,13 @@ export default function LeadModal({
         <Row k="Turi" v={lead.arrangement_type ? ARRANGEMENT_LABEL[lead.arrangement_type] ?? lead.arrangement_type : "—"} />
         <Row k="Instagram" v={lead.customer_detail?.instagram_username ? `@${lead.customer_detail.instagram_username}` : "—"} />
         <Row k="Filial" v={lead.branch_detail?.name ?? "—"} />
-        <Row k="Kerakli sana" v={fmtDate(lead.desired_date)} />
+        <Row k="Yetkazish vaqti" v={lead.delivery_at ? fmtTime(lead.delivery_at) : fmtDate(lead.desired_date)} accent={!!lead.delivery_at} />
+        {lead.recall_at && (
+          <Row
+            k="Qo'ng'iroq eslatmasi"
+            v={`${fmtTime(lead.recall_at)}${lead.recall_sent_at ? ` · yuborildi ${fmtTime(lead.recall_sent_at)}` : ""}`}
+          />
+        )}
         <Row k="Tushgan vaqti" v={fmtTime(lead.created_at)} />
       </div>
 
@@ -309,22 +326,29 @@ export default function LeadModal({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {ACTIONS.map((st) => (
-          <button
-            key={st}
-            onClick={() => clickStatus(st)}
-            className="min-w-[100px] flex-1 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold"
-            style={
-              lead.status === st
-                ? { background: "var(--acc)", borderColor: "var(--acc)", color: "#fff" }
-                : st === "won" && confirmWon
-                  ? { borderColor: "var(--acc)", color: "var(--acc)" }
-                  : undefined
-            }
-          >
-            {st === "won" && confirmWon && lead.status !== "won" ? "Baribir sotildi?" : STATUS_LABEL[st]}
-          </button>
-        ))}
+        {(statuses?.filter((s) => s.key !== "new") ?? FALLBACK_ACTIONS).map((sdef) => {
+          const st = sdef.key;
+          const color = "color" in sdef ? (sdef as LeadStatusDef).color : undefined;
+          const active = lead.status === st;
+          return (
+            <button
+              key={st}
+              onClick={() => clickStatus(st)}
+              className="min-w-[100px] flex-1 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold"
+              style={
+                active
+                  ? { background: color ?? "var(--acc)", borderColor: color ?? "var(--acc)", color: "#fff" }
+                  : st === "won" && confirmWon
+                    ? { borderColor: "var(--acc)", color: "var(--acc)" }
+                    : color
+                      ? { borderColor: `color-mix(in srgb, ${color} 45%, var(--border-strong))` }
+                      : undefined
+              }
+            >
+              {st === "won" && confirmWon && lead.status !== "won" ? "Baribir sotildi?" : sdef.name_uz}
+            </button>
+          );
+        })}
       </div>
     </Modal>
   );

@@ -5,27 +5,32 @@ import SearchInput from "@/components/SearchInput";
 import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { usePerm, useStore } from "@/lib/store";
 import { dateAfterParam, fmt, fmtTime, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
-import { STATUS_BADGE, STATUS_LABEL, SOURCE_BADGE } from "@/components/badges";
+import { statusBadgeProps, statusName, SOURCE_BADGE } from "@/components/badges";
 import LeadModal from "@/components/LeadModal";
 import NewLeadModal from "@/components/NewLeadModal";
 import EditLeadModal from "@/components/EditLeadModal";
-import { Pencil, Plus } from "lucide-react";
-import type { Customer, Lead, LeadStatus } from "@/lib/types";
+import LeadStatusManager from "@/components/LeadStatusManager";
+import { Clock, Pencil, Plus, SlidersHorizontal } from "lucide-react";
+import type { Customer, Lead, LeadStatus, LeadStatusDef } from "@/lib/types";
 
 /** Buyurtmalar — alohida sahifa (ilgari CRM ichida "Leadlar" edi).
-    Kanban + jadval; mijozlar endi /mijozlar sahifasida. */
+    Kanban ustunlari ENDI BACKENDDAN keladi (/api/lead-statuses/) — nomi,
+    rangi va tartibi dinamik; «Statuslar» tugmasi orqali boshqariladi. */
 
-// «Malakali» ustuni olib tashlangan — qualified buyurtmalar «Yangi»da ko'rinadi
-const COLS: LeadStatus[] = ["new", "contacted", "won", "lost"];
-const COL_BG: Record<LeadStatus, string> = {
-  new: "var(--tint)", qualified: "var(--bg2)", contacted: "var(--peach)", won: "var(--mint)", lost: "var(--bg2)",
-};
+/** API ishlamay qolsa ham kanban chizilaverishi uchun zaxira to'plam */
+const FALLBACK_STATUSES: LeadStatusDef[] = [
+  { id: -1, key: "new", name_uz: "Yangi", name_ru: "Новый", color: "#c2703f", order: 10, is_active: true },
+  { id: -3, key: "contacted", name_uz: "Aloqada", name_ru: "На связи", color: "#b3873a", order: 30, is_active: true },
+  { id: -4, key: "won", name_uz: "Sotildi", name_ru: "Продан", color: "#3d8a5f", order: 40, is_active: true },
+  { id: -5, key: "lost", name_uz: "Bekor", name_ru: "Отменён", color: "#a04a4a", order: 50, is_active: true },
+];
 
 /** Karta preview: mini-app eslatmalarida URL qatori tashlanadi, emoji
     prefikslar tozalanadi — 3 qatorli qisqartma toza matndan boshlanadi. */
@@ -39,19 +44,12 @@ const notePreview = (t: string): string => {
     .join(" · ");
 };
 
-function LeadCard({ l, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+/** Karta ichki mazmuni — ro'yxatdagi karta va sudralayotgan jonli nusxa
+    (drag ghost) AYNAN bir xil ko'rinishi uchun bitta joyda. */
+function CardBody({ l, onEdit }: { l: Lead; onEdit?: () => void }) {
   const name = l.customer_detail?.name || `@${l.customer_detail?.instagram_username ?? "—"}`;
   return (
-    <div
-      draggable
-      onClick={onOpen}
-      onDragStart={onDrag}
-      onDragEnd={onDragEnd}
-      className="glass group shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
-      // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
-      // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
-      style={dragging ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" } : undefined}
-    >
+    <>
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 truncate text-[14px] font-bold" title={name}>{name}</span>
         <span className="flex shrink-0 items-center gap-1">
@@ -75,7 +73,31 @@ function LeadCard({ l, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead;
         <span className="min-w-0 truncate text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
         <span className="shrink-0 text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
       </div>
-      <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{l.customer_detail?.phone || l.customer_detail?.masked_phone || "tel yo'q"}</div>
+      <div className="mt-0.5 flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-xs" style={{ color: "var(--mut)" }}>{l.customer_detail?.phone || l.customer_detail?.masked_phone || "tel yo'q"}</span>
+        {l.delivery_at && (
+          <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--primary)" }} title="Yetkazish vaqti">
+            <Clock size={11} strokeWidth={2} /> {fmtTime(l.delivery_at)}
+          </span>
+        )}
+      </div>
+    </>
+  );
+}
+
+function LeadCard({ l, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+  return (
+    <div
+      draggable
+      onClick={onOpen}
+      onDragStart={onDrag}
+      onDragEnd={onDragEnd}
+      className="glass group shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
+      // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
+      // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
+      style={dragging ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" } : undefined}
+    >
+      <CardBody l={l} onEdit={onEdit} />
     </div>
   );
 }
@@ -93,12 +115,39 @@ export default function BuyurtmalarPage() {
   const { canControl } = usePerm();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [statuses, setStatuses] = useState<LeadStatusDef[]>(FALLBACK_STATUSES);
+  const [statusMgr, setStatusMgr] = useState(false);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"kanban" | "table">("kanban");
   const [selLead, setSelLead] = useState<Lead | null>(null);
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
   const [overCol, setOverCol] = useState<LeadStatus | null>(null);
+  // JONLI drag ghost: brauzerning xira/sifatsiz snapshot'i o'rniga kartaning
+  // haqiqiy DOM nusxasi kursorga ergashadi — to'liq tiniq va aniq ko'rinadi
+  const [ghost, setGhost] = useState<{ l: Lead; w: number } | null>(null);
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  const grabRef = useRef({ dx: 0, dy: 0, x: 0, y: 0 });
+  const emptyImgRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    // 1×1 shaffof rasm — natif drag snapshot butunlay yashiriladi
+    const img = new Image();
+    img.src = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+    emptyImgRef.current = img;
+  }, []);
+
+  useEffect(() => {
+    if (!ghost) return;
+    // pozitsiya to'g'ridan-to'g'ri DOM'ga yoziladi — har px'da re-render bo'lmaydi
+    const move = (e: DragEvent) => {
+      const g = ghostRef.current;
+      if (!g || (e.clientX === 0 && e.clientY === 0)) return;
+      g.style.transform = `translate(${e.clientX - grabRef.current.dx}px, ${e.clientY - grabRef.current.dy}px)`;
+    };
+    document.addEventListener("dragover", move);
+    return () => document.removeEventListener("dragover", move);
+  }, [ghost]);
   const [newLead, setNewLead] = useState(false);
   const kanbanRef = useRef<HTMLDivElement>(null);
   const [kanbanH, setKanbanH] = useState<number | null>(null);
@@ -132,7 +181,7 @@ export default function BuyurtmalarPage() {
 
   const load = useCallback(async () => {
     try {
-      const [ls, cs] = await Promise.all([
+      const [ls, cs, sts] = await Promise.all([
         // barcha filtrlar server tomonda
         api.leads({
           ordering: "-created_at",
@@ -143,9 +192,12 @@ export default function BuyurtmalarPage() {
         }),
         // yangi buyurtma formasi uchun mavjud mijozlar ro'yxati
         api.customers({ ordering: "-created_at" }),
+        // kanban ustunlari — backenddan; xato bo'lsa zaxira to'plam qoladi
+        api.leadStatuses().catch(() => null),
       ]);
       setLeads(ls);
       setCustomers(cs);
+      if (sts && sts.length) setStatuses(sts);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
     } finally {
@@ -170,6 +222,10 @@ export default function BuyurtmalarPage() {
   }, [showToast]);
 
   const fLeads = leads;
+  // faol ustunlar (tartib bo'yicha); «Malakali» ustuni ko'rsatilmaydi —
+  // qualified buyurtmalar «Yangi»da turadi (foydalanuvchi talabi)
+  const cols = statuses.filter((s) => s.is_active && s.key !== "qualified").sort((a, b) => a.order - b.order);
+  const statusOf = (key: LeadStatus) => statuses.find((s) => s.key === key);
 
   /** Statusni backendga yozamiz. «Sotildi»da sklad kamaytirishni BACKEND o'zi
       bajaradi (lead.stock_usage/packaging_usage bo'yicha); qoldiq yetmasa 400
@@ -188,7 +244,7 @@ export default function BuyurtmalarPage() {
       } else if (st === "won" && !upd.stock_deducted_at && !(upd.stock_usage?.length || upd.packaging_usage?.length)) {
         showToast("Sotildi. Diqqat: sarf kiritilmagani uchun sklad kamaymadi");
       } else {
-        showToast(`Buyurtma «${STATUS_LABEL[st]}» ustuniga ko'chirildi`);
+        showToast(`Buyurtma «${statusName(st, statusOf(st))}» ustuniga ko'chirildi`);
       }
     } catch (e) {
       setLeads(prev);
@@ -199,7 +255,7 @@ export default function BuyurtmalarPage() {
 
   const drop = (st: LeadStatus) => {
     if (dragId != null) setLeadStatus(dragId, st);
-    setDragId(null); setOverCol(null);
+    setDragId(null); setOverCol(null); setGhost(null);
   };
 
   if (loading) return <FlowerLoader />;
@@ -224,6 +280,17 @@ export default function BuyurtmalarPage() {
               <Plus size={17} strokeWidth={1.75} /> Buyurtma
             </button>
           )}
+          {canControl("crm") && ["admin", "operator", "developer"].includes(user?.profile.role ?? "") && (
+            <button
+              onClick={() => setStatusMgr(true)}
+              className="icon-btn border !flex-none"
+              style={{ borderColor: "var(--border)" }}
+              title="Kanban statuslarini boshqarish"
+              aria-label="Statuslarni boshqarish"
+            >
+              <SlidersHorizontal size={16} strokeWidth={1.75} />
+            </button>
+          )}
           <div className="glass flex gap-1 !rounded-xl p-1">
             {(["kanban", "table"] as const).map((v) => (
               <button key={v} onClick={() => setView(v)} className={clsx("rounded-[9px] px-4 py-1.5 text-xs font-bold", view === v ? "text-white" : "")} style={view === v ? { background: "var(--acc)" } : { color: "var(--mut)" }}>
@@ -240,13 +307,25 @@ export default function BuyurtmalarPage() {
           className="mb-[-40px] gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:overflow-x-auto max-lg:overscroll-x-contain lg:grid"
           style={{ gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", height: kanbanH ?? "calc(100dvh - 220px)" }}
         >
-          {COLS.map((st) => {
+          {cols.map((sdef) => {
+            const st = sdef.key;
             const items = fLeads.filter((l) => (st === "new" ? l.status === "new" || l.status === "qualified" : l.status === st));
             const isOver = overCol === st && dragId != null;
             return (
-              <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>
+              <div
+                key={sdef.id}
+                onDragOver={(e) => { e.preventDefault(); setOverCol(st); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }}
+                onDrop={(e) => { e.preventDefault(); drop(st); }}
+                className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center"
+                // ustun foni — backend statusning rangidan yumshoq ohang
+                style={{ background: `color-mix(in srgb, ${sdef.color} 9%, var(--bg2))`, borderColor: `color-mix(in srgb, ${sdef.color} 22%, var(--line))` }}
+              >
                 <div className="kanban-head flex shrink-0 items-center justify-between px-1.5 pb-2.5">
-                  <span className="text-[13px] font-bold tracking-wide">{STATUS_LABEL[st].toUpperCase()}</span>
+                  <span className="flex min-w-0 items-center gap-2 text-[13px] font-bold tracking-wide">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: sdef.color }} aria-hidden />
+                    <span className="truncate">{statusName(st, sdef).toUpperCase()}</span>
+                  </span>
                   <span className="rounded-full px-2.5 text-[12px] font-bold text-white" style={{ background: "var(--side)" }}>{items.length}</span>
                 </div>
                 {/* har ustun o'z ichida skrollanadi */}
@@ -263,20 +342,14 @@ export default function BuyurtmalarPage() {
                       onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
                       onDrag={(e) => {
                         e.dataTransfer.effectAllowed = "move";
-                        // ko'tarilgan nusxa kartaning O'ZIDEK ko'rinadi — qiyalik/masshtab YO'Q;
-                        // faqat fon qattiq qilinadi (glass shaffofligi drag rasmida ishlamaydi)
-                        const el = e.currentTarget as HTMLElement;
-                        const r = el.getBoundingClientRect();
-                        const clone = el.cloneNode(true) as HTMLElement;
-                        clone.style.cssText = `position:fixed;top:-1200px;left:-1200px;width:${r.width}px;box-sizing:border-box;border-radius:15px;background:var(--surface-solid);box-shadow:var(--shadow-md);pointer-events:none;`;
-                        document.body.appendChild(clone);
-                        e.dataTransfer.setDragImage(clone, e.clientX - r.left, e.clientY - r.top);
-                        setTimeout(() => clone.remove(), 0);
-                        // sharpa uslubi brauzer snapshot olganidan KEYIN qo'llanadi —
-                        // aks holda ko'tarilgan nusxaning o'zi xira chiqib qoladi
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        grabRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY };
+                        // natif snapshot o'chiriladi — o'rniga jonli ghost kursorga ergashadi
+                        if (emptyImgRef.current) e.dataTransfer.setDragImage(emptyImgRef.current, 0, 0);
+                        setGhost({ l, w: r.width });
                         setTimeout(() => setDragId(l.id), 0);
                       }}
-                      onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                      onDragEnd={() => { setDragId(null); setOverCol(null); setGhost(null); }}
                     />
                   ))}
                 </div>
@@ -300,7 +373,9 @@ export default function BuyurtmalarPage() {
               <span className="min-w-0 truncate" style={{ color: "var(--mut)" }} title={l.request_uz || l.request_ru}>{l.request_uz || l.request_ru}</span>
               <span><span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span></span>
               <span className="font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
-              <span><span className={STATUS_BADGE[l.status]}>{STATUS_LABEL[l.status]}</span></span>
+              <span>
+                {(() => { const bp = statusBadgeProps(l.status, l.status_detail ?? statusOf(l.status)); return <span className={bp.className} style={bp.style}>{statusName(l.status, l.status_detail ?? statusOf(l.status))}</span>; })()}
+              </span>
               <span className="text-xs" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
             </button>
           ))}
@@ -311,9 +386,17 @@ export default function BuyurtmalarPage() {
       {selLead != null && (
         <LeadModal
           lead={selLead}
+          statuses={cols}
           onClose={() => setSelLead(null)}
           onStatus={(st) => { setLeadStatus(selLead.id, st); setSelLead({ ...selLead, status: st }); }}
           onUpdated={(upd) => { setSelLead(upd); setLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l))); }}
+        />
+      )}
+      {statusMgr && (
+        <LeadStatusManager
+          statuses={statuses}
+          onClose={() => setStatusMgr(false)}
+          onChanged={() => { api.leadStatuses().then((s) => s.length && setStatuses(s)).catch(() => {}); }}
         />
       )}
       {editLead != null && (
@@ -334,6 +417,27 @@ export default function BuyurtmalarPage() {
           onSaved={(l) => { setNewLead(false); setLeads((ls) => [l, ...ls]); }}
         />
       )}
+
+      {/* jonli drag ghost — kartaning o'zi, to'liq tiniq, yumshoq soya bilan */}
+      {ghost &&
+        createPortal(
+          <div
+            ref={(el) => {
+              ghostRef.current = el;
+              if (el) el.style.transform = `translate(${grabRef.current.x - grabRef.current.dx}px, ${grabRef.current.y - grabRef.current.dy}px)`;
+            }}
+            style={{ position: "fixed", left: 0, top: 0, width: ghost.w, zIndex: 120, pointerEvents: "none", willChange: "transform" }}
+            aria-hidden
+          >
+            <div
+              className="glass !rounded-[15px] p-3.5"
+              style={{ background: "var(--surface-solid)", boxShadow: "0 18px 44px rgba(20, 12, 8, 0.28)", borderColor: "var(--acc)" }}
+            >
+              <CardBody l={ghost.l} />
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }

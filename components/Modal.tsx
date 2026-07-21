@@ -3,13 +3,14 @@ import { X } from "lucide-react";
 import Drawer, { useDrawerClose } from "./Drawer";
 
 /**
- * Modal — endi o'ng tomondan chiquvchi Drawer'ning yupqa o'rami.
+ * Modal — o'ng tomondan chiquvchi Drawer'ning yupqa o'rami.
  * Barcha mavjud iste'molchilar (forma va batafsil dialoglar) API'ni
  * o'zgartirmasdan slide-over bo'lib ochiladi:
  *   • ModalHeader — qadalgan sarlavha (sticky top)
- *   • ModalFooter — qadalgan amal tugmalari (sticky bottom)
+ *   • ModalFooter — qadalgan amal tugmalari (sticky bottom, amallar O'NGDA)
  *   • Section/Field — forma bloklari, mavzu tokenlarida
- * Standart kenglik 480 (formalar); batafsil ko'rinishlar 560 uzatadi.
+ * DIZAYN QOIDALARI (UI/UX): yorliqlar normal-case (katta-harf siqilishi yo'q),
+ * bo'lim sarlavhalari aksent chiziqcha bilan, asosiy tugma o'ng tomonda.
  */
 
 export const useModalClose = useDrawerClose;
@@ -30,15 +31,20 @@ export const ModalHeader = ({ icon, title, sub, onClose }: { icon: React.ReactNo
       className="sticky top-0 z-10 -mx-6 mb-1 flex items-center gap-3 border-b px-6 pb-4 pt-5"
       style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}
     >
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] text-white" style={{ background: "var(--primary)" }}>{icon}</div>
-      <div className="flex-1">
-        <div className="text-[18px] font-semibold tracking-tight">{title}</div>
-        <div className="text-[13px]" style={{ color: "var(--muted)" }}>{sub}</div>
+      <div
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]"
+        style={{ background: "var(--primary-soft)", color: "var(--primary)" }}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[17px] font-semibold leading-tight tracking-tight">{title}</div>
+        <div className="mt-0.5 truncate text-[12.5px]" style={{ color: "var(--muted)" }}>{sub}</div>
       </div>
       <button
         onClick={close}
         aria-label="Yopish"
-        className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-sm transition-colors duration-200 hover:bg-[var(--hover)]"
+        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-sm transition-colors duration-200 hover:bg-[var(--hover)]"
         style={{ color: "var(--text-2)" }}
       >
         <X size={18} strokeWidth={1.75} />
@@ -47,22 +53,30 @@ export const ModalHeader = ({ icon, title, sub, onClose }: { icon: React.ReactNo
   );
 };
 
-/** Pastga yopishgan amal tugmalari qatori — barcha formalarda bir xil. */
+/** Pastga yopishgan amallar — HAR DOIM o'ngda, asosiy tugma eng o'ngda.
+    Ustidagi h-6 bo'shliq SHART: sticky panel skroll oxirida kontentni 24px
+    bosib turadi — bo'shliq oxirgi maydonni to'liq ko'rinadigan qiladi. */
 export const ModalFooter = ({ children }: { children: React.ReactNode }) => (
-  <div
-    className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-auto flex gap-2.5 border-t px-6 py-4 pt-4 [margin-top:auto]"
-    style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}
-  >
-    {children}
-  </div>
+  <>
+    <div className="h-6 shrink-0" aria-hidden />
+    <div
+      className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-auto flex justify-end gap-2.5 border-t px-6 py-4 [margin-top:auto] max-sm:[&>*]:flex-1"
+      style={{ background: "var(--surface-solid)", borderColor: "var(--border)", boxShadow: "0 -8px 24px -18px rgba(20,12,8,.5)" }}
+    >
+      {children}
+    </div>
+  </>
 );
 
 export const Section = ({ children }: { children: React.ReactNode }) => (
-  <div className="mb-2.5 mt-5 text-[11px] font-semibold uppercase tracking-[2px]" style={{ color: "var(--primary)" }}>{children}</div>
+  <div className="mb-2.5 mt-6 flex items-center gap-2 first:mt-1">
+    <span className="h-[14px] w-[3px] shrink-0 rounded-full" style={{ background: "var(--primary)" }} aria-hidden />
+    <span className="text-[13px] font-bold tracking-tight">{children}</span>
+  </div>
 );
 
 export const Field = ({ label, span, children }: { label: string; span?: boolean; children: React.ReactNode }) => (
-  <label className={`flex flex-col gap-1.5 text-[11px] font-medium uppercase tracking-wider ${span ? "col-span-full" : ""}`} style={{ color: "var(--text-2)" }}>
+  <label className={`flex flex-col gap-1.5 text-[12px] font-semibold ${span ? "col-span-full" : ""}`} style={{ color: "var(--text-2)" }}>
     {label}
     {children}
   </label>

@@ -38,8 +38,11 @@ export default function NewLeadModal({
     arrangement_type: "",
     estimated_price: "",
     florist_fee: "",
-    desired_date: "",
+    delivery_at: "", // lokal "YYYY-MM-DDTHH:mm"
+    recall_at: "",
   });
+  // standart: eslatma avtomatik (yetkazishdan 1 soat oldin — backend qiladi)
+  const [customRecall, setCustomRecall] = useState(false);
   const [busy, setBusy] = useState(false);
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [materials, setMaterials] = useState<Packaging[]>([]);
@@ -139,7 +142,9 @@ export default function NewLeadModal({
         estimated_price: f.estimated_price ? String(+f.estimated_price) : null,
         // katalog narxi florist haqini o'z ichiga oladi — alohida yuborilmaydi
         florist_fee: !isCatalog && f.florist_fee ? String(+f.florist_fee) : null,
-        desired_date: f.desired_date || null,
+        // yetkazish vaqti; recall yuborilmasa backend avto −1 soat qiladi
+        delivery_at: f.delivery_at ? new Date(f.delivery_at).toISOString() : null,
+        recall_at: customRecall && f.recall_at ? new Date(f.recall_at).toISOString() : null,
         source: "manual",
         status: "new",
         stock_usage_input: stockInput,
@@ -264,8 +269,8 @@ export default function NewLeadModal({
             placeholder="750000"
           />
         </Field>
-        <Field label="Kerakli sana" span={isCatalog}>
-          <DatePicker value={f.desired_date} onChange={(v) => setF({ ...f, desired_date: v })} disablePast placeholder="Yetkazish sanasi" ariaLabel="Kerakli sana" />
+        <Field label="Yetkazish vaqti" span={isCatalog}>
+          <DatePicker value={f.delivery_at} onChange={(v) => setF({ ...f, delivery_at: v })} disablePast withTime placeholder="Sana va vaqt" ariaLabel="Yetkazish vaqti" />
         </Field>
         <Field label="Filial" span>
           <Select
@@ -274,6 +279,18 @@ export default function NewLeadModal({
             options={branches.map((b) => ({ value: b.id, label: b.name, sub: b.code }))}
           />
         </Field>
+        {f.delivery_at && (
+          <div className="col-span-full -mt-1 flex flex-col gap-2">
+            <label className="flex cursor-pointer items-center gap-2 text-[12.5px] normal-case tracking-normal" style={{ color: "var(--text-2)" }}>
+              <input type="checkbox" checked={customRecall} onChange={(e) => setCustomRecall(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
+              Qo&apos;ng&apos;iroq eslatmasini o&apos;zim belgilayman
+              <span style={{ color: "var(--muted)" }}>(aks holda avtomatik: yetkazishdan 1 soat oldin)</span>
+            </label>
+            {customRecall && (
+              <DatePicker value={f.recall_at} onChange={(v) => setF({ ...f, recall_at: v })} disablePast withTime placeholder="Eslatma sanasi va vaqti" ariaLabel="Eslatma vaqti" />
+            )}
+          </div>
+        )}
       </div>
       {hasUsage && suggested > 0 && (
         <button
@@ -287,8 +304,8 @@ export default function NewLeadModal({
         </button>
       )}
       <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor</button>
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Buyurtmani qo'shish"}</button>
-        <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold">Bekor</button>
       </ModalFooter>
     </Modal>
   );

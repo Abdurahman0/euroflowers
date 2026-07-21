@@ -41,6 +41,12 @@ export default function Popover({
     const el = boxRef.current;
     if (!a || !el) return;
     const r = a.getBoundingClientRect();
+    // yakor skroll bilan ko'rinishdan chiqib ketsa — popover maydonidan uzilib
+    // "bir o'zi" osilib qolmasin, yopiladi
+    if (r.bottom < 0 || r.top > window.innerHeight) {
+      onClose();
+      return;
+    }
     const w = Math.min(width === "anchor" ? r.width : width, window.innerWidth - 16);
     const h = el.offsetHeight;
     const left = Math.min(Math.max(r.left, 8), Math.max(window.innerWidth - w - 8, 8));

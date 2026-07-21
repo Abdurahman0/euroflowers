@@ -311,11 +311,11 @@ export default function PauseAIModal({
       </div>
 
       <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">
+          Bekor
+        </button>
         <button onClick={save} disabled={busy || !payload} className="btn-primary disabled:opacity-60">
           {busy ? "Saqlanmoqda…" : "Pauza qilish"}
-        </button>
-        <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold">
-          Bekor
         </button>
       </ModalFooter>
     </Modal>

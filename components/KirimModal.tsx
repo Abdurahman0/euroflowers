@@ -142,8 +142,8 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
       <Section>Gul rasmi</Section>
       <ImageInput value={f.image_url} onChange={(url) => setF({ ...f, image_url: url })} />
       <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor</button>
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Kirimni saqlash"}</button>
-        <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold hover:bg-[color:var(--hover)]">Bekor</button>
       </ModalFooter>
     </Modal>
   );
