@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import Modal from "./Modal";
-import { STATUS_BADGE, STATUS_LABEL } from "./badges";
+import { statusBadgeProps, statusName } from "./badges";
 import type { Customer, Lead } from "@/lib/types";
 
 export default function ClientModal({
@@ -75,7 +75,7 @@ export default function ClientModal({
               <div className="text-[12px] text-[color:var(--muted)]">{fmtTime(l.created_at)} · {l.source || "—"}</div>
             </div>
             <span className="whitespace-nowrap text-[13px] font-bold" style={{ color: "var(--primary)" }}>{fmt(l.estimated_price)}</span>
-            <span className={STATUS_BADGE[l.status]}>{STATUS_LABEL[l.status]}</span>
+            {(() => { const bp = statusBadgeProps(l.status, l.status_detail); return <span className={bp.className} style={bp.style}>{statusName(l.status, l.status_detail)}</span>; })()}
           </button>
         ))}
         {leads?.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Hozircha buyurtma yo&apos;q.</p>}

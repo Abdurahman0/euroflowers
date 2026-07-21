@@ -85,7 +85,9 @@ function CardBody({ l, onEdit }: { l: Lead; onEdit?: () => void }) {
   );
 }
 
-function LeadCard({ l, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+function LeadCard({ l, accent, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead; accent?: string; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+  // status rangi kartada chap chiziqcha bo'lib ko'rinadi (kontrakt: status_detail.color)
+  const stripe = l.status_detail?.color ?? accent;
   return (
     <div
       draggable
@@ -95,7 +97,13 @@ function LeadCard({ l, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead;
       className="glass group shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
       // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
       // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
-      style={dragging ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" } : undefined}
+      style={
+        dragging
+          ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" }
+          : stripe
+            ? { boxShadow: `inset 3px 0 0 0 ${stripe}` }
+            : undefined
+      }
     >
       <CardBody l={l} onEdit={onEdit} />
     </div>
@@ -304,8 +312,10 @@ export default function BuyurtmalarPage() {
       {view === "kanban" && (
         <div
           ref={kanbanRef}
-          className="mb-[-40px] gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:overflow-x-auto max-lg:overscroll-x-contain lg:grid"
-          style={{ gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", height: kanbanH ?? "calc(100dvh - 220px)" }}
+          // HAR DOIM flex + gorizontal skroll: status ko'p bo'lsa ustunlar
+          // yo'qolib qolmaydi (grid'da ikkinchi qatorga o'ralib ketardi)
+          className="mb-[-40px] flex gap-3.5 overflow-x-auto overscroll-x-contain max-lg:snap-x max-lg:snap-mandatory"
+          style={{ height: kanbanH ?? "calc(100dvh - 220px)" }}
         >
           {cols.map((sdef) => {
             const st = sdef.key;
@@ -317,7 +327,7 @@ export default function BuyurtmalarPage() {
                 onDragOver={(e) => { e.preventDefault(); setOverCol(st); }}
                 onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }}
                 onDrop={(e) => { e.preventDefault(); drop(st); }}
-                className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center"
+                className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center lg:min-w-[235px] lg:flex-1"
                 // ustun foni — backend statusning rangidan yumshoq ohang
                 style={{ background: `color-mix(in srgb, ${sdef.color} 9%, var(--bg2))`, borderColor: `color-mix(in srgb, ${sdef.color} 22%, var(--line))` }}
               >
@@ -326,7 +336,14 @@ export default function BuyurtmalarPage() {
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: sdef.color }} aria-hidden />
                     <span className="truncate">{statusName(st, sdef).toUpperCase()}</span>
                   </span>
-                  <span className="rounded-full px-2.5 text-[12px] font-bold text-white" style={{ background: "var(--side)" }}>{items.length}</span>
+                  <span
+                    className="rounded-full px-2.5 text-[12px] font-bold text-white"
+                    style={{ background: "var(--side)" }}
+                    title={`Bu ustunda ${items.length} ta buyurtma`}
+                    aria-label={`${items.length} ta buyurtma`}
+                  >
+                    {items.length}
+                  </span>
                 </div>
                 {/* har ustun o'z ichida skrollanadi */}
                 <div data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5">
@@ -337,6 +354,7 @@ export default function BuyurtmalarPage() {
                     <LeadCard
                       key={l.id}
                       l={l}
+                      accent={sdef.color}
                       dragging={dragId === l.id}
                       onOpen={() => setSelLead(l)}
                       onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
@@ -431,7 +449,11 @@ export default function BuyurtmalarPage() {
           >
             <div
               className="glass !rounded-[15px] p-3.5"
-              style={{ background: "var(--surface-solid)", boxShadow: "0 18px 44px rgba(20, 12, 8, 0.28)", borderColor: "var(--acc)" }}
+              style={{
+                background: "var(--surface-solid)",
+                boxShadow: `0 18px 44px rgba(20, 12, 8, 0.28)${ghost.l.status_detail?.color ? `, inset 3px 0 0 0 ${ghost.l.status_detail.color}` : ""}`,
+                borderColor: "var(--acc)",
+              }}
             >
               <CardBody l={ghost.l} />
             </div>

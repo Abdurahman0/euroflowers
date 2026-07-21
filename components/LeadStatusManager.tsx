@@ -1,11 +1,74 @@
 "use client";
-import { useState } from "react";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Check, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
+import Popover from "./Popover";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { Icon } from "./icons";
 import type { LeadStatusDef } from "@/lib/types";
+
+/** Tayyor ranglar palitras — ikkala temada ham chiroyli o'qiladigan,
+    ilova ohangiga mos yumshoq to'plam. Erkin rang tanlash YO'Q. */
+const PALETTE: { hex: string; nomi: string }[] = [
+  { hex: "#c2703f", nomi: "Terrakota" },
+  { hex: "#b3873a", nomi: "Amber" },
+  { hex: "#7d8a3d", nomi: "Zaytun" },
+  { hex: "#3d8a5f", nomi: "Yashil" },
+  { hex: "#3a8a8a", nomi: "Teal" },
+  { hex: "#4a7ab5", nomi: "Ko'k" },
+  { hex: "#6a6ac2", nomi: "Indigo" },
+  { hex: "#8a5fa8", nomi: "Binafsha" },
+  { hex: "#b054a1", nomi: "Magenta" },
+  { hex: "#d16d7f", nomi: "Pushti" },
+  { hex: "#a04a4a", nomi: "Qizil" },
+  { hex: "#8a8a8a", nomi: "Kulrang" },
+];
+
+/** Palitradan rang tanlagich — swatch bosilganda kichik popover ochiladi. */
+function ColorPick({ value, onChange, ariaLabel }: { value: string; onChange: (hex: string) => void; ariaLabel: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        title="Rang tanlash"
+        className="h-8 w-8 shrink-0 rounded-[9px] border transition-transform hover:scale-105"
+        style={{ background: value, borderColor: "color-mix(in srgb, var(--text) 18%, transparent)" }}
+      />
+      <Popover
+        anchor={ref}
+        open={open}
+        onClose={() => setOpen(false)}
+        width={196}
+        ariaLabel="Rang palitras"
+        className="rounded-[14px] border p-2 shadow-lg"
+        style={{ background: "var(--surface-solid)", borderColor: "var(--border)", boxShadow: "var(--shadow-md)" }}
+      >
+        <div className="grid grid-cols-4 gap-1.5">
+          {PALETTE.map((c) => (
+            <button
+              key={c.hex}
+              type="button"
+              onClick={() => { onChange(c.hex); setOpen(false); }}
+              title={c.nomi}
+              aria-label={c.nomi}
+              className="flex h-10 w-10 items-center justify-center rounded-[10px] transition-transform hover:scale-110"
+              style={{ background: c.hex }}
+            >
+              {value.toLowerCase() === c.hex && <Check size={16} strokeWidth={3} className="text-white drop-shadow" />}
+            </button>
+          ))}
+        </div>
+      </Popover>
+    </>
+  );
+}
 
 /**
  * Kanban statuslarini boshqarish — statuslar backenddan keladi
@@ -23,12 +86,25 @@ export default function LeadStatusManager({
 }) {
   const showToast = useStore((s) => s.showToast);
   const [rows, setRows] = useState<LeadStatusDef[]>(statuses.map((s) => ({ ...s })));
-  const [adding, setAdding] = useState({ name_uz: "", color: "#a85d68" });
+  const [adding, setAdding] = useState({ name_uz: "", color: "#d16d7f" });
   const [busy, setBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState<number | null>(null);
 
   const patchRow = (id: number, p: Partial<LeadStatusDef>) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
+
+  /** Yuqoriga/pastga surish — order qiymatlari AVTOMATIK qayta taqsimlanadi
+      (foydalanuvchiga hech qanday raqam ko'rsatilmaydi). */
+  const move = (id: number, dir: -1 | 1) => {
+    setRows((rs) => {
+      const list = rs.slice().sort((a, b) => a.order - b.order);
+      const i = list.findIndex((r) => r.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= list.length) return rs;
+      [list[i], list[j]] = [list[j], list[i]];
+      return list.map((r, idx) => ({ ...r, order: (idx + 1) * 10 }));
+    });
+  };
 
   const saveAll = async () => {
     setBusy(true);
@@ -70,7 +146,7 @@ export default function LeadStatusManager({
         is_active: true,
       });
       setRows((rs) => [...rs, created]);
-      setAdding({ name_uz: "", color: "#a85d68" });
+      setAdding({ name_uz: "", color: "#d16d7f" });
       showToast(`✓ «${created.name_uz}» statusi qo'shildi`);
       onChanged();
     } catch (e) {
@@ -106,29 +182,23 @@ export default function LeadStatusManager({
         {rows
           .slice()
           .sort((a, b) => a.order - b.order)
-          .map((r) => (
+          .map((r, i, arr) => (
             <div key={r.id} className="flex items-center gap-2.5 rounded-[14px] border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)", opacity: r.is_active ? 1 : 0.55 }}>
-              <GripVertical size={15} strokeWidth={1.75} className="shrink-0 opacity-40" />
-              <input
-                type="color"
-                value={r.color}
-                onChange={(e) => patchRow(r.id, { color: e.target.value })}
-                aria-label={`${r.name_uz} rangi`}
-                className="h-8 w-8 shrink-0 cursor-pointer rounded-[9px] border-0 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-[9px] [&::-webkit-color-swatch]:border [&::-webkit-color-swatch]:border-[color:var(--border)]"
-              />
+              {/* tartib — faqat o'q tugmalari, raqam ko'rsatilmaydi */}
+              <span className="flex shrink-0 flex-col">
+                <button type="button" onClick={() => move(r.id, -1)} disabled={i === 0} className="flex h-4 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--hover)] disabled:opacity-20" title="Yuqoriga (chapga) surish" aria-label={`${r.name_uz} — yuqoriga`}>
+                  <ChevronUp size={13} strokeWidth={2} />
+                </button>
+                <button type="button" onClick={() => move(r.id, 1)} disabled={i === arr.length - 1} className="flex h-4 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--hover)] disabled:opacity-20" title="Pastga (o'ngga) surish" aria-label={`${r.name_uz} — pastga`}>
+                  <ChevronDown size={13} strokeWidth={2} />
+                </button>
+              </span>
+              <ColorPick value={r.color} onChange={(hex) => patchRow(r.id, { color: hex })} ariaLabel={`${r.name_uz} rangi`} />
               <input
                 className="inp !h-9 min-w-0 flex-1 !text-[13px]"
                 value={r.name_uz}
                 onChange={(e) => patchRow(r.id, { name_uz: e.target.value })}
                 aria-label="Status nomi"
-              />
-              <input
-                className="inp !h-9 !w-[58px] shrink-0 text-right !text-[13px]"
-                inputMode="numeric"
-                value={String(r.order)}
-                onChange={(e) => patchRow(r.id, { order: +e.target.value.replace(/\D/g, "") || 0 })}
-                aria-label="Tartib"
-                title="Tartib raqami — kichigi chapda"
               />
               <button
                 type="button"
@@ -155,13 +225,7 @@ export default function LeadStatusManager({
 
       <Section>Yangi status</Section>
       <div className="flex items-center gap-2.5">
-        <input
-          type="color"
-          value={adding.color}
-          onChange={(e) => setAdding((a) => ({ ...a, color: e.target.value }))}
-          aria-label="Yangi status rangi"
-          className="h-9 w-9 shrink-0 cursor-pointer rounded-[10px] border-0 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-[10px] [&::-webkit-color-swatch]:border [&::-webkit-color-swatch]:border-[color:var(--border)]"
-        />
+        <ColorPick value={adding.color} onChange={(hex) => setAdding((a) => ({ ...a, color: hex }))} ariaLabel="Yangi status rangi" />
         <input
           className="inp min-w-0 flex-1"
           value={adding.name_uz}
@@ -174,7 +238,7 @@ export default function LeadStatusManager({
         </button>
       </div>
       <p className="mt-2 text-[12px]" style={{ color: "var(--muted)" }}>
-        «Yangi», «Sotildi» va «Bekor» — tizim tayanadigan asosiy statuslar, ularni o&apos;chirib bo&apos;lmaydi (nomi va rangini o&apos;zgartirish mumkin).
+        Tartib — o&apos;q tugmalari bilan: yuqoridagi status kanbanda chapda turadi. «Yangi», «Sotildi» va «Bekor» — tizim tayanadigan asosiy statuslar, ularni o&apos;chirib bo&apos;lmaydi (nomi va rangini o&apos;zgartirish mumkin).
       </p>
 
       <ModalFooter>

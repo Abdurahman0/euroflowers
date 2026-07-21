@@ -35,13 +35,16 @@ function CalendarPicker({ value, onChange }: { value: Date; onChange: (d: Date) 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
   const [view, setView] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
 
-  // oy katagi: Dushanba'dan boshlanadigan 6×7 to'r
+  // oy katagi: Dushanba'dan boshlanadi; qatorlar soni OYGA QARAB — ortiqcha
+  // "bo'sh" hafta ko'rsatilmaydi (42 emas, kerakli hafta soni × 7)
   const cells = useMemo(() => {
     const first = new Date(view.getFullYear(), view.getMonth(), 1);
     const startOffset = (first.getDay() + 6) % 7; // Du=0
+    const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+    const total = Math.ceil((startOffset + daysInMonth) / 7) * 7;
     const start = new Date(first);
     start.setDate(1 - startOffset);
-    return Array.from({ length: 42 }, (_, i) => {
+    return Array.from({ length: total }, (_, i) => {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       return d;

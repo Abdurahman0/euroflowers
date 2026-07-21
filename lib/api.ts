@@ -272,8 +272,14 @@ export const api = {
   updateBranch: (id: number, data: Partial<Branch>) =>
     request<Branch>(`/api/branches/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
-  /** Dinamik lead statuslari — kanban ustunlari shu yerdan chiziladi */
-  leadStatuses: (p?: Params) => list<LeadStatusDef>("/api/lead-statuses/", { is_active: true, ordering: "order", ...p }),
+  /** Dinamik lead statuslari — kanban ustunlari shu yerdan chiziladi.
+      Javob paginatsiyali ({results}) ham, oddiy massiv ham bo'lishi mumkin. */
+  leadStatuses: async (p?: Params): Promise<LeadStatusDef[]> => {
+    const res = await request<Paginated<LeadStatusDef> | LeadStatusDef[]>(
+      `/api/lead-statuses/${qs({ is_active: true, ordering: "order", ...p })}`
+    );
+    return Array.isArray(res) ? res : (res?.results ?? []);
+  },
   createLeadStatus: (data: Partial<LeadStatusDef>) =>
     request<LeadStatusDef>("/api/lead-statuses/", { method: "POST", body: JSON.stringify(data) }),
   updateLeadStatus: (id: number, data: Partial<LeadStatusDef>) =>

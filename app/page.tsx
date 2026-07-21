@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { dateAfterParam, fmt, fmtTime, initials } from "@/lib/format";
-import { STATUS_BADGE, STATUS_LABEL } from "@/components/badges";
+import { statusBadgeProps, statusName } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -142,7 +142,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-right">
                   <div className="text-[13px] font-bold">{fmt(l.estimated_price)}</div>
-                  <span className={STATUS_BADGE[l.status]}>{STATUS_LABEL[l.status]}</span>
+                  {(() => { const bp = statusBadgeProps(l.status, l.status_detail); return <span className={bp.className} style={bp.style}>{statusName(l.status, l.status_detail)}</span>; })()}
                 </div>
               </motion.div>
             ))}
@@ -156,7 +156,7 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-2.5">
               {d.lead_pipeline.map((p, i) => (
                 <div key={p.status} className="flex items-center gap-3">
-                  <span className={`${STATUS_BADGE[p.status]} w-[76px] text-center`}>{STATUS_LABEL[p.status]}</span>
+                  {(() => { const bp = statusBadgeProps(p.status); return <span className={`${bp.className} w-[76px] text-center`} style={bp.style}>{statusName(p.status)}</span>; })()}
                   <div className="h-[10px] flex-1 overflow-hidden rounded-full bg-bg2">
                     <motion.div
                       initial={{ width: 0 }}
