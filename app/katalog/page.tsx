@@ -71,8 +71,9 @@ export default function KatalogPage() {
 
   const patchItem = (upd: CatalogItem) => setItems((xs) => xs.map((x) => (x.id === upd.id ? upd : x)));
 
-  // nechta sotilganini kartada tanlash (standart: 1)
+  // «Sotish» bosilganda nechta sotilishi SO'RALADI (kartada doimiy input yo'q)
   const [sellQty, setSellQty] = useState<Record<number, string>>({});
+  const [askSell, setAskSell] = useState<Record<number, boolean>>({});
 
   const markSold = async (k: CatalogItem, qty: number) => {
     setBusyId(k.id);
@@ -80,6 +81,7 @@ export default function KatalogPage() {
       patchItem(await api.sellCatalogItem(k.id, qty > 1 ? qty : undefined));
       showToast(`✓ «${k.name_uz}»: ${qty} ta sotildi deb belgilandi`);
       setSellQty((m) => ({ ...m, [k.id]: "1" }));
+      setAskSell((m) => ({ ...m, [k.id]: false }));
       loadNotifs();
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Belgilab bo'lmadi");
@@ -137,6 +139,12 @@ export default function KatalogPage() {
                 <span className={`absolute left-2.5 top-2.5 -rotate-2 rounded-full border border-[color:var(--border-strong)] px-2.5 py-1 text-[11px] font-bold ${k.status === "available" ? "bg-white/85 text-[#221833]" : "text-white"}`} style={k.status !== "available" ? { background: "var(--acc)" } : undefined}>
                   {(CATALOG_STATUS_LABEL[k.status] ?? k.status).toUpperCase()}
                 </span>
+                {/* nechta gul qoldi — kartaning yuqorisida darhol ko'rinadi */}
+                {k.quantity_total != null && left > 0 && (
+                  <span className="absolute right-2.5 top-2.5 rotate-2 rounded-full border border-[color:var(--border-strong)] bg-white/85 px-2.5 py-1 text-[11px] font-bold text-[#221833]">
+                    {left} TA QOLDI
+                  </span>
+                )}
               </div>
               <div className="flex flex-1 flex-col gap-1.5 p-4">
                 <div className="flex items-baseline justify-between gap-2">
@@ -156,12 +164,12 @@ export default function KatalogPage() {
                   </a>
                 )}
 
-                {/* soni: jami / sotildi / skladdan yechildi / kutilmoqda */}
+                {/* soni: qoldiq / jami / sotildi (+ chiqim kutilmoqda) */}
                 {k.quantity_total != null && (
                   <div className="flex flex-wrap gap-1.5 text-[11.5px] font-bold">
+                    <span className="rounded-full bg-mint px-2.5 py-0.5 text-mintink">Qoldiq: {left}</span>
                     <span className="rounded-full bg-tint px-2.5 py-0.5">Jami: {total}</span>
                     <span className="rounded-full bg-tint px-2.5 py-0.5">Sotildi: {sold}</span>
-                    <span className="rounded-full bg-mint px-2.5 py-0.5 text-mintink">Yechildi: {dedu}</span>
                     {pending > 0 && <span className="rounded-full bg-peach px-2.5 py-0.5 text-peachink">Kutilmoqda: {pending}</span>}
                   </div>
                 )}
@@ -181,21 +189,37 @@ export default function KatalogPage() {
                   <div className="rounded-[11px] bg-mint px-3 py-2 text-xs font-bold text-mintink">✓ Sklad kamaytirilgan · {fmtTime(k.stock_deducted_at)}</div>
                 )}
 
-                {sellable && (
-                  <div className="mt-auto flex items-center gap-2">
-                    {total > 1 && (
+                {/* faqat «Sotish» — nechta sotilishi bosilganda SO'RALADI */}
+                {sellable && !askSell[k.id] && (
+                  <button
+                    onClick={() => (left <= 1 ? markSold(k, 1) : setAskSell((m) => ({ ...m, [k.id]: true })))}
+                    disabled={busyId === k.id}
+                    className="mt-auto rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint disabled:opacity-60"
+                    style={{ borderColor: "var(--line)" }}
+                  >
+                    {busyId === k.id ? "…" : "Sotish"}
+                  </button>
+                )}
+                {sellable && askSell[k.id] && (
+                  <div className="mt-auto rounded-[13px] border-[1.5px] bg-tint p-2.5" style={{ borderColor: "var(--line)" }}>
+                    <p className="mb-1.5 text-[12.5px] font-bold">Nechta sotiladi?</p>
+                    <div className="flex items-center gap-2">
                       <input
                         className="inp !w-[56px] shrink-0 text-right"
                         inputMode="numeric"
+                        autoFocus
                         value={sellQty[k.id] ?? "1"}
                         onChange={(e) => setSellQty((m) => ({ ...m, [k.id]: e.target.value.replace(/\D/g, "") }))}
-                        aria-label="Sotilgan soni"
-                        title={`Qoldiq: ${left} ta`}
+                        onKeyDown={(e) => e.key === "Enter" && markSold(k, qty)}
+                        aria-label="Nechta sotiladi"
                       />
-                    )}
-                    <button onClick={() => markSold(k, qty)} disabled={busyId === k.id} className="min-w-0 flex-1 rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint disabled:opacity-60" style={{ borderColor: "var(--line)" }}>
-                      {busyId === k.id ? "…" : total > 1 ? `Sotildi (${left} ta qoldi)` : "Sotildi deb belgilash"}
-                    </button>
+                      <button onClick={() => markSold(k, qty)} disabled={busyId === k.id} className="min-w-0 flex-1 rounded-[10px] py-2 text-[13px] font-bold text-white disabled:opacity-60" style={{ background: "var(--side)" }}>
+                        {busyId === k.id ? "…" : "Sotish"}
+                      </button>
+                      <button onClick={() => setAskSell((m) => ({ ...m, [k.id]: false }))} className="rounded-[10px] border px-3 py-2 text-[13px] font-bold" style={{ borderColor: "var(--line)" }}>
+                        Bekor
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
