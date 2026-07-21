@@ -6,7 +6,16 @@ import Modal from "./Modal";
 import { STATUS_BADGE, STATUS_LABEL } from "./badges";
 import type { Customer, Lead } from "@/lib/types";
 
-export default function ClientModal({ client, onClose }: { client: Customer; onClose: () => void }) {
+export default function ClientModal({
+  client,
+  onClose,
+  onOpenLead,
+}: {
+  client: Customer;
+  onClose: () => void;
+  /** lead qatori bosilganda — CRM o'sha kanban kartasining panelini ochadi */
+  onOpenLead?: (l: Lead) => void;
+}) {
   const name = client.name || `@${client.instagram_username || "—"}`;
   const [leads, setLeads] = useState<Lead[] | null>(null);
 
@@ -54,14 +63,20 @@ export default function ClientModal({ client, onClose }: { client: Customer; onC
       <div className="mt-2.5 flex flex-col gap-2">
         {leads == null && <p className="text-[13px] text-[color:var(--muted)]">Yuklanmoqda…</p>}
         {leads?.map((l) => (
-          <div key={l.id} className="flex items-center gap-3 rounded-[14px] border border-[color:var(--border)] px-3.5 py-2.5">
+          <button
+            key={l.id}
+            type="button"
+            onClick={() => onOpenLead?.(l)}
+            className="flex w-full items-center gap-3 rounded-[14px] border border-[color:var(--border)] px-3.5 py-2.5 text-left transition-colors duration-150 hover:border-[color:var(--acc)] hover:bg-[var(--hover)]"
+            title="Kanban kartasini ochish"
+          >
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] font-semibold" title={l.request_uz || l.request_ru}>{l.request_uz || l.request_ru}</div>
               <div className="text-[12px] text-[color:var(--muted)]">{fmtTime(l.created_at)} · {l.source || "—"}</div>
             </div>
             <span className="whitespace-nowrap text-[13px] font-bold" style={{ color: "var(--primary)" }}>{fmt(l.estimated_price)}</span>
             <span className={STATUS_BADGE[l.status]}>{STATUS_LABEL[l.status]}</span>
-          </div>
+          </button>
         ))}
         {leads?.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Hozircha lead yo&apos;q.</p>}
       </div>

@@ -166,6 +166,7 @@ const movements: StockMovement[] = [
   mkMove(6, batches[0], "out", 35, "Katalog: Piyonli savat", 1, 7),
   mkMove(7, batches[2], "adjustment", -5, "Inventarizatsiya tuzatishi", 3, 2),
   mkMove(8, batches[3], "out", 24, "Katalog: Pastel kompozitsiya", 4, 1),
+  { ...mkMove(9, batches[2], "out", 30, "Lead #10 — sotildi", 0, 2), reference_type: "lead", reference_id: 10 },
 ];
 
 // ===== Instagram postlar =====

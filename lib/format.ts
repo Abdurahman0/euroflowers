@@ -51,6 +51,14 @@ export const rangeParams = (r: { from: string; to: string }): { created_at_after
   return { created_at_after: r.from, created_at_before: before };
 };
 
+/** Sklad harakati lead'ga bog'liq bo'lsa — o'sha kanban kartasiga o'tish uchun ID
+    (backend: reference_type="lead"; eski yozuvlar uchun sababdagi "Lead #N"). */
+export const movementLeadId = (m: { reference_type?: string; reference_id?: number | null; reason?: string }): number | null => {
+  if (m.reference_type === "lead" && m.reference_id) return m.reference_id;
+  const hit = (m.reason ?? "").match(/Lead #(\d+)/);
+  return hit ? +hit[1] : null;
+};
+
 /** created_at date filtri: bugun / 7 kun / 30 kun. */
 export const inDateFilter = (iso: string, filter: "bugun" | "hafta" | "oy"): boolean => {
   const d = new Date(iso);

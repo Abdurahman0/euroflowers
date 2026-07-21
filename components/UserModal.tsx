@@ -60,7 +60,7 @@ export default function UserModal({
 }) {
   const showToast = useStore((s) => s.showToast);
   const myRole = useStore((s) => s.user?.profile.role);
-  const { canView } = usePerm();
+  const { canView, canControl } = usePerm();
   const [username, setUsername] = useState(editUser?.username ?? "");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState(editUser?.first_name ?? "");
@@ -82,7 +82,16 @@ export default function UserModal({
     (p) => (p.page !== "ai_settings" && p.page !== "integrations") || canView("ai_settings") || canView("integrations")
   );
 
+  // IMTIYOZ KO'TARILISHIGA QARSHI: tahrirlovchi O'ZIDA YO'Q ruxsatni hech kimga
+  // (jumladan, o'ziga) BERA olmaydi; olib tashlash (revoke) esa mumkin.
+  const canGrant = (page: PermissionPage, kind: "can_view" | "can_control") =>
+    kind === "can_view" ? canView(page) : canControl(page);
+
   const togglePerm = (page: PermissionPage, kind: "can_view" | "can_control", v: boolean) => {
+    if (v && !canGrant(page, kind)) {
+      showToast("O'zingizda yo'q ruxsatni bera olmaysiz");
+      return;
+    }
     setPerms((s) => ({
       ...s,
       [page]: {
@@ -205,16 +214,34 @@ export default function UserModal({
             <div key={page} className="grid grid-cols-[1fr_84px_84px] items-center gap-2 border-b border-[color:var(--line2)] px-3.5 py-2 text-[13px] last:border-b-0">
               <span>{label}</span>
               <span className="text-center">
-                <input type="checkbox" checked={perms[page].can_view} onChange={(e) => togglePerm(page, "can_view", e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" aria-label={`${label} — ko'rish`} />
+                <input
+                  type="checkbox"
+                  checked={perms[page].can_view}
+                  disabled={!perms[page].can_view && !canGrant(page, "can_view")}
+                  title={!perms[page].can_view && !canGrant(page, "can_view") ? "O'zingizda yo'q ruxsatni bera olmaysiz" : undefined}
+                  onChange={(e) => togglePerm(page, "can_view", e.target.checked)}
+                  className="h-4 w-4 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-30"
+                  aria-label={`${label} — ko'rish`}
+                />
               </span>
               <span className="text-center">
-                <input type="checkbox" checked={perms[page].can_control} onChange={(e) => togglePerm(page, "can_control", e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" aria-label={`${label} — boshqarish`} />
+                <input
+                  type="checkbox"
+                  checked={perms[page].can_control}
+                  disabled={!perms[page].can_control && !canGrant(page, "can_control")}
+                  title={!perms[page].can_control && !canGrant(page, "can_control") ? "O'zingizda yo'q ruxsatni bera olmaysiz" : undefined}
+                  onChange={(e) => togglePerm(page, "can_control", e.target.checked)}
+                  className="h-4 w-4 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-30"
+                  aria-label={`${label} — boshqarish`}
+                />
               </span>
             </div>
           ))}
         </div>
       </div>
-      <p className="mt-2 text-[12px] text-[color:var(--muted)]">Ruxsat belgilanmagan bo&apos;lsa, rol bo&apos;yicha standart qoidalar amal qiladi.</p>
+      <p className="mt-2 text-[12px] text-[color:var(--muted)]">
+        Ruxsat belgilanmagan bo&apos;lsa, rol bo&apos;yicha standart qoidalar amal qiladi. O&apos;zingizda bo&apos;lmagan ruxsatni berish mumkin emas.
+      </p>
 
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor qilish</button>

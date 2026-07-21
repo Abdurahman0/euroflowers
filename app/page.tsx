@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -27,6 +28,7 @@ const rise = {
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { dateFilter, dateRange } = useStore();
   const [d, setD] = useState<Dashboard | null>(null);
   const [err, setErr] = useState("");
@@ -123,7 +125,12 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, x: -14 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.35 + i * 0.09, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                className="card-hover flex items-center gap-3 rounded-[14px] border p-2.5"
+                onClick={() => router.push(`/crm?lead=${l.id}`)}
+                role="link"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && router.push(`/crm?lead=${l.id}`)}
+                title="CRM'da ochish"
+                className="card-hover flex cursor-pointer items-center gap-3 rounded-[14px] border p-2.5"
                 style={{ borderColor: "var(--line2)" }}
               >
                 <div className="avatar-lead flex h-[38px] w-[38px] -rotate-3 items-center justify-center rounded-xl text-[14px] font-bold">

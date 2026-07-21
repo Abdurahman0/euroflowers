@@ -12,7 +12,8 @@ import Select from "./Select";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { fmt, fmtTime } from "@/lib/format";
+import { useRouter } from "next/navigation";
+import { fmt, fmtTime, movementLeadId } from "@/lib/format";
 import { Icon } from "./icons";
 import type { MaterialMovement, Packaging, PackagingType } from "@/lib/types";
 
@@ -166,6 +167,7 @@ function MoveModal({ material, onClose, onDone }: { material: Packaging; onClose
 
 /** Material harakatlari jurnali — Sklad sahifasining «Jurnal» bo'limida ko'rsatiladi. */
 export function MaterialMovesJournal() {
+  const router = useRouter();
   const [moves, setMoves] = useState<MaterialMovement[]>([]);
   const load = useCallback(() => {
     api.materialMovements({ ordering: "-created_at" }).then(setMoves).catch(() => {});
@@ -182,11 +184,21 @@ export function MaterialMovesJournal() {
       {moves.map((mv, i) => {
         const isIn = mv.movement_type === "in";
         const md = mv.packaging_detail ?? mv.material_detail;
+        const leadId = movementLeadId(mv);
         const who = mv.performed_by_detail
           ? [mv.performed_by_detail.first_name, mv.performed_by_detail.last_name].filter(Boolean).join(" ") || mv.performed_by_detail.username
           : "Tizim";
         return (
-          <div key={mv.id} className="row-lux flex items-center gap-3.5 border-t py-3" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 40, 480)}ms` }}>
+          <div
+            key={mv.id}
+            onClick={leadId ? () => router.push(`/crm?lead=${leadId}`) : undefined}
+            role={leadId ? "link" : undefined}
+            tabIndex={leadId ? 0 : undefined}
+            onKeyDown={leadId ? (e) => e.key === "Enter" && router.push(`/crm?lead=${leadId}`) : undefined}
+            title={leadId ? `Lead #${leadId} kartasini ochish` : undefined}
+            className={`row-lux flex items-center gap-3.5 border-t py-3 ${leadId ? "cursor-pointer" : ""}`}
+            style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 40, 480)}ms` }}
+          >
             <div className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`}>
               {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
             </div>
@@ -197,6 +209,9 @@ export function MaterialMovesJournal() {
               </div>
               <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(mv.created_at)}</div>
             </div>
+            {leadId != null && (
+              <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold" style={{ color: "var(--primary)" }}>Lead #{leadId} ↗</span>
+            )}
             <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
               {isIn ? "KIRIM" : "CHIQIM"}
             </span>

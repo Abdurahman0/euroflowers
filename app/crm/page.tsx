@@ -170,6 +170,17 @@ export default function CrmPage() {
   // boshqa joyda ma'lumot o'zgarsa ham ko'rinib turishi uchun jimgina yangilash
   useAutoRefresh(load);
 
+  // chuqur havola: /crm?lead=ID — dashboard "So'nggi leadlar" va mijoz
+  // tarixidan kelganda o'sha kanban kartasining paneli ochiladi
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("lead"));
+    if (!id) return;
+    window.history.replaceState(null, "", "/crm");
+    api.lead(id)
+      .then((l) => { setTab("leads"); setSelLead(l); })
+      .catch(() => showToast("Lead topilmadi yoki o'chirilgan"));
+  }, [showToast]);
+
   const fLeads = leads;
 
   /** Statusni backendga yozamiz. «Sotildi»da sklad kamaytirishni BACKEND o'zi
@@ -364,7 +375,13 @@ export default function CrmPage() {
           }}
         />
       )}
-      {selClient != null && <ClientModal client={selClient} onClose={() => setSelClient(null)} />}
+      {selClient != null && (
+        <ClientModal
+          client={selClient}
+          onClose={() => setSelClient(null)}
+          onOpenLead={(l) => { setSelClient(null); setTab("leads"); setSelLead(l); }}
+        />
+      )}
       {newLead && (
         <NewLeadModal
           customers={customers}

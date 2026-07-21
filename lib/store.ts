@@ -80,7 +80,8 @@ export const useStore = create<State>((set, get) => ({
     if (typeof window !== "undefined") localStorage.setItem("ef_uimode", uiMode);
     set({ uiMode });
   },
-  bgMode: "rasm",
+  // standart fon — video ("liquid glass"); foydalanuvchi tanlovi (ef_bgmode) buni bosib o'tadi
+  bgMode: "video",
   setBgMode: (bgMode) => set({ bgMode }),
   themeId: "pushti",
   // standart — tungi mavzu; foydalanuvchi tanlovi (ef_theme) buni bosib o'tadi

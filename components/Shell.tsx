@@ -24,7 +24,7 @@ const PremiumPeony = dynamic(() => import("./flowers/PremiumPeony"), { ssr: fals
 const ROUTE_PERM: Record<string, PermissionPage> = {
   "/": "dashboard",
   "/chat": "conversations",
-  "/ai": "settings",
+  "/ai": "ai_settings",
   "/crm": "crm",
   "/sklad": "inventory",
   "/gullar": "inventory",

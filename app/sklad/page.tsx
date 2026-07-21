@@ -6,10 +6,11 @@ import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { dateAfterParam, fmt, fmtDate, fmtTime, rangeParams } from "@/lib/format";
+import { dateAfterParam, fmt, fmtDate, fmtTime, movementLeadId, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import KirimModal from "@/components/KirimModal";
 import BatchDrawer from "@/components/BatchDrawer";
@@ -24,6 +25,7 @@ const MOVE_LABEL: Record<string, string> = {
 const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
 
 export default function SkladPage() {
+  const router = useRouter();
   const { user, showToast, dateFilter, dateRange, setDateFilter } = useStore();
   // uch bo'lim: gul sklad (partiyalar), material sklad va kirim-chiqim jurnali
   const [tab, setTab] = useState<"gul" | "material" | "jurnal">("gul");
@@ -140,11 +142,21 @@ export default function SkladPage() {
           {fMoves.map((m) => {
             const isIn = MOVE_IN.has(m.movement_type);
             const v = m.batch_detail?.variant_detail;
+            const leadId = movementLeadId(m);
             const who = m.performed_by_detail
               ? [m.performed_by_detail.first_name, m.performed_by_detail.last_name].filter(Boolean).join(" ") || m.performed_by_detail.username
               : "Tizim";
             return (
-              <div key={m.id} className="row-lux flex items-center gap-3.5 border-t py-3" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(fMoves.indexOf(m) * 40, 480)}ms` }}>
+              <div
+                key={m.id}
+                onClick={leadId ? () => router.push(`/crm?lead=${leadId}`) : undefined}
+                role={leadId ? "link" : undefined}
+                tabIndex={leadId ? 0 : undefined}
+                onKeyDown={leadId ? (e) => e.key === "Enter" && router.push(`/crm?lead=${leadId}`) : undefined}
+                title={leadId ? `Lead #${leadId} kartasini ochish` : undefined}
+                className={`row-lux flex items-center gap-3.5 border-t py-3 ${leadId ? "cursor-pointer" : ""}`}
+                style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(fMoves.indexOf(m) * 40, 480)}ms` }}
+              >
                 <div className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-base font-extrabold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`}>
                   {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
                 </div>
@@ -155,6 +167,9 @@ export default function SkladPage() {
                   </div>
                   <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>
                 </div>
+                {leadId != null && (
+                  <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold" style={{ color: "var(--primary)" }}>Lead #{leadId} ↗</span>
+                )}
                 <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
                   {MOVE_LABEL[m.movement_type] ?? m.movement_type.toUpperCase()}
                 </span>
