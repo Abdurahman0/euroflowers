@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmtTime } from "@/lib/format";
 import type { Notification, NotificationType } from "@/lib/types";
 
@@ -56,6 +57,7 @@ export default function BildirishnomalarPage() {
   }, [type, onlyUnread]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   const markOne = async (n: Notification) => {
     if (n.is_read || !control) return;

@@ -3,9 +3,10 @@ import SearchInput from "@/components/SearchInput";
 import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { Pencil, Plus, Power } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import UserModal from "@/components/UserModal";
 import Modal, { ModalFooter, ModalHeader } from "@/components/Modal";
 import EmptyState from "@/components/EmptyState";
@@ -34,17 +35,20 @@ export default function XodimlarPage() {
   const [confirmU, setConfirmU] = useState<User | null>(null); // nofaollashtirish tasdig'i
   const [confirmBusy, setConfirmBusy] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     Promise.all([api.users(), api.branches()])
       .then(([us, bs]) => {
         setTeam(us);
         setBranches(bs);
       })
       .catch((e) => {
-        setTeam([]);
+        setTeam((t) => t ?? []);
         showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
       });
   }, [showToast]);
+
+  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   const fullName = (u: User) => [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username;
 

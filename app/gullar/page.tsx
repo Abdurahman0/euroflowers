@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import type { Flower, FlowerVariant } from "@/lib/types";
 
 /**
@@ -208,6 +209,7 @@ export default function GullarPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   const q = search.trim().toLowerCase();
   const fFlowers = q ? flowers.filter((f) => [f.name_uz, f.name_ru].some((x) => (x ?? "").toLowerCase().includes(q))) : flowers;

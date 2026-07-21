@@ -7,6 +7,7 @@ import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import { usePerm, useStore } from "@/lib/store";
 import { dateAfterParam, fmt, fmtTime, initials, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
@@ -18,7 +19,8 @@ import NewClientModal from "@/components/NewClientModal";
 import { Plus } from "lucide-react";
 import type { Customer, Lead, LeadStatus } from "@/lib/types";
 
-const COLS: LeadStatus[] = ["new", "qualified", "contacted", "won", "lost"];
+// «Malakali» ustuni olib tashlangan — qualified leadlar «Yangi»da ko'rinadi
+const COLS: LeadStatus[] = ["new", "contacted", "won", "lost"];
 const COL_BG: Record<LeadStatus, string> = {
   new: "var(--tint)", qualified: "var(--bg2)", contacted: "var(--peach)", won: "var(--mint)", lost: "var(--bg2)",
 };
@@ -149,6 +151,8 @@ export default function CrmPage() {
   }, [showToast, dateFilter, dateRange, q, branch, arrType, lang]);
 
   useEffect(() => { load(); }, [load]);
+  // boshqa joyda ma'lumot o'zgarsa ham ko'rinib turishi uchun jimgina yangilash
+  useAutoRefresh(load);
 
   const fLeads = leads;
 
@@ -232,7 +236,7 @@ export default function CrmPage() {
           style={{ gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", height: kanbanH ?? "calc(100dvh - 220px)" }}
         >
           {COLS.map((st) => {
-            const items = fLeads.filter((l) => l.status === st);
+            const items = fLeads.filter((l) => (st === "new" ? l.status === "new" || l.status === "qualified" : l.status === st));
             const isOver = overCol === st && dragId != null;
             return (
               <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>

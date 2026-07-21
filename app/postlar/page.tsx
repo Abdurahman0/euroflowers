@@ -8,6 +8,7 @@ import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt } from "@/lib/format";
 import type { Branch, SocialPost } from "@/lib/types";
 
@@ -56,6 +57,7 @@ export default function PostlarPage() {
   }, [q, postType, target]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   const onSaved = (p: SocialPost) => {
     setPosts((ps) => {

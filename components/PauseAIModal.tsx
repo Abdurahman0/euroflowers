@@ -51,23 +51,25 @@ function CalendarPicker({ value, onChange }: { value: Date; onChange: (d: Date) 
   const prevDisabled = view.getFullYear() === today.getFullYear() && view.getMonth() === today.getMonth();
 
   return (
-    <div className="rounded-[16px] border border-white/12 bg-white/[.05] p-3">
+    <div className="rounded-[16px] border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
       {/* sarlavha: oy + navigatsiya */}
       <div className="mb-2 flex items-center justify-between px-1">
         <button
           type="button"
           disabled={prevDisabled}
           onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-white/70 transition-colors duration-150 hover:bg-white/10 disabled:opacity-25"
+          className="flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 hover:bg-[var(--hover)] disabled:opacity-25"
+          style={{ color: "var(--text-2)" }}
           aria-label="Oldingi oy"
         >
           <ChevronLeft size={16} strokeWidth={2} />
         </button>
-        <span className="text-[13.5px] font-bold text-white">{MONTHS[view.getMonth()]} {view.getFullYear()}</span>
+        <span className="text-[13.5px] font-bold">{MONTHS[view.getMonth()]} {view.getFullYear()}</span>
         <button
           type="button"
           onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-white/70 transition-colors duration-150 hover:bg-white/10"
+          className="flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 hover:bg-[var(--hover)]"
+          style={{ color: "var(--text-2)" }}
           aria-label="Keyingi oy"
         >
           <ChevronRight size={16} strokeWidth={2} />
@@ -76,7 +78,7 @@ function CalendarPicker({ value, onChange }: { value: Date; onChange: (d: Date) 
       {/* hafta kunlari */}
       <div className="grid grid-cols-7 gap-0.5 px-0.5 pb-1">
         {WEEKDAYS.map((w) => (
-          <span key={w} className="py-1 text-center text-[10.5px] font-bold uppercase tracking-wide text-white/40">{w}</span>
+          <span key={w} className="py-1 text-center text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{w}</span>
         ))}
       </div>
       {/* kunlar */}
@@ -94,14 +96,14 @@ function CalendarPicker({ value, onChange }: { value: Date; onChange: (d: Date) 
               onClick={() => onChange(d)}
               className={clsx(
                 "relative mx-auto flex h-8 w-8 items-center justify-center rounded-full text-[12.5px] font-semibold transition-all duration-150",
-                past && "cursor-not-allowed text-white/20",
-                !past && !selected && (inMonth ? "text-white/85 hover:bg-white/12" : "text-white/35 hover:bg-white/8"),
+                past && "cursor-not-allowed opacity-25",
+                !past && !selected && "hover:bg-[var(--hover)]",
                 selected && "text-white shadow-md"
               )}
-              style={selected ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" } : undefined}
+              style={selected ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" } : { color: past || inMonth ? "var(--text)" : "var(--muted)" }}
             >
               {d.getDate()}
-              {isToday && !selected && <span className="absolute bottom-0.5 h-1 w-1 rounded-full" style={{ background: "var(--accL)" }} />}
+              {isToday && !selected && <span className="absolute bottom-0.5 h-1 w-1 rounded-full" style={{ background: "var(--primary)" }} />}
             </button>
           );
         })}
@@ -131,8 +133,8 @@ function TimeColumn({
   }, []);
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <span className="pb-1.5 text-center text-[10.5px] font-bold uppercase tracking-wide text-white/40">{label}</span>
-      <div ref={ref} data-lenis-prevent className="flex max-h-[168px] flex-col gap-1 overflow-y-auto overscroll-contain rounded-[12px] border border-white/12 bg-white/[.05] p-1.5">
+      <span className="pb-1.5 text-center text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{label}</span>
+      <div ref={ref} data-lenis-prevent className="flex max-h-[168px] flex-col gap-1 overflow-y-auto overscroll-contain rounded-[12px] border p-1.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
         {items.map((v) => (
           <button
             key={v}
@@ -141,9 +143,9 @@ function TimeColumn({
             onClick={() => onPick(v)}
             className={clsx(
               "shrink-0 rounded-[9px] py-1.5 text-center text-[13px] font-bold transition-all duration-150",
-              v === value ? "text-white shadow" : "text-white/65 hover:bg-white/10"
+              v === value ? "text-white shadow" : "hover:bg-[var(--hover)]"
             )}
-            style={v === value ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" } : undefined}
+            style={v === value ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" } : { color: "var(--text-2)" }}
           >
             {pad(v)}
           </button>
@@ -242,15 +244,19 @@ export default function PauseAIModal({
               onClick={() => setMode(p.key)}
               className={clsx(
                 "flex flex-col items-center gap-0.5 rounded-[14px] border px-2 py-3 text-center transition-all duration-200",
-                active ? "scale-[1.02] border-transparent text-white shadow-lg" : "border-white/15 bg-white/[.06] text-white/80 hover:bg-white/[.12]"
+                active ? "scale-[1.02] border-transparent text-white shadow-lg" : "hover:bg-[var(--hover)]"
               )}
-              style={active ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" } : undefined}
+              style={
+                active
+                  ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" }
+                  : { borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }
+              }
             >
               <span className="flex items-center gap-1 text-[13px] font-bold">
                 {p.forever && <InfinityIcon size={14} strokeWidth={2} />}
                 {p.label}
               </span>
-              {p.sub && <span className={clsx("text-[10.5px]", active ? "text-white/85" : "text-white/45")}>{p.sub}</span>}
+              {p.sub && <span className="text-[10.5px]" style={{ color: active ? "rgba(255,255,255,.85)" : "var(--muted)" }}>{p.sub}</span>}
             </button>
           );
         })}
@@ -261,9 +267,13 @@ export default function PauseAIModal({
         onClick={() => setMode("custom")}
         className={clsx(
           "mt-2 flex w-full items-center gap-2.5 rounded-[14px] border px-3.5 py-3 text-left transition-all duration-200",
-          mode === "custom" ? "border-transparent text-white shadow-lg" : "border-white/15 bg-white/[.06] text-white/80 hover:bg-white/[.12]"
+          mode === "custom" ? "border-transparent text-white shadow-lg" : "hover:bg-[var(--hover)]"
         )}
-        style={mode === "custom" ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" } : undefined}
+        style={
+          mode === "custom"
+            ? { background: "linear-gradient(135deg, var(--acc), var(--accL))" }
+            : { borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }
+        }
       >
         <CalendarClock size={17} strokeWidth={1.75} />
         <span className="text-[13px] font-bold">Aniq sana va vaqtgacha</span>
@@ -285,18 +295,18 @@ export default function PauseAIModal({
       )}
 
       {/* jonli xulosa */}
-      <div className="mt-4 flex items-center gap-2.5 rounded-[13px] border border-white/15 bg-white/[.07] px-3.5 py-2.5 text-[13px] text-white/80">
+      <div className="mt-4 flex items-center gap-2.5 rounded-[13px] border px-3.5 py-2.5 text-[13px]" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
         <Clock size={15} strokeWidth={1.75} className="shrink-0 opacity-70" />
         {payload ? (
           untilPreview ? (
             <span>
-              AI <b className="text-white">{pad(untilPreview.getDate())}.{pad(untilPreview.getMonth() + 1)}.{untilPreview.getFullYear()} · {pad(untilPreview.getHours())}:{pad(untilPreview.getMinutes())}</b> gacha javob bermaydi, keyin o&apos;zi qaytadi.
+              AI <b style={{ color: "var(--text)" }}>{pad(untilPreview.getDate())}.{pad(untilPreview.getMonth() + 1)}.{untilPreview.getFullYear()} · {pad(untilPreview.getHours())}:{pad(untilPreview.getMinutes())}</b> gacha javob bermaydi, keyin o&apos;zi qaytadi.
             </span>
           ) : (
-            <span>AI <b className="text-white">doimiy</b> pauzada — «AI&apos;ga qaytarish» bosilguncha.</span>
+            <span>AI <b style={{ color: "var(--text)" }}>doimiy</b> pauzada — «AI&apos;ga qaytarish» bosilguncha.</span>
           )
         ) : (
-          <span className="text-white/55">Kelajakdagi sana va vaqtni tanlang.</span>
+          <span style={{ color: "var(--muted)" }}>Kelajakdagi sana va vaqtni tanlang.</span>
         )}
       </div>
 

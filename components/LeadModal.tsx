@@ -9,7 +9,8 @@ import { StockUsagePicker, MaterialUsagePicker, batchLabel, type PackRow, type S
 import { ARRANGEMENT_LABEL, STATUS_LABEL, STATUS_BADGE, SOURCE_BADGE } from "./badges";
 import type { Lead, LeadStatus, Packaging, StockBatch } from "@/lib/types";
 
-const ACTIONS: LeadStatus[] = ["qualified", "contacted", "won", "lost"];
+// «Malakali» bosqichi ish jarayonida ishlatilmaydi — amal tugmalaridan olib tashlangan
+const ACTIONS: LeadStatus[] = ["contacted", "won", "lost"];
 
 /**
  * Mini-app buyurtma eslatmasi ma'lum tuzilishga ega (📅/📍/🗺/💳/💌 qatorlar) —

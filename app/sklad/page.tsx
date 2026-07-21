@@ -8,6 +8,7 @@ import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import { dateAfterParam, fmt, fmtDate, fmtTime, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import KirimModal from "@/components/KirimModal";
@@ -57,6 +58,7 @@ export default function SkladPage() {
   }, [showToast, dateFilter, dateRange, branch, moveType]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   const q = search.trim().toLowerCase();
   const fBatches = q

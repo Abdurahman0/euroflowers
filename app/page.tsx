@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import { dateAfterParam, fmt, fmtTime, initials } from "@/lib/format";
 import { STATUS_BADGE, STATUS_LABEL } from "@/components/badges";
 import CountUp from "@/components/CountUp";
@@ -34,9 +35,12 @@ export default function DashboardPage() {
   const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
   const to = dateRange ? dateRange.to : ymd(new Date());
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api.dashboard({ from, to }).then(setD).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
   }, [from, to]);
+
+  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   if (err) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--roseink, #a04a4a)" }}>{err}</p>;
   if (!d) return <FlowerLoader />;

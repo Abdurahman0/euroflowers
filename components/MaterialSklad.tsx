@@ -11,6 +11,7 @@ import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtTime } from "@/lib/format";
 import { Icon } from "./icons";
 import type { MaterialMovement, Packaging, PackagingType } from "@/lib/types";
@@ -189,6 +190,7 @@ export default function MaterialSklad() {
   }, [showToast, type]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   if (materials == null) return <FlowerLoader />;
 

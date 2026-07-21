@@ -7,6 +7,7 @@ import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtTime } from "@/lib/format";
 import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
@@ -66,6 +67,7 @@ export default function KatalogPage() {
   }, [showToast, q, status, arrType]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   const patchItem = (upd: CatalogItem) => setItems((xs) => xs.map((x) => (x.id === upd.id ? upd : x)));
 

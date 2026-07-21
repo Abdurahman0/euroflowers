@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmtTime, initials } from "@/lib/format";
 import { CONV_STATUS_LABEL } from "@/components/badges";
 import { Icon } from "@/components/icons";
@@ -199,6 +200,8 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => { loadList(); }, [loadList]);
+  // suhbatlar ro'yxati ham jimgina yangilanib turadi (ochiq suhbat quyida 7s'da)
+  useAutoRefresh(loadList, 15000);
 
   useEffect(() => {
     if (selId == null) return;
@@ -225,17 +228,6 @@ export default function ChatPage() {
       showToast(e instanceof ApiError ? e.message : "Yuborib bo'lmadi");
     } finally {
       setSending(false);
-    }
-  };
-
-  const doHandoff = async () => {
-    if (selId == null) return;
-    try {
-      setConv(await api.handoff(selId));
-      showToast("Suhbat operatorga o'tkazildi");
-      loadList();
-    } catch (e) {
-      showToast(e instanceof ApiError ? e.message : "O'tkazib bo'lmadi");
     }
   };
 
@@ -384,19 +376,14 @@ export default function ChatPage() {
                 </span>
               ) : null}
               {conv.status === "ai" && (
-                <>
-                  <button
-                    onClick={() => setPauseOpen(true)}
-                    className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]"
-                    style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
-                    title="AI'ni vaqtincha yoki doimiy o'chirish"
-                  >
-                    <MoonStar size={13} strokeWidth={1.75} /> Pauza
-                  </button>
-                  <button onClick={doHandoff} className="rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
-                    Operatorga olish
-                  </button>
-                </>
+                <button
+                  onClick={() => setPauseOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--warning-soft)]"
+                  style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+                  title="AI'ni vaqtincha yoki doimiy o'chirish"
+                >
+                  <MoonStar size={13} strokeWidth={1.75} /> Pauza
+                </button>
               )}
               {(conv.status === "operator" || conv.ai_paused_until != null) && (
                 <button onClick={doResumeAi} className="rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-200 hover:bg-[var(--success-soft)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
