@@ -53,19 +53,15 @@ export const ModalHeader = ({ icon, title, sub, onClose }: { icon: React.ReactNo
   );
 };
 
-/** Pastga yopishgan amallar — HAR DOIM o'ngda, asosiy tugma eng o'ngda.
-    Ustidagi h-6 bo'shliq SHART: sticky panel skroll oxirida kontentni 24px
-    bosib turadi — bo'shliq oxirgi maydonni to'liq ko'rinadigan qiladi. */
+/** Amal tugmalari — QADALMAGAN: kontentdan keyin oddiy oqimda turadi
+    (foydalanuvchi talabi). Asosiy tugma o'ngda. */
 export const ModalFooter = ({ children }: { children: React.ReactNode }) => (
-  <>
-    <div className="h-6 shrink-0" aria-hidden />
-    <div
-      className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-auto flex justify-end gap-2.5 border-t px-6 py-4 [margin-top:auto] max-sm:[&>*]:flex-1"
-      style={{ background: "var(--surface-solid)", borderColor: "var(--border)", boxShadow: "0 -8px 24px -18px rgba(20,12,8,.5)" }}
-    >
-      {children}
-    </div>
-  </>
+  <div
+    className="mt-6 flex justify-end gap-2.5 border-t pt-4 max-sm:[&>*]:flex-1"
+    style={{ borderColor: "var(--border)" }}
+  >
+    {children}
+  </div>
 );
 
 export const Section = ({ children }: { children: React.ReactNode }) => (

@@ -110,16 +110,18 @@ export default function Drawer({
         <motion.aside
           ref={panelRef}
           onClick={(e) => e.stopPropagation()}
-          initial={{ x: "100%" }}
-          animate={{ x: closing ? "100%" : 0 }}
+          initial={{ x: "110%" }}
+          animate={{ x: closing ? "110%" : 0 }}
           transition={{ duration: 0.28, ease: [0, 0, 0.2, 1] }}
-          className="drawer-panel fixed inset-y-0 right-0 flex flex-col border-l max-md:!w-screen max-md:rounded-none md:rounded-l-[20px]"
+          // suzuvchi panel: chekkalardan 8px bo'shliq, TO'RT tomoni ham yumaloq —
+          // overflow-hidden sticky sarlavhani burchaklar ichida ushlab turadi
+          className="drawer-panel fixed bottom-2 right-2 top-2 flex flex-col overflow-hidden rounded-[22px] border max-md:left-2 max-md:!w-auto"
           style={{
-            width: `min(${width}px, 90vw)`,
+            width: `min(${width}px, calc(100vw - 16px))`,
             background: "var(--surface-solid)",
             color: "var(--text)",
             borderColor: "var(--border)",
-            boxShadow: "-20px 0 60px rgba(20, 12, 8, 0.22)",
+            boxShadow: "-16px 0 56px rgba(20, 12, 8, 0.26), 0 8px 40px rgba(20, 12, 8, 0.18)",
           }}
         >
           {title ? (

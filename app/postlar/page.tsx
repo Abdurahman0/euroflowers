@@ -1,5 +1,5 @@
 "use client";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Clapperboard, Flower2, Megaphone, MessageCircle, Pencil, Plus, Sprout, Trash2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import PostModal from "@/components/PostModal";
@@ -12,7 +12,43 @@ import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt } from "@/lib/format";
 import type { Branch, SocialPost } from "@/lib/types";
 
+/** Postlar — Instagram uslubida: tepada STORIES doiralari (gradient halqa),
+    pastda post/reel/reklama to'ri — rasm, hover'da statistika. */
+
 const TYPE_LABEL: Record<string, string> = { post: "POST", reel: "REEL", story: "STORY", ad: "REKLAMA" };
+
+/** Instagram'dagi kabi gradient halqali story doirasi. */
+function StoryCircle({ p, onOpen }: { p: SocialPost; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} className="group flex w-[86px] shrink-0 flex-col items-center gap-1.5" title={p.title_uz || p.title_ru}>
+      <span
+        className="rounded-full p-[2.5px] transition-transform duration-200 group-hover:scale-105"
+        style={{
+          background: p.is_active
+            ? "conic-gradient(from 210deg, var(--accL), var(--primary), var(--primary-strong), var(--accL))"
+            : "var(--border)",
+        }}
+      >
+        <span className="block rounded-full p-[2.5px]" style={{ background: "var(--surface-solid)" }}>
+          <span className="flex h-[64px] w-[64px] items-center justify-center overflow-hidden rounded-full bg-bg2">
+            {p.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.image_url} alt={p.title_uz} className="h-full w-full object-cover" />
+            ) : (
+              <Flower2 size={22} strokeWidth={1.5} style={{ color: "var(--muted)" }} />
+            )}
+          </span>
+        </span>
+      </span>
+      <span className="w-full truncate text-center text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>
+        {p.title_uz || p.title_ru || "Story"}
+      </span>
+      <span className="-mt-1 text-[10px] font-medium" style={{ color: "var(--muted)" }}>
+        {p.reply_count} reply · {p.lead_count} lead
+      </span>
+    </button>
+  );
+}
 
 export default function PostlarPage() {
   const showToast = useStore((s) => s.showToast);
@@ -132,55 +168,110 @@ export default function PostlarPage() {
         )}
       </div>
 
-      <div className="flex flex-col gap-3.5">
-        {posts.map((p) => (
-          <article key={p.id} className="glass card-hover flex flex-wrap items-center gap-4 !rounded-[18px] p-4">
-            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[14px] border bg-bg2" style={{ borderColor: "var(--border)" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {p.image_url && <img src={p.image_url} alt={p.title_uz} className="h-full w-full object-cover" />}
+      {/* ===== STORIES — Instagram uslubidagi doiralar ===== */}
+      {(() => {
+        const stories = posts.filter((p) => p.post_type === "story");
+        if (!stories.length) return null;
+        return (
+          <section className="glass mb-4 !rounded-[20px] px-4 py-3.5">
+            <div className="mb-2.5 text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Stories</div>
+            <div data-lenis-prevent className="flex gap-3 overflow-x-auto overscroll-x-contain pb-1">
+              {stories.map((p) => (
+                <StoryCircle key={p.id} p={p} onOpen={() => (control ? setModal({ open: true, post: p }) : undefined)} />
+              ))}
             </div>
-            <div className="min-w-[220px] flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="max-w-[280px] truncate text-sm font-bold" title={p.title_uz || p.title_ru}>{p.title_uz || p.title_ru}</h3>
-                <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide ${p.is_targeted ? "text-white" : ""}`} style={p.is_targeted ? { background: "var(--side)", borderColor: "var(--side)" } : { borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface-2)" }}>
-                  {p.is_targeted ? "TARGET YOQILGAN" : TYPE_LABEL[p.post_type] ?? p.post_type.toUpperCase()}
-                </span>
-                {!p.is_active && <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
-              </div>
-              <p className="mt-1 max-w-[420px] truncate text-[13px]" style={{ color: "var(--muted)" }} title={p.description_uz || p.description_ru || undefined}>{p.description_uz || p.description_ru || "Tavsif kiritilmagan"}</p>
-              <p className="mt-0.5 text-xs" style={{ color: "var(--muted)" }}>
-                {p.flower_count > 0 && <>Gul soni: {p.flower_count} · </>}
-                {p.permalink ? (
-                  <a href={p.permalink.startsWith("http") ? p.permalink : `https://${p.permalink}`} target="_blank" rel="noreferrer">{p.permalink.replace(/^https?:\/\//, "")}</a>
+          </section>
+        );
+      })()}
+
+      {/* ===== POST / REEL / REKLAMA — rasmli to'r ===== */}
+      {(() => {
+        const feed = posts.filter((p) => p.post_type !== "story");
+        return (
+          <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(225px,1fr))" }}>
+            {feed.map((p) => (
+              <article
+                key={p.id}
+                onClick={() => control && setModal({ open: true, post: p })}
+                role={control ? "button" : undefined}
+                tabIndex={control ? 0 : undefined}
+                onKeyDown={(e) => control && e.key === "Enter" && setModal({ open: true, post: p })}
+                className="group relative aspect-square cursor-pointer overflow-hidden rounded-[18px] border"
+                style={{ borderColor: "var(--border)", background: "var(--bg2)", opacity: p.is_active ? 1 : 0.55 }}
+                title={p.title_uz || p.title_ru}
+              >
+                {p.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.image_url} alt={p.title_uz} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]" />
                 ) : (
-                  <>media: {p.media_id}</>
+                  <div className="flex h-full w-full items-center justify-center">
+                    <Flower2 size={40} strokeWidth={1.25} style={{ color: "var(--muted)" }} />
+                  </div>
                 )}
-              </p>
-            </div>
-            <div className="flex gap-6 text-center">
-              <div>
-                <div className="text-[16px] font-extrabold">{p.price ? fmt(p.price).replace(" so'm", "") : "—"}</div>
-                <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>narx</div>
-              </div>
-              <div>
-                <div className="text-[16px] font-extrabold">{p.reply_count}</div>
-                <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>reply</div>
-              </div>
-              <div>
-                <div className="text-[16px] font-extrabold" style={{ color: "var(--primary)" }}>{p.lead_count}</div>
-                <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>lead</div>
-              </div>
-            </div>
-            {control && (
-              <div className="flex flex-col gap-1.5">
-                <button onClick={() => setModal({ open: true, post: p })} className="icon-btn border" style={{ borderColor: "var(--border)" }} title="Tahrirlash" aria-label="Tahrirlash"><Pencil size={16} strokeWidth={1.75} /></button>
-                <button onClick={() => setConfirmDel(p)} className="icon-btn icon-btn-danger border" style={{ borderColor: "var(--border)" }} title="O'chirish" aria-label="O'chirish"><Trash2 size={16} strokeWidth={1.75} /></button>
+
+                {/* tur belgisi — Instagram'dagi kabi o'ng yuqorida */}
+                <span className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[10.5px] font-bold text-white backdrop-blur-sm">
+                  {p.post_type === "reel" && <Clapperboard size={12} strokeWidth={2} />}
+                  {p.post_type === "ad" && <Megaphone size={12} strokeWidth={2} />}
+                  {TYPE_LABEL[p.post_type] ?? p.post_type.toUpperCase()}
+                </span>
+                {p.is_targeted && (
+                  <span className="absolute left-2.5 top-2.5 rounded-full px-2 py-1 text-[10px] font-bold text-white" style={{ background: "var(--primary)" }}>
+                    TARGET
+                  </span>
+                )}
+                {!p.is_active && (
+                  <span className="absolute left-2.5 top-9 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-bold text-white">NOFAOL</span>
+                )}
+
+                {/* pastki gradient: nomi + narxi doim ko'rinadi */}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-3 pb-2.5 pt-8">
+                  <div className="truncate text-[13px] font-bold text-white">{p.title_uz || p.title_ru}</div>
+                  <div className="text-[11.5px] font-semibold text-white/80">{p.price ? fmt(p.price) : "narx kiritilmagan"}</div>
+                </div>
+
+                {/* hover: Instagram uslubidagi statistika markazda */}
+                <div className="absolute inset-0 flex items-center justify-center gap-5 bg-black/45 opacity-0 backdrop-blur-[2px] transition-opacity duration-200 group-hover:opacity-100">
+                  <span className="flex items-center gap-1.5 text-[14px] font-extrabold text-white">
+                    <MessageCircle size={17} strokeWidth={2.25} /> {p.reply_count}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[14px] font-extrabold text-white">
+                    <Sprout size={17} strokeWidth={2.25} /> {p.lead_count}
+                  </span>
+                </div>
+
+                {/* boshqaruv — hover'da yuqori chapda */}
+                {control && (
+                  <div className="absolute bottom-2.5 right-2.5 flex gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setModal({ open: true, post: p }); }}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#221833] shadow"
+                      title="Tahrirlash"
+                      aria-label="Tahrirlash"
+                    >
+                      <Pencil size={14} strokeWidth={1.75} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDel(p); }}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow"
+                      style={{ color: "var(--danger)" }}
+                      title="O'chirish"
+                      aria-label="O'chirish"
+                    >
+                      <Trash2 size={14} strokeWidth={1.75} />
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))}
+            {posts.length === 0 && (
+              <div className="col-span-full">
+                <EmptyState title="Post kiritilmagan" sub="Instagram postlarini ulang — AI reply'larga shu bazadan javob beradi." />
               </div>
             )}
-          </article>
-        ))}
-        {posts.length === 0 && <EmptyState title="Post kiritilmagan" sub="Instagram postlarini ulang — AI reply'larga shu bazadan javob beradi." />}
-      </div>
+          </div>
+        );
+      })()}
 
       {modal.open && (
         <PostModal post={modal.post} branches={branches} onClose={() => setModal({ open: false, post: null })} onSaved={onSaved} />
