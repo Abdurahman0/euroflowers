@@ -164,12 +164,55 @@ function MoveModal({ material, onClose, onDone }: { material: Packaging; onClose
   );
 }
 
+/** Material harakatlari jurnali — Sklad sahifasining «Jurnal» bo'limida ko'rsatiladi. */
+export function MaterialMovesJournal() {
+  const [moves, setMoves] = useState<MaterialMovement[]>([]);
+  const load = useCallback(() => {
+    api.materialMovements({ ordering: "-created_at" }).then(setMoves).catch(() => {});
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
+
+  return (
+    <section className="glass mt-5 !rounded-[20px] p-5">
+      <div className="mb-1.5 flex items-center justify-between">
+        <h2 className="text-base font-bold">Material harakatlari</h2>
+        <span className="text-xs" style={{ color: "var(--mut)" }}>so&apos;nggi kirim-chiqimlar</span>
+      </div>
+      {moves.map((mv, i) => {
+        const isIn = mv.movement_type === "in";
+        const md = mv.packaging_detail ?? mv.material_detail;
+        const who = mv.performed_by_detail
+          ? [mv.performed_by_detail.first_name, mv.performed_by_detail.last_name].filter(Boolean).join(" ") || mv.performed_by_detail.username
+          : "Tizim";
+        return (
+          <div key={mv.id} className="row-lux flex items-center gap-3.5 border-t py-3" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 40, 480)}ms` }}>
+            <div className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`}>
+              {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[14px] font-semibold">
+                {md?.name_uz || md?.name_ru || `Material #${mv.packaging ?? "—"}`} — {mv.quantity} dona
+                {mv.reason ? ` · ${mv.reason}` : ""}
+              </div>
+              <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(mv.created_at)}</div>
+            </div>
+            <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
+              {isIn ? "KIRIM" : "CHIQIM"}
+            </span>
+          </div>
+        );
+      })}
+      {moves.length === 0 && <EmptyState title="Harakatlar hali yo'q" sub="Kirim yoki chiqim kiritilganda shu yerda ko'rinadi." />}
+    </section>
+  );
+}
+
 export default function MaterialSklad() {
   const showToast = useStore((s) => s.showToast);
   const { canControl } = usePerm();
   const control = canControl("inventory");
   const [materials, setMaterials] = useState<Packaging[] | null>(null);
-  const [moves, setMoves] = useState<MaterialMovement[]>([]);
   const [search, setSearch] = useState("");
   const [type, setType] = useState("");
   const [formM, setFormM] = useState<{ open: boolean; edit: Packaging | null }>({ open: false, edit: null });
@@ -177,12 +220,7 @@ export default function MaterialSklad() {
 
   const load = useCallback(async () => {
     try {
-      const [ms, mv] = await Promise.all([
-        api.materials({ is_active: true, packaging_type: type || undefined }),
-        api.materialMovements({ ordering: "-created_at" }).catch(() => [] as MaterialMovement[]),
-      ]);
-      setMaterials(ms);
-      setMoves(mv);
+      setMaterials(await api.materials({ is_active: true, packaging_type: type || undefined }));
     } catch (e) {
       setMaterials([]);
       showToast(e instanceof Error ? e.message : "Materiallarni yuklashda xatolik");
@@ -263,39 +301,6 @@ export default function MaterialSklad() {
           </div>
         )}
       </div>
-
-      {/* material harakatlari jurnali */}
-      <section className="glass mt-5 !rounded-[20px] p-5">
-        <div className="mb-1.5 flex items-center justify-between">
-          <h2 className="text-base font-bold">Material harakatlari</h2>
-          <span className="text-xs" style={{ color: "var(--mut)" }}>so&apos;nggi kirim-chiqimlar</span>
-        </div>
-        {moves.map((mv, i) => {
-          const isIn = mv.movement_type === "in";
-          const md = mv.packaging_detail ?? mv.material_detail;
-          const who = mv.performed_by_detail
-            ? [mv.performed_by_detail.first_name, mv.performed_by_detail.last_name].filter(Boolean).join(" ") || mv.performed_by_detail.username
-            : "Tizim";
-          return (
-            <div key={mv.id} className="row-lux flex items-center gap-3.5 border-t py-3" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 40, 480)}ms` }}>
-              <div className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`}>
-                {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-semibold">
-                  {md?.name_uz || md?.name_ru || `Material #${mv.packaging ?? "—"}`} — {mv.quantity} dona
-                  {mv.reason ? ` · ${mv.reason}` : ""}
-                </div>
-                <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(mv.created_at)}</div>
-              </div>
-              <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
-                {isIn ? "KIRIM" : "CHIQIM"}
-              </span>
-            </div>
-          );
-        })}
-        {moves.length === 0 && <EmptyState title="Harakatlar hali yo'q" sub="Kirim yoki chiqim kiritilganda shu yerda ko'rinadi." />}
-      </section>
 
       {formM.open && (
         <MaterialModal

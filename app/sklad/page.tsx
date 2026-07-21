@@ -13,7 +13,7 @@ import { dateAfterParam, fmt, fmtDate, fmtTime, rangeParams } from "@/lib/format
 import DateChips from "@/components/DateChips";
 import KirimModal from "@/components/KirimModal";
 import BatchDrawer from "@/components/BatchDrawer";
-import MaterialSklad from "@/components/MaterialSklad";
+import MaterialSklad, { MaterialMovesJournal } from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
 import type { StockBatch, StockMovement } from "@/lib/types";
@@ -25,8 +25,8 @@ const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
 
 export default function SkladPage() {
   const { user, showToast, dateFilter, dateRange, setDateFilter } = useStore();
-  // ikki bo'lim: gul sklad (partiyalar) va material sklad (o'ram/savat/quti)
-  const [tab, setTab] = useState<"gul" | "material">("gul");
+  // uch bo'lim: gul sklad (partiyalar), material sklad va kirim-chiqim jurnali
+  const [tab, setTab] = useState<"gul" | "material" | "jurnal">("gul");
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,9 +74,10 @@ export default function SkladPage() {
 
   if (loading) return <FlowerLoader />;
 
+  const TAB_LABEL = { gul: "Gul sklad", material: "Material sklad", jurnal: "Kirim-chiqim jurnali" } as const;
   const tabBar = (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      {(["gul", "material"] as const).map((t) => (
+      {(["gul", "material", "jurnal"] as const).map((t) => (
         <button
           key={t}
           onClick={() => setTab(t)}
@@ -84,7 +85,7 @@ export default function SkladPage() {
           className={clsx("rounded-full border-[1.5px] px-5 py-2 text-[13px] font-bold", tab === t ? "text-white" : "bg-sfc")}
           style={tab === t ? { background: "var(--acc)", borderColor: "var(--acc)" } : { borderColor: "var(--line)", color: "var(--mut)" }}
         >
-          {t === "gul" ? "Gul sklad" : "Material sklad"}
+          {TAB_LABEL[t]}
         </button>
       ))}
     </div>
@@ -95,6 +96,76 @@ export default function SkladPage() {
       <>
         {tabBar}
         <MaterialSklad />
+      </>
+    );
+  }
+
+  if (tab === "jurnal") {
+    return (
+      <>
+        {tabBar}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
+            Sklad bo&apos;yicha barcha harakatlar — gul va material kirim-chiqimlari
+          </p>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <FilterSelect
+              value={moveType}
+              onChange={setMoveType}
+              label="Harakat"
+              options={[
+                { value: "", label: "Barcha harakatlar" },
+                { value: "in", label: "Kirim" },
+                { value: "out", label: "Chiqim" },
+                { value: "adjustment", label: "Tuzatish" },
+                { value: "waste", label: "Chiqit" },
+                { value: "transfer_in", label: "O'tkazma kirdi" },
+                { value: "transfer_out", label: "O'tkazma chiqdi" },
+              ]}
+            />
+            <DateChips />
+            <ClearFilters
+              show={!!(moveType || dateRange || dateFilter !== "oy")}
+              onClear={() => { setMoveType(""); setDateFilter("oy"); }}
+            />
+          </div>
+        </div>
+
+        {/* gul harakatlari — timeline */}
+        <section className="glass !rounded-[20px] p-5">
+          <div className="mb-1.5 flex items-center justify-between">
+            <h2 className="text-base font-bold">Gul harakatlari</h2>
+            <span className="text-xs" style={{ color: "var(--mut)" }}>partiyalar bo&apos;yicha kirim-chiqim</span>
+          </div>
+          {fMoves.map((m) => {
+            const isIn = MOVE_IN.has(m.movement_type);
+            const v = m.batch_detail?.variant_detail;
+            const who = m.performed_by_detail
+              ? [m.performed_by_detail.first_name, m.performed_by_detail.last_name].filter(Boolean).join(" ") || m.performed_by_detail.username
+              : "Tizim";
+            return (
+              <div key={m.id} className="row-lux flex items-center gap-3.5 border-t py-3" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(fMoves.indexOf(m) * 40, 480)}ms` }}>
+                <div className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-base font-extrabold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`}>
+                  {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-semibold" title={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} — ${m.quantity_stems} dona${m.reason ? ` · ${m.reason}` : ""}`}>
+                    {v?.flower_detail?.name_uz} {v?.name_uz} — {m.quantity_stems} dona
+                    {m.reason ? ` · ${m.reason}` : ""}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>
+                </div>
+                <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
+                  {MOVE_LABEL[m.movement_type] ?? m.movement_type.toUpperCase()}
+                </span>
+              </div>
+            );
+          })}
+          {fMoves.length === 0 && <EmptyState title="Tanlangan davrda harakat yo&apos;q" sub="Davr filtrini kengaytirib ko&apos;ring." />}
+        </section>
+
+        {/* material harakatlari */}
+        <MaterialMovesJournal />
       </>
     );
   }
@@ -117,24 +188,9 @@ export default function SkladPage() {
               ...(user?.profile.branches ?? []).map((b) => ({ value: String(b.id), label: b.name })),
             ]}
           />
-          <FilterSelect
-            value={moveType}
-            onChange={setMoveType}
-            label="Harakat"
-            options={[
-              { value: "", label: "Barcha harakatlar" },
-              { value: "in", label: "Kirim" },
-              { value: "out", label: "Chiqim" },
-              { value: "adjustment", label: "Tuzatish" },
-              { value: "waste", label: "Chiqit" },
-              { value: "transfer_in", label: "O'tkazma kirdi" },
-              { value: "transfer_out", label: "O'tkazma chiqdi" },
-            ]}
-          />
-          <DateChips />
           <ClearFilters
-            show={!!(search || branch || moveType || dateRange || dateFilter !== "oy")}
-            onClear={() => { setSearch(""); setBranch(""); setMoveType(""); setDateFilter("oy"); }}
+            show={!!(search || branch)}
+            onClear={() => { setSearch(""); setBranch(""); }}
           />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Keldi qilish
@@ -196,39 +252,6 @@ export default function SkladPage() {
           </div>
         )}
       </div>
-
-      {/* jurnal — timeline */}
-      <section className="glass mt-5 !rounded-[20px] p-5">
-        <div className="mb-1.5 flex items-center justify-between">
-          <h2 className="text-base font-bold">Kirim-chiqim jurnali</h2>
-          <span className="text-xs" style={{ color: "var(--mut)" }}>so&apos;nggi harakatlar</span>
-        </div>
-        {fMoves.map((m) => {
-          const isIn = MOVE_IN.has(m.movement_type);
-          const v = m.batch_detail?.variant_detail;
-          const who = m.performed_by_detail
-            ? [m.performed_by_detail.first_name, m.performed_by_detail.last_name].filter(Boolean).join(" ") || m.performed_by_detail.username
-            : "Tizim";
-          return (
-            <div key={m.id} className="row-lux flex items-center gap-3.5 border-t py-3" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(fMoves.indexOf(m) * 40, 480)}ms` }}>
-              <div className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-base font-extrabold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`}>
-                {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-semibold" title={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} — ${m.quantity_stems} dona${m.reason ? ` · ${m.reason}` : ""}`}>
-                  {v?.flower_detail?.name_uz} {v?.name_uz} — {m.quantity_stems} dona
-                  {m.reason ? ` · ${m.reason}` : ""}
-                </div>
-                <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>
-              </div>
-              <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
-                {MOVE_LABEL[m.movement_type] ?? m.movement_type.toUpperCase()}
-              </span>
-            </div>
-          );
-        })}
-        {fMoves.length === 0 && <EmptyState title="Tanlangan davrda harakat yo&apos;q" sub="Davr filtrini kengaytirib ko&apos;ring." />}
-      </section>
 
       {kirimOpen && <KirimModal onClose={() => setKirimOpen(false)} onSaved={load} />}
       {selBatch && (

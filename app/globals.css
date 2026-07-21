@@ -205,6 +205,13 @@
   border-color: var(--lg-out) !important;
   box-shadow: inset 0 1px 0 var(--lg-hl);
 }
+/* FAOL filtr chipi video fonda ham aksent bo'lib qoladi — aks holda
+   oq matn och shisha yuzada ko'rinmay qoladi (light + video) */
+.bg-video .chip-active {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
 .bg-video .kanban-head {
   background: color-mix(in srgb, var(--surface) 68%, transparent);
   backdrop-filter: blur(5px) saturate(1.4);
