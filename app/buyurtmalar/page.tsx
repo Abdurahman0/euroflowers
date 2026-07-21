@@ -251,8 +251,9 @@ export default function BuyurtmalarPage() {
                 </div>
                 {/* har ustun o'z ichida skrollanadi */}
                 <div data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5">
-                  {/* drop slot — silliq ochiladi */}
-                  <div className="box-border rounded-[15px] border-2 border-dashed transition-all duration-250" style={{ height: isOver ? 84 : 0, marginBottom: isOver ? 0 : -10, borderColor: isOver ? "var(--acc)" : "transparent", background: isOver ? "rgba(255,255,255,.15)" : "transparent" }} />
+                  {/* drop slot — silliq ochiladi; shrink-0 SHART: ustun to'lib
+                      skrollansa flex uni chiziqday siqib qo'yadi (kartalar shrink-0) */}
+                  <div className="box-border shrink-0 rounded-[15px] border-2 border-dashed transition-all duration-200" style={{ height: isOver ? 84 : 0, marginBottom: isOver ? 0 : -10, borderColor: isOver ? "var(--acc)" : "transparent", background: isOver ? "rgba(255,255,255,.15)" : "transparent" }} />
                   {items.map((l) => (
                     <LeadCard
                       key={l.id}
