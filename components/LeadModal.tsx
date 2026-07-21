@@ -117,11 +117,24 @@ export default function LeadModal({
   const [saving, setSaving] = useState(false);
   const [confirmWon, setConfirmWon] = useState(false);
 
+  // ro'yxatlar tahrirlash uchun ham, detail'siz kelgan sarf qatorlari nomini
+  // ko'rsatish uchun ham kerak (backend batch_detail bermasa — o'zimiz topamiz)
+  const needLists = editing || stockUsage.some((u) => !u.batch_detail) || packUsage.some((u) => !u.packaging_detail);
   useEffect(() => {
-    if (!editing) return;
-    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+    if (!needLists) return;
+    api.stockBatches({ is_active: true }).then(setBatches).catch(() => {});
     api.materials({ is_active: true }).then(setMaterials).catch(() => {});
-  }, [editing]);
+  }, [needLists]);
+
+  const stockLabel = (u: (typeof stockUsage)[number]) => {
+    if (u.batch_detail) return batchLabel(u.batch_detail);
+    const b = batches.find((x) => x.id === u.stock_batch);
+    return b ? batchLabel(b) : `Partiya #${u.stock_batch}`;
+  };
+  const packLabel = (u: (typeof packUsage)[number]) => {
+    const d = u.packaging_detail ?? materials.find((x) => x.id === u.packaging);
+    return d ? d.name_uz || d.name_ru : `Material #${u.packaging}`;
+  };
 
   const startEdit = () => {
     setStockRows(stockUsage.map((u) => ({ stock_batch: u.stock_batch, quantity_stems: u.quantity_stems })));
@@ -133,7 +146,7 @@ export default function LeadModal({
   const saveUsage = async () => {
     setSaving(true);
     try {
-      const upd = await api.updateLead(lead.id, {
+      let upd = await api.updateLead(lead.id, {
         florist_fee: fee ? String(+fee) : null,
         stock_usage_input: stockRows.map((r) => {
           const b = batches.find((x) => x.id === r.stock_batch);
@@ -146,6 +159,31 @@ export default function LeadModal({
         }),
         packaging_usage_input: packRows,
       });
+      // ba'zi javoblarda sarf qatorlari kelmasligi mumkin — leadni qayta o'qiymiz,
+      // u ham bermasa lokal qatorlardan tiklaymiz: qo'shilgan sarf DARHOL ko'rinsin
+      if ((stockRows.length && !upd.stock_usage?.length) || (packRows.length && !upd.packaging_usage?.length)) {
+        upd = await api.lead(lead.id).catch(() => upd);
+      }
+      if (stockRows.length && !upd.stock_usage?.length) {
+        upd = {
+          ...upd,
+          stock_usage: stockRows.map((r) => ({
+            stock_batch: r.stock_batch,
+            quantity_stems: r.quantity_stems,
+            batch_detail: batches.find((b) => b.id === r.stock_batch),
+          })),
+        };
+      }
+      if (packRows.length && !upd.packaging_usage?.length) {
+        upd = {
+          ...upd,
+          packaging_usage: packRows.map((r) => ({
+            packaging: r.packaging,
+            quantity: r.quantity,
+            packaging_detail: materials.find((m) => m.id === r.packaging),
+          })),
+        };
+      }
       showToast("✓ Sklad sarfi saqlandi");
       setEditing(false);
       onUpdated?.(upd);
@@ -212,13 +250,13 @@ export default function LeadModal({
               <div className="flex flex-col gap-1">
                 {stockUsage.map((u, i) => (
                   <div key={`s${i}`} className="flex justify-between gap-3 text-[13px]">
-                    <span className="min-w-0 truncate">🌸 {u.batch_detail ? batchLabel(u.batch_detail) : `Partiya #${u.stock_batch}`}</span>
+                    <span className="min-w-0 truncate">🌸 {stockLabel(u)}</span>
                     <span className="shrink-0 font-semibold">{u.quantity_stems} dona</span>
                   </div>
                 ))}
                 {packUsage.map((u, i) => (
                   <div key={`p${i}`} className="flex justify-between gap-3 text-[13px]">
-                    <span className="min-w-0 truncate">🧺 {u.packaging_detail ? u.packaging_detail.name_uz || u.packaging_detail.name_ru : `Material #${u.packaging}`}</span>
+                    <span className="min-w-0 truncate">🧺 {packLabel(u)}</span>
                     <span className="shrink-0 font-semibold">{u.quantity} dona</span>
                   </div>
                 ))}
@@ -236,7 +274,7 @@ export default function LeadModal({
 
         {editing && (
           <div className="flex flex-col gap-3">
-            <StockUsagePicker batches={batches} rows={stockRows} onChange={setStockRows} />
+            <StockUsagePicker batches={batches.filter((b) => b.remaining_stems > 0)} rows={stockRows} onChange={setStockRows} />
             <MaterialUsagePicker materials={materials} rows={packRows} onChange={setPackRows} />
             <label className="flex items-center justify-between gap-3 text-[13px]">
               <span style={{ color: "var(--text-2)" }}>Florist haqi (so&apos;m)</span>
