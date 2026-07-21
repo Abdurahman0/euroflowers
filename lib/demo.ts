@@ -463,10 +463,12 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
             id: i + 1, ...r, packaging_detail: packaging.find((m) => m.id === r.packaging),
           }))
         : l.packaging_usage;
+      // usage inputlardan tashqari BARCHA yuborilgan maydonlar birlashadi
+      // (real backend ham yangilangan leadni to'liq qaytaradi)
+      const { stock_usage_input: _si, packaging_usage_input: _pi, ...rest } = body;
       const upd: Lead = {
         ...l,
-        ...(body.status ? { status: body.status as Lead["status"] } : {}),
-        ...(body.florist_fee !== undefined ? { florist_fee: body.florist_fee as string | null } : {}),
+        ...(rest as Partial<Lead>),
         stock_usage: su,
         packaging_usage: pu,
         stock_deducted_at:

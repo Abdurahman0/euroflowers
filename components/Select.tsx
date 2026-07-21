@@ -7,6 +7,9 @@ export type SelectOption = {
   value: number | string;
   label: string;
   sub?: string;
+  /** tanlangandan KEYIN ham trigger'da ko'rinib turadigan qisqa ma'lumot
+      (masalan, sklad qoldig'i: "410 dona") */
+  hint?: string;
   dot?: string; // rang nuqtasi (hex) — ixtiyoriy
 };
 
@@ -37,6 +40,14 @@ export default function Select({
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
           {sel ? sel.label : <span className="opacity-50">{placeholder}</span>}
         </span>
+        {sel?.hint && (
+          <span
+            className="shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}
+          >
+            {sel.hint}
+          </span>
+        )}
         <span className={`opacity-60 transition-transform duration-200 ${open ? "rotate-180" : ""}`}><ChevronDown size={16} strokeWidth={1.75} /></span>
       </button>
       <Popover

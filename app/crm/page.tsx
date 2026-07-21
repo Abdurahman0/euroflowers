@@ -16,7 +16,8 @@ import LeadModal from "@/components/LeadModal";
 import ClientModal from "@/components/ClientModal";
 import NewLeadModal from "@/components/NewLeadModal";
 import NewClientModal from "@/components/NewClientModal";
-import { Plus } from "lucide-react";
+import EditLeadModal from "@/components/EditLeadModal";
+import { Pencil, Plus } from "lucide-react";
 import type { Customer, Lead, LeadStatus } from "@/lib/types";
 
 // «Malakali» ustuni olib tashlangan — qualified leadlar «Yangi»da ko'rinadi
@@ -37,7 +38,7 @@ const notePreview = (t: string): string => {
     .join(" · ");
 };
 
-function LeadCard({ l, dragging, onOpen, onDrag, onDragEnd }: { l: Lead; dragging: boolean; onOpen: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+function LeadCard({ l, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
   const name = l.customer_detail?.name || `@${l.customer_detail?.instagram_username ?? "—"}`;
   return (
     <div
@@ -45,14 +46,28 @@ function LeadCard({ l, dragging, onOpen, onDrag, onDragEnd }: { l: Lead; draggin
       onClick={onOpen}
       onDragStart={onDrag}
       onDragEnd={onDragEnd}
-      className="glass shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
+      className="glass group shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
       // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
       // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
       style={dragging ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" } : undefined}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 truncate text-[14px] font-bold" title={name}>{name}</span>
-        <span className={clsx(SOURCE_BADGE(l.source), "shrink-0")}>{l.source || "—"}</span>
+        <span className="flex shrink-0 items-center gap-1">
+          {onEdit && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              draggable={false}
+              onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              title="Tahrirlash"
+              aria-label="Leadni tahrirlash"
+              className="icon-btn !h-7 !w-7 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+            >
+              <Pencil size={13.5} strokeWidth={1.75} />
+            </button>
+          )}
+          <span className={clsx(SOURCE_BADGE(l.source), "shrink-0")}>{l.source || "—"}</span>
+        </span>
       </div>
       <p className="clamp-3 mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{notePreview(l.request_uz || l.request_ru || "")}</p>
       <div className="mt-2 flex items-center justify-between">
@@ -87,6 +102,7 @@ export default function CrmPage() {
   const [tab, setTab] = useState<"leads" | "clients">("leads");
   const [view, setView] = useState<"kanban" | "table">("kanban");
   const [selLead, setSelLead] = useState<Lead | null>(null);
+  const [editLead, setEditLead] = useState<Lead | null>(null);
   const [selClient, setSelClient] = useState<Customer | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
   const [overCol, setOverCol] = useState<LeadStatus | null>(null);
@@ -254,13 +270,15 @@ export default function CrmPage() {
                       l={l}
                       dragging={dragId === l.id}
                       onOpen={() => setSelLead(l)}
+                      onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
                       onDrag={(e) => {
                         e.dataTransfer.effectAllowed = "move";
-                        // ko'tarilgan nusxa: yengil qiyalik + soya + 1.03 masshtab
+                        // ko'tarilgan nusxa kartaning O'ZIDEK ko'rinadi — qiyalik/masshtab YO'Q;
+                        // faqat fon qattiq qilinadi (glass shaffofligi drag rasmida ishlamaydi)
                         const el = e.currentTarget as HTMLElement;
                         const r = el.getBoundingClientRect();
                         const clone = el.cloneNode(true) as HTMLElement;
-                        clone.style.cssText = `position:fixed;top:-1200px;left:-1200px;width:${r.width}px;box-sizing:border-box;transform:rotate(2.5deg) scale(1.03);box-shadow:0 18px 44px rgba(30,15,10,.3);border-radius:15px;background:var(--surface-solid);pointer-events:none;`;
+                        clone.style.cssText = `position:fixed;top:-1200px;left:-1200px;width:${r.width}px;box-sizing:border-box;border-radius:15px;background:var(--surface-solid);box-shadow:var(--shadow-md);pointer-events:none;`;
                         document.body.appendChild(clone);
                         e.dataTransfer.setDragImage(clone, e.clientX - r.left, e.clientY - r.top);
                         setTimeout(() => clone.remove(), 0);
@@ -333,6 +351,17 @@ export default function CrmPage() {
           onClose={() => setSelLead(null)}
           onStatus={(st) => { setLeadStatus(selLead.id, st); setSelLead({ ...selLead, status: st }); }}
           onUpdated={(upd) => { setSelLead(upd); setLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l))); }}
+        />
+      )}
+      {editLead != null && (
+        <EditLeadModal
+          lead={editLead}
+          onClose={() => setEditLead(null)}
+          onSaved={(upd) => {
+            setEditLead(null);
+            setLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l)));
+            setSelLead((s) => (s?.id === upd.id ? upd : s));
+          }}
         />
       )}
       {selClient != null && <ClientModal client={selClient} onClose={() => setSelClient(null)} />}

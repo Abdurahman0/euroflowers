@@ -1,15 +1,17 @@
 "use client";
 import { CalendarDays, CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import clsx from "clsx";
+import Popover from "./Popover";
 import { useStore } from "@/lib/store";
 import type { DateFilter, DateRange } from "@/lib/types";
 
 /**
  * Davr tanlagich — segmentli boshqaruv (Bugun/7/30, sirg'aluvchi thumb) +
- * MAXSUS ORALIQ: kalendar popover'da boshlanish/tugash kunlari tanlanadi.
- * Tanlangan davrning haqiqiy sanalari o'ng tomonda ko'rsatiladi.
+ * MAXSUS ORALIQ: kalendar Popover orqali body'ga portal qilinadi — sahifa
+ * animatsiyalari (stacking context) uni bosib qo'ymaydi, kontent ustidan
+ * har doim to'liq va qattiq fonda ochiladi.
  * Maxsus oraliq store'da (dateRange) — CRM va Sklad avtomatik hurmat qiladi;
  * segment bosilsa oraliq bekor bo'ladi (store shunday qiladi).
  */
@@ -59,13 +61,7 @@ function RangeCalendar({ initial, onApply, onClose }: { initial: DateRange | nul
   const inRange = (day: string) => start && end && day > start && day < end;
 
   return (
-    <div
-      data-lenis-prevent
-      className="z-40 rounded-[16px] border p-3 shadow-lg max-md:fixed max-md:inset-x-4 max-md:top-1/2 max-md:mx-auto max-md:w-[min(320px,calc(100vw-32px))] max-md:-translate-y-1/2 md:absolute md:right-0 md:top-[calc(100%+8px)] md:w-[292px]"
-      style={{ background: "var(--surface-solid)", borderColor: "var(--border)", boxShadow: "var(--shadow-md)" }}
-      role="dialog"
-      aria-label="Sana oralig'ini tanlash"
-    >
+    <div aria-label="Sana oralig'ini tanlash">
       {/* oy navigatsiyasi */}
       <div className="mb-2 flex items-center justify-between">
         <button type="button" onClick={() => setCursor(new Date(y, m - 1, 1))} className="icon-btn !h-8 !w-8" aria-label="Oldingi oy">
@@ -134,22 +130,6 @@ export default function DateChips() {
   const [calOpen, setCalOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!calOpen) return;
-    const close = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setCalOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCalOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [calOpen]);
-
   const days = OPTS.find(([id]) => id === dateFilter)?.[2] ?? 29;
   const now = new Date();
   const from = new Date(now);
@@ -213,13 +193,23 @@ export default function DateChips() {
         {range}
       </span>
 
-      {calOpen && (
-        <RangeCalendar
-          initial={dateRange}
-          onApply={(r) => { setDateRange(r); setCalOpen(false); }}
-          onClose={() => setCalOpen(false)}
-        />
-      )}
+      <Popover
+        anchor={rootRef}
+        open={calOpen}
+        onClose={() => setCalOpen(false)}
+        width={292}
+        ariaLabel="Sana oralig'ini tanlash"
+        className="rounded-[16px] border p-3 shadow-lg"
+        style={{ background: "var(--surface-solid)", borderColor: "var(--border)", boxShadow: "var(--shadow-md)" }}
+      >
+        {calOpen && (
+          <RangeCalendar
+            initial={dateRange}
+            onApply={(r) => { setDateRange(r); setCalOpen(false); }}
+            onClose={() => setCalOpen(false)}
+          />
+        )}
+      </Popover>
     </div>
   );
 }

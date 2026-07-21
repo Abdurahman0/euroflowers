@@ -68,6 +68,7 @@ export function StockUsagePicker({
               value: b.id,
               label: batchLabel(b),
               sub: `Skladda: ${leftOf(b)} dona · ${Math.round(+b.sale_price_per_stem).toLocaleString("ru")} so'm/dona · №${b.batch_number}`,
+              hint: `${leftOf(b)} dona`,
             }))}
           />
         </span>
@@ -150,6 +151,7 @@ export function CatalogUsagePicker({
               value: it.id,
               label: it.name_uz || it.name_ru,
               sub: `${Math.round(+it.price).toLocaleString("ru")} so'm · sotuvda: ${leftOf(it)} ta`,
+              hint: `${leftOf(it)} ta`,
             }))}
           />
         </span>
@@ -227,6 +229,7 @@ export function MaterialUsagePicker({
               value: m.id,
               label: `${m.name_uz || m.name_ru}${m.size ? ` (${m.size})` : ""}`,
               sub: `${PKG_TYPE[m.packaging_type] ?? m.packaging_type} · ${Math.round(+m.sale_price).toLocaleString("ru")} so'm · skladda: ${leftOf(m)} dona`,
+              hint: `${leftOf(m)} dona`,
             }))}
           />
         </span>
