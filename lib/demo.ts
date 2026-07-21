@@ -429,6 +429,18 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       const dedu = Math.min((it.quantity_stock_deducted ?? 0) + (Number(body.quantity) || sold - (it.quantity_stock_deducted ?? 0)), sold);
       return out({ ...it, quantity_stock_deducted: dedu, stock_deducted_at: ago(0) });
     }
+    if (/\/api\/stock-batches\/\d+\/movement\//.test(p)) {
+      // production kabi: javob — HARAKAT obyekti (partiya emas); partiya mutatsiya qilinadi
+      const bt = batches.find((x) => x.id === idOf(/stock-batches\/(\d+)/)) ?? batches[0];
+      const qty = Number(body.quantity_stems) || 0;
+      const delta = body.movement_type === "in" || body.movement_type === "transfer_in" ? qty : -qty;
+      bt.remaining_stems = Math.max(bt.remaining_stems + delta, 0);
+      bt.remaining_bunches = Math.floor(bt.remaining_stems / (bt.stems_per_bunch || 10));
+      bt.updated_at = ago(0);
+      const mv = mkMove(900 + movements.length, bt, body.movement_type as StockMovement["movement_type"], qty, String(body.reason ?? ""), 0, 0);
+      movements.unshift(mv);
+      return out(mv);
+    }
     if (/\/api\/materials\/\d+\/movement\//.test(p)) {
       const m = packaging.find((x) => x.id === idOf(/materials\/(\d+)/)) ?? packaging[0];
       const delta = (body.movement_type === "out" ? -1 : 1) * (Number(body.quantity) || 0);
@@ -496,7 +508,12 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   if (p === "/api/flowers/") return out(page(flowers));
   if (p === "/api/flower-variants/") return out(page(variants));
   if (p === "/api/stock-batches/") return out(page(batches));
-  if (p === "/api/stock-movements/") return out(page(movements));
+  if (/\/api\/stock-batches\/\d+\/$/.test(p)) return out(batches.find((x) => x.id === idOf(/stock-batches\/(\d+)/)) ?? batches[0]);
+  if (p === "/api/stock-movements/") {
+    const query = new URLSearchParams(path.split("?")[1] ?? "");
+    const bId = query.get("batch");
+    return out(page(bId ? movements.filter((m) => m.batch === +bId) : movements));
+  }
   if (p === "/api/catalog/") return out(page(catalog));
   if (p === "/api/social-posts/") return out(page(posts));
   if (p === "/api/conversations/") return out(page(conversations));

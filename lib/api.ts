@@ -298,6 +298,7 @@ export const api = {
     request<FlowerVariant>(`/api/flower-variants/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
   stockBatches: (p?: Params) => list<StockBatch>("/api/stock-batches/", p),
+  stockBatch: (id: number) => request<StockBatch>(`/api/stock-batches/${id}/`),
   createStockBatch: (data: Partial<StockBatch>) =>
     request<StockBatch>("/api/stock-batches/", { method: "POST", body: JSON.stringify(data) }),
   updateStockBatch: (id: number, data: Partial<StockBatch>) =>
@@ -305,8 +306,10 @@ export const api = {
   /** kontrakt tavsiyasi: o'chirish o'rniga PATCH {is_active:false} */
   deactivateStockBatch: (id: number) =>
     request<StockBatch>(`/api/stock-batches/${id}/`, { method: "PATCH", body: JSON.stringify({ is_active: false }) }),
+  /** DIQQAT: javob shakli kafolatlanmagan (harakat obyekti qaytishi mumkin) —
+      yangilangan partiya kerak bo'lsa api.stockBatch(id) bilan qayta o'qing */
   batchMovement: (id: number, data: Partial<StockMovement>) =>
-    request<StockBatch>(`/api/stock-batches/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
+    request<unknown>(`/api/stock-batches/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
 
   stockMovements: (p?: Params) => list<StockMovement>("/api/stock-movements/", p),
 

@@ -237,7 +237,8 @@ export default function SkladPage() {
           onClose={() => setSelBatch(null)}
           onChanged={(upd) => {
             if (upd) setBatches((bs) => bs.map((x) => (x.id === upd.id ? upd : x)));
-            else load();
+            // kartalar + jurnal DARHOL yangilanadi (load jimgina — loader chiqmaydi)
+            load();
           }}
         />
       )}

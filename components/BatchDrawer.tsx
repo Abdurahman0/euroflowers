@@ -58,24 +58,35 @@ export default function BatchDrawer({
 
   const v = b.variant_detail;
 
+  // tarix HAR DOIM asl partiya id'si bilan so'raladi (batch.id — o'zgarmas prop);
+  // harakat POST javobi partiya emas, harakat obyekti bo'lishi mumkin
   useEffect(() => {
-    api.stockMovements({ batch: b.id, ordering: "-created_at", page_size: 50 })
+    api.stockMovements({ batch: batch.id, ordering: "-created_at", page_size: 50 })
       .then(setMoves)
       .catch((e) => setMovesErr(e instanceof Error ? e.message : "Tarixni yuklab bo'lmadi"));
-  }, [b.id]);
+  }, [batch.id]);
 
   const addMovement = async () => {
     const qty = +mvQty;
     if (!qty || qty <= 0) return showToast("Miqdorni kiriting");
     setSaving(true);
     try {
-      const upd = await api.batchMovement(b.id, { movement_type: mvType, quantity_stems: qty, reason: mvReason.trim() });
-      setB(upd);
-      onChanged(upd);
+      await api.batchMovement(batch.id, { movement_type: mvType, quantity_stems: qty, reason: mvReason.trim() });
       setMvQty("");
       setMvReason("");
-      const fresh = await api.stockMovements({ batch: b.id, ordering: "-created_at", page_size: 50 });
-      setMoves(fresh);
+      // yangilangan partiyani ishonchli manbadan qayta o'qiymiz
+      const freshB = await api.stockBatch(batch.id).catch(() => null);
+      if (freshB) {
+        setB(freshB);
+        onChanged(freshB);
+      } else {
+        onChanged(null); // sahifa o'zi qayta yuklaydi
+      }
+      // tarixni yangilaymiz; xato bo'lsa (masalan, partiya nofaol bo'lib
+      // filtrdan chiqib ketsa) eski ro'yxat saqlanadi — 400 ko'rsatilmaydi
+      api.stockMovements({ batch: batch.id, ordering: "-created_at", page_size: 50 })
+        .then(setMoves)
+        .catch(() => {});
       showToast("✓ Harakat qayd etildi");
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Qayd etib bo'lmadi");
@@ -87,7 +98,7 @@ export default function BatchDrawer({
   const deactivate = async () => {
     setSaving(true);
     try {
-      await api.deactivateStockBatch(b.id);
+      await api.deactivateStockBatch(batch.id);
       showToast("✓ Partiya nofaollashtirildi");
       onChanged(null);
       onClose();
