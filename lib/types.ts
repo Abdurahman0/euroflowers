@@ -476,7 +476,7 @@ export type InstagramEvent = {
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "chat" | "ai" | "crm" | "sklad" | "gullar" | "katalog" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
+export type ScreenId = "dashboard" | "chat" | "ai" | "crm" | "mijozlar" | "sklad" | "gullar" | "katalog" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";
 /** Maxsus davr — YYYY-MM-DD (ikkalasi ham kiritilgan kun bilan) */
 export type DateRange = { from: string; to: string };

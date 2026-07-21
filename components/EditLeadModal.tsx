@@ -11,7 +11,7 @@ import { Icon } from "./icons";
 import type { Lead, Packaging, StockBatch } from "@/lib/types";
 
 /**
- * Leadni TO'LIQ tahrirlash — kanban kartadagi qalam orqali.
+ * Buyurtmani TO'LIQ tahrirlash — kanban kartadagi qalam orqali.
  * Hamma narsa shu yerda o'zgaradi: so'rov, turi, gul/material sarfi,
  * florist haqi, narx, sana, filial (backend PATCH /api/leads/{id}/).
  * Sklad allaqachon yechilgan bo'lsa (stock_deducted_at) sarf qulflanadi —
@@ -117,7 +117,7 @@ export default function EditLeadModal({
           })),
         };
       }
-      showToast("✓ Lead yangilandi");
+      showToast("✓ Buyurtma yangilandi");
       onSaved(upd);
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Saqlab bo'lmadi");
@@ -129,7 +129,7 @@ export default function EditLeadModal({
 
   return (
     <Modal onClose={onClose} width={520}>
-      <ModalHeader icon={<Icon name="crm" />} title="Leadni tahrirlash" sub={`${name} · #${lead.id}`} onClose={onClose} />
+      <ModalHeader icon={<Icon name="crm" />} title="Buyurtmani tahrirlash" sub={`${name} · #${lead.id}`} onClose={onClose} />
       <Section>Lead ma&apos;lumotlari</Section>
       <div className="grid grid-cols-2 gap-3">
         <Field label="So'rov" span>

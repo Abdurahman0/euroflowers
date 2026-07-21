@@ -304,7 +304,7 @@ export default function LeadModal({
 
       {lead.conversation != null && (
         <div className="mt-3.5 rounded-[14px] bg-[color:var(--surface-2)] px-4 py-3 text-[13px] leading-relaxed">
-          Bu lead #{lead.conversation}-suhbatdan tushgan — AI chatlar bo&apos;limida to&apos;liq yozishmani ko&apos;rish mumkin.
+          Bu buyurtma #{lead.conversation}-suhbatdan tushgan — AI chatlar bo&apos;limida to&apos;liq yozishmani ko&apos;rish mumkin.
         </div>
       )}
 

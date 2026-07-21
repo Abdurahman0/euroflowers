@@ -59,7 +59,7 @@ export default function ClientModal({
         </div>
       )}
 
-      <div className="mt-4 text-sm font-bold">Leadlar tarixi</div>
+      <div className="mt-4 text-sm font-bold">Buyurtmalar tarixi</div>
       <div className="mt-2.5 flex flex-col gap-2">
         {leads == null && <p className="text-[13px] text-[color:var(--muted)]">Yuklanmoqda…</p>}
         {leads?.map((l) => (
@@ -78,7 +78,7 @@ export default function ClientModal({
             <span className={STATUS_BADGE[l.status]}>{STATUS_LABEL[l.status]}</span>
           </button>
         ))}
-        {leads?.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Hozircha lead yo&apos;q.</p>}
+        {leads?.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Hozircha buyurtma yo&apos;q.</p>}
       </div>
     </Modal>
   );

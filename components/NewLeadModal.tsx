@@ -145,7 +145,7 @@ export default function NewLeadModal({
         stock_usage_input: stockInput,
         packaging_usage_input: isCatalog ? [] : packRows,
       });
-      showToast("✓ Lead qo'shildi");
+      showToast("✓ Buyurtma qo'shildi");
       onSaved(l);
     } catch (e) {
       showToast(e instanceof ApiError ? `Saqlab bo'lmadi: ${JSON.stringify(e.body)}` : "Saqlashda xatolik");
@@ -155,7 +155,7 @@ export default function NewLeadModal({
 
   return (
     <Modal onClose={onClose} width={520}>
-      <ModalHeader icon={<Icon name="crm" />} title="Yangi lead" sub="Qo'lda kiritish — qo'ng'iroq yoki do'kondagi so'rov" onClose={onClose} />
+      <ModalHeader icon={<Icon name="crm" />} title="Yangi buyurtma" sub="Qo'lda kiritish — qo'ng'iroq yoki do'kondagi so'rov" onClose={onClose} />
       <Section>Mijoz</Section>
       <div className="mb-3 flex gap-1.5">
         {(["existing", "new"] as const).map((m) => (
@@ -287,7 +287,7 @@ export default function NewLeadModal({
         </button>
       )}
       <ModalFooter>
-        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Leadni qo'shish"}</button>
+        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Buyurtmani qo'shish"}</button>
         <button onClick={onClose} className="rounded-[14px] border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-5 py-3 text-sm font-bold">Bekor</button>
       </ModalFooter>
     </Modal>

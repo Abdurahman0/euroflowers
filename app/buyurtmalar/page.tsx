@@ -1,0 +1,338 @@
+"use client";
+import EmptyState from "@/components/EmptyState";
+import FlowerLoader from "@/components/FlowerLoader";
+import SearchInput from "@/components/SearchInput";
+import ClearFilters from "@/components/ClearFilters";
+import FilterSelect from "@/components/FilterSelect";
+import { useCallback, useEffect, useRef, useState } from "react";
+import clsx from "clsx";
+import { api } from "@/lib/api";
+import useAutoRefresh from "@/lib/useAutoRefresh";
+import { usePerm, useStore } from "@/lib/store";
+import { dateAfterParam, fmt, fmtTime, rangeParams } from "@/lib/format";
+import DateChips from "@/components/DateChips";
+import { STATUS_BADGE, STATUS_LABEL, SOURCE_BADGE } from "@/components/badges";
+import LeadModal from "@/components/LeadModal";
+import NewLeadModal from "@/components/NewLeadModal";
+import EditLeadModal from "@/components/EditLeadModal";
+import { Pencil, Plus } from "lucide-react";
+import type { Customer, Lead, LeadStatus } from "@/lib/types";
+
+/** Buyurtmalar — alohida sahifa (ilgari CRM ichida "Leadlar" edi).
+    Kanban + jadval; mijozlar endi /mijozlar sahifasida. */
+
+// «Malakali» ustuni olib tashlangan — qualified buyurtmalar «Yangi»da ko'rinadi
+const COLS: LeadStatus[] = ["new", "contacted", "won", "lost"];
+const COL_BG: Record<LeadStatus, string> = {
+  new: "var(--tint)", qualified: "var(--bg2)", contacted: "var(--peach)", won: "var(--mint)", lost: "var(--bg2)",
+};
+
+/** Karta preview: mini-app eslatmalarida URL qatori tashlanadi, emoji
+    prefikslar tozalanadi — 3 qatorli qisqartma toza matndan boshlanadi. */
+const notePreview = (t: string): string => {
+  if (!t.includes("\n")) return t;
+  return t
+    .split("\n")
+    .filter((l) => !/https?:\/\//.test(l))
+    .map((l) => l.replace(/^[\uD800-\uDFFF\uFE0F\s]+/, "").trim())
+    .filter(Boolean)
+    .join(" · ");
+};
+
+function LeadCard({ l, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+  const name = l.customer_detail?.name || `@${l.customer_detail?.instagram_username ?? "—"}`;
+  return (
+    <div
+      draggable
+      onClick={onOpen}
+      onDragStart={onDrag}
+      onDragEnd={onDragEnd}
+      className="glass group shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
+      // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
+      // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
+      style={dragging ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" } : undefined}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-[14px] font-bold" title={name}>{name}</span>
+        <span className="flex shrink-0 items-center gap-1">
+          {onEdit && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              draggable={false}
+              onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              title="Tahrirlash"
+              aria-label="Buyurtmani tahrirlash"
+              className="icon-btn !h-7 !w-7 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+            >
+              <Pencil size={13.5} strokeWidth={1.75} />
+            </button>
+          )}
+          <span className={clsx(SOURCE_BADGE(l.source), "shrink-0")}>{l.source || "—"}</span>
+        </span>
+      </div>
+      <p className="clamp-3 mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{notePreview(l.request_uz || l.request_ru || "")}</p>
+      <div className="mt-2 flex items-center justify-between">
+        <span className="min-w-0 truncate text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
+        <span className="shrink-0 text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
+      </div>
+      <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{l.customer_detail?.phone || l.customer_detail?.masked_phone || "tel yo'q"}</div>
+    </div>
+  );
+}
+
+const ARR_OPTS = [
+  { value: "", label: "Barcha turlar" },
+  { value: "bouquet", label: "Buket" },
+  { value: "basket", label: "Savat" },
+  { value: "stems", label: "Donalab" },
+  { value: "catalog", label: "Katalog" },
+];
+
+export default function BuyurtmalarPage() {
+  const { user, showToast, dateFilter, dateRange, setDateFilter } = useStore();
+  const { canControl } = usePerm();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"kanban" | "table">("kanban");
+  const [selLead, setSelLead] = useState<Lead | null>(null);
+  const [editLead, setEditLead] = useState<Lead | null>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overCol, setOverCol] = useState<LeadStatus | null>(null);
+  const [newLead, setNewLead] = useState(false);
+  const kanbanRef = useRef<HTMLDivElement>(null);
+  const [kanbanH, setKanbanH] = useState<number | null>(null);
+  // server tomonda ishlaydigan filtrlar
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState(""); // debounce qilingan qiymat
+  const [branch, setBranch] = useState("");
+  const [arrType, setArrType] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const branchOpts = [
+    { value: "", label: "Barcha filiallar" },
+    ...(user?.profile.branches ?? []).map((b) => ({ value: String(b.id), label: b.name })),
+  ];
+
+  // kanban pastki chegarasi ham sidebar bilan bir chiziqda (chat kabi):
+  // viewport − ustki joylashuv − 14px (Shell tashqi paddingi)
+  useEffect(() => {
+    const measure = () => {
+      const top = kanbanRef.current?.getBoundingClientRect().top ?? 0;
+      setKanbanH(Math.max(window.innerHeight - top - 14, 420));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [loading, view]);
+
+  const load = useCallback(async () => {
+    try {
+      const [ls, cs] = await Promise.all([
+        // barcha filtrlar server tomonda
+        api.leads({
+          ordering: "-created_at",
+          ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
+          search: q || undefined,
+          branch: branch || undefined,
+          arrangement_type: arrType || undefined,
+        }),
+        // yangi buyurtma formasi uchun mavjud mijozlar ro'yxati
+        api.customers({ ordering: "-created_at" }),
+      ]);
+      setLeads(ls);
+      setCustomers(cs);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast, dateFilter, dateRange, q, branch, arrType]);
+
+  useEffect(() => { load(); }, [load]);
+  // boshqa joyda ma'lumot o'zgarsa ham ko'rinib turishi uchun jimgina yangilash
+  useAutoRefresh(load);
+
+  // chuqur havola: /buyurtmalar?order=ID (eski ?lead=ID ham) — dashboard,
+  // sklad jurnali va mijoz tarixidan kelganda o'sha kanban kartasi ochiladi
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const id = Number(p.get("order") ?? p.get("lead"));
+    if (!id) return;
+    window.history.replaceState(null, "", "/buyurtmalar");
+    api.lead(id)
+      .then(setSelLead)
+      .catch(() => showToast("Buyurtma topilmadi yoki o'chirilgan"));
+  }, [showToast]);
+
+  const fLeads = leads;
+
+  /** Statusni backendga yozamiz. «Sotildi»da sklad kamaytirishni BACKEND o'zi
+      bajaradi (lead.stock_usage/packaging_usage bo'yicha); qoldiq yetmasa 400
+      qaytadi va status o'zgarishi bekor bo'ladi — biz optimistik holatni qaytaramiz. */
+  const setLeadStatus = async (id: number, st: LeadStatus) => {
+    const prev = leads;
+    // await'dan OLDIN o'qiladi — javob kelgach solishtirish uchun
+    const wasDeducted = !!leads.find((l) => l.id === id)?.stock_deducted_at;
+    setLeads((ls) => ls.map((l) => (l.id === id ? { ...l, status: st } : l)));
+    try {
+      const upd = await api.updateLead(id, { status: st });
+      setLeads((ls) => ls.map((l) => (l.id === id ? upd : l)));
+      setSelLead((s) => (s?.id === id ? upd : s));
+      if (st === "won" && upd.stock_deducted_at && !wasDeducted) {
+        showToast("✓ Sotildi — sklad qoldig'i avtomatik kamaytirildi");
+      } else if (st === "won" && !upd.stock_deducted_at && !(upd.stock_usage?.length || upd.packaging_usage?.length)) {
+        showToast("Sotildi. Diqqat: sarf kiritilmagani uchun sklad kamaymadi");
+      } else {
+        showToast(`Buyurtma «${STATUS_LABEL[st]}» ustuniga ko'chirildi`);
+      }
+    } catch (e) {
+      setLeads(prev);
+      setSelLead((s) => (s?.id === id ? (prev.find((l) => l.id === id) ?? s) : s));
+      showToast(e instanceof Error ? e.message : "Statusni saqlab bo'lmadi");
+    }
+  };
+
+  const drop = (st: LeadStatus) => {
+    if (dragId != null) setLeadStatus(dragId, st);
+    setDragId(null); setOverCol(null);
+  };
+
+  if (loading) return <FlowerLoader />;
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
+          Buyurtmalar ({fLeads.length}) — sudrab statusni o&apos;zgartiring
+        </p>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Buyurtma qidirish" />
+          <FilterSelect value={branch} options={branchOpts} onChange={setBranch} label="Filial" />
+          <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />
+          <DateChips />
+          <ClearFilters
+            show={!!(search || branch || arrType || dateRange || dateFilter !== "oy")}
+            onClear={() => { setSearch(""); setBranch(""); setArrType(""); setDateFilter("oy"); }}
+          />
+          {canControl("crm") && (
+            <button onClick={() => setNewLead(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+              <Plus size={17} strokeWidth={1.75} /> Buyurtma
+            </button>
+          )}
+          <div className="glass flex gap-1 !rounded-xl p-1">
+            {(["kanban", "table"] as const).map((v) => (
+              <button key={v} onClick={() => setView(v)} className={clsx("rounded-[9px] px-4 py-1.5 text-xs font-bold", view === v ? "text-white" : "")} style={view === v ? { background: "var(--acc)" } : { color: "var(--mut)" }}>
+                {v === "kanban" ? "Kanban" : "Jadval"}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {view === "kanban" && (
+        <div
+          ref={kanbanRef}
+          className="mb-[-40px] gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:overflow-x-auto max-lg:overscroll-x-contain lg:grid"
+          style={{ gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", height: kanbanH ?? "calc(100dvh - 220px)" }}
+        >
+          {COLS.map((st) => {
+            const items = fLeads.filter((l) => (st === "new" ? l.status === "new" || l.status === "qualified" : l.status === st));
+            const isOver = overCol === st && dragId != null;
+            return (
+              <div key={st} onDragOver={(e) => { e.preventDefault(); setOverCol(st); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }} onDrop={(e) => { e.preventDefault(); drop(st); }} className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center" style={{ background: COL_BG[st], borderColor: "var(--line)" }}>
+                <div className="kanban-head flex shrink-0 items-center justify-between px-1.5 pb-2.5">
+                  <span className="text-[13px] font-bold tracking-wide">{STATUS_LABEL[st].toUpperCase()}</span>
+                  <span className="rounded-full px-2.5 text-[12px] font-bold text-white" style={{ background: "var(--side)" }}>{items.length}</span>
+                </div>
+                {/* har ustun o'z ichida skrollanadi */}
+                <div data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5">
+                  {/* drop slot — silliq ochiladi */}
+                  <div className="box-border rounded-[15px] border-2 border-dashed transition-all duration-250" style={{ height: isOver ? 84 : 0, marginBottom: isOver ? 0 : -10, borderColor: isOver ? "var(--acc)" : "transparent", background: isOver ? "rgba(255,255,255,.15)" : "transparent" }} />
+                  {items.map((l) => (
+                    <LeadCard
+                      key={l.id}
+                      l={l}
+                      dragging={dragId === l.id}
+                      onOpen={() => setSelLead(l)}
+                      onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
+                      onDrag={(e) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        // ko'tarilgan nusxa kartaning O'ZIDEK ko'rinadi — qiyalik/masshtab YO'Q;
+                        // faqat fon qattiq qilinadi (glass shaffofligi drag rasmida ishlamaydi)
+                        const el = e.currentTarget as HTMLElement;
+                        const r = el.getBoundingClientRect();
+                        const clone = el.cloneNode(true) as HTMLElement;
+                        clone.style.cssText = `position:fixed;top:-1200px;left:-1200px;width:${r.width}px;box-sizing:border-box;border-radius:15px;background:var(--surface-solid);box-shadow:var(--shadow-md);pointer-events:none;`;
+                        document.body.appendChild(clone);
+                        e.dataTransfer.setDragImage(clone, e.clientX - r.left, e.clientY - r.top);
+                        setTimeout(() => clone.remove(), 0);
+                        // sharpa uslubi brauzer snapshot olganidan KEYIN qo'llanadi —
+                        // aks holda ko'tarilgan nusxaning o'zi xira chiqib qoladi
+                        setTimeout(() => setDragId(l.id), 0);
+                      }}
+                      onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {view === "table" && (
+        <div className="glass overflow-hidden !rounded-[20px] max-md:overflow-x-auto">
+          <div className="grid min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
+            <span>Mijoz</span><span>So&apos;rov</span><span>Manba</span><span>Taxminiy narx</span><span>Status</span><span>Vaqt</span>
+          </div>
+          {fLeads.map((l, ri) => (
+            <button key={l.id} onClick={() => setSelLead(l)} className="row-lux grid w-full min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
+              <span className="min-w-0">
+                <span className="block truncate font-bold" title={l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}>{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</span>
+                <span className="block truncate text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.phone || l.customer_detail?.masked_phone || "tel yo'q"}</span>
+              </span>
+              <span className="min-w-0 truncate" style={{ color: "var(--mut)" }} title={l.request_uz || l.request_ru}>{l.request_uz || l.request_ru}</span>
+              <span><span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span></span>
+              <span className="font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
+              <span><span className={STATUS_BADGE[l.status]}>{STATUS_LABEL[l.status]}</span></span>
+              <span className="text-xs" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
+            </button>
+          ))}
+          {fLeads.length === 0 && <EmptyState title="Tanlangan davrda buyurtma yo&apos;q" sub="Davr filtrini kengaytiring yoki yangi suhbatlarni kuting — AI buyurtmalarni avtomatik yaratadi." />}
+        </div>
+      )}
+
+      {selLead != null && (
+        <LeadModal
+          lead={selLead}
+          onClose={() => setSelLead(null)}
+          onStatus={(st) => { setLeadStatus(selLead.id, st); setSelLead({ ...selLead, status: st }); }}
+          onUpdated={(upd) => { setSelLead(upd); setLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l))); }}
+        />
+      )}
+      {editLead != null && (
+        <EditLeadModal
+          lead={editLead}
+          onClose={() => setEditLead(null)}
+          onSaved={(upd) => {
+            setEditLead(null);
+            setLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l)));
+            setSelLead((s) => (s?.id === upd.id ? upd : s));
+          }}
+        />
+      )}
+      {newLead && (
+        <NewLeadModal
+          customers={customers}
+          onClose={() => setNewLead(false)}
+          onSaved={(l) => { setNewLead(false); setLeads((ls) => [l, ...ls]); }}
+        />
+      )}
+    </>
+  );
+}

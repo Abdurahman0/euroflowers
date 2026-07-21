@@ -49,9 +49,9 @@ export default function DashboardPage() {
 
   // dark=true — brend fonli kartalar (matn sof oq); qolganlari neytral yuzada
   const stats: { label: string; num: number; money?: boolean; sub: string; href: string; darkCard?: boolean }[] = [
-    { label: "Bugungi savdo", num: +d.revenue_today, money: true, sub: `so'm · ${d.orders_today} ta buyurtma`, href: "/crm", darkCard: true },
-    { label: "7 kunlik savdo", num: +d.revenue_7d, money: true, sub: `so'm · konversiya ${d.conversion_rate}%`, href: "/crm", darkCard: true },
-    { label: "Faol leadlar", num: d.active_leads, sub: `${d.new_leads_today} tasi bugun tushdi`, href: "/crm" },
+    { label: "Bugungi savdo", num: +d.revenue_today, money: true, sub: `so'm · ${d.orders_today} ta buyurtma`, href: "/buyurtmalar", darkCard: true },
+    { label: "7 kunlik savdo", num: +d.revenue_7d, money: true, sub: `so'm · konversiya ${d.conversion_rate}%`, href: "/buyurtmalar", darkCard: true },
+    { label: "Faol buyurtmalar", num: d.active_leads, sub: `${d.new_leads_today} tasi bugun tushdi`, href: "/buyurtmalar" },
     { label: "AI suhbatlar", num: d.ai_conversations, sub: `${d.operator_conversations} ta operatorda`, href: "/chat" },
     { label: "Katalogda sotuvda", num: d.available_catalog, sub: `${d.pending_deductions} ta chiqim kutilmoqda`, href: "/katalog" },
     { label: "Skladda gul", num: d.stock_stems, sub: `${d.low_stock} pozitsiya kam qoldi`, href: "/sklad" },
@@ -64,7 +64,7 @@ export default function DashboardPage() {
     d.period_revenue !== undefined
       ? [
           { label: "Davr savdosi", num: +(d.period_revenue ?? 0), money: true, sub: `so'm · ${d.period_orders ?? 0} buyurtma` },
-          { label: "Leadlar", num: d.period_leads ?? 0 },
+          { label: "So'rovlar (lead)", num: d.period_leads ?? 0 },
           { label: "Yangi mijozlar", num: d.period_customers ?? 0 },
           { label: "Suhbatlar", num: d.period_conversations ?? 0 },
           { label: "Florist daromadi", num: +(d.florist_revenue ?? 0), money: true, sub: "so'm" },
@@ -114,22 +114,22 @@ export default function DashboardPage() {
         {/* so'nggi leadlar */}
         <motion.section variants={rise} className="glass-lite p-5">
           <div className="mb-3.5 flex items-center justify-between">
-            <h2 className="text-[16px]">So&apos;nggi leadlar</h2>
-            <Link href="/crm" className="text-[13px] font-bold" style={{ color: "var(--acc)" }}>CRM →</Link>
+            <h2 className="text-[16px]">So&apos;nggi buyurtmalar</h2>
+            <Link href="/buyurtmalar" className="text-[13px] font-bold" style={{ color: "var(--acc)" }}>Buyurtmalar →</Link>
           </div>
           <div className="flex flex-col gap-2.5">
-            {d.recent_leads.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Hozircha lead yo&apos;q.</p>}
+            {d.recent_leads.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Hozircha buyurtma yo&apos;q.</p>}
             {d.recent_leads.slice(0, 5).map((l, i) => (
               <motion.div
                 key={l.id}
                 initial={{ opacity: 0, x: -14 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.35 + i * 0.09, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                onClick={() => router.push(`/crm?lead=${l.id}`)}
+                onClick={() => router.push(`/buyurtmalar?order=${l.id}`)}
                 role="link"
                 tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && router.push(`/crm?lead=${l.id}`)}
-                title="CRM'da ochish"
+                onKeyDown={(e) => e.key === "Enter" && router.push(`/buyurtmalar?order=${l.id}`)}
+                title="Buyurtmani ochish"
                 className="card-hover flex cursor-pointer items-center gap-3 rounded-[14px] border p-2.5"
                 style={{ borderColor: "var(--line2)" }}
               >
@@ -152,7 +152,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4">
           {/* lead pipeline — animatsiyali ustunlar */}
           <motion.section variants={rise} className="glass-lite p-5">
-            <h2 className="mb-3.5 text-[16px]">Lead pipeline</h2>
+            <h2 className="mb-3.5 text-[16px]">Buyurtmalar oqimi</h2>
             <div className="flex flex-col gap-2.5">
               {d.lead_pipeline.map((p, i) => (
                 <div key={p.status} className="flex items-center gap-3">

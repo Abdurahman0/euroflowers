@@ -22,6 +22,7 @@ import {
   Search01Icon,
   SentIcon,
   Settings01Icon,
+  ShoppingBag01Icon,
   SidebarLeftIcon,
   SmileIcon,
   Sun03Icon,
@@ -42,7 +43,8 @@ import {
 const ICONS: Record<string, typeof FlowerIcon> = {
   dashboard: DashboardSquare01Icon,
   chat: BubbleChatIcon,
-  crm: UserGroupIcon,
+  crm: ShoppingBag01Icon, // Buyurtmalar
+  mijozlar: UserGroupIcon,
   sklad: PackageIcon,
   katalog: FlowerIcon,
   gullar: FlowerPotIcon,

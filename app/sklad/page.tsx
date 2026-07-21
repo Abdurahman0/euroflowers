@@ -149,11 +149,11 @@ export default function SkladPage() {
             return (
               <div
                 key={m.id}
-                onClick={leadId ? () => router.push(`/crm?lead=${leadId}`) : undefined}
+                onClick={leadId ? () => router.push(`/buyurtmalar?order=${leadId}`) : undefined}
                 role={leadId ? "link" : undefined}
                 tabIndex={leadId ? 0 : undefined}
-                onKeyDown={leadId ? (e) => e.key === "Enter" && router.push(`/crm?lead=${leadId}`) : undefined}
-                title={leadId ? `Lead #${leadId} kartasini ochish` : undefined}
+                onKeyDown={leadId ? (e) => e.key === "Enter" && router.push(`/buyurtmalar?order=${leadId}`) : undefined}
+                title={leadId ? `Buyurtma #${leadId} kartasini ochish` : undefined}
                 className={`row-lux flex items-center gap-3.5 border-t py-3 ${leadId ? "cursor-pointer" : ""}`}
                 style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(fMoves.indexOf(m) * 40, 480)}ms` }}
               >
@@ -168,7 +168,7 @@ export default function SkladPage() {
                   <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>
                 </div>
                 {leadId != null && (
-                  <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold" style={{ color: "var(--primary)" }}>Lead #{leadId} ↗</span>
+                  <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold" style={{ color: "var(--primary)" }}>Buyurtma #{leadId} ↗</span>
                 )}
                 <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
                   {MOVE_LABEL[m.movement_type] ?? m.movement_type.toUpperCase()}
