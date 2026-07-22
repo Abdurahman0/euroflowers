@@ -88,9 +88,12 @@ export default function DailyChart({ data }: { data: DailyStat[] }) {
   // yorliqlar doim butun son (13/25/38 kabi yaxlitlashlar bo'lmaydi)
   const steps = [4, 5, 3, 2].find((n) => n <= yMax && yMax % n === 0) ?? Math.min(4, yMax);
   const grid = Array.from({ length: steps + 1 }, (_, i) => (yMax / steps) * i);
-  // x yorliqlari: ~6 ta, birinchisi va oxirgisi doim
-  const every = Math.max(1, Math.ceil(data.length / 6));
-  const xTicks = data.map((_, i) => i).filter((i) => i % every === 0 || i === data.length - 1);
+  // x yorliqlari: HAR 2 KUN (juda uzun davrda 2 ning karralisiga kengayadi);
+  // oxirgi kun yorlig'i yonidagisi bilan yopishib qolmasa qo'shiladi
+  const every = data.length > 40 ? Math.ceil(data.length / 40) * 2 : 2;
+  const base = data.map((_, i) => i).filter((i) => i % every === 0);
+  const lastIdx = data.length - 1;
+  const xTicks = base.includes(lastIdx) || lastIdx - base[base.length - 1] < 2 ? base : [...base, lastIdx];
 
   const onMove = (e: React.PointerEvent) => {
     const rect = wrapRef.current!.getBoundingClientRect();

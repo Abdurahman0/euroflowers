@@ -60,51 +60,12 @@ export default function DashboardPage() {
   const statBg = ["var(--side)", "var(--primary)", "var(--surface)", "var(--surface)", "var(--surface)", "var(--surface)"];
   const maxPipe = Math.max(...d.lead_pipeline.map((p) => p.count), 1);
 
-  // backend davr statistikasi (?from&to) — mavjud bo'lsa alohida qator
-  const periodStats: { label: string; num: number; money?: boolean; sub?: string }[] =
-    d.period_revenue !== undefined
-      ? [
-          { label: "Davr savdosi", num: +(d.period_revenue ?? 0), money: true, sub: `so'm · ${d.period_orders ?? 0} buyurtma` },
-          { label: "So'rovlar (lead)", num: d.period_leads ?? 0 },
-          { label: "Yangi mijozlar", num: d.period_customers ?? 0 },
-          { label: "Suhbatlar", num: d.period_conversations ?? 0 },
-          { label: "Florist daromadi", num: +(d.florist_revenue ?? 0), money: true, sub: "so'm" },
-          { label: "Sotilgan gul", num: d.flowers_sold_stems ?? 0, sub: "dona" },
-        ]
-      : [];
-
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="relative">
       <motion.div variants={rise} className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[15px] font-bold" style={{ color: "var(--text-2)" }}>Davr statistikasi</h2>
         <DateChips />
       </motion.div>
-
-      {periodStats.length > 0 && (
-        <motion.div variants={rise} className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))" }}>
-          {periodStats.map((s) => (
-            <div key={s.label} className="glass-lite p-3.5">
-              <div className="text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: "var(--muted)" }}>{s.label}</div>
-              <div className="mt-1 whitespace-nowrap text-[19px] font-semibold tracking-tight">
-                <CountUp value={s.num} format={s.money ? fmtMoney : undefined} />
-              </div>
-              {s.sub && <div className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>{s.sub}</div>}
-            </div>
-          ))}
-        </motion.div>
-      )}
-
-      {(d.daily_stats?.length ?? 0) > 0 && (
-        <motion.section variants={rise} className="glass-lite mb-4 p-5">
-          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h2 className="text-[16px]">Kunlik dinamika</h2>
-              <p className="text-[12px] font-medium" style={{ color: "var(--muted)" }}>tanlangan davr bo&apos;yicha so&apos;rovlar va suhbatlar</p>
-            </div>
-          </div>
-          <DailyChart data={d.daily_stats!} />
-        </motion.section>
-      )}
 
       <motion.div variants={rise} className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(205px,1fr))" }}>
         {stats.map((s, i) => (
@@ -122,6 +83,18 @@ export default function DashboardPage() {
           </Link>
         ))}
       </motion.div>
+
+      {(d.daily_stats?.length ?? 0) > 0 && (
+        <motion.section variants={rise} className="glass-lite mt-4 p-5">
+          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="text-[16px]">Kunlik dinamika</h2>
+              <p className="text-[12px] font-medium" style={{ color: "var(--muted)" }}>tanlangan davr bo&apos;yicha so&apos;rovlar va suhbatlar</p>
+            </div>
+          </div>
+          <DailyChart data={d.daily_stats!} />
+        </motion.section>
+      )}
 
       <div className="mt-5 grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(310px,1fr))" }}>
         {/* so'nggi leadlar */}
