@@ -17,12 +17,12 @@ import type { Branch, SocialPost } from "@/lib/types";
 
 const TYPE_LABEL: Record<string, string> = { post: "POST", reel: "REEL", story: "STORY", ad: "REKLAMA" };
 
-/** Instagram'dagi kabi gradient halqali story doirasi. */
-function StoryCircle({ p, onOpen }: { p: SocialPost; onOpen: () => void }) {
+/** Instagram'dagi kabi gradient halqali story doirasi; hover'da tahrirlash/o'chirish. */
+function StoryCircle({ p, onOpen, onEdit, onDelete }: { p: SocialPost; onOpen: () => void; onEdit?: () => void; onDelete?: () => void }) {
   return (
     <button type="button" onClick={onOpen} className="group flex w-[86px] shrink-0 flex-col items-center gap-1.5" title={p.title_uz || p.title_ru}>
       <span
-        className="rounded-full p-[2.5px] transition-transform duration-200 group-hover:scale-105"
+        className="relative block rounded-full p-[2.5px] transition-transform duration-200 group-hover:scale-105"
         style={{
           background: p.is_active
             ? "conic-gradient(from 210deg, var(--accL), var(--primary), var(--primary-strong), var(--accL))"
@@ -39,6 +39,38 @@ function StoryCircle({ p, onOpen }: { p: SocialPost; onOpen: () => void }) {
             )}
           </span>
         </span>
+        {/* hover: doira ustida tahrirlash/o'chirish */}
+        {(onEdit || onDelete) && (
+          <span className="absolute inset-[2.5px] flex items-center justify-center gap-1.5 rounded-full bg-black/45 opacity-0 backdrop-blur-[1px] transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+            {onEdit && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEdit(); } }}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-[#221833] shadow"
+                title="Tahrirlash"
+                aria-label="Story'ni tahrirlash"
+              >
+                <Pencil size={12.5} strokeWidth={1.75} />
+              </span>
+            )}
+            {onDelete && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onDelete(); } }}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow"
+                style={{ color: "var(--danger)" }}
+                title="O'chirish"
+                aria-label="Story'ni o'chirish"
+              >
+                <Trash2 size={12.5} strokeWidth={1.75} />
+              </span>
+            )}
+          </span>
+        )}
       </span>
       <span className="w-full truncate text-center text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>
         {p.title_uz || p.title_ru || "Story"}
@@ -177,7 +209,13 @@ export default function PostlarPage() {
             <div className="mb-2.5 text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Stories</div>
             <div data-lenis-prevent className="flex gap-3 overflow-x-auto overscroll-x-contain pb-1">
               {stories.map((p) => (
-                <StoryCircle key={p.id} p={p} onOpen={() => (control ? setModal({ open: true, post: p }) : undefined)} />
+                <StoryCircle
+                  key={p.id}
+                  p={p}
+                  onOpen={() => (control ? setModal({ open: true, post: p }) : undefined)}
+                  onEdit={control ? () => setModal({ open: true, post: p }) : undefined}
+                  onDelete={control ? () => setConfirmDel(p) : undefined}
+                />
               ))}
             </div>
           </section>
@@ -227,7 +265,10 @@ export default function PostlarPage() {
                 {/* pastki gradient: nomi + narxi doim ko'rinadi */}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-3 pb-2.5 pt-8">
                   <div className="truncate text-[13px] font-bold text-white">{p.title_uz || p.title_ru}</div>
-                  <div className="text-[11.5px] font-semibold text-white/80">{p.price ? fmt(p.price) : "narx kiritilmagan"}</div>
+                  <div className="text-[11.5px] font-semibold text-white/80">
+                    {p.price ? fmt(p.price) : "narx kiritilmagan"}
+                    {(p.catalog_items?.length ?? 0) > 0 && <span title="Tayyor katalog guli biriktirilgan"> · 🌸 katalog</span>}
+                  </div>
                 </div>
 
                 {/* hover: Instagram uslubidagi statistika markazda */}

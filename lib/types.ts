@@ -263,6 +263,19 @@ export type CatalogItem = {
 
 export type PostType = "post" | "reel" | "story" | "ad";
 
+/** Postga biriktirilgan tayyor katalog guli (kontrakt: social post composition) */
+export type PostCatalogItem = {
+  id?: number;
+  name_uz: string;
+  name_ru?: string;
+  arrangement_type: string;
+  price: string;
+  quantity_total: number;
+  status?: string;
+  height_cm?: number | null;
+  composition: { id?: number; stock_batch: number; quantity_stems: number; quantity_bunches?: string; batch_detail?: StockBatch }[];
+};
+
 export type SocialPost = {
   id: number;
   reply_count: number;
@@ -282,6 +295,8 @@ export type SocialPost = {
   is_targeted: boolean;
   is_active: boolean;
   branch: number;
+  /** postga biriktirilgan tayyor katalog gullari (bir payloadda yaratiladi) */
+  catalog_items?: PostCatalogItem[];
   /** Instagram bog'lash maydonlari (kontrakt: story/post/reel linking) */
   instagram_username?: string;
   story_share_id?: string;

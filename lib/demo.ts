@@ -206,7 +206,14 @@ const mkPost = (id: number, type: SocialPost["post_type"], uz: string, price: st
 });
 
 const posts: SocialPost[] = [
-  mkPost(1, "post", "Nafis oq piyonlar to'plami", "850000", 34, 6, IMG.peony, 1),
+  {
+    ...mkPost(1, "post", "Nafis oq piyonlar to'plami", "850000", 34, 6, IMG.peony, 1),
+    catalog_items: [{
+      id: 900, name_uz: "Nafis oq piyonlar to'plami", name_ru: "Набор пионов", arrangement_type: "bouquet",
+      price: "850000.00", quantity_total: 4, status: "available", height_cm: 55,
+      composition: [{ id: 9001, stock_batch: 1, quantity_stems: 15, quantity_bunches: "1.50" }],
+    }],
+  },
   mkPost(2, "reel", "Bugungi svejiy keldi — pushti atirgullar", null, 58, 9, IMG.rose, 2),
   mkPost(3, "story", "Faqat bugun: gortenziya savatchasi", "650000", 12, 3, IMG.hpink, 0),
   mkPost(4, "ad", "To'y mavsumi — buyurtmalar ochiq", null, 21, 5, IMG.hwhite, 5),
@@ -500,6 +507,16 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       const i = leadStatuses.findIndex((x) => x.id === idOf(/lead-statuses\/(\d+)/));
       if (i >= 0) leadStatuses.splice(i, 1);
       return out(undefined);
+    }
+    if (p === "/api/social-posts/" && method === "POST") {
+      const np = { ...posts[0], reply_count: 0, lead_count: 0, ...body, id: 500 + posts.length, created_at: ago(0), updated_at: ago(0) } as SocialPost;
+      posts.unshift(np);
+      return out(np);
+    }
+    if (/\/api\/social-posts\/\d+\//.test(p) && method === "PATCH") {
+      const it = posts.find((x) => x.id === idOf(/social-posts\/(\d+)/)) ?? posts[0];
+      Object.assign(it, body, { updated_at: ago(0) });
+      return out(it);
     }
     if (p === "/api/leads/reorder-column/") {
       // kontrakt: target ustun idlari yangi tartibda; status ham shu yerda o'zgaradi

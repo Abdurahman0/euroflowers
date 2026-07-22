@@ -1,12 +1,13 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import ImageInput from "./ImageInput";
 import Select from "./Select";
+import { StockUsagePicker, type StockRow } from "./UsagePicker";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { Icon } from "./icons";
-import type { Branch, PostType, SocialPost } from "@/lib/types";
+import type { Branch, PostType, SocialPost, StockBatch } from "@/lib/types";
 
 /**
  * SocialPost yaratish/tahrirlash — kontrakt bo'yicha:
@@ -58,6 +59,24 @@ export default function PostModal({
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // === TAYYOR GUL (katalog) — post bilan bitta payloadda (kontrakt) ===
+  const ci = post?.catalog_items?.[0];
+  const [withCatalog, setWithCatalog] = useState(!!ci);
+  const [ciName, setCiName] = useState(ci?.name_uz ?? "");
+  const [ciType, setCiType] = useState(ci?.arrangement_type ?? "bouquet");
+  const [ciQty, setCiQty] = useState(ci ? String(ci.quantity_total) : "1");
+  const [ciPrice, setCiPrice] = useState(ci?.price ? String(Math.round(+ci.price)) : "");
+  const [ciHeight, setCiHeight] = useState(ci?.height_cm ? String(ci.height_cm) : "");
+  const [comp, setComp] = useState<StockRow[]>(
+    ci?.composition?.map((c) => ({ stock_batch: c.stock_batch, quantity_stems: c.quantity_stems })) ?? []
+  );
+  const [batches, setBatches] = useState<StockBatch[]>([]);
+  useEffect(() => {
+    if (!withCatalog || batches.length) return;
+    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [withCatalog]);
+
   const linkHint = useMemo(() => {
     const t = detectType(link);
     return t ? `Aniqlangan tur: ${TYPE_OPTIONS.find((o) => o.value === t)?.label}` : "";
@@ -75,6 +94,7 @@ export default function PostModal({
     if (!titleUz.trim() && !titleRu.trim()) errs.title_uz = "Kamida bitta til uchun sarlavha kiriting";
     if (postType !== "ad" && !link.trim()) errs.permalink = "Instagram havolasini kiriting";
     if (price && !/^\d+$/.test(price)) errs.price = "Faqat raqam kiriting";
+    if (withCatalog && comp.length === 0) errs.catalog_items = "Tayyor gul tarkibini kiriting — kamida bitta sklad partiyasi";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -93,6 +113,32 @@ export default function PostModal({
         is_active: active,
         image_url: image,
         branch,
+        // tayyor gul + tarkibi — bitta payloadda; backend sklad qoldig'ini
+        // quantity_total × quantity_stems bo'yicha tekshiradi (400 — yetmasa)
+        ...(withCatalog && comp.length
+          ? {
+              catalog_items: [
+                {
+                  name_uz: (ciName || titleUz || titleRu).trim(),
+                  name_ru: (titleRu || ciName || titleUz).trim(),
+                  arrangement_type: ciType,
+                  price: String(+(ciPrice || price || 0)),
+                  quantity_total: Math.max(+ciQty || 1, 1),
+                  status: "available",
+                  height_cm: +ciHeight || null,
+                  composition: comp.map((r) => {
+                    const b = batches.find((x) => x.id === r.stock_batch);
+                    const per = b?.stems_per_bunch || 0;
+                    return {
+                      stock_batch: r.stock_batch,
+                      quantity_stems: r.quantity_stems,
+                      ...(per > 0 ? { quantity_bunches: (r.quantity_stems / per).toFixed(2) } : {}),
+                    };
+                  }),
+                },
+              ],
+            }
+          : { catalog_items: [] }),
       };
       const saved = post
         ? await api.updateSocialPost(post.id, payload)
@@ -189,6 +235,51 @@ export default function PostModal({
           Faol
         </label>
       </div>
+
+      <Section>Tayyor gul (katalog)</Section>
+      <label className="flex cursor-pointer items-center gap-2 text-[13px] normal-case tracking-normal">
+        <input type="checkbox" checked={withCatalog} onChange={(e) => setWithCatalog(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
+        Post bilan birga katalogga tayyor gul qo&apos;shish
+        <span style={{ color: "var(--muted)" }}>— AI reply&apos;larda shu tarkibdan foydalanadi</span>
+      </label>
+      {withCatalog && (
+        <div className="mt-3 flex flex-col gap-3 rounded-[14px] border p-3.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Gul nomi" span>
+              <input className="inp" value={ciName} onChange={(e) => setCiName(e.target.value)} placeholder={titleUz || "Qizil atirgul buket"} />
+            </Field>
+            <Field label="Turi">
+              <Select
+                value={ciType}
+                onChange={(v) => setCiType(String(v))}
+                options={[
+                  { value: "bouquet", label: "Buket" },
+                  { value: "basket", label: "Savat" },
+                  { value: "box", label: "Quti" },
+                ]}
+              />
+            </Field>
+            <Field label="Soni (nechta tayyor)">
+              <input className="inp" inputMode="numeric" value={ciQty} onChange={(e) => setCiQty(e.target.value.replace(/\D/g, ""))} placeholder="4" />
+            </Field>
+            <Field label="Narxi (so'm)">
+              <input className="inp" inputMode="numeric" value={ciPrice} onChange={(e) => setCiPrice(e.target.value.replace(/\D/g, ""))} placeholder={price || "400000"} />
+            </Field>
+            <Field label="Bo'yi (sm)">
+              <input className="inp" inputMode="numeric" value={ciHeight} onChange={(e) => setCiHeight(e.target.value.replace(/\D/g, ""))} placeholder="60" />
+            </Field>
+          </div>
+          <Field label="BITTA buket/savat tarkibi (skladdan)" span>
+            <StockUsagePicker batches={batches} rows={comp} onChange={setComp} />
+          </Field>
+          <p className="text-[12px] normal-case tracking-normal" style={{ color: "var(--muted)" }}>
+            Sklad tekshiruvi: soni × tarkibdagi dona &le; partiya qoldig&apos;i — yetmasa saqlanmaydi.
+          </p>
+        </div>
+      )}
+      {errors.catalog_items && (
+        <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.catalog_items}</p>
+      )}
 
       <Section>Rasm</Section>
       <ImageInput value={image} onChange={setImage} />
