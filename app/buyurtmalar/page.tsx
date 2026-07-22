@@ -187,7 +187,12 @@ export default function BuyurtmalarPage() {
     return () => window.removeEventListener("resize", measure);
   }, [loading, view]);
 
+  // POYGA HIMOYASI: PATCH'dan OLDIN boshlangan GET keyin kelib, yangi statusni
+  // eski ro'yxat bilan bosib qo'ymasin — har mutatsiya seq'ni oshiradi,
+  // eskirgan yuklash javobi esa e'tiborsiz qoldiriladi
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     try {
       const [ls, cs, sts] = await Promise.all([
         // barcha filtrlar server tomonda
@@ -203,6 +208,7 @@ export default function BuyurtmalarPage() {
         // kanban ustunlari — backenddan; xato bo'lsa zaxira to'plam qoladi
         api.leadStatuses().catch(() => null),
       ]);
+      if (seq !== loadSeq.current) return; // eskirgan javob — undan keyin mutatsiya bo'lgan
       setLeads(ls);
       setCustomers(cs);
       if (sts && sts.length) setStatuses(sts);
@@ -212,6 +218,12 @@ export default function BuyurtmalarPage() {
       setLoading(false);
     }
   }, [showToast, dateFilter, dateRange, q, branch, arrType]);
+
+  /** Lokal mutatsiya — davom etayotgan har qanday yuklashni bekor qiladi. */
+  const mutateLeads = useCallback((fn: (ls: Lead[]) => Lead[]) => {
+    loadSeq.current++;
+    setLeads(fn);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
   // boshqa joyda ma'lumot o'zgarsa ham ko'rinib turishi uchun jimgina yangilash
@@ -242,10 +254,10 @@ export default function BuyurtmalarPage() {
     const prev = leads;
     // await'dan OLDIN o'qiladi — javob kelgach solishtirish uchun
     const wasDeducted = !!leads.find((l) => l.id === id)?.stock_deducted_at;
-    setLeads((ls) => ls.map((l) => (l.id === id ? { ...l, status: st } : l)));
+    mutateLeads((ls) => ls.map((l) => (l.id === id ? { ...l, status: st } : l)));
     try {
       const upd = await api.updateLead(id, { status: st });
-      setLeads((ls) => ls.map((l) => (l.id === id ? upd : l)));
+      mutateLeads((ls) => ls.map((l) => (l.id === id ? upd : l)));
       setSelLead((s) => (s?.id === id ? upd : s));
       if (st === "won" && upd.stock_deducted_at && !wasDeducted) {
         showToast("✓ Sotildi — sklad qoldig'i avtomatik kamaytirildi");
@@ -255,7 +267,7 @@ export default function BuyurtmalarPage() {
         showToast(`Buyurtma «${statusName(st, statusOf(st))}» ustuniga ko'chirildi`);
       }
     } catch (e) {
-      setLeads(prev);
+      mutateLeads(() => prev);
       setSelLead((s) => (s?.id === id ? (prev.find((l) => l.id === id) ?? s) : s));
       showToast(e instanceof Error ? e.message : "Statusni saqlab bo'lmadi");
     }
@@ -407,7 +419,7 @@ export default function BuyurtmalarPage() {
           statuses={cols}
           onClose={() => setSelLead(null)}
           onStatus={(st) => { setLeadStatus(selLead.id, st); setSelLead({ ...selLead, status: st }); }}
-          onUpdated={(upd) => { setSelLead(upd); setLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l))); }}
+          onUpdated={(upd) => { setSelLead(upd); mutateLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l))); }}
         />
       )}
       {statusMgr && (
@@ -423,7 +435,7 @@ export default function BuyurtmalarPage() {
           onClose={() => setEditLead(null)}
           onSaved={(upd) => {
             setEditLead(null);
-            setLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l)));
+            mutateLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l)));
             setSelLead((s) => (s?.id === upd.id ? upd : s));
           }}
         />
@@ -432,7 +444,7 @@ export default function BuyurtmalarPage() {
         <NewLeadModal
           customers={customers}
           onClose={() => setNewLead(false)}
-          onSaved={(l) => { setNewLead(false); setLeads((ls) => [l, ...ls]); }}
+          onSaved={(l) => { setNewLead(false); mutateLeads((ls) => [l, ...ls]); }}
         />
       )}
 
