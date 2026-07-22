@@ -26,6 +26,9 @@
   --bg-subtle: #f3eee5;
   --surface: rgba(255, 255, 253, 0.82);
   --surface-solid: #fffefb;
+  /* grafik seriyalari — CVD-validatsiyadan o'tgan (dataviz) */
+  --chart-1: #b3536b;
+  --chart-2: #4a7ab5;
   --surface-2: #f8f4ec;
 
   /* matn */
@@ -250,6 +253,8 @@
   --bg-subtle: #1a1614;
   --surface: rgba(32, 27, 22, 0.78);
   --surface-solid: #201b16;
+  --chart-1: #c9647e;
+  --chart-2: #5b88c4;
   --surface-2: #272119;
 
   --text: #f1eae0;

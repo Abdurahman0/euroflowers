@@ -289,7 +289,17 @@ const notifications: Notification[] = [
 
 // ===== Dashboard =====
 
+// kunlik dinamika — 30 kun, deterministik naqsh (0 qiymatli kunlar ham bor)
+const dailyStats = Array.from({ length: 30 }, (_, i) => {
+  const d = new Date(Date.now() - (29 - i) * 864e5);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const leads = [0, 2, 4, 1, 3, 6, 2, 0, 5, 3][i % 10] + (i % 7 === 5 ? 3 : 0);
+  const conversations = leads * 2 + [1, 4, 2, 6, 3, 5, 8, 2, 4, 7][(i + 3) % 10];
+  return { date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, leads, conversations };
+});
+
 const dashboard: Dashboard = {
+  daily_stats: dailyStats,
   period: { from: ago(30), to: ago(0) },
   period_revenue: "12000000.00",
   period_orders: 18,

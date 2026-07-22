@@ -188,7 +188,8 @@ type Params = Record<string, string | number | boolean | undefined>;
 
 // bitta katta sahifa yetarli; count oshsa keyingi sahifalar ham olinadi (maks 5)
 const list = async <T,>(path: string, params?: Params): Promise<T[]> => {
-  const first = await request<Paginated<T>>(`${path}${qs({ page_size: 200, ...params })}`);
+  // maksimal page_size 100 (leads kontrakti); kattaroq qiymat 400 berishi mumkin
+  const first = await request<Paginated<T>>(`${path}${qs({ page_size: 100, ...params })}`);
   const out = [...first.results];
   let next = first.next;
   let guard = 0;

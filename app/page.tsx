@@ -10,6 +10,7 @@ import { dateAfterParam, fmt, fmtTime, initials } from "@/lib/format";
 import { statusBadgeProps, statusName } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
+import DailyChart from "@/components/DailyChart";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
 import type { Dashboard } from "@/lib/types";
@@ -91,6 +92,18 @@ export default function DashboardPage() {
             </div>
           ))}
         </motion.div>
+      )}
+
+      {(d.daily_stats?.length ?? 0) > 0 && (
+        <motion.section variants={rise} className="glass-lite mb-4 p-5">
+          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="text-[16px]">Kunlik dinamika</h2>
+              <p className="text-[12px] font-medium" style={{ color: "var(--muted)" }}>tanlangan davr bo&apos;yicha so&apos;rovlar va suhbatlar</p>
+            </div>
+          </div>
+          <DailyChart data={d.daily_stats!} />
+        </motion.section>
       )}
 
       <motion.div variants={rise} className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(205px,1fr))" }}>

@@ -392,6 +392,8 @@ export type AuditLog = {
 };
 
 export type Dashboard = {
+  /** kunlik dinamika — davrning HAR kuni (0 qiymatlar ham) */
+  daily_stats?: { date: string; leads: number; conversations: number }[];
   /** ?from&to davri statistikasi (backend qo'shgan yangi maydonlar) */
   period?: { from: string; to: string };
   period_revenue?: number | string;
