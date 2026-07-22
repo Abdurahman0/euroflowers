@@ -6,6 +6,7 @@ import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { LayoutGroup, motion } from "framer-motion";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import useAutoRefresh from "@/lib/useAutoRefresh";
@@ -421,6 +422,7 @@ export default function BuyurtmalarPage() {
           className="mb-[-40px] flex gap-3.5 overflow-x-auto overscroll-x-contain max-lg:snap-x max-lg:snap-mandatory"
           style={{ height: kanbanH ?? "calc(100dvh - 220px)" }}
         >
+          <LayoutGroup>
           {cols.map((sdef) => {
             const st = sdef.key;
             const items = fLeads.filter((l) => (st === "new" ? l.status === "new" || l.status === "qualified" : l.status === st));
@@ -449,47 +451,70 @@ export default function BuyurtmalarPage() {
                     {items.length}
                   </span>
                 </div>
-                {/* har ustun o'z ichida skrollanadi; slot TANLANGAN POZITSIYADA ochiladi */}
+                {/* har ustun o'z ichida skrollanadi; slot TANLANGAN POZITSIYADA
+                    ochiladi — layout animatsiya bilan kartalar SILLIQ suriladi */}
                 <div data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5">
-                  {items.map((l, idx) => (
-                    <div key={l.id} className="flex shrink-0 flex-col gap-2.5">
-                      {isOver && overIdx === idx && (
-                        <div className="box-border h-[84px] shrink-0 rounded-[15px] border-2 border-dashed animate-[rowIn_0.15s_var(--ease)]" style={{ borderColor: "var(--acc)", background: "rgba(255,255,255,.15)" }} aria-hidden />
-                      )}
-                      <LeadCard
-                        l={l}
-                        accent={sdef.color}
-                        dragging={dragId === l.id}
-                        onOpen={() => setSelLead(l)}
-                        onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
-                        onDragOverCard={(e) => {
-                          // kartaning ustki/pastki yarmi — qo'yish nuqtasini belgilaydi
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const r = e.currentTarget.getBoundingClientRect();
-                          setOverCol(st);
-                          setOverIdx(e.clientY < r.top + r.height / 2 ? idx : idx + 1);
-                        }}
-                        onDrag={(e) => {
-                          e.dataTransfer.effectAllowed = "move";
-                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          grabRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY };
-                          // natif snapshot o'chiriladi — o'rniga jonli ghost kursorga ergashadi
-                          if (emptyImgRef.current) e.dataTransfer.setDragImage(emptyImgRef.current, 0, 0);
-                          setGhost({ l, w: r.width });
-                          setTimeout(() => setDragId(l.id), 0);
-                        }}
-                        onDragEnd={() => { setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null); }}
+                  {(() => {
+                    const slotAt = isOver ? Math.min(overIdx ?? items.length, items.length) : -1;
+                    const rows: React.ReactNode[] = [];
+                    const slotEl = (
+                      <motion.div
+                        key="drop-slot"
+                        layout
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 84, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 520, damping: 40 }}
+                        className="box-border shrink-0 rounded-[15px] border-2 border-dashed"
+                        style={{ borderColor: "var(--acc)", background: "rgba(255,255,255,.15)" }}
+                        aria-hidden
                       />
-                    </div>
-                  ))}
-                  {isOver && (overIdx == null || overIdx >= items.length) && (
-                    <div className="box-border h-[84px] shrink-0 rounded-[15px] border-2 border-dashed animate-[rowIn_0.15s_var(--ease)]" style={{ borderColor: "var(--acc)", background: "rgba(255,255,255,.15)" }} aria-hidden />
-                  )}
+                    );
+                    items.forEach((l, idx) => {
+                      if (slotAt === idx) rows.push(slotEl);
+                      rows.push(
+                        <motion.div
+                          key={l.id}
+                          layout
+                          layoutId={`lead-${l.id}`}
+                          transition={{ type: "spring", stiffness: 480, damping: 38 }}
+                          className="shrink-0"
+                        >
+                          <LeadCard
+                            l={l}
+                            accent={sdef.color}
+                            dragging={dragId === l.id}
+                            onOpen={() => setSelLead(l)}
+                            onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
+                            onDragOverCard={(e) => {
+                              // kartaning ustki/pastki yarmi — qo'yish nuqtasini belgilaydi
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setOverCol(st);
+                              setOverIdx(e.clientY < r.top + r.height / 2 ? idx : idx + 1);
+                            }}
+                            onDrag={(e) => {
+                              e.dataTransfer.effectAllowed = "move";
+                              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              grabRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY };
+                              // natif snapshot o'chiriladi — o'rniga jonli ghost kursorga ergashadi
+                              if (emptyImgRef.current) e.dataTransfer.setDragImage(emptyImgRef.current, 0, 0);
+                              setGhost({ l, w: r.width });
+                              setTimeout(() => setDragId(l.id), 0);
+                            }}
+                            onDragEnd={() => { setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null); }}
+                          />
+                        </motion.div>
+                      );
+                    });
+                    if (slotAt >= items.length) rows.push(slotEl);
+                    return rows;
+                  })()}
                 </div>
               </div>
             );
           })}
+          </LayoutGroup>
         </div>
       )}
 

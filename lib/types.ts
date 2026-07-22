@@ -306,6 +306,8 @@ export type ConversationStatus = "ai" | "operator" | "closed";
 
 export type Conversation = {
   id: number;
+  /** suhbat kanali — backend bersa avtoritativ; bo'lmasa mijoz ma'lumotidan aniqlanadi */
+  channel?: "instagram" | "telegram" | string;
   customer_detail: Customer;
   messages: Message[];
   last_message: Message | null;

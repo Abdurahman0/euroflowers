@@ -248,6 +248,7 @@ const mkConv = (id: number, c: Customer, status: Conversation["status"], summary
   customer: c.id, branch: 1, social_post: null, assigned_to: status === "operator" ? 2 : null,
 });
 
+// 4 va 5-suhbatlar — Telegram kanali (platforma filtri uchun)
 const conversations: Conversation[] = [
   mkConv(1, customers[0], "ai", "Yubiley uchun 101 atirgul so'ramoqda, narx kelishilmoqda.", [
     mkMsg(1, "customer", "Assalomu alaykum! 101 dona qizil atirgul bormi?", 0, 3),
@@ -266,14 +267,14 @@ const conversations: Conversation[] = [
     mkMsg(3, "customer", "Ofisimizga har hafta yangi gul kompozitsiyasi kerak", 1, 4),
     mkMsg(3, "ai", "Ajoyib! Haftalik obuna: 3 ta kompozitsiya, yetkazish bepul — oyiga 1 500 000 so'mdan boshlanadi. Manzilingizni yozib qoldirasizmi?", 1, 4),
   ]),
-  mkConv(4, customers[4], "ai", "Gortenziya narxi so'raldi.", [
+  { ...mkConv(4, customers[4], "ai", "Gortenziya narxi so'raldi.", [
     mkMsg(4, "customer", "Storydagi gortenziyalar necha pul?", 0, 8),
     mkMsg(4, "ai", "Pushti gortenziya donasi 42 000 so'm, savatchada 650 000 so'm 🌸", 0, 8),
-  ]),
-  mkConv(5, customers[5], "closed", "Ona kuni buketi — buyurtma yakunlandi.", [
+  ]), channel: "telegram" as const },
+  { ...mkConv(5, customers[5], "closed", "Ona kuni buketi — buyurtma yakunlandi.", [
     mkMsg(5, "customer", "Rahmat, buket juda chiroyli chiqdi!", 2, 5),
     mkMsg(5, "operator", "Xursandmiz! Yana kutamiz 🌷", 2, 4),
-  ]),
+  ]), channel: "telegram" as const },
 ];
 
 // ===== Bildirishnomalar =====

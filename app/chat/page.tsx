@@ -1,5 +1,7 @@
 "use client";
 import { ArrowLeft, MoonStar, Trash2 } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { InstagramIcon, TelegramIcon } from "@hugeicons/core-free-icons";
 import SearchInput from "@/components/SearchInput";
 import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
@@ -159,6 +161,7 @@ export default function ChatPage() {
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState(""); // suhbat holati — server filtri
+  const [chanF, setChanF] = useState<"" | "instagram" | "telegram">(""); // platforma filtri
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -270,13 +273,48 @@ export default function ChatPage() {
   };
 
   const q = search.trim().toLowerCase();
-  const fConvs = q
-    ? convs.filter((c) =>
-        (c.customer_detail?.name ?? "").toLowerCase().includes(q) ||
-        (c.customer_detail?.instagram_username ?? "").toLowerCase().includes(q))
-    : convs;
+  const chanOfRaw = (c: Conversation): "instagram" | "telegram" =>
+    c.channel === "telegram" || c.channel === "instagram"
+      ? c.channel
+      : c.customer_detail?.instagram_username || c.customer_detail?.instagram_user_id
+        ? "instagram"
+        : "telegram";
+  const fConvs = convs.filter((c) => {
+    if (chanF && chanOfRaw(c) !== chanF) return false;
+    if (!q) return true;
+    return (
+      (c.customer_detail?.name ?? "").toLowerCase().includes(q) ||
+      (c.customer_detail?.instagram_username ?? "").toLowerCase().includes(q)
+    );
+  });
 
   const custName = (c: Conversation) => c.customer_detail?.name || `@${c.customer_detail?.instagram_username ?? "—"}`;
+
+  /** Suhbat platformasi: backend `channel` bersa — o'sha; aks holda mijozning
+      Instagram ma'lumoti bo'yicha aniqlanadi (yo'q bo'lsa Telegram). */
+  const channelOf = chanOfRaw;
+
+  const IG_GRADIENT = "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)";
+  const TG_BLUE = "#229ED9";
+
+  /** Avatar burchagidagi mini platforma belgisi — Instagram gradienti / Telegram ko'ki. */
+  const ChannelDot = ({ c }: { c: Conversation }) => {
+    const ch = channelOf(c);
+    return (
+      <span
+        className="absolute -bottom-0.5 -right-0.5 flex h-[16px] w-[16px] items-center justify-center rounded-full border-2"
+        style={{ borderColor: "var(--surface-solid)", background: ch === "instagram" ? IG_GRADIENT : TG_BLUE }}
+        title={ch === "instagram" ? "Instagram" : "Telegram"}
+        aria-label={ch === "instagram" ? "Instagram suhbati" : "Telegram suhbati"}
+      >
+        {ch === "instagram" ? (
+          <HugeiconsIcon icon={InstagramIcon} size={10} strokeWidth={2.5} className="text-white" />
+        ) : (
+          <HugeiconsIcon icon={TelegramIcon} size={10} strokeWidth={2.5} className="text-white" />
+        )}
+      </span>
+    );
+  };
 
   if (loading) return <FlowerLoader />;
 
@@ -301,7 +339,32 @@ export default function ChatPage() {
               { value: "closed", label: "Yopilgan" },
             ]}
           />
-          <ClearFilters show={!!(search || statusF)} onClear={() => { setSearch(""); setStatusF(""); }} />
+          <ClearFilters show={!!(search || statusF || chanF)} onClear={() => { setSearch(""); setStatusF(""); setChanF(""); }} />
+        </div>
+        {/* platforma filtri — Instagram gradienti / Telegram ko'ki bilan segment */}
+        <div className="bg-sfc flex items-center rounded-full border p-1" style={{ borderColor: "var(--border)" }} role="tablist" aria-label="Platforma filtri">
+          {([
+            { value: "" as const, label: "Barchasi", icon: null, bg: "var(--primary)" },
+            { value: "instagram" as const, label: "Instagram", icon: InstagramIcon, bg: IG_GRADIENT },
+            { value: "telegram" as const, label: "Telegram", icon: TelegramIcon, bg: TG_BLUE },
+          ]).map((ch) => {
+            const active = chanF === ch.value;
+            return (
+              <button
+                key={ch.value || "all"}
+                onClick={() => setChanF(ch.value)}
+                aria-pressed={active}
+                className={clsx(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-[12px] font-bold transition-all duration-200",
+                  active ? "text-white shadow-sm" : "hover:bg-[var(--hover)]"
+                )}
+                style={active ? { background: ch.bg } : { color: "var(--muted)" }}
+              >
+                {ch.icon && <HugeiconsIcon icon={ch.icon} size={13} strokeWidth={2} />}
+                {ch.label}
+              </button>
+            );
+          })}
         </div>
         <div data-lenis-prevent className="glass flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain !rounded-[16px] p-2">
           {fConvs.map((c) => (
@@ -313,8 +376,9 @@ export default function ChatPage() {
                 selId === c.id ? "bg-[var(--primary-soft)]" : "hover:bg-[var(--hover)]"
               )}
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
                 {initials(custName(c))}
+                <ChannelDot c={c} />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
@@ -340,8 +404,9 @@ export default function ChatPage() {
               <button onClick={() => setMobileConv(false)} className="icon-btn md:hidden" aria-label="Suhbatlar ro'yxatiga qaytish" title="Orqaga">
                 <ArrowLeft size={18} strokeWidth={1.75} />
               </button>
-              <div className="hidden h-[42px] w-[42px] items-center justify-center rounded-full border font-bold sm:flex" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
+              <div className="relative hidden h-[42px] w-[42px] items-center justify-center rounded-full border font-bold sm:flex" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
                 {initials(custName(conv))}
+                <ChannelDot c={conv} />
               </div>
               <div className="min-w-[150px] flex-1">
                 <div className="truncate text-[14px] font-bold" style={{ color: "var(--text)" }}>
@@ -349,7 +414,7 @@ export default function ChatPage() {
                   <span className="text-[13px] font-medium" style={{ color: "var(--muted)" }}>@{conv.customer_detail?.instagram_username}</span>
                 </div>
                 {conv.ai_summary && <div className="truncate text-xs font-semibold" style={{ color: "var(--text-2)" }}>{conv.ai_summary}</div>}
-                <div className="truncate text-xs" style={{ color: "var(--muted)" }}>Instagram DM · {conv.customer_detail?.phone || conv.customer_detail?.masked_phone || "tel yo'q"}</div>
+                <div className="truncate text-xs" style={{ color: "var(--muted)" }}>{channelOf(conv) === "telegram" ? "Telegram" : "Instagram DM"} · {conv.customer_detail?.phone || conv.customer_detail?.masked_phone || "tel yo'q"}</div>
               </div>
               <span
                 className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-bold"
