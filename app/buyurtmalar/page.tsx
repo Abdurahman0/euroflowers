@@ -195,26 +195,57 @@ export default function BuyurtmalarPage() {
   // eski ro'yxat bilan bosib qo'ymasin — har mutatsiya seq'ni oshiradi,
   // eskirgan yuklash javobi esa e'tiborsiz qoldiriladi
   const loadSeq = useRef(0);
+
+  // CHEKSIZ SKROLL: sahifalab yuklash (kontrakt: page/page_size, max 100)
+  const PAGE_SIZE = 50;
+  const pagesRef = useRef(1); // hozircha yuklangan sahifalar soni
+  const loadingMoreRef = useRef(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
+
+  const baseParams = useCallback(
+    () => ({
+      // ustun ichidagi qo'lda tartib saqlanadi (reorder-column kontrakti)
+      ordering: "sort_order",
+      ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
+      search: q || undefined,
+      branch: branch || undefined,
+      arrangement_type: arrType || undefined,
+    }),
+    [dateRange, dateFilter, q, branch, arrType]
+  );
+
+  // filtr o'zgarsa — sahifalash boshidan
+  useEffect(() => { pagesRef.current = 1; }, [dateRange, dateFilter, q, branch, arrType]);
+
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
     try {
-      const [ls, cs, sts] = await Promise.all([
-        // barcha filtrlar server tomonda
-        api.leads({
-          // ustun ichidagi qo'lda tartib saqlanadi (reorder-column kontrakti)
-          ordering: "sort_order",
-          ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
-          search: q || undefined,
-          branch: branch || undefined,
-          arrangement_type: arrType || undefined,
-        }),
+      const [pageData, cs, sts] = await Promise.all([
+        // yuklangan sahifalar qayta o'qiladi (auto-refresh skrollangan joyni yo'qotmasin)
+        (async () => {
+          const acc: Lead[] = [];
+          let count = 0;
+          let more = false;
+          for (let pg = 1; pg <= pagesRef.current; pg++) {
+            const res = await api.leadsPage({ ...baseParams(), page: pg, page_size: PAGE_SIZE });
+            acc.push(...res.results);
+            count = res.count;
+            more = !!res.next;
+            if (!res.next) break;
+          }
+          return { acc, count, more };
+        })(),
         // yangi buyurtma formasi uchun mavjud mijozlar ro'yxati
         api.customers({ ordering: "-created_at" }),
         // kanban ustunlari — backenddan; xato bo'lsa zaxira to'plam qoladi
         api.leadStatuses().catch(() => null),
       ]);
       if (seq !== loadSeq.current) return; // eskirgan javob — undan keyin mutatsiya bo'lgan
-      setLeads(ls);
+      setLeads(pageData.acc);
+      setTotal(pageData.count);
+      setHasMore(pageData.more);
       setCustomers(cs);
       if (sts && sts.length) setStatuses(sts);
     } catch (e) {
@@ -222,7 +253,50 @@ export default function BuyurtmalarPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, dateFilter, dateRange, q, branch, arrType]);
+  }, [showToast, baseParams]);
+
+  /** Skroll yarmidan oshganda keyingi sahifa qo'shiladi. */
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const seq = loadSeq.current; // bu orada mutatsiya bo'lsa — javob tashlanadi
+    try {
+      const page = pagesRef.current + 1;
+      const res = await api.leadsPage({ ...baseParams(), page, page_size: PAGE_SIZE });
+      if (seq !== loadSeq.current) return;
+      pagesRef.current = page;
+      setHasMore(!!res.next);
+      setTotal(res.count);
+      setLeads((ls) => {
+        const seen = new Set(ls.map((l) => l.id));
+        return [...ls, ...res.results.filter((r) => !seen.has(r.id))];
+      });
+    } catch {
+      /* keyingi skrollda qayta uriniladi */
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [hasMore, baseParams]);
+
+  /** Skroll pozitsiyasi yarmidan oshdimi? (faqat haqiqatan skrollansa) */
+  const halfReached = (el: { scrollTop: number; scrollHeight: number; clientHeight: number }) => {
+    const track = el.scrollHeight - el.clientHeight;
+    return track > 40 && el.scrollTop >= track / 2;
+  };
+
+  // jadval ko'rinishida kontent Shell ichidagi scroll-konteynerda aylanadi
+  // (window emas!) — shuning uchun capture-rejimda istalgan skrollni tinglaymiz
+  useEffect(() => {
+    if (view !== "table") return;
+    const onScroll = (e: Event) => {
+      const el = e.target instanceof HTMLElement ? e.target : document.documentElement;
+      if (halfReached(el)) loadMore();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    return () => window.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
+  }, [view, loadMore]);
 
   /** Lokal mutatsiya — davom etayotgan har qanday yuklashni bekor qiladi. */
   const mutateLeads = useCallback((fn: (ls: Lead[]) => Lead[]) => {
@@ -377,7 +451,7 @@ export default function BuyurtmalarPage() {
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
-          Buyurtmalar ({fLeads.length}) — sudrab statusni o&apos;zgartiring
+          Buyurtmalar ({total != null && total > fLeads.length ? `${fLeads.length} / ${total}` : fLeads.length}) — sudrab statusni o&apos;zgartiring
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Buyurtma qidirish" />
@@ -453,7 +527,11 @@ export default function BuyurtmalarPage() {
                 </div>
                 {/* har ustun o'z ichida skrollanadi; slot TANLANGAN POZITSIYADA
                     ochiladi — layout animatsiya bilan kartalar SILLIQ suriladi */}
-                <div data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5">
+                <div
+                  data-lenis-prevent
+                  onScroll={(e) => { if (halfReached(e.currentTarget)) loadMore(); }}
+                  className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5"
+                >
                   {(() => {
                     const slotAt = isOver ? Math.min(overIdx ?? items.length, items.length) : -1;
                     const rows: React.ReactNode[] = [];
@@ -539,6 +617,11 @@ export default function BuyurtmalarPage() {
             </button>
           ))}
           {fLeads.length === 0 && <EmptyState title="Tanlangan davrda buyurtma yo&apos;q" sub="Davr filtrini kengaytiring yoki yangi suhbatlarni kuting — AI buyurtmalarni avtomatik yaratadi." />}
+          {loadingMore && (
+            <p className="border-t py-3 text-center text-[12.5px] font-semibold" style={{ borderColor: "var(--line2)", color: "var(--muted)" }}>
+              Yana yuklanmoqda…
+            </p>
+          )}
         </div>
       )}
 

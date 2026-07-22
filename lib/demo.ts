@@ -104,6 +104,18 @@ const leads: Lead[] = [
     packaging_usage: [{ id: 1, packaging: 2, quantity: 1 }],
     stock_deducted_at: null,
   },
+  ...Array.from({ length: 65 }, (_, i) =>
+    mkLead(
+      100 + i,
+      customers[i % customers.length],
+      (["new", "contacted", "won", "lost"] as const)[i % 4],
+      `Namunaviy buyurtma #${100 + i} — ${["buket", "savat", "kompozitsiya"][i % 3]}`,
+      String(150000 + (i % 7) * 50000),
+      "bouquet",
+      i % 25,
+      i % 12
+    )
+  ),
   mkLead(
     9,
     customers[1],
@@ -571,7 +583,20 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   if (p === "/api/dashboard/") return out(dashboard);
   if (p === "/api/branches/") return out(page(branches));
   if (p === "/api/lead-statuses/") return out(page(leadStatuses));
-  if (p === "/api/leads/") return out(page(leads));
+  if (p === "/api/leads/") {
+    // haqiqiy sahifalash — cheksiz skrollni sinash uchun
+    const query = new URLSearchParams(path.split("?")[1] ?? "");
+    const size = Math.min(+(query.get("page_size") ?? 100) || 100, 100);
+    const pg = Math.max(+(query.get("page") ?? 1) || 1, 1);
+    const start = (pg - 1) * size;
+    const slice = leads.slice(start, start + size);
+    return out({
+      count: leads.length,
+      next: start + size < leads.length ? `/api/leads/?page=${pg + 1}&page_size=${size}` : null,
+      previous: pg > 1 ? `/api/leads/?page=${pg - 1}&page_size=${size}` : null,
+      results: slice,
+    });
+  }
   if (/\/api\/leads\/\d+\//.test(p)) return out(leads.find((x) => x.id === idOf(/leads\/(\d+)/)) ?? leads[0]);
   if (p === "/api/customers/") return out(page(customers));
   if (/\/api\/customers\/\d+\//.test(p)) return out(customers.find((x) => x.id === idOf(/customers\/(\d+)/)) ?? customers[0]);

@@ -289,6 +289,8 @@ export const api = {
     request<void>(`/api/lead-statuses/${id}/`, { method: "DELETE" }),
 
   leads: (p?: Params) => list<Lead>("/api/leads/", p),
+  /** Bitta sahifa — cheksiz skroll uchun (kontrakt: max page_size 100) */
+  leadsPage: (p?: Params) => request<Paginated<Lead>>(`/api/leads/${qs({ page_size: 50, ...p })}`),
   /** Kanban ustuni tartibini BITTA so'rovda saqlash: target ustunning barcha
       lead id'lari yuqoridan-pastga tartibda (kontrakt: reorder-column).
       Status o'zgarishi ham shu yerda — won'ga o'tsa sklad kamayadi,
