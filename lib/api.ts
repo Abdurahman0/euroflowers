@@ -288,6 +288,12 @@ export const api = {
     request<void>(`/api/lead-statuses/${id}/`, { method: "DELETE" }),
 
   leads: (p?: Params) => list<Lead>("/api/leads/", p),
+  /** Kanban ustuni tartibini BITTA so'rovda saqlash: target ustunning barcha
+      lead id'lari yuqoridan-pastga tartibda (kontrakt: reorder-column).
+      Status o'zgarishi ham shu yerda — won'ga o'tsa sklad kamayadi,
+      won'dan chiqsa avtomatik qaytadi. Bo'sh ustun uchun branch yuboriladi. */
+  reorderColumn: (data: { status: string; lead_ids: number[]; branch?: number }) =>
+    request<{ updated: number }>("/api/leads/reorder-column/", { method: "POST", body: JSON.stringify(data) }),
   lead: (id: number) => request<Lead>(`/api/leads/${id}/`),
   createLead: (data: LeadInput) =>
     request<Lead>("/api/leads/", { method: "POST", body: JSON.stringify(data) }),

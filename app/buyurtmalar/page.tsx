@@ -85,7 +85,7 @@ function CardBody({ l, onEdit }: { l: Lead; onEdit?: () => void }) {
   );
 }
 
-function LeadCard({ l, accent, dragging, onOpen, onEdit, onDrag, onDragEnd }: { l: Lead; accent?: string; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+function LeadCard({ l, accent, dragging, onOpen, onEdit, onDrag, onDragEnd, onDragOverCard }: { l: Lead; accent?: string; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void; onDragOverCard?: (e: React.DragEvent) => void }) {
   // status rangi kartada chap chiziqcha bo'lib ko'rinadi (kontrakt: status_detail.color)
   const stripe = l.status_detail?.color ?? accent;
   return (
@@ -94,6 +94,7 @@ function LeadCard({ l, accent, dragging, onOpen, onEdit, onDrag, onDragEnd }: { 
       onClick={onOpen}
       onDragStart={onDrag}
       onDragEnd={onDragEnd}
+      onDragOver={onDragOverCard}
       className="glass group shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
       // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
       // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
@@ -131,6 +132,8 @@ export default function BuyurtmalarPage() {
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
   const [overCol, setOverCol] = useState<LeadStatus | null>(null);
+  // ustun ichida QAYERGA tashlanishi (0..n) — pozitsion ko'rsatkich
+  const [overIdx, setOverIdx] = useState<number | null>(null);
   // JONLI drag ghost: brauzerning xira/sifatsiz snapshot'i o'rniga kartaning
   // haqiqiy DOM nusxasi kursorga ergashadi — to'liq tiniq va aniq ko'rinadi
   const [ghost, setGhost] = useState<{ l: Lead; w: number } | null>(null);
@@ -197,7 +200,8 @@ export default function BuyurtmalarPage() {
       const [ls, cs, sts] = await Promise.all([
         // barcha filtrlar server tomonda
         api.leads({
-          ordering: "-created_at",
+          // ustun ichidagi qo'lda tartib saqlanadi (reorder-column kontrakti)
+          ordering: "sort_order",
           ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
           search: q || undefined,
           branch: branch || undefined,
@@ -263,6 +267,8 @@ export default function BuyurtmalarPage() {
         showToast("✓ Sotildi — sklad qoldig'i avtomatik kamaytirildi");
       } else if (st === "won" && !upd.stock_deducted_at && !(upd.stock_usage?.length || upd.packaging_usage?.length)) {
         showToast("Sotildi. Diqqat: sarf kiritilmagani uchun sklad kamaymadi");
+      } else if (wasDeducted && st !== "won") {
+        showToast("↩ Sotuvdan qaytarildi — sklad qoldig'i avtomatik tiklandi");
       } else {
         showToast(`Buyurtma «${statusName(st, statusOf(st))}» ustuniga ko'chirildi`);
       }
@@ -273,9 +279,95 @@ export default function BuyurtmalarPage() {
     }
   };
 
+  /** Ustun elementlari — ekranda ko'rinadigan tartibda ("new" qualified'ni ham o'z ichiga oladi). */
+  const colItems = useCallback(
+    (ls: Lead[], key: string) => ls.filter((l) => (key === "new" ? l.status === "new" || l.status === "qualified" : l.status === key)),
+    []
+  );
+
+  /** Drag tugadi: kartani target ustunning TANLANGAN POZITSIYASIGA qo'yamiz va
+      butun ustun tartibini bitta so'rovda saqlaymiz (POST /leads/reorder-column/).
+      Status o'zgarishi ham shu endpointda: won'ga o'tsa sklad kamayadi,
+      won'dan chiqsa avtomatik qaytadi (backend). */
+  const reorderTo = async (targetKey: LeadStatus) => {
+    const id = dragId;
+    if (id == null) return;
+    const moved = leads.find((l) => l.id === id);
+    if (!moved) return;
+    const prev = leads;
+    const prevStatus = moved.status;
+    const wasDeducted = !!moved.stock_deducted_at;
+
+    // ko'rsatilgan joy: slot indeksi ekrandagi ro'yxatga nisbatan (sudralayotgan karta bilan)
+    const displayed = colItems(leads, targetKey);
+    let idx = overIdx ?? displayed.length;
+    const srcPos = displayed.findIndex((l) => l.id === id);
+    if (srcPos >= 0 && srcPos < idx) idx--; // o'z o'rni olib tashlangach siljish
+
+    // optimistik: global massivda kartani target ustunning idx-o'rniga ko'chiramiz
+    const movedUpd: Lead = { ...moved, status: targetKey, status_detail: statusOf(targetKey) ?? moved.status_detail };
+    mutateLeads((ls) => {
+      const without = ls.filter((l) => l.id !== id);
+      const items = colItems(without, targetKey);
+      const anchor = items[idx];
+      if (anchor) {
+        const gi = without.indexOf(anchor);
+        return [...without.slice(0, gi), movedUpd, ...without.slice(gi)];
+      }
+      const last = items[items.length - 1];
+      if (last) {
+        const gi = without.indexOf(last);
+        return [...without.slice(0, gi + 1), movedUpd, ...without.slice(gi + 1)];
+      }
+      return [...without, movedUpd];
+    });
+
+    // payload: target ustun (AYNAN shu status + shu filial) idlari yangi tartibda —
+    // aralash filial 400 beradi, "new"dagi qualified kartalarni ham yubormaymiz
+    const nextState = (() => {
+      const without = prev.filter((l) => l.id !== id);
+      const items = colItems(without, targetKey);
+      const anchor = items[idx];
+      const arr = [...without];
+      if (anchor) arr.splice(arr.indexOf(anchor), 0, movedUpd);
+      else if (items.length) arr.splice(arr.indexOf(items[items.length - 1]) + 1, 0, movedUpd);
+      else arr.push(movedUpd);
+      return arr;
+    })();
+    const leadIds = nextState
+      .filter((l) => l.status === targetKey && l.branch === moved.branch)
+      .map((l) => l.id);
+
+    try {
+      await api.reorderColumn({ status: targetKey, lead_ids: leadIds });
+      if (targetKey === "won" && prevStatus !== "won") {
+        // yechim natijasini bilish uchun leadni yangilaymiz
+        const fresh = await api.lead(id).catch(() => null);
+        if (fresh) {
+          mutateLeads((ls) => ls.map((l) => (l.id === id ? fresh : l)));
+          setSelLead((s) => (s?.id === id ? fresh : s));
+        }
+        if (fresh?.stock_deducted_at && !wasDeducted) showToast("✓ Sotildi — sklad qoldig'i avtomatik kamaytirildi");
+        else if (fresh && !fresh.stock_deducted_at && !(fresh.stock_usage?.length || fresh.packaging_usage?.length))
+          showToast("Sotildi. Diqqat: sarf kiritilmagani uchun sklad kamaymadi");
+        else showToast(`Buyurtma «${statusName(targetKey, statusOf(targetKey))}» ustuniga ko'chirildi`);
+      } else if (prevStatus === "won" && targetKey !== "won") {
+        const fresh = await api.lead(id).catch(() => null);
+        if (fresh) mutateLeads((ls) => ls.map((l) => (l.id === id ? fresh : l)));
+        showToast("↩ Sotuvdan qaytarildi — sklad qoldig'i avtomatik tiklandi");
+      } else if (prevStatus !== targetKey) {
+        showToast(`Buyurtma «${statusName(targetKey, statusOf(targetKey))}» ustuniga ko'chirildi`);
+      }
+      // bir xil ustun ichidagi tartib — jim saqlanadi
+    } catch (e) {
+      mutateLeads(() => prev);
+      showToast(e instanceof Error ? e.message : "Tartibni saqlab bo'lmadi");
+    }
+  };
+
   const drop = (st: LeadStatus) => {
-    if (dragId != null) setLeadStatus(dragId, st);
-    setDragId(null); setOverCol(null); setGhost(null);
+    if (dragId != null) reorderTo(st);
+    setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null);
   };
 
   if (loading) return <FlowerLoader />;
@@ -336,8 +428,8 @@ export default function BuyurtmalarPage() {
             return (
               <div
                 key={sdef.id}
-                onDragOver={(e) => { e.preventDefault(); setOverCol(st); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }}
+                onDragOver={(e) => { e.preventDefault(); setOverCol(st); setOverIdx((v) => (overCol === st && v != null ? v : items.length)); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setOverCol(null); setOverIdx(null); } }}
                 onDrop={(e) => { e.preventDefault(); drop(st); }}
                 className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center lg:min-w-[235px] lg:flex-1"
                 // ustun foni — backend statusning rangidan yumshoq ohang
@@ -357,31 +449,43 @@ export default function BuyurtmalarPage() {
                     {items.length}
                   </span>
                 </div>
-                {/* har ustun o'z ichida skrollanadi */}
+                {/* har ustun o'z ichida skrollanadi; slot TANLANGAN POZITSIYADA ochiladi */}
                 <div data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5">
-                  {/* drop slot — silliq ochiladi; shrink-0 SHART: ustun to'lib
-                      skrollansa flex uni chiziqday siqib qo'yadi (kartalar shrink-0) */}
-                  <div className="box-border shrink-0 rounded-[15px] border-2 border-dashed transition-all duration-200" style={{ height: isOver ? 84 : 0, marginBottom: isOver ? 0 : -10, borderColor: isOver ? "var(--acc)" : "transparent", background: isOver ? "rgba(255,255,255,.15)" : "transparent" }} />
-                  {items.map((l) => (
-                    <LeadCard
-                      key={l.id}
-                      l={l}
-                      accent={sdef.color}
-                      dragging={dragId === l.id}
-                      onOpen={() => setSelLead(l)}
-                      onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
-                      onDrag={(e) => {
-                        e.dataTransfer.effectAllowed = "move";
-                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        grabRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY };
-                        // natif snapshot o'chiriladi — o'rniga jonli ghost kursorga ergashadi
-                        if (emptyImgRef.current) e.dataTransfer.setDragImage(emptyImgRef.current, 0, 0);
-                        setGhost({ l, w: r.width });
-                        setTimeout(() => setDragId(l.id), 0);
-                      }}
-                      onDragEnd={() => { setDragId(null); setOverCol(null); setGhost(null); }}
-                    />
+                  {items.map((l, idx) => (
+                    <div key={l.id} className="flex shrink-0 flex-col gap-2.5">
+                      {isOver && overIdx === idx && (
+                        <div className="box-border h-[84px] shrink-0 rounded-[15px] border-2 border-dashed animate-[rowIn_0.15s_var(--ease)]" style={{ borderColor: "var(--acc)", background: "rgba(255,255,255,.15)" }} aria-hidden />
+                      )}
+                      <LeadCard
+                        l={l}
+                        accent={sdef.color}
+                        dragging={dragId === l.id}
+                        onOpen={() => setSelLead(l)}
+                        onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
+                        onDragOverCard={(e) => {
+                          // kartaning ustki/pastki yarmi — qo'yish nuqtasini belgilaydi
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setOverCol(st);
+                          setOverIdx(e.clientY < r.top + r.height / 2 ? idx : idx + 1);
+                        }}
+                        onDrag={(e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          grabRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY };
+                          // natif snapshot o'chiriladi — o'rniga jonli ghost kursorga ergashadi
+                          if (emptyImgRef.current) e.dataTransfer.setDragImage(emptyImgRef.current, 0, 0);
+                          setGhost({ l, w: r.width });
+                          setTimeout(() => setDragId(l.id), 0);
+                        }}
+                        onDragEnd={() => { setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null); }}
+                      />
+                    </div>
                   ))}
+                  {isOver && (overIdx == null || overIdx >= items.length) && (
+                    <div className="box-border h-[84px] shrink-0 rounded-[15px] border-2 border-dashed animate-[rowIn_0.15s_var(--ease)]" style={{ borderColor: "var(--acc)", background: "rgba(255,255,255,.15)" }} aria-hidden />
+                  )}
                 </div>
               </div>
             );
@@ -394,7 +498,7 @@ export default function BuyurtmalarPage() {
           <div className="grid min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
             <span>Mijoz</span><span>So&apos;rov</span><span>Manba</span><span>Taxminiy narx</span><span>Status</span><span>Vaqt</span>
           </div>
-          {fLeads.map((l, ri) => (
+          {[...fLeads].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).map((l, ri) => (
             <button key={l.id} onClick={() => setSelLead(l)} className="row-lux grid w-full min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
               <span className="min-w-0">
                 <span className="block truncate font-bold" title={l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}>{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</span>

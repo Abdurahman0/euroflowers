@@ -130,6 +130,8 @@ export type Lead = {
   assigned_to: number | null;
   /** «won»da backend sklad kamaytirgan vaqt (null — hali yechilmagan) */
   stock_deducted_at?: string | null;
+  /** ustun ichidagi tartib (backend reorder-column yozadi; ordering=sort_order) */
+  sort_order?: number;
   stock_usage?: LeadStockUsage[];
   packaging_usage?: LeadPackagingUsage[];
 };

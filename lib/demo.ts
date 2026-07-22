@@ -478,6 +478,31 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       if (i >= 0) leadStatuses.splice(i, 1);
       return out(undefined);
     }
+    if (p === "/api/leads/reorder-column/") {
+      // kontrakt: target ustun idlari yangi tartibda; status ham shu yerda o'zgaradi
+      const st = String(body.status ?? "");
+      const ids = Array.isArray(body.lead_ids) ? (body.lead_ids as number[]) : [];
+      if (new Set(ids).size !== ids.length) throw new Error("Lead id takrorlanmasligi kerak");
+      const column = ids.map((id) => leads.find((l) => l.id === id)).filter((x): x is Lead => !!x);
+      for (const l of column) {
+        const was = l.status;
+        l.status = st;
+        l.status_detail = statusDetail(st);
+        if (st === "won" && was !== "won" && !l.stock_deducted_at && ((l.stock_usage?.length ?? 0) > 0 || (l.packaging_usage?.length ?? 0) > 0)) {
+          l.stock_deducted_at = ago(0); // sklad kamaydi
+        }
+        if (was === "won" && st !== "won") l.stock_deducted_at = null; // sklad qaytadi
+        l.updated_at = ago(0);
+      }
+      // massivda tartib: yuborilgan idlar o'z ustunida shu tartibda tursin
+      const rest = leads.filter((l) => !ids.includes(l.id));
+      const firstSame = rest.findIndex((l) => l.status === st);
+      const arr = [...rest];
+      arr.splice(firstSame < 0 ? arr.length : firstSame, 0, ...column);
+      leads.length = 0;
+      leads.push(...arr);
+      return out({ updated: ids.length });
+    }
     if (p === "/api/leads/" && method === "POST") {
       // yangi kontrakt: customer_name/customer_phone bilan mijoz avtomatik yaratiladi
       const c = body.customer
