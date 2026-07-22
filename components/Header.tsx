@@ -12,6 +12,7 @@ import { Film, Image as ImageIcon } from "lucide-react";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
+  "/analitika": "Analitika",
   "/chat": "AI chatlar — Instagram va Telegram",
   "/ai": "AI yordamchi",
   "/buyurtmalar": "Buyurtmalar",

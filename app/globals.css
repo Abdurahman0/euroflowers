@@ -29,6 +29,7 @@
   /* grafik seriyalari — CVD-validatsiyadan o'tgan (dataviz) */
   --chart-1: #b3536b;
   --chart-2: #4a7ab5;
+  --chart-3: #b3873a;
   --surface-2: #f8f4ec;
 
   /* matn */
@@ -255,6 +256,7 @@
   --surface-solid: #201b16;
   --chart-1: #c9647e;
   --chart-2: #5b88c4;
+  --chart-3: #b98a3e;
   --surface-2: #272119;
 
   --text: #f1eae0;

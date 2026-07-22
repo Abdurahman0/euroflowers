@@ -1,6 +1,6 @@
 "use client";
 import type {
-  AISettings, AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
+  AISettings, Analytics, AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
   Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated,
   SocialPost, StockBatch, StockMovement, UploadResponse, User,
@@ -266,6 +266,8 @@ export const api = {
   me: () => request<User>("/api/me/"),
   /** davr statistikasi uchun ?from=YYYY-MM-DD&to=YYYY-MM-DD berish mumkin */
   dashboard: (p?: { from?: string; to?: string }) => request<Dashboard>(`/api/dashboard/${qs(p)}`),
+  /** Analitika — dashboard bilan bir xil ko'rish ruxsati */
+  analytics: (p?: { from?: string; to?: string }) => request<Analytics>(`/api/analytics/${qs(p)}`),
 
   branches: (p?: Params) => list<Branch>("/api/branches/", p),
   createBranch: (data: Partial<Branch>) =>

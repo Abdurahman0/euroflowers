@@ -184,7 +184,8 @@ export default function ChatPage() {
 
   const loadList = useCallback(async () => {
     try {
-      const cs = await api.conversations({ ordering: "-last_message_at", status: statusF || undefined });
+      // manba filtri server tomonda (backend `source` bo'yicha filtrlaydi)
+      const cs = await api.conversations({ ordering: "-last_message_at", status: statusF || undefined, source: chanF || undefined });
       setConvs(cs);
       setSelId((id) => id ?? cs[0]?.id ?? null);
     } catch (e) {
@@ -192,7 +193,7 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, statusF]);
+  }, [showToast, statusF, chanF]);
 
   const loadConv = useCallback(async (id: number) => {
     try {
@@ -273,12 +274,13 @@ export default function ChatPage() {
   };
 
   const q = search.trim().toLowerCase();
-  const chanOfRaw = (c: Conversation): "instagram" | "telegram" =>
-    c.channel === "telegram" || c.channel === "instagram"
-      ? c.channel
-      : c.customer_detail?.instagram_username || c.customer_detail?.instagram_user_id
-        ? "instagram"
-        : "telegram";
+  // manba: backend `source` maydoni AVTORITATIV; eski `channel` va mijoz
+  // ma'lumotidan aniqlash — faqat zaxira yo'l
+  const chanOfRaw = (c: Conversation): "instagram" | "telegram" => {
+    if (c.source === "telegram" || c.source === "instagram") return c.source;
+    if (c.channel === "telegram" || c.channel === "instagram") return c.channel;
+    return c.customer_detail?.instagram_username || c.customer_detail?.instagram_user_id ? "instagram" : "telegram";
+  };
   const fConvs = convs.filter((c) => {
     if (chanF && chanOfRaw(c) !== chanF) return false;
     if (!q) return true;

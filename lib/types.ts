@@ -321,7 +321,9 @@ export type ConversationStatus = "ai" | "operator" | "closed";
 
 export type Conversation = {
   id: number;
-  /** suhbat kanali — backend bersa avtoritativ; bo'lmasa mijoz ma'lumotidan aniqlanadi */
+  /** suhbat manbasi — BACKEND yuboradi (avtoritativ): "instagram" | "telegram" */
+  source?: "instagram" | "telegram" | string;
+  /** eski nom — ba'zi javoblarda kelishi mumkin */
   channel?: "instagram" | "telegram" | string;
   customer_detail: Customer;
   messages: Message[];
@@ -409,6 +411,8 @@ export type AuditLog = {
 export type Dashboard = {
   /** kunlik dinamika — davrning HAR kuni (0 qiymatlar ham) */
   daily_stats?: { date: string; leads: number; conversations: number }[];
+  /** eng ko'p sotilgan gullar — dashboardda birinchi 5 tasi ko'rsatiladi */
+  top_selling_flowers?: { flower_id: number; name_uz: string; name_ru: string; color_uz: string; color_ru: string; stems: number; bunches: string }[];
   /** ?from&to davri statistikasi (backend qo'shgan yangi maydonlar) */
   period?: { from: string; to: string };
   period_revenue?: number | string;
@@ -435,6 +439,23 @@ export type Dashboard = {
   branch_stock: { branch__id: number; branch__name: string; stems: number; batches: number }[];
   recent_leads: Lead[];
   recent_notifications: Notification[];
+};
+
+/** Analitika sahifasi (GET /api/analytics/) */
+export type AnalyticsDaily = { date: string; leads: number; conversations: number; orders: number; revenue: string };
+export type Analytics = {
+  period: { from: string; to: string };
+  summary: {
+    leads: number; customers: number; conversations: number; orders: number;
+    revenue: string; florist_revenue: string; flowers_sold_stems: number; conversion_rate: number;
+  };
+  daily_stats: AnalyticsDaily[];
+  top_selling_flowers: { flower_id: number; name_uz: string; name_ru: string; color_uz: string; color_ru: string; stems: number; bunches: string }[];
+  top_catalog_items: { catalog_item_id: number; catalog_item__name_uz: string; catalog_item__name_ru: string; catalog_item__arrangement_type: string; quantity: number; revenue: string }[];
+  lead_statuses: { status: string; count: number }[];
+  arrangement_types: { arrangement_type: string; count: number }[];
+  conversation_sources: { source: string; count: number }[];
+  revenue_by_source: { source: string; orders: number; revenue: string }[];
 };
 
 export type Paginated<T> = {
@@ -521,7 +542,7 @@ export type InstagramEvent = {
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "chat" | "ai" | "crm" | "mijozlar" | "sklad" | "gullar" | "katalog" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
+export type ScreenId = "dashboard" | "analitika" | "chat" | "ai" | "crm" | "mijozlar" | "sklad" | "gullar" | "katalog" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";
 /** Maxsus davr — YYYY-MM-DD (ikkalasi ham kiritilgan kun bilan) */
 export type DateRange = { from: string; to: string };

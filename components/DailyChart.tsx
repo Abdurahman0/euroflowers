@@ -10,11 +10,12 @@ import { useEffect, useRef, useState } from "react";
  *   • legend har doim ko'rinadi; ekran o'quvchilar uchun yashirin jadval
  */
 
-export type DailyStat = { date: string; leads: number; conversations: number };
+export type DailyStat = { date: string; leads: number; conversations: number } & Record<string, number | string>;
+export type ChartSeries = { key: string; label: string; varName: string };
 
-const SERIES = [
-  { key: "leads" as const, label: "So'rovlar", varName: "var(--chart-1)" },
-  { key: "conversations" as const, label: "Suhbatlar", varName: "var(--chart-2)" },
+const DEFAULT_SERIES: ChartSeries[] = [
+  { key: "leads", label: "So'rovlar", varName: "var(--chart-1)" },
+  { key: "conversations", label: "Suhbatlar", varName: "var(--chart-2)" },
 ];
 
 const H = 240;
@@ -60,7 +61,9 @@ function monotonePath(xs: number[], ys: number[]): string {
   return d;
 }
 
-export default function DailyChart({ data }: { data: DailyStat[] }) {
+export default function DailyChart({ data, series = DEFAULT_SERIES }: { data: DailyStat[]; series?: ChartSeries[] }) {
+  const SERIES = series;
+  const num = (p: DailyStat, k: string) => Number(p[k]) || 0;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(0);
   const [hov, setHov] = useState<number | null>(null);
@@ -77,7 +80,7 @@ export default function DailyChart({ data }: { data: DailyStat[] }) {
     return <p className="py-8 text-center text-[13px]" style={{ color: "var(--muted)" }}>Tanlangan davrda ma&apos;lumot yo&apos;q.</p>;
   }
 
-  const yMax = niceMax(Math.max(...data.map((p) => Math.max(p.leads, p.conversations)), 1));
+  const yMax = niceMax(Math.max(...data.map((p) => Math.max(...SERIES.map((s) => num(p, s.key)))), 1));
   const iw = Math.max(w - PAD.l - PAD.r, 1);
   const ih = H - PAD.t - PAD.b;
   const X = (i: number) => PAD.l + (data.length === 1 ? iw / 2 : (i / (data.length - 1)) * iw);
@@ -142,14 +145,14 @@ export default function DailyChart({ data }: { data: DailyStat[] }) {
           ))}
           {/* chiziqlar — 2px */}
           {SERIES.map((s) => (
-            <path key={s.key} d={monotonePath(xsArr, data.map((p) => Y(p[s.key])))} fill="none" stroke={s.varName} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <path key={s.key} d={monotonePath(xsArr, data.map((p) => Y(num(p, s.key))))} fill="none" stroke={s.varName} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           ))}
           {/* krosshair + hover nuqtalari (yuza halqasi bilan) */}
           {hov != null && (
             <g>
               <line x1={xsArr[hov]} x2={xsArr[hov]} y1={PAD.t} y2={PAD.t + ih} stroke="var(--border-strong)" strokeWidth={1} />
               {SERIES.map((s) => (
-                <circle key={s.key} cx={xsArr[hov]} cy={Y(data[hov][s.key])} r={4.5} fill={s.varName} stroke="var(--surface-solid)" strokeWidth={2} />
+                <circle key={s.key} cx={xsArr[hov]} cy={Y(num(data[hov], s.key))} r={4.5} fill={s.varName} stroke="var(--surface-solid)" strokeWidth={2} />
               ))}
             </g>
           )}
@@ -169,7 +172,7 @@ export default function DailyChart({ data }: { data: DailyStat[] }) {
                 <span className="h-[7px] w-[7px] rounded-full" style={{ background: s.varName }} aria-hidden />
                 {s.label}
               </span>
-              {hovPt[s.key]}
+              {num(hovPt, s.key)}
             </div>
           ))}
         </div>
@@ -179,11 +182,11 @@ export default function DailyChart({ data }: { data: DailyStat[] }) {
       <table className="sr-only">
         <caption>Kunlik so&apos;rovlar va suhbatlar</caption>
         <thead>
-          <tr><th>Sana</th><th>So&apos;rovlar</th><th>Suhbatlar</th></tr>
+          <tr><th>Sana</th>{SERIES.map((sr) => <th key={sr.key}>{sr.label}</th>)}</tr>
         </thead>
         <tbody>
           {data.map((p) => (
-            <tr key={p.date}><td>{p.date}</td><td>{p.leads}</td><td>{p.conversations}</td></tr>
+            <tr key={p.date}><td>{p.date}</td>{SERIES.map((sr) => <td key={sr.key}>{num(p, sr.key)}</td>)}</tr>
           ))}
         </tbody>
       </table>

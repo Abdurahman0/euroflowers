@@ -11,6 +11,7 @@ import { statusBadgeProps, statusName } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
+import { HBars } from "@/components/AnalyticsCharts";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
 import type { Dashboard } from "@/lib/types";
@@ -176,6 +177,24 @@ export default function DashboardPage() {
               ))}
             </div>
           </motion.section>
+
+          {/* eng ko'p sotilgan gullar — birinchi 5 tasi (to'lig'i Analitikada) */}
+          {(d.top_selling_flowers?.length ?? 0) > 0 && (
+            <motion.section variants={rise} className="glass-lite p-5">
+              <div className="mb-3.5 flex items-center justify-between">
+                <h2 className="text-[16px]">Eng ko&apos;p sotilgan gullar</h2>
+                <Link href="/analitika" className="text-[13px] font-bold" style={{ color: "var(--acc)" }}>Analitika →</Link>
+              </div>
+              <HBars
+                rows={d.top_selling_flowers!.slice(0, 5).map((f) => ({
+                  label: `${f.name_uz}${f.color_uz ? ` — ${f.color_uz}` : ""}`,
+                  value: f.stems,
+                  sub: `${f.bunches} pochka`,
+                }))}
+                unit="dona"
+              />
+            </motion.section>
+          )}
 
           {/* filiallar bo'yicha sklad */}
           <motion.section variants={rise} className="glass-lite relative overflow-hidden p-5 text-[#F7F1E8]" style={{ background: "color-mix(in srgb, var(--side) 62%, transparent)" }}>

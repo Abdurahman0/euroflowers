@@ -10,6 +10,7 @@ import type { PermissionPage, ScreenId } from "@/lib/types";
 /** NAV sahifalari backend ruxsat sahifalariga bog'langan (kontrakt: can_view) */
 const NAV: { id: ScreenId; href: string; label: string; page: PermissionPage }[] = [
   { id: "dashboard", href: "/", label: "Dashboard", page: "dashboard" },
+  { id: "analitika", href: "/analitika", label: "Analitika", page: "dashboard" },
   { id: "chat", href: "/chat", label: "AI chatlar", page: "conversations" },
   { id: "ai", href: "/ai", label: "AI yordamchi", page: "ai_settings" },
   { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", page: "crm" },

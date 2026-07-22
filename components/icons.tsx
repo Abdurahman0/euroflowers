@@ -2,6 +2,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Sparkles } from "lucide-react";
 import {
+  Analytics01Icon,
   ApiIcon,
   ArrowDown01Icon,
   ClipboardClockIcon,
@@ -42,6 +43,7 @@ import {
  */
 const ICONS: Record<string, typeof FlowerIcon> = {
   dashboard: DashboardSquare01Icon,
+  analitika: Analytics01Icon,
   chat: BubbleChatIcon,
   crm: ShoppingBag01Icon, // Buyurtmalar
   mijozlar: UserGroupIcon,

@@ -23,6 +23,7 @@ const PremiumPeony = dynamic(() => import("./flowers/PremiumPeony"), { ssr: fals
     Ruxsati yo'q sahifa to'g'ridan-to'g'ri URL orqali ham ochilmaydi. */
 const ROUTE_PERM: Record<string, PermissionPage> = {
   "/": "dashboard",
+  "/analitika": "dashboard",
   "/chat": "conversations",
   "/ai": "ai_settings",
   "/crm": "crm",

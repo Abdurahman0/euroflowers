@@ -260,7 +260,7 @@ const mkMsg = (conv: number, sender: Message["sender"], text: string, days: numb
 });
 
 const mkConv = (id: number, c: Customer, status: Conversation["status"], summary: string, msgs: Message[]): Conversation => ({
-  id, customer_detail: c, messages: msgs, last_message: msgs[msgs.length - 1] ?? null,
+  id, source: "instagram", customer_detail: c, messages: msgs, last_message: msgs[msgs.length - 1] ?? null,
   created_at: msgs[0]?.created_at ?? ago(1), updated_at: msgs[msgs.length - 1]?.created_at ?? ago(0),
   status, last_message_at: msgs[msgs.length - 1]?.created_at ?? ago(0), ai_summary: summary,
   ai_paused_until: null, ai_pause_reason: "",
@@ -289,11 +289,11 @@ const conversations: Conversation[] = [
   { ...mkConv(4, customers[4], "ai", "Gortenziya narxi so'raldi.", [
     mkMsg(4, "customer", "Storydagi gortenziyalar necha pul?", 0, 8),
     mkMsg(4, "ai", "Pushti gortenziya donasi 42 000 so'm, savatchada 650 000 so'm 🌸", 0, 8),
-  ]), channel: "telegram" as const },
+  ]), source: "telegram" as const, channel: "telegram" as const },
   { ...mkConv(5, customers[5], "closed", "Ona kuni buketi — buyurtma yakunlandi.", [
     mkMsg(5, "customer", "Rahmat, buket juda chiroyli chiqdi!", 2, 5),
     mkMsg(5, "operator", "Xursandmiz! Yana kutamiz 🌷", 2, 4),
-  ]), channel: "telegram" as const },
+  ]), source: "telegram" as const, channel: "telegram" as const },
 ];
 
 // ===== Bildirishnomalar =====
@@ -309,16 +309,32 @@ const notifications: Notification[] = [
 // ===== Dashboard =====
 
 // kunlik dinamika — 30 kun, deterministik naqsh (0 qiymatli kunlar ham bor)
-const dailyStats = Array.from({ length: 30 }, (_, i) => {
-  const d = new Date(Date.now() - (29 - i) * 864e5);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const leads = [0, 2, 4, 1, 3, 6, 2, 0, 5, 3][i % 10] + (i % 7 === 5 ? 3 : 0);
-  const conversations = leads * 2 + [1, 4, 2, 6, 3, 5, 8, 2, 4, 7][(i + 3) % 10];
-  return { date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, leads, conversations };
-});
+const dailyStatsFactory = () =>
+  Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(Date.now() - (29 - i) * 864e5);
+    const p = (n: number) => String(n).padStart(2, "0");
+    const leads = [0, 2, 4, 1, 3, 6, 2, 0, 5, 3][i % 10] + (i % 7 === 5 ? 3 : 0);
+    const conversations = leads * 2 + [1, 4, 2, 6, 3, 5, 8, 2, 4, 7][(i + 3) % 10];
+    const orders = Math.max(Math.round(leads * 0.6) - (i % 3 === 0 ? 1 : 0), 0);
+    const revenue = String(orders * (350000 + (i % 5) * 90000));
+    return { date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, leads, conversations, orders, revenue };
+  });
+const dailyStats = dailyStatsFactory();
+
+const topFlowers = [
+  { flower_id: 2, name_uz: "Atirgul", name_ru: "Роза", color_uz: "Pushti", color_ru: "Розовый", stems: 180, bunches: "18.00" },
+  { flower_id: 1, name_uz: "Piyon", name_ru: "Пион", color_uz: "Oq", color_ru: "Белый", stems: 120, bunches: "12.00" },
+  { flower_id: 3, name_uz: "Gortenziya", name_ru: "Гортензия", color_uz: "Pushti", color_ru: "Розовый", stems: 74, bunches: "7.40" },
+  { flower_id: 4, name_uz: "Lola", name_ru: "Тюльпан", color_uz: "Sariq", color_ru: "Жёлтый", stems: 40, bunches: "4.00" },
+  { flower_id: 5, name_uz: "Piyon", name_ru: "Пион", color_uz: "Pushti", color_ru: "Розовый", stems: 28, bunches: "2.80" },
+  { flower_id: 6, name_uz: "Gortenziya", name_ru: "Гортензия", color_uz: "Ko'k", color_ru: "Синий", stems: 12, bunches: "1.20" },
+];
+
+const analyticsDaily = dailyStatsFactory();
 
 const dashboard: Dashboard = {
   daily_stats: dailyStats,
+  top_selling_flowers: topFlowers.slice(0, 5),
   period: { from: ago(30), to: ago(0) },
   period_revenue: "12000000.00",
   period_orders: 18,
@@ -598,6 +614,42 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   // --- o'qishlar ---
   if (p === "/api/me/") return out(users[0]);
   if (p === "/api/dashboard/") return out(dashboard);
+  if (p === "/api/analytics/") {
+    return out({
+      period: { from: ago(30), to: ago(0) },
+      summary: { leads: 52, customers: 31, conversations: 140, orders: 18, revenue: "12000000.00", florist_revenue: "900000.00", flowers_sold_stems: 620, conversion_rate: 34.6 },
+      daily_stats: analyticsDaily,
+      top_selling_flowers: topFlowers,
+      top_catalog_items: [
+        { catalog_item_id: 1, catalog_item__name_uz: "Nafis oq buket", catalog_item__name_ru: "", catalog_item__arrangement_type: "bouquet", quantity: 6, revenue: "5100000.00" },
+        { catalog_item_id: 3, catalog_item__name_uz: "Gortenziya savatchasi", catalog_item__name_ru: "", catalog_item__arrangement_type: "basket", quantity: 4, revenue: "2600000.00" },
+        { catalog_item_id: 4, catalog_item__name_uz: "Pastel kompozitsiya", catalog_item__name_ru: "", catalog_item__arrangement_type: "box", quantity: 3, revenue: "2340000.00" },
+        { catalog_item_id: 2, catalog_item__name_uz: "Pushti atirgul romantikasi", catalog_item__name_ru: "", catalog_item__arrangement_type: "bouquet", quantity: 2, revenue: "1240000.00" },
+      ],
+      lead_statuses: [
+        { status: "new", count: 21 },
+        { status: "contacted", count: 12 },
+        { status: "won", count: 14 },
+        { status: "lost", count: 5 },
+      ],
+      arrangement_types: [
+        { arrangement_type: "bouquet", count: 24 },
+        { arrangement_type: "basket", count: 11 },
+        { arrangement_type: "catalog", count: 9 },
+        { arrangement_type: "stems", count: 8 },
+      ],
+      conversation_sources: [
+        { source: "instagram", count: 86 },
+        { source: "telegram", count: 38 },
+        { source: "mini_app", count: 16 },
+      ],
+      revenue_by_source: [
+        { source: "instagram", orders: 11, revenue: "7300000.00" },
+        { source: "telegram", orders: 5, revenue: "3400000.00" },
+        { source: "mini_app", orders: 2, revenue: "1300000.00" },
+      ],
+    });
+  }
   if (p === "/api/branches/") return out(page(branches));
   if (p === "/api/lead-statuses/") return out(page(leadStatuses));
   if (p === "/api/leads/") {
@@ -628,7 +680,15 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   }
   if (p === "/api/catalog/") return out(page(catalog));
   if (p === "/api/social-posts/") return out(page(posts));
-  if (p === "/api/conversations/") return out(page(conversations));
+  if (p === "/api/conversations/") {
+    const query = new URLSearchParams(path.split("?")[1] ?? "");
+    const src = query.get("source");
+    const st = query.get("status");
+    let cs = conversations;
+    if (src) cs = cs.filter((c) => c.source === src);
+    if (st) cs = cs.filter((c) => c.status === st);
+    return out(page(cs));
+  }
   if (/\/api\/conversations\/\d+\//.test(p)) return out(conversations.find((x) => x.id === idOf(/conversations\/(\d+)/)) ?? conversations[0]);
   if (p === "/api/notifications/") {
     const query = new URLSearchParams(path.split("?")[1] ?? "");
