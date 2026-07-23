@@ -298,6 +298,8 @@ export const api = {
     request<Lead>("/api/leads/", { method: "POST", body: JSON.stringify(data) }),
   updateLead: (id: number, data: LeadInput) =>
     request<Lead>(`/api/leads/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteLead: (id: number) =>
+    request<void>(`/api/leads/${id}/`, { method: "DELETE" }),
 
   customers: (p?: Params) => list<Customer>("/api/customers/", p),
   customer: (id: number) => request<Customer>(`/api/customers/${id}/`),
@@ -305,6 +307,8 @@ export const api = {
     request<Customer>("/api/customers/", { method: "POST", body: JSON.stringify(data) }),
   updateCustomer: (id: number, data: Partial<Customer>) =>
     request<Customer>(`/api/customers/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCustomer: (id: number) =>
+    request<void>(`/api/customers/${id}/`, { method: "DELETE" }),
 
   flowers: (p?: Params) => list<Flower>("/api/flowers/", p),
   flowerVariants: (p?: Params) => list<FlowerVariant>("/api/flower-variants/", p),

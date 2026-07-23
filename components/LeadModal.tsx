@@ -1,5 +1,6 @@
 "use client";
 import clsx from "clsx";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { fmt, fmtDate, fmtTime, initials } from "@/lib/format";
 import { api, ApiError } from "@/lib/api";
@@ -96,6 +97,8 @@ export default function LeadModal({
   onClose,
   onStatus,
   onUpdated,
+  onEdit,
+  onDelete,
 }: {
   lead: Lead;
   /** dinamik statuslar (backend) — amal tugmalari shulardan chiziladi */
@@ -103,6 +106,10 @@ export default function LeadModal({
   onClose: () => void;
   onStatus: (st: LeadStatus) => void;
   onUpdated?: (l: Lead) => void;
+  /** to'liq tahrirlash oynasini ochadi (sahifa boshqaradi) */
+  onEdit?: () => void;
+  /** o'chirish tasdig'ini ochadi (sahifa boshqaradi) */
+  onDelete?: () => void;
 }) {
   const showToast = useStore((s) => s.showToast);
   const { canControl } = usePerm();
@@ -223,7 +230,7 @@ export default function LeadModal({
   return (
     <Modal onClose={onClose} width={560}>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl text-lg font-extrabold text-white" style={{ background: "linear-gradient(135deg,var(--acc),var(--accL))" }}>{initials(name)}</div>
+        <div className="avatar-lead flex h-[52px] w-[52px] shrink-0 -rotate-3 items-center justify-center rounded-2xl text-lg font-bold">{initials(name)}</div>
         <div className="min-w-[140px] flex-1">
           <div className="text-[18px] font-extrabold">{name}</div>
           <div className="text-[13px] text-[color:var(--text-2)]">{lead.customer_detail?.phone || lead.customer_detail?.masked_phone || "telefon yo'q"}</div>
@@ -349,6 +356,31 @@ export default function LeadModal({
           );
         })}
       </div>
+
+      {/* tahrirlash / o'chirish — faqat boshqarish ruxsati bilan */}
+      {control && (onEdit || onDelete) && (
+        <div className="mt-3 flex gap-2 border-t border-[color:var(--border)] pt-3">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--acc)]"
+            >
+              <Pencil size={14} strokeWidth={1.75} /> Tahrirlash
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:bg-[color:var(--hover)]"
+              style={{ borderColor: "color-mix(in srgb, var(--danger-ink) 40%, var(--border-strong))", color: "var(--danger-ink)" }}
+            >
+              <Trash2 size={14} strokeWidth={1.75} /> O&apos;chirish
+            </button>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }

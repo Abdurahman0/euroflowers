@@ -1,4 +1,5 @@
 "use client";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmt, fmtTime, initials } from "@/lib/format";
@@ -10,11 +11,17 @@ export default function ClientModal({
   client,
   onClose,
   onOpenLead,
+  onEdit,
+  onDelete,
 }: {
   client: Customer;
   onClose: () => void;
   /** lead qatori bosilganda — CRM o'sha kanban kartasining panelini ochadi */
   onOpenLead?: (l: Lead) => void;
+  /** tahrirlash oynasini ochadi (sahifa boshqaradi, ruxsat bilan) */
+  onEdit?: () => void;
+  /** o'chirish tasdig'ini ochadi (sahifa boshqaradi, ruxsat bilan) */
+  onDelete?: () => void;
 }) {
   const name = client.name || `@${client.instagram_username || "—"}`;
   const [leads, setLeads] = useState<Lead[] | null>(null);
@@ -36,7 +43,7 @@ export default function ClientModal({
   return (
     <Modal onClose={onClose} width={560}>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl text-lg font-extrabold text-white" style={{ background: "linear-gradient(135deg,var(--acc),var(--accL))" }}>{initials(name)}</div>
+        <div className="avatar-lead flex h-[52px] w-[52px] shrink-0 -rotate-3 items-center justify-center rounded-2xl text-lg font-bold">{initials(name)}</div>
         <div className="min-w-[140px] flex-1">
           <div className="text-[18px] font-extrabold">{name}</div>
           <div className="text-[13px] text-[color:var(--text-2)]">
@@ -45,6 +52,16 @@ export default function ClientModal({
         </div>
         {client.purchases_count > 0 && <span className="rounded-full bg-[color:var(--surface-2)] px-3 py-1 text-[11px] font-extrabold">DOIMIY MIJOZ</span>}
         {client.is_blocked && <span className="rounded-full bg-rose px-3 py-1 text-[11px] font-extrabold text-roseink">BLOKLANGAN</span>}
+        {onEdit && (
+          <button type="button" onClick={onEdit} title="Tahrirlash" aria-label="Mijozni tahrirlash" className="icon-btn !h-8 !w-8">
+            <Pencil size={14.5} strokeWidth={1.75} />
+          </button>
+        )}
+        {onDelete && (
+          <button type="button" onClick={onDelete} title="O'chirish" aria-label="Mijozni o'chirish" className="icon-btn icon-btn-danger !h-8 !w-8">
+            <Trash2 size={14.5} strokeWidth={1.75} />
+          </button>
+        )}
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2.5">

@@ -12,7 +12,7 @@ import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import ClientModal from "@/components/ClientModal";
 import NewClientModal from "@/components/NewClientModal";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import type { Customer } from "@/lib/types";
 
 /** Mijozlar — alohida sahifa (ilgari CRM ichidagi tab edi).
@@ -32,6 +32,9 @@ export default function MijozlarPage() {
   const [loading, setLoading] = useState(true);
   const [selClient, setSelClient] = useState<Customer | null>(null);
   const [newClient, setNewClient] = useState(false);
+  const [editClient, setEditClient] = useState<Customer | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
   const [lang, setLang] = useState("");
@@ -57,6 +60,27 @@ export default function MijozlarPage() {
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
+
+  const control = canControl("customers");
+
+  // mijozni butunlay o'chirish — tasdiqdan keyin (DELETE /api/customers/{id}/)
+  const doDelete = async () => {
+    if (!confirmDel) return;
+    const victim = confirmDel;
+    setDeleting(true);
+    try {
+      await api.deleteCustomer(victim.id);
+      setCustomers((cs) => cs.filter((c) => c.id !== victim.id));
+      setSelClient((s) => (s?.id === victim.id ? null : s));
+      setEditClient((s) => (s?.id === victim.id ? null : s));
+      setConfirmDel(null);
+      showToast("✓ Mijoz o'chirildi");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "O'chirib bo'lmadi");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) return <FlowerLoader />;
 
@@ -86,7 +110,7 @@ export default function MijozlarPage() {
           <span>Mijoz</span><span>Telefon</span><span>Instagram</span><span>Xaridlar</span><span>Jami summa</span><span>Qo&apos;shilgan</span>
         </div>
         {customers.map((c, ri) => (
-          <button key={c.id} onClick={() => setSelClient(c)} className="row-lux grid w-full min-w-[680px] grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[14px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
+          <button key={c.id} onClick={() => setSelClient(c)} className="row-lux group relative grid w-full min-w-[680px] grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[14px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
             <span className="flex min-w-0 items-center gap-2.5">
               <span className="avatar-lead flex h-[34px] w-[34px] shrink-0 -rotate-3 items-center justify-center rounded-[11px] text-[13px] font-bold">{initials(c.name || c.instagram_username)}</span>
               <span className="truncate font-bold" title={c.name || `@${c.instagram_username}`}>{c.name || `@${c.instagram_username}`}</span>
@@ -97,6 +121,33 @@ export default function MijozlarPage() {
             <span className="font-bold">{c.purchases_count}</span>
             <span className="font-bold">{parseFloat(c.total_spent) > 0 ? fmt(c.total_spent) : "—"}</span>
             <span style={{ color: "var(--mut)" }}>{fmtTime(c.created_at)}</span>
+            {/* qator amallari — hover'da (tugma ichida tugma bo'lmasin: span role=button) */}
+            {control && (
+              <span className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-[10px] px-1 py-0.5 opacity-0 backdrop-blur-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" style={{ background: "color-mix(in srgb, var(--surface) 78%, transparent)" }}>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); setEditClient(c); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setEditClient(c); } }}
+                  title="Tahrirlash"
+                  aria-label={`${c.name || c.instagram_username} — tahrirlash`}
+                  className="icon-btn !h-7 !w-7"
+                >
+                  <Pencil size={13.5} strokeWidth={1.75} />
+                </span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); setConfirmDel(c); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setConfirmDel(c); } }}
+                  title="O'chirish"
+                  aria-label={`${c.name || c.instagram_username} — o'chirish`}
+                  className="icon-btn icon-btn-danger !h-7 !w-7"
+                >
+                  <Trash2 size={13.5} strokeWidth={1.75} />
+                </span>
+              </span>
+            )}
           </button>
         ))}
         {customers.length === 0 && <EmptyState title="Mijoz topilmadi" sub="Filtrlarni tozalab ko'ring yoki yangi mijoz qo'shing." />}
@@ -107,6 +158,8 @@ export default function MijozlarPage() {
           client={selClient}
           onClose={() => setSelClient(null)}
           onOpenLead={(l) => { setSelClient(null); router.push(`/buyurtmalar?order=${l.id}`); }}
+          onEdit={control ? () => setEditClient(selClient) : undefined}
+          onDelete={control ? () => setConfirmDel(selClient) : undefined}
         />
       )}
       {newClient && (
@@ -114,6 +167,38 @@ export default function MijozlarPage() {
           onClose={() => setNewClient(false)}
           onSaved={(c) => { setNewClient(false); setCustomers((cs) => [c, ...cs]); }}
         />
+      )}
+      {editClient != null && (
+        <NewClientModal
+          client={editClient}
+          onClose={() => setEditClient(null)}
+          onSaved={(c) => {
+            setEditClient(null);
+            setCustomers((cs) => cs.map((x) => (x.id === c.id ? { ...x, ...c } : x)));
+            setSelClient((s) => (s?.id === c.id ? { ...s, ...c } : s));
+          }}
+        />
+      )}
+
+      {/* o'chirish tasdig'i — qaytarib bo'lmaydigan amal */}
+      {confirmDel && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDel(null)} role="dialog" aria-modal="true" data-lenis-prevent>
+          <div className="glass-modal w-[min(400px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold">Mijozni o&apos;chirish</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--text-2)]">
+              «{confirmDel.name || `@${confirmDel.instagram_username || "—"}`}» butunlay o&apos;chirilsinmi? Bu amalni bekor qilib bo&apos;lmaydi.
+            </p>
+            {confirmDel.leads_count > 0 && (
+              <p className="mt-2 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold leading-snug text-peachink">
+                ⚠ Bu mijozda {confirmDel.leads_count} ta buyurtma yozuvi bor — ular ham o&apos;chib ketishi mumkin.
+              </p>
+            )}
+            <div className="mt-5 flex gap-2.5">
+              <button onClick={() => setConfirmDel(null)} className="btn-ghost flex-1">Bekor qilish</button>
+              <button onClick={doDelete} disabled={deleting} className={`btn-danger flex-1 ${deleting ? "btn-loading" : ""}`}>O&apos;chirish</button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

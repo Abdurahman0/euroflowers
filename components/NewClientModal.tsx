@@ -8,14 +8,27 @@ import { Icon } from "./icons";
 import type { Customer } from "@/lib/types";
 
 /**
- * Operator mijozni qo'lda qo'shadi (Instagram'siz kelganlar uchun).
- * Backend `instagram_user_id`ni majburiy qiladi — username bo'lmasa
- * "manual_<vaqt>" placeholder yuboriladi.
+ * Mijoz yaratish/tahrirlash (bitta forma). Yaratishda backend
+ * `instagram_user_id`ni majburiy qiladi — username bo'lmasa
+ * "manual_<vaqt>" placeholder yuboriladi. Tahrirda PATCH /api/customers/{id}/.
  */
-export default function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c: Customer) => void }) {
+export default function NewClientModal({
+  client = null,
+  onClose,
+  onSaved,
+}: {
+  /** berilsa — tahrirlash rejimi */
+  client?: Customer | null;
+  onClose: () => void;
+  onSaved: (c: Customer) => void;
+}) {
   const { showToast } = useStore();
   const [f, setF] = useState({
-    name: "", phone: "", instagram_username: "", language: "uz", notes: "",
+    name: client?.name ?? "",
+    phone: client?.phone ?? "",
+    instagram_username: client?.instagram_username ?? "",
+    language: client?.language ?? "uz",
+    notes: client?.notes ?? "",
   });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -24,16 +37,25 @@ export default function NewClientModal({ onClose, onSaved }: { onClose: () => vo
   const save = async () => {
     if (!f.name.trim()) return showToast("Mijoz ismini kiriting");
     setBusy(true);
+    const ig = f.instagram_username.trim().replace(/^@/, "");
     try {
-      const c = await api.createCustomer({
-        name: f.name.trim(),
-        phone: f.phone.trim(),
-        instagram_username: f.instagram_username.trim().replace(/^@/, ""),
-        instagram_user_id: f.instagram_username.trim().replace(/^@/, "") || `manual_${Date.now()}`,
-        language: f.language as Customer["language"],
-        notes: f.notes.trim(),
-      });
-      showToast(`✓ Mijoz qo'shildi: ${c.name}`);
+      const c = client
+        ? await api.updateCustomer(client.id, {
+            name: f.name.trim(),
+            phone: f.phone.trim(),
+            instagram_username: ig,
+            language: f.language as Customer["language"],
+            notes: f.notes.trim(),
+          })
+        : await api.createCustomer({
+            name: f.name.trim(),
+            phone: f.phone.trim(),
+            instagram_username: ig,
+            instagram_user_id: ig || `manual_${Date.now()}`,
+            language: f.language as Customer["language"],
+            notes: f.notes.trim(),
+          });
+      showToast(client ? "✓ Mijoz yangilandi" : `✓ Mijoz qo'shildi: ${c.name}`);
       onSaved(c);
     } catch (e) {
       showToast(e instanceof ApiError ? `Saqlab bo'lmadi: ${JSON.stringify(e.body)}` : "Saqlashda xatolik");
@@ -43,7 +65,12 @@ export default function NewClientModal({ onClose, onSaved }: { onClose: () => vo
 
   return (
     <Modal onClose={onClose} width={520}>
-      <ModalHeader icon={<Icon name="crm" />} title="Yangi mijoz" sub="Qo'lda kiritish — telefon yoki do'kondan kelganlar" onClose={onClose} />
+      <ModalHeader
+        icon={<Icon name="crm" />}
+        title={client ? "Mijozni tahrirlash" : "Yangi mijoz"}
+        sub={client ? `${client.name || "@" + (client.instagram_username || "—")} · #${client.id}` : "Qo'lda kiritish — telefon yoki do'kondan kelganlar"}
+        onClose={onClose}
+      />
       <Section>Mijoz ma&apos;lumotlari</Section>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Ism" span><input className="inp" value={f.name} onChange={set("name")} placeholder="Aziza Karimova" autoFocus /></Field>
@@ -52,7 +79,7 @@ export default function NewClientModal({ onClose, onSaved }: { onClose: () => vo
         <Field label="Til" span>
           <Select
             value={f.language}
-            onChange={(v) => setF({ ...f, language: String(v) })}
+            onChange={(v) => setF({ ...f, language: String(v) as Customer["language"] })}
             options={[{ value: "uz", label: "O'zbekcha" }, { value: "ru", label: "Ruscha" }]}
           />
         </Field>
@@ -62,7 +89,7 @@ export default function NewClientModal({ onClose, onSaved }: { onClose: () => vo
       </div>
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
-        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Mijozni qo'shish"}</button>
+        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : client ? "Saqlash" : "Mijozni qo'shish"}</button>
       </ModalFooter>
     </Modal>
   );

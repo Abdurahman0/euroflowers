@@ -8,7 +8,8 @@ import { motion } from "framer-motion";
  * YAGONA o'ng tomondan chiquvchi panel (slide-over) — ilovadagi barcha
  * kontentli dialoglar (ko'rish, tahrirlash, yaratish) shu qobiqda:
  *   • o'ng chetdan translateX(100%→0), 280ms ease-out; yopilishda teskari
- *   • to'liq balandlik, chap burchaklar 20px, o'ng chet tekis
+ *   • TO'LIQ balandlik, ekran chetiga yopishgan — burchaklar ko'rinmaydi
+ *     (foydalanuvchi talabi), faqat chap chegara chizig'i
  *   • xira + blur overlay; overlay bosish / ESC / ✕ yopadi
  *   • fokus panel ichida qulflanadi (Tab aylanadi)
  *   • ichki kontent mustaqil skroll (overscroll-contain, Lenis'dan himoya)
@@ -113,15 +114,15 @@ export default function Drawer({
           initial={{ x: "110%" }}
           animate={{ x: closing ? "110%" : 0 }}
           transition={{ duration: 0.28, ease: [0, 0, 0.2, 1] }}
-          // suzuvchi panel: chekkalardan 8px bo'shliq, TO'RT tomoni ham yumaloq —
-          // overflow-hidden sticky sarlavhani burchaklar ichida ushlab turadi
-          className="drawer-panel fixed bottom-2 right-2 top-2 flex flex-col overflow-hidden rounded-[22px] border max-md:left-2 max-md:!w-auto"
+          // ekran chetiga yopishgan to'liq balandlikdagi panel — burchaklar
+          // ko'rinmaydi; faqat chap chegara + soya panelni ajratib turadi
+          className="drawer-panel fixed inset-y-0 right-0 flex flex-col overflow-hidden border-l max-md:left-0 max-md:!w-auto max-md:border-l-0"
           style={{
-            width: `min(${width}px, calc(100vw - 16px))`,
+            width: `min(${width}px, 100vw)`,
             background: "var(--surface-solid)",
             color: "var(--text)",
             borderColor: "var(--border)",
-            boxShadow: "-16px 0 56px rgba(20, 12, 8, 0.26), 0 8px 40px rgba(20, 12, 8, 0.18)",
+            boxShadow: "-16px 0 56px rgba(20, 12, 8, 0.26)",
           }}
         >
           {title ? (

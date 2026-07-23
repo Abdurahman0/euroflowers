@@ -602,6 +602,21 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       Object.assign(l, upd);
       return out(upd);
     }
+    if (/\/api\/leads\/\d+\//.test(p) && method === "DELETE") {
+      const i = leads.findIndex((x) => x.id === idOf(/leads\/(\d+)/));
+      if (i >= 0) leads.splice(i, 1);
+      return out(undefined);
+    }
+    if (/\/api\/customers\/\d+\//.test(p) && method === "PATCH") {
+      const c = customers.find((x) => x.id === idOf(/customers\/(\d+)/)) ?? customers[0];
+      Object.assign(c, body, { updated_at: ago(0) });
+      return out({ ...c });
+    }
+    if (/\/api\/customers\/\d+\//.test(p) && method === "DELETE") {
+      const i = customers.findIndex((x) => x.id === idOf(/customers\/(\d+)/));
+      if (i >= 0) customers.splice(i, 1);
+      return out(undefined);
+    }
     if (p === "/api/uploads/") return out({ url: IMG.peony, path: IMG.peony });
     // umumiy yaratish/yangilash: yuborilganini id va sana bilan qaytaramiz
     return out({ id: 999, created_at: ago(0), updated_at: ago(0), ...body });

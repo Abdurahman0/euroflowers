@@ -18,7 +18,7 @@ import LeadModal from "@/components/LeadModal";
 import NewLeadModal from "@/components/NewLeadModal";
 import EditLeadModal from "@/components/EditLeadModal";
 import LeadStatusManager from "@/components/LeadStatusManager";
-import { Clock, Pencil, Plus, SlidersHorizontal } from "lucide-react";
+import { Clock, Pencil, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import type { Customer, Lead, LeadStatus, LeadStatusDef } from "@/lib/types";
 
 /** Buyurtmalar — alohida sahifa (ilgari CRM ichida "Leadlar" edi).
@@ -47,7 +47,7 @@ const notePreview = (t: string): string => {
 
 /** Karta ichki mazmuni — ro'yxatdagi karta va sudralayotgan jonli nusxa
     (drag ghost) AYNAN bir xil ko'rinishi uchun bitta joyda. */
-function CardBody({ l, onEdit }: { l: Lead; onEdit?: () => void }) {
+function CardBody({ l, onEdit, onDelete }: { l: Lead; onEdit?: () => void; onDelete?: () => void }) {
   const name = l.customer_detail?.name || `@${l.customer_detail?.instagram_username ?? "—"}`;
   return (
     <>
@@ -64,6 +64,18 @@ function CardBody({ l, onEdit }: { l: Lead; onEdit?: () => void }) {
               className="icon-btn !h-7 !w-7 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
             >
               <Pencil size={13.5} strokeWidth={1.75} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              draggable={false}
+              onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              title="O'chirish"
+              aria-label="Buyurtmani o'chirish"
+              className="icon-btn icon-btn-danger !h-7 !w-7 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+            >
+              <Trash2 size={13.5} strokeWidth={1.75} />
             </button>
           )}
           <span className={clsx(SOURCE_BADGE(l.source), "shrink-0")}>{l.source || "—"}</span>
@@ -86,7 +98,7 @@ function CardBody({ l, onEdit }: { l: Lead; onEdit?: () => void }) {
   );
 }
 
-function LeadCard({ l, accent, dragging, onOpen, onEdit, onDrag, onDragEnd, onDragOverCard }: { l: Lead; accent?: string; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void; onDragOverCard?: (e: React.DragEvent) => void }) {
+function LeadCard({ l, accent, dragging, onOpen, onEdit, onDelete, onDrag, onDragEnd, onDragOverCard }: { l: Lead; accent?: string; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDelete?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void; onDragOverCard?: (e: React.DragEvent) => void }) {
   // status rangi kartada chap chiziqcha bo'lib ko'rinadi (kontrakt: status_detail.color)
   const stripe = l.status_detail?.color ?? accent;
   return (
@@ -107,7 +119,7 @@ function LeadCard({ l, accent, dragging, onOpen, onEdit, onDrag, onDragEnd, onDr
             : undefined
       }
     >
-      <CardBody l={l} onEdit={onEdit} />
+      <CardBody l={l} onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
 }
@@ -131,6 +143,9 @@ export default function BuyurtmalarPage() {
   const [view, setView] = useState<"kanban" | "table">("kanban");
   const [selLead, setSelLead] = useState<Lead | null>(null);
   const [editLead, setEditLead] = useState<Lead | null>(null);
+  // o'chirish: tasdiq oynasi + jarayon flagi
+  const [confirmDelLead, setConfirmDelLead] = useState<Lead | null>(null);
+  const [deletingLead, setDeletingLead] = useState(false);
   const [dragId, setDragId] = useState<number | null>(null);
   const [overCol, setOverCol] = useState<LeadStatus | null>(null);
   // ustun ichida QAYERGA tashlanishi (0..n) — pozitsion ko'rsatkich
@@ -438,6 +453,26 @@ export default function BuyurtmalarPage() {
     setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null);
   };
 
+  // buyurtmani butunlay o'chirish — tasdiqdan keyin (DELETE /api/leads/{id}/)
+  const doDeleteLead = async () => {
+    if (!confirmDelLead) return;
+    const victim = confirmDelLead;
+    setDeletingLead(true);
+    try {
+      await api.deleteLead(victim.id);
+      mutateLeads((ls) => ls.filter((l) => l.id !== victim.id));
+      setTotal((t) => (t != null && t > 0 ? t - 1 : t));
+      setSelLead((s) => (s?.id === victim.id ? null : s));
+      setEditLead((s) => (s?.id === victim.id ? null : s));
+      setConfirmDelLead(null);
+      showToast("✓ Buyurtma o'chirildi");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "O'chirib bo'lmadi");
+    } finally {
+      setDeletingLead(false);
+    }
+  };
+
   if (loading) return <FlowerLoader />;
 
   return (
@@ -555,6 +590,7 @@ export default function BuyurtmalarPage() {
                             dragging={dragId === l.id}
                             onOpen={() => setSelLead(l)}
                             onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
+                            onDelete={canControl("crm") ? () => setConfirmDelLead(l) : undefined}
                             onDragOverCard={(e) => {
                               // kartaning ustki/pastki yarmi — qo'yish nuqtasini belgilaydi
                               e.preventDefault();
@@ -624,6 +660,8 @@ export default function BuyurtmalarPage() {
           onClose={() => setSelLead(null)}
           onStatus={(st) => { setLeadStatus(selLead.id, st); setSelLead({ ...selLead, status: st }); }}
           onUpdated={(upd) => { setSelLead(upd); mutateLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l))); }}
+          onEdit={canControl("crm") ? () => setEditLead(selLead) : undefined}
+          onDelete={canControl("crm") ? () => setConfirmDelLead(selLead) : undefined}
         />
       )}
       {statusMgr && (
@@ -650,6 +688,27 @@ export default function BuyurtmalarPage() {
           onClose={() => setNewLead(false)}
           onSaved={(l) => { setNewLead(false); mutateLeads((ls) => [l, ...ls]); }}
         />
+      )}
+
+      {/* o'chirish tasdig'i — qaytarib bo'lmaydigan amal */}
+      {confirmDelLead && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDelLead(null)} role="dialog" aria-modal="true" data-lenis-prevent>
+          <div className="glass-modal w-[min(400px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold">Buyurtmani o&apos;chirish</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--text-2)]">
+              «{confirmDelLead.customer_detail?.name || `@${confirmDelLead.customer_detail?.instagram_username ?? "—"}`} · #{confirmDelLead.id}» buyurtmasi butunlay o&apos;chirilsinmi? Bu amalni bekor qilib bo&apos;lmaydi.
+            </p>
+            {confirmDelLead.stock_deducted_at && (
+              <p className="mt-2 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold leading-snug text-peachink">
+                ⚠ Bu buyurtma bo&apos;yicha sklad allaqachon yechilgan.
+              </p>
+            )}
+            <div className="mt-5 flex gap-2.5">
+              <button onClick={() => setConfirmDelLead(null)} className="btn-ghost flex-1">Bekor qilish</button>
+              <button onClick={doDeleteLead} disabled={deletingLead} className={`btn-danger flex-1 ${deletingLead ? "btn-loading" : ""}`}>O&apos;chirish</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* jonli drag ghost — kartaning o'zi, to'liq tiniq, yumshoq soya bilan */}
