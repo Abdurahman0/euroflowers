@@ -630,7 +630,7 @@ export default function BuyurtmalarPage() {
             <span>Mijoz</span><span>So&apos;rov</span><span>Manba</span><span>Taxminiy narx</span><span>Status</span><span>Vaqt</span>
           </div>
           {[...fLeads].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).map((l, ri) => (
-            <button key={l.id} onClick={() => setSelLead(l)} className="row-lux grid w-full min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
+            <button key={l.id} onClick={() => setSelLead(l)} className="row-lux group relative grid w-full min-w-[720px] grid-cols-[1.6fr_2.2fr_1fr_1.1fr_1fr_.8fr] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
               <span className="min-w-0">
                 <span className="block truncate font-bold" title={l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}>{l.customer_detail?.name || `@${l.customer_detail?.instagram_username}`}</span>
                 <span className="block truncate text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.phone || l.customer_detail?.masked_phone || "tel yo'q"}</span>
@@ -642,6 +642,33 @@ export default function BuyurtmalarPage() {
                 {(() => { const bp = statusBadgeProps(l.status, l.status_detail ?? statusOf(l.status)); return <span className={bp.className} style={bp.style}>{statusName(l.status, l.status_detail ?? statusOf(l.status))}</span>; })()}
               </span>
               <span className="text-xs" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
+              {/* qator amallari — hover'da (tugma ichida tugma bo'lmasin: span role=button) */}
+              {canControl("crm") && (
+                <span className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-[10px] px-1 py-0.5 opacity-0 backdrop-blur-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" style={{ background: "color-mix(in srgb, var(--surface) 78%, transparent)" }}>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); setEditLead(l); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setEditLead(l); } }}
+                    title="Tahrirlash"
+                    aria-label={`Buyurtma #${l.id} — tahrirlash`}
+                    className="icon-btn !h-7 !w-7"
+                  >
+                    <Pencil size={13.5} strokeWidth={1.75} />
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); setConfirmDelLead(l); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setConfirmDelLead(l); } }}
+                    title="O'chirish"
+                    aria-label={`Buyurtma #${l.id} — o'chirish`}
+                    className="icon-btn icon-btn-danger !h-7 !w-7"
+                  >
+                    <Trash2 size={13.5} strokeWidth={1.75} />
+                  </span>
+                </span>
+              )}
             </button>
           ))}
           {fLeads.length === 0 && <EmptyState title="Tanlangan davrda buyurtma yo&apos;q" sub="Davr filtrini kengaytiring yoki yangi suhbatlarni kuting — AI buyurtmalarni avtomatik yaratadi." />}
@@ -690,9 +717,11 @@ export default function BuyurtmalarPage() {
         />
       )}
 
-      {/* o'chirish tasdig'i — qaytarib bo'lmaydigan amal */}
-      {confirmDelLead && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDelLead(null)} role="dialog" aria-modal="true" data-lenis-prevent>
+      {/* o'chirish tasdig'i — qaytarib bo'lmaydigan amal. PORTAL body ostida:
+          sahifa animatsiyalari stacking-context yaratadi, aks holda dialog
+          drawer overlay'i (body portali) ORQASIDA qolib ketadi */}
+      {confirmDelLead && createPortal(
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDelLead(null)} role="dialog" aria-modal="true" data-lenis-prevent>
           <div className="glass-modal w-[min(400px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[16px] font-bold">Buyurtmani o&apos;chirish</h3>
             <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--text-2)]">
@@ -708,7 +737,8 @@ export default function BuyurtmalarPage() {
               <button onClick={doDeleteLead} disabled={deletingLead} className={`btn-danger flex-1 ${deletingLead ? "btn-loading" : ""}`}>O&apos;chirish</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* jonli drag ghost — kartaning o'zi, to'liq tiniq, yumshoq soya bilan */}

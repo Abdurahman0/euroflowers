@@ -5,6 +5,7 @@ import SearchInput from "@/components/SearchInput";
 import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import useAutoRefresh from "@/lib/useAutoRefresh";
@@ -180,9 +181,11 @@ export default function MijozlarPage() {
         />
       )}
 
-      {/* o'chirish tasdig'i — qaytarib bo'lmaydigan amal */}
-      {confirmDel && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDel(null)} role="dialog" aria-modal="true" data-lenis-prevent>
+      {/* o'chirish tasdig'i — qaytarib bo'lmaydigan amal. PORTAL body ostida:
+          sahifa animatsiyalari stacking-context yaratadi, aks holda dialog
+          drawer overlay'i (body portali) ORQASIDA qolib ketadi */}
+      {confirmDel && createPortal(
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDel(null)} role="dialog" aria-modal="true" data-lenis-prevent>
           <div className="glass-modal w-[min(400px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[16px] font-bold">Mijozni o&apos;chirish</h3>
             <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--text-2)]">
@@ -198,7 +201,8 @@ export default function MijozlarPage() {
               <button onClick={doDelete} disabled={deleting} className={`btn-danger flex-1 ${deleting ? "btn-loading" : ""}`}>O&apos;chirish</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
