@@ -13,7 +13,7 @@ import useAutoRefresh from "@/lib/useAutoRefresh";
 import { usePerm, useStore } from "@/lib/store";
 import { dateAfterParam, fmt, fmtTime, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
-import { statusBadgeProps, statusName, SOURCE_BADGE } from "@/components/badges";
+import { statusBadgeProps, statusName, SourceBadge } from "@/components/badges";
 import LeadModal from "@/components/LeadModal";
 import NewLeadModal from "@/components/NewLeadModal";
 import EditLeadModal from "@/components/EditLeadModal";
@@ -78,7 +78,7 @@ function CardBody({ l, onEdit, onDelete }: { l: Lead; onEdit?: () => void; onDel
               <Trash2 size={13.5} strokeWidth={1.75} />
             </button>
           )}
-          <span className={clsx(SOURCE_BADGE(l.source), "shrink-0")}>{l.source || "—"}</span>
+          <SourceBadge source={l.source} className="shrink-0" />
         </span>
       </div>
       <p className="clamp-3 mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{notePreview(l.request_uz || l.request_ru || "")}</p>
@@ -165,7 +165,7 @@ export default function BuyurtmalarPage() {
   const [overIdx, setOverIdx] = useState<number | null>(null);
   // JONLI drag ghost: brauzerning xira/sifatsiz snapshot'i o'rniga kartaning
   // haqiqiy DOM nusxasi kursorga ergashadi — to'liq tiniq va aniq ko'rinadi
-  const [ghost, setGhost] = useState<{ l: Lead; w: number } | null>(null);
+  const [ghost, setGhost] = useState<{ l: Lead; w: number; h: number } | null>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const grabRef = useRef({ dx: 0, dy: 0, x: 0, y: 0 });
   const emptyImgRef = useRef<HTMLImageElement | null>(null);
@@ -557,11 +557,15 @@ export default function BuyurtmalarPage() {
           {cols.map((sdef) => {
             const st = sdef.key;
             const items = fLeads.filter((l) => (st === "new" ? l.status === "new" || l.status === "qualified" : l.status === st));
+            // sudralayotgan karta OQIMDAN OLINADI — bo'shliq faqat BITTA slot
+            // orqali ko'rsatiladi (aks holda origin sharpa + slot = ikkita teshik)
+            const visItems = dragId != null ? items.filter((l) => l.id !== dragId) : items;
+            const isSource = dragId != null && items.some((l) => l.id === dragId);
             const isOver = overCol === st && dragId != null;
             return (
               <div
                 key={sdef.id}
-                onDragOver={(e) => { e.preventDefault(); setOverCol(st); setOverIdx((v) => (overCol === st && v != null ? v : items.length)); }}
+                onDragOver={(e) => { e.preventDefault(); setOverCol(st); setOverIdx((v) => (overCol === st && v != null ? v : visItems.length)); }}
                 onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setOverCol(null); setOverIdx(null); } }}
                 onDrop={(e) => { e.preventDefault(); drop(st); }}
                 className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center lg:min-w-[235px] lg:flex-1"
@@ -590,21 +594,32 @@ export default function BuyurtmalarPage() {
                   className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5"
                 >
                   {(() => {
-                    const slotAt = isOver ? Math.min(overIdx ?? items.length, items.length) : -1;
+                    // slot pozitsiyasi: kursor ostidagi ustun; hech qaysi ustun
+                    // ustida bo'lmasa — manba ustunida (asl o'rnida) qoladi
+                    const originIdx = isSource ? items.findIndex((l) => l.id === dragId) : -1;
+                    const slotAt = isOver
+                      ? Math.min(overIdx ?? visItems.length, visItems.length)
+                      : isSource && overCol == null
+                        ? Math.min(originIdx, visItems.length)
+                        : -1;
                     const rows: React.ReactNode[] = [];
+                    // YAGONA toza shtrixli slot — balandligi ko'tarilgan kartaniki
                     const slotEl = (
                       <motion.div
                         key="drop-slot"
                         layout
                         initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 84, opacity: 1 }}
+                        animate={{ height: ghost?.h ?? 84, opacity: 1 }}
                         transition={{ type: "spring", stiffness: 520, damping: 40 }}
-                        className="box-border shrink-0 rounded-[15px] border-2 border-dashed"
-                        style={{ borderColor: "var(--acc)", background: "rgba(255,255,255,.15)" }}
+                        className="box-border shrink-0 rounded-[15px] border-[1.5px] border-dashed"
+                        style={{
+                          borderColor: "color-mix(in srgb, var(--primary) 55%, transparent)",
+                          background: "color-mix(in srgb, var(--primary) 6%, transparent)",
+                        }}
                         aria-hidden
                       />
                     );
-                    items.forEach((l, idx) => {
+                    visItems.forEach((l, idx) => {
                       if (slotAt === idx) rows.push(slotEl);
                       rows.push(
                         <motion.div
@@ -635,7 +650,10 @@ export default function BuyurtmalarPage() {
                               grabRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY };
                               // natif snapshot o'chiriladi — o'rniga jonli ghost kursorga ergashadi
                               if (emptyImgRef.current) e.dataTransfer.setDragImage(emptyImgRef.current, 0, 0);
-                              setGhost({ l, w: r.width });
+                              setGhost({ l, w: r.width, h: r.height });
+                              // slot darhol ASL O'RNIDA ochiladi (ko'tarib turishda ham)
+                              setOverCol(st);
+                              setOverIdx(idx);
                               setTimeout(() => setDragId(l.id), 0);
                             }}
                             onDragEnd={() => { setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null); }}
@@ -643,7 +661,7 @@ export default function BuyurtmalarPage() {
                         </motion.div>
                       );
                     });
-                    if (slotAt >= items.length) rows.push(slotEl);
+                    if (slotAt >= visItems.length && slotAt >= 0) rows.push(slotEl);
                     return rows;
                   })()}
                 </div>
@@ -666,7 +684,7 @@ export default function BuyurtmalarPage() {
                 <span className="block truncate text-[12px]" style={{ color: "var(--mut)" }}>{l.customer_detail?.phone || l.customer_detail?.masked_phone || "tel yo'q"}</span>
               </span>
               <span className="min-w-0 truncate" style={{ color: "var(--mut)" }} title={l.request_uz || l.request_ru}>{l.request_uz || l.request_ru}</span>
-              <span><span className={SOURCE_BADGE(l.source)}>{l.source || "—"}</span></span>
+              <span><SourceBadge source={l.source} /></span>
               <span className="font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
               <span>
                 {(() => { const bp = statusBadgeProps(l.status, l.status_detail ?? statusOf(l.status)); return <span className={bp.className} style={bp.style}>{statusName(l.status, l.status_detail ?? statusOf(l.status))}</span>; })()}

@@ -7,7 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import Modal from "./Modal";
 import { StockUsagePicker, MaterialUsagePicker, batchLabel, type PackRow, type StockRow } from "./UsagePicker";
-import { ARRANGEMENT_LABEL, statusBadgeProps, statusName, SOURCE_BADGE } from "./badges";
+import { ARRANGEMENT_LABEL, statusBadgeProps, statusName, SourceBadge } from "./badges";
 import type { Lead, LeadStatus, LeadStatusDef, Packaging, StockBatch } from "@/lib/types";
 
 // zaxira amallar — statuslar prop kelmasa (eski chaqiruvlar uchun)
@@ -235,7 +235,7 @@ export default function LeadModal({
           <div className="text-[18px] font-extrabold">{name}</div>
           <div className="text-[13px] text-[color:var(--text-2)]">{lead.customer_detail?.phone || lead.customer_detail?.masked_phone || "telefon yo'q"}</div>
         </div>
-        <span className={SOURCE_BADGE(lead.source)}>{lead.source || "—"}</span>
+        <SourceBadge source={lead.source} />
         {(() => {
           const det = lead.status_detail ?? statuses?.find((s) => s.key === lead.status);
           const bp = statusBadgeProps(lead.status, det);

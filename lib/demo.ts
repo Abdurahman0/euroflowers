@@ -84,7 +84,8 @@ const mkLead = (
   delivery_at: id % 3 === 1 ? ago(-1, -3) : null,
   recall_at: id % 3 === 1 ? ago(-1, -2) : null,
   recall_sent_at: null,
-  source: id % 2 ? "instagram_dm" : "story_reply",
+  // manbalar xilma-xil — SourceBadge barcha turlarini namoyish qiladi
+  source: ["instagram_dm", "story_reply", "mini_app", "telegram", "manual"][id % 5],
   customer: c.id, branch: (id % 2) + 1, conversation: id, social_post: id % 3 === 0 ? 1 : null, assigned_to: 2,
 });
 
