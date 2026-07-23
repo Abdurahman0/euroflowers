@@ -29,10 +29,10 @@ export type Branch = {
   is_active: boolean;
 };
 
+/** Single-branch mode: profile'da endi branches yo'q */
 export type UserProfile = {
   role: Role;
   language: Language;
-  branches: Branch[];
 };
 
 export type User = {
@@ -64,7 +64,7 @@ export type Customer = {
   instagram_username: string;
   notes: string;
   is_blocked: boolean;
-  branch: number | null;
+  branch?: number | null;
 };
 
 /** Statuslar endi backenddan boshqariladi — key ixtiyoriy string bo'lishi mumkin
@@ -105,7 +105,7 @@ export type LeadPackagingUsage = {
 export type Lead = {
   id: number;
   customer_detail: Customer;
-  branch_detail: Branch;
+  branch_detail?: Branch;
   created_at: string;
   updated_at: string;
   status: LeadStatus;
@@ -124,7 +124,7 @@ export type Lead = {
   recall_sent_at?: string | null;
   source: string;
   customer: number;
-  branch: number;
+  branch?: number;
   conversation: number | null;
   social_post: number | null;
   assigned_to: number | null;
@@ -180,7 +180,7 @@ export type FlowerVariant = {
 export type StockBatch = {
   id: number;
   variant_detail: FlowerVariant;
-  branch_detail: Branch;
+  branch_detail?: Branch;
   remaining_bunches: number;
   stock_value: string;
   created_at: string;
@@ -198,7 +198,7 @@ export type StockBatch = {
   image_url: string;
   notes: string;
   is_active: boolean;
-  branch: number;
+  branch?: number;
   variant: number;
 };
 
@@ -238,7 +238,7 @@ export type CatalogItem = {
   quantity_sold?: number;
   quantity_stock_deducted?: number;
   composition: CatalogComposition[];
-  branch_detail: Branch;
+  branch_detail?: Branch;
   social_post_detail: SocialPost | null;
   created_at: string;
   updated_at: string;
@@ -256,7 +256,7 @@ export type CatalogItem = {
   instagram_story_url: string;
   sold_at: string | null;
   stock_deducted_at: string | null;
-  branch: number;
+  branch?: number;
   social_post: number | null;
   created_by: number | null;
 };
@@ -294,7 +294,7 @@ export type SocialPost = {
   image_url: string;
   is_targeted: boolean;
   is_active: boolean;
-  branch: number;
+  branch?: number;
   /** postga biriktirilgan tayyor katalog gullari (bir payloadda yaratiladi) */
   catalog_items?: PostCatalogItem[];
   /** Instagram bog'lash maydonlari (kontrakt: story/post/reel linking) */
@@ -337,7 +337,7 @@ export type Conversation = {
   ai_paused_until: string | null;
   ai_pause_reason: string;
   customer: number;
-  branch: number;
+  branch?: number;
   social_post: number | null;
   assigned_to: number | null;
 };
@@ -356,7 +356,7 @@ export type Notification = {
   reference_type: string;
   reference_id: number | null;
   is_read: boolean;
-  branch: number;
+  branch?: number;
 };
 
 export type PackagingType = "wrap" | "basket" | "box" | "accessory";
@@ -376,7 +376,7 @@ export type Packaging = {
   quantity: number;
   image_url: string;
   is_active: boolean;
-  branch: number;
+  branch?: number;
 };
 
 /** Material sklad harakati (backend: /api/material-movements/, ichkarida Packaging) */
@@ -436,7 +436,6 @@ export type Dashboard = {
   stock_stems: number;
   low_stock: number;
   lead_pipeline: { status: LeadStatus; count: number }[];
-  branch_stock: { branch__id: number; branch__name: string; stems: number; batches: number }[];
   recent_leads: Lead[];
   recent_notifications: Notification[];
 };

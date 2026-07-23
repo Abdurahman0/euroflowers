@@ -13,11 +13,9 @@ import type { Customer } from "@/lib/types";
  * "manual_<vaqt>" placeholder yuboriladi.
  */
 export default function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c: Customer) => void }) {
-  const { user, showToast } = useStore();
-  const branches = user?.profile.branches ?? [];
+  const { showToast } = useStore();
   const [f, setF] = useState({
     name: "", phone: "", instagram_username: "", language: "uz", notes: "",
-    branch: branches[0]?.id ?? 0,
   });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -34,7 +32,6 @@ export default function NewClientModal({ onClose, onSaved }: { onClose: () => vo
         instagram_user_id: f.instagram_username.trim().replace(/^@/, "") || `manual_${Date.now()}`,
         language: f.language as Customer["language"],
         notes: f.notes.trim(),
-        branch: f.branch || null,
       });
       showToast(`✓ Mijoz qo'shildi: ${c.name}`);
       onSaved(c);
@@ -52,18 +49,11 @@ export default function NewClientModal({ onClose, onSaved }: { onClose: () => vo
         <Field label="Ism" span><input className="inp" value={f.name} onChange={set("name")} placeholder="Aziza Karimova" autoFocus /></Field>
         <Field label="Telefon"><input className="inp" value={f.phone} onChange={set("phone")} placeholder="+998901234567" inputMode="tel" /></Field>
         <Field label="Instagram (ixtiyoriy)"><input className="inp" value={f.instagram_username} onChange={set("instagram_username")} placeholder="@username" /></Field>
-        <Field label="Til">
+        <Field label="Til" span>
           <Select
             value={f.language}
             onChange={(v) => setF({ ...f, language: String(v) })}
             options={[{ value: "uz", label: "O'zbekcha" }, { value: "ru", label: "Ruscha" }]}
-          />
-        </Field>
-        <Field label="Filial">
-          <Select
-            value={f.branch}
-            onChange={(v) => setF({ ...f, branch: +v })}
-            options={branches.map((b) => ({ value: b.id, label: b.name, sub: b.code }))}
           />
         </Field>
         <Field label="Izoh" span>

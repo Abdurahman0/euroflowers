@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { dateAfterParam, fmt, fmtTime, initials } from "@/lib/format";
+import { dateAfterParam, fmt, initials } from "@/lib/format";
 import { statusBadgeProps, statusName } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
@@ -160,24 +160,6 @@ export default function DashboardPage() {
             </div>
           </motion.section>
 
-          {/* diqqat */}
-          <motion.section variants={rise} className="glass-lite reading-glass p-5">
-            <h2 className="mb-3 text-[16px]">Diqqat talab qiladi</h2>
-            <div className="flex flex-col gap-2">
-              {d.recent_notifications.length === 0 && <p className="text-[13px]" style={{ color: "var(--mut)" }}>Hammasi joyida 🌷</p>}
-              {d.recent_notifications.map((n) => (
-                <div key={n.id} className="flex items-start gap-2.5 rounded-[13px] border bg-tint p-3" style={{ borderColor: "var(--line2)" }}>
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold text-white" style={{ background: "var(--acc)" }}>!</span>
-                  <div className="flex-1">
-                    <p className="text-[13px] font-bold leading-snug">{n.title_uz || n.title_ru}</p>
-                    {(n.body_uz || n.body_ru) && <p className="text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{n.body_uz || n.body_ru}</p>}
-                    <p className="mt-0.5 text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(n.created_at)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.section>
-
           {/* eng ko'p sotilgan gullar — birinchi 5 tasi (to'lig'i Analitikada) */}
           {(d.top_selling_flowers?.length ?? 0) > 0 && (
             <motion.section variants={rise} className="glass-lite p-5">
@@ -196,14 +178,19 @@ export default function DashboardPage() {
             </motion.section>
           )}
 
-          {/* filiallar bo'yicha sklad */}
+          {/* umumiy sklad holati — single-branch */}
           <motion.section variants={rise} className="glass-lite relative overflow-hidden p-5 text-[#F7F1E8]" style={{ background: "color-mix(in srgb, var(--side) 62%, transparent)" }}>
             <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full border-[18px] opacity-30" style={{ borderColor: "var(--accL)" }} />
-            <h2 className="text-[16px]" style={{ color: "#F7F1E8" }}>Filiallar bo&apos;yicha sklad</h2>
+            <h2 className="text-[16px]" style={{ color: "#F7F1E8" }}>Sklad holati</h2>
             <div className="mt-3.5 flex flex-wrap gap-2">
-              {d.branch_stock.map((b) => (
-                <Link key={b.branch__id} href="/sklad" className="rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[13px] !text-[#F7F1E8] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/25">
-                  {b.branch__name} · {b.stems.toLocaleString("ru")} dona · {b.batches} partiya
+              {[
+                { label: `${d.stock_stems.toLocaleString("ru")} dona gul`, href: "/sklad" },
+                { label: `${d.low_stock} pozitsiya kam qoldi`, href: "/sklad" },
+                { label: `${d.available_catalog} ta katalogda sotuvda`, href: "/katalog" },
+                { label: `${d.pending_deductions} ta chiqim kutilmoqda`, href: "/katalog" },
+              ].map((c) => (
+                <Link key={c.label} href={c.href} className="rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[13px] !text-[#F7F1E8] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/25">
+                  {c.label}
                 </Link>
               ))}
             </div>

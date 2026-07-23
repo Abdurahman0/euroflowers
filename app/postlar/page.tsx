@@ -10,7 +10,7 @@ import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt } from "@/lib/format";
-import type { Branch, SocialPost } from "@/lib/types";
+import type { SocialPost } from "@/lib/types";
 
 /** Postlar — Instagram uslubida: tepada STORIES doiralari (gradient halqa),
     pastda post/reel/reklama to'ri — rasm, hover'da statistika. */
@@ -87,7 +87,6 @@ export default function PostlarPage() {
   const { canControl } = usePerm();
   const control = canControl("social_posts");
   const [posts, setPosts] = useState<SocialPost[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState("");
   const [modal, setModal] = useState<{ open: boolean; post: SocialPost | null }>({ open: false, post: null });
@@ -107,16 +106,12 @@ export default function PostlarPage() {
   const load = useCallback(async () => {
     setLoadErr("");
     try {
-      const [ps, bs] = await Promise.all([
-        api.socialPosts({
-          search: q || undefined,
-          post_type: postType || undefined,
-          is_targeted: target === "" ? undefined : target === "1",
-        }),
-        api.branches(),
-      ]);
+      const ps = await api.socialPosts({
+        search: q || undefined,
+        post_type: postType || undefined,
+        is_targeted: target === "" ? undefined : target === "1",
+      });
       setPosts(ps);
-      setBranches(bs);
     } catch (e) {
       setLoadErr(e instanceof Error ? e.message : "Yuklashda xatolik");
     } finally {
@@ -315,7 +310,7 @@ export default function PostlarPage() {
       })()}
 
       {modal.open && (
-        <PostModal post={modal.post} branches={branches} onClose={() => setModal({ open: false, post: null })} onSaved={onSaved} />
+        <PostModal post={modal.post} onClose={() => setModal({ open: false, post: null })} onSaved={onSaved} />
       )}
 
       {confirmDel && (

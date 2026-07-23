@@ -1,6 +1,6 @@
 "use client";
 import type {
-  AISettings, Analytics, AuditLog, Branch, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
+  AISettings, Analytics, AuditLog, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
   Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated,
   SocialPost, StockBatch, StockMovement, UploadResponse, User,
@@ -269,12 +269,6 @@ export const api = {
   /** Analitika — dashboard bilan bir xil ko'rish ruxsati */
   analytics: (p?: { from?: string; to?: string }) => request<Analytics>(`/api/analytics/${qs(p)}`),
 
-  branches: (p?: Params) => list<Branch>("/api/branches/", p),
-  createBranch: (data: Partial<Branch>) =>
-    request<Branch>("/api/branches/", { method: "POST", body: JSON.stringify(data) }),
-  updateBranch: (id: number, data: Partial<Branch>) =>
-    request<Branch>(`/api/branches/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
-
   /** Dinamik lead statuslari — kanban ustunlari shu yerdan chiziladi.
       Javob paginatsiyali ({results}) ham, oddiy massiv ham bo'lishi mumkin. */
   leadStatuses: async (p?: Params): Promise<LeadStatusDef[]> => {
@@ -296,8 +290,8 @@ export const api = {
   /** Kanban ustuni tartibini BITTA so'rovda saqlash: target ustunning barcha
       lead id'lari yuqoridan-pastga tartibda (kontrakt: reorder-column).
       Status o'zgarishi ham shu yerda — won'ga o'tsa sklad kamayadi,
-      won'dan chiqsa avtomatik qaytadi. Bo'sh ustun uchun branch yuboriladi. */
-  reorderColumn: (data: { status: string; lead_ids: number[]; branch?: number }) =>
+      won'dan chiqsa avtomatik qaytadi (single-branch: branch yuborilmaydi). */
+  reorderColumn: (data: { status: string; lead_ids: number[] }) =>
     request<{ updated: number }>("/api/leads/reorder-column/", { method: "POST", body: JSON.stringify(data) }),
   lead: (id: number) => request<Lead>(`/api/leads/${id}/`),
   createLead: (data: LeadInput) =>

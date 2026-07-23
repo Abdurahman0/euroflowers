@@ -48,10 +48,10 @@ const ALL_PAGES = ["dashboard", "inventory", "catalog", "crm", "customers", "con
 const fullPerms: PagePermission[] = ALL_PAGES.map((page, i) => ({ id: i + 1, page, can_view: true, can_control: true }));
 
 const users: User[] = [
-  { id: 1, username: "admin", first_name: "Dilnoza", last_name: "Karimova", email: "dilnoza@euroflowers.uz", is_active: true, profile: { role: "admin", language: "uz", branches }, permissions: fullPerms },
-  { id: 2, username: "aziza", first_name: "Aziza", last_name: "Tosheva", email: "aziza@euroflowers.uz", is_active: true, profile: { role: "operator", language: "uz", branches: [branches[0]] } },
-  { id: 3, username: "malika", first_name: "Malika", last_name: "Yusupova", email: "malika@euroflowers.uz", is_active: true, profile: { role: "florist", language: "ru", branches: [branches[0]] } },
-  { id: 4, username: "sardor", first_name: "Sardor", last_name: "Aliyev", email: "sardor@euroflowers.uz", is_active: true, profile: { role: "warehouse", language: "uz", branches: [branches[1]] } },
+  { id: 1, username: "admin", first_name: "Dilnoza", last_name: "Karimova", email: "dilnoza@euroflowers.uz", is_active: true, profile: { role: "admin", language: "uz" }, permissions: fullPerms },
+  { id: 2, username: "aziza", first_name: "Aziza", last_name: "Tosheva", email: "aziza@euroflowers.uz", is_active: true, profile: { role: "operator", language: "uz" } },
+  { id: 3, username: "malika", first_name: "Malika", last_name: "Yusupova", email: "malika@euroflowers.uz", is_active: true, profile: { role: "florist", language: "ru" } },
+  { id: 4, username: "sardor", first_name: "Sardor", last_name: "Aliyev", email: "sardor@euroflowers.uz", is_active: true, profile: { role: "warehouse", language: "uz" } },
 ];
 
 // ===== Mijozlar =====
@@ -363,10 +363,6 @@ const dashboard: Dashboard = {
     { status: "won", count: 2 },
     { status: "lost", count: 1 },
   ],
-  branch_stock: [
-    { branch__id: 1, branch__name: "Chilonzor", stems: 580, batches: 3 },
-    { branch__id: 2, branch__name: "Yunusobod", stems: 108, batches: 2 },
-  ],
   recent_leads: leads.slice(0, 4),
   recent_notifications: notifications.slice(0, 3),
 };
@@ -650,7 +646,6 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       ],
     });
   }
-  if (p === "/api/branches/") return out(page(branches));
   if (p === "/api/lead-statuses/") return out(page(leadStatuses));
   if (p === "/api/leads/") {
     // haqiqiy sahifalash — cheksiz skrollni sinash uchun

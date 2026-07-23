@@ -308,7 +308,6 @@ export default function LeadModal({
         {lead.florist_fee != null && +lead.florist_fee > 0 && <Row k="Florist haqi" v={fmt(lead.florist_fee)} />}
         <Row k="Turi" v={lead.arrangement_type ? ARRANGEMENT_LABEL[lead.arrangement_type] ?? lead.arrangement_type : "—"} />
         <Row k="Instagram" v={lead.customer_detail?.instagram_username ? `@${lead.customer_detail.instagram_username}` : "—"} />
-        <Row k="Filial" v={lead.branch_detail?.name ?? "—"} />
         <Row k="Yetkazish vaqti" v={lead.delivery_at ? fmtTime(lead.delivery_at) : fmtDate(lead.desired_date)} accent={!!lead.delivery_at} />
         {lead.recall_at && (
           <Row

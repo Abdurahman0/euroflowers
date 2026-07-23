@@ -6,11 +6,11 @@ import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import { Icon } from "./icons";
 import { ROLE_LABEL } from "./badges";
-import type { Branch, Language, PagePermission, PermissionPage, Role, User } from "@/lib/types";
+import type { Language, PagePermission, PermissionPage, Role, User } from "@/lib/types";
 
 /**
  * Xodim yaratish/tahrirlash — kontrakt bo'yicha nested payload:
- *   { username, password?, first_name, profile: {role, language, branch_ids}, permissions: [...] }
+ *   { username, password?, first_name, profile: {role, language}, permissions: [...] }
  * Ruxsatlar jadvali: har sahifa uchun can_view / can_control.
  */
 
@@ -49,12 +49,10 @@ const permsFromUser = (u: User | null): PermState => {
 
 export default function UserModal({
   editUser,
-  branches,
   onClose,
   onSaved,
 }: {
   editUser: User | null;
-  branches: Branch[];
   onClose: () => void;
   onSaved: (u: User) => void;
 }) {
@@ -67,7 +65,6 @@ export default function UserModal({
   const [lastName, setLastName] = useState(editUser?.last_name ?? "");
   const [role, setRole] = useState<Role>(editUser?.profile.role ?? "operator");
   const [language, setLanguage] = useState<Language>(editUser?.profile.language ?? "uz");
-  const [branchIds, setBranchIds] = useState<number[]>(editUser?.profile.branches.map((b) => b.id) ?? []);
   const [perms, setPerms] = useState<PermState>(permsFromUser(editUser));
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -122,7 +119,7 @@ export default function UserModal({
       username: username.trim(),
       first_name: firstName.trim(),
       last_name: lastName.trim(),
-      profile: { role, language, branch_ids: branchIds },
+      profile: { role, language },
       permissions,
     };
     if (password) payload.password = password;
@@ -149,7 +146,7 @@ export default function UserModal({
       <ModalHeader
         icon={<Icon name="user" size={20} />}
         title={editUser ? "Xodimni tahrirlash" : "Yangi xodim"}
-        sub="Rol, filial va sahifa ruxsatlari"
+        sub="Rol, til va sahifa ruxsatlari"
         onClose={onClose}
       />
 
@@ -180,26 +177,6 @@ export default function UserModal({
         <Field label="Til">
           <Select value={language} options={[{ value: "uz", label: "O'zbek" }, { value: "ru", label: "Русский" }]} onChange={(v) => setLanguage(String(v) as Language)} />
         </Field>
-      </div>
-
-      <Section>Filiallar</Section>
-      <div className="flex flex-wrap gap-2">
-        {branches.map((b) => {
-          const on = branchIds.includes(b.id);
-          return (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => setBranchIds((ids) => (on ? ids.filter((x) => x !== b.id) : [...ids, b.id]))}
-              className={`rounded-full border px-3.5 py-1.5 text-[12px] font-semibold transition-colors duration-200 ${on ? "text-white" : "text-[color:var(--text-2)] hover:bg-[color:var(--hover)]"}`}
-              style={on ? { background: "var(--primary)", borderColor: "var(--primary)" } : { borderColor: "var(--border)" }}
-              aria-pressed={on}
-            >
-              {b.name}
-            </button>
-          );
-        })}
-        {branches.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Filial topilmadi.</p>}
       </div>
 
       <Section>Sahifa ruxsatlari</Section>

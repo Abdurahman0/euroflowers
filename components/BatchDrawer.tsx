@@ -117,7 +117,7 @@ export default function BatchDrawer({
       onClose={onClose}
       width={560}
       title={`${v?.flower_detail?.name_uz ?? ""} — ${v?.name_uz ?? ""}`}
-      sub={`Partiya №${b.batch_number} · ${b.branch_detail?.name}`}
+      sub={`Partiya №${b.batch_number}`}
       badges={
         <>
           {b.remaining_stems === 0 && <span className="rounded-full bg-[color:var(--surface-2)] px-2.5 py-0.5 text-[11px] font-bold">TUGADI</span>}

@@ -7,11 +7,11 @@ import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { dateAfterParam, fmt } from "@/lib/format";
-import { statusBadgeProps, statusName, ARRANGEMENT_LABEL } from "@/components/badges";
+import { statusName, ARRANGEMENT_LABEL } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
-import { HBars, RevenueBars } from "@/components/AnalyticsCharts";
+import { DonutChart, HBars, RevenueBars } from "@/components/AnalyticsCharts";
 import FlowerLoader from "@/components/FlowerLoader";
 import type { Analytics, LeadStatusDef } from "@/lib/types";
 
@@ -152,19 +152,16 @@ export default function AnalitikaPage() {
           />
         </Card>
 
-        {/* buyurtmalar holati — status ranglarida */}
+        {/* buyurtmalar holati — donut, har status o'z rangida */}
         <Card title="Buyurtmalar holati" sub="statuslar bo'yicha taqsimot">
-          <HBars rows={statusRows} unit="ta" />
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {statusRows.map((r) => {
-              const bp = statusBadgeProps("", statuses.find((st) => st.name_uz === r.label) ?? null);
-              return (
-                <span key={r.label} className={bp.className} style={bp.style}>
-                  {r.label}: {r.value}
-                </span>
-              );
-            })}
-          </div>
+          <DonutChart
+            slices={statusRows.map((r, i) => ({
+              label: r.label,
+              value: r.value,
+              color: r.color ?? ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--muted)"][i % 4],
+            }))}
+            centerSub="buyurtma"
+          />
         </Card>
 
         {/* buyurtma turlari */}

@@ -26,7 +26,7 @@ const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
 
 export default function SkladPage() {
   const router = useRouter();
-  const { user, showToast, dateFilter, dateRange, setDateFilter } = useStore();
+  const { showToast, dateFilter, dateRange, setDateFilter } = useStore();
   // uch bo'lim: gul sklad (partiyalar), material sklad va kirim-chiqim jurnali
   const [tab, setTab] = useState<"gul" | "material" | "jurnal">("gul");
   const [batches, setBatches] = useState<StockBatch[]>([]);
@@ -36,13 +36,12 @@ export default function SkladPage() {
   const [selBatch, setSelBatch] = useState<StockBatch | null>(null);
   const [search, setSearch] = useState("");
   // server filtrlari
-  const [branch, setBranch] = useState("");
   const [moveType, setMoveType] = useState("");
 
   const load = useCallback(async () => {
     try {
       const [bs, ms] = await Promise.all([
-        api.stockBatches({ is_active: true, ordering: "-received_at", branch: branch || undefined }),
+        api.stockBatches({ is_active: true, ordering: "-received_at" }),
         // davr + tur filtri server tomonda
         api.stockMovements({
           ordering: "-created_at",
@@ -57,7 +56,7 @@ export default function SkladPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, dateFilter, dateRange, branch, moveType]);
+  }, [showToast, dateFilter, dateRange, moveType]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
@@ -66,7 +65,7 @@ export default function SkladPage() {
   const fBatches = q
     ? batches.filter((b) => {
         const v = b.variant_detail;
-        return [v?.flower_detail?.name_uz, v?.name_uz, v?.color_uz, b.batch_number, b.branch_detail?.name]
+        return [v?.flower_detail?.name_uz, v?.name_uz, v?.color_uz, b.batch_number]
           .some((x) => (x ?? "").toLowerCase().includes(q));
       })
     : batches;
@@ -194,18 +193,9 @@ export default function SkladPage() {
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Partiya qidirish" />
-          <FilterSelect
-            value={branch}
-            onChange={setBranch}
-            label="Filial"
-            options={[
-              { value: "", label: "Barcha filiallar" },
-              ...(user?.profile.branches ?? []).map((b) => ({ value: String(b.id), label: b.name })),
-            ]}
-          />
           <ClearFilters
-            show={!!(search || branch)}
-            onClear={() => { setSearch(""); setBranch(""); }}
+            show={!!search}
+            onClear={() => setSearch("")}
           />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Keldi qilish
@@ -236,7 +226,7 @@ export default function SkladPage() {
                 <div>
                   <div className="text-sm font-bold">{v?.flower_detail?.name_uz} — {v?.name_uz}</div>
                   <div className="text-xs" style={{ color: "var(--mut)" }}>
-                    {b.branch_detail?.name} · keldi: {fmtDate(b.received_at)} · №{b.batch_number}
+                    keldi: {fmtDate(b.received_at)} · №{b.batch_number}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">

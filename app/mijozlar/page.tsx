@@ -26,7 +26,7 @@ const LANG_OPTS = [
 
 export default function MijozlarPage() {
   const router = useRouter();
-  const { user, showToast } = useStore();
+  const { showToast } = useStore();
   const { canControl } = usePerm();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +34,6 @@ export default function MijozlarPage() {
   const [newClient, setNewClient] = useState(false);
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
-  const [branch, setBranch] = useState("");
   const [lang, setLang] = useState("");
 
   useEffect(() => {
@@ -47,7 +46,6 @@ export default function MijozlarPage() {
       setCustomers(await api.customers({
         ordering: "-created_at",
         search: q || undefined,
-        branch: branch || undefined,
         language: lang || undefined,
       }));
     } catch (e) {
@@ -55,7 +53,7 @@ export default function MijozlarPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, q, branch, lang]);
+  }, [showToast, q, lang]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
@@ -70,19 +68,10 @@ export default function MijozlarPage() {
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Mijoz qidirish" />
-          <FilterSelect
-            value={branch}
-            options={[
-              { value: "", label: "Barcha filiallar" },
-              ...(user?.profile.branches ?? []).map((b) => ({ value: String(b.id), label: b.name })),
-            ]}
-            onChange={setBranch}
-            label="Filial"
-          />
           <FilterSelect value={lang} options={LANG_OPTS} onChange={setLang} label="Til" />
           <ClearFilters
-            show={!!(search || branch || lang)}
-            onClear={() => { setSearch(""); setBranch(""); setLang(""); }}
+            show={!!(search || lang)}
+            onClear={() => { setSearch(""); setLang(""); }}
           />
           {canControl("customers") && (
             <button onClick={() => setNewClient(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">

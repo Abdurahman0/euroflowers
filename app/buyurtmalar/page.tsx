@@ -166,18 +166,12 @@ export default function BuyurtmalarPage() {
   // server tomonda ishlaydigan filtrlar
   const [search, setSearch] = useState("");
   const [q, setQ] = useState(""); // debounce qilingan qiymat
-  const [branch, setBranch] = useState("");
   const [arrType, setArrType] = useState("");
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search.trim()), 350);
     return () => clearTimeout(t);
   }, [search]);
-
-  const branchOpts = [
-    { value: "", label: "Barcha filiallar" },
-    ...(user?.profile.branches ?? []).map((b) => ({ value: String(b.id), label: b.name })),
-  ];
 
   // kanban pastki chegarasi ham sidebar bilan bir chiziqda (chat kabi):
   // viewport − ustki joylashuv − 14px (Shell tashqi paddingi)
@@ -210,14 +204,13 @@ export default function BuyurtmalarPage() {
       ordering: "sort_order",
       ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
       search: q || undefined,
-      branch: branch || undefined,
       arrangement_type: arrType || undefined,
     }),
-    [dateRange, dateFilter, q, branch, arrType]
+    [dateRange, dateFilter, q, arrType]
   );
 
   // filtr o'zgarsa — sahifalash boshidan
-  useEffect(() => { pagesRef.current = 1; }, [dateRange, dateFilter, q, branch, arrType]);
+  useEffect(() => { pagesRef.current = 1; }, [dateRange, dateFilter, q, arrType]);
 
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
@@ -397,8 +390,8 @@ export default function BuyurtmalarPage() {
       return [...without, movedUpd];
     });
 
-    // payload: target ustun (AYNAN shu status + shu filial) idlari yangi tartibda —
-    // aralash filial 400 beradi, "new"dagi qualified kartalarni ham yubormaymiz
+    // payload: target ustun (AYNAN shu status) idlari yangi tartibda —
+    // "new"dagi qualified kartalarni yubormaymiz
     const nextState = (() => {
       const without = prev.filter((l) => l.id !== id);
       const items = colItems(without, targetKey);
@@ -410,7 +403,7 @@ export default function BuyurtmalarPage() {
       return arr;
     })();
     const leadIds = nextState
-      .filter((l) => l.status === targetKey && l.branch === moved.branch)
+      .filter((l) => l.status === targetKey)
       .map((l) => l.id);
 
     try {
@@ -455,12 +448,11 @@ export default function BuyurtmalarPage() {
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Buyurtma qidirish" />
-          <FilterSelect value={branch} options={branchOpts} onChange={setBranch} label="Filial" />
           <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />
           <DateChips />
           <ClearFilters
-            show={!!(search || branch || arrType || dateRange || dateFilter !== "oy")}
-            onClear={() => { setSearch(""); setBranch(""); setArrType(""); setDateFilter("oy"); }}
+            show={!!(search || arrType || dateRange || dateFilter !== "oy")}
+            onClear={() => { setSearch(""); setArrType(""); setDateFilter("oy"); }}
           />
           {canControl("crm") && (
             <button onClick={() => setNewLead(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">

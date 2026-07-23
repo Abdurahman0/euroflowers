@@ -7,7 +7,7 @@ import { StockUsagePicker, type StockRow } from "./UsagePicker";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { Icon } from "./icons";
-import type { Branch, PostType, SocialPost, StockBatch } from "@/lib/types";
+import type { PostType, SocialPost, StockBatch } from "@/lib/types";
 
 /**
  * SocialPost yaratish/tahrirlash — kontrakt bo'yicha:
@@ -33,12 +33,10 @@ function detectType(link: string): PostType | null {
 
 export default function PostModal({
   post,
-  branches,
   onClose,
   onSaved,
 }: {
   post: SocialPost | null;
-  branches: Branch[];
   onClose: () => void;
   onSaved: (p: SocialPost) => void;
 }) {
@@ -55,7 +53,6 @@ export default function PostModal({
   const [targeted, setTargeted] = useState(post?.is_targeted ?? false);
   const [active, setActive] = useState(post?.is_active ?? true);
   const [image, setImage] = useState(post?.image_url ?? "");
-  const [branch, setBranch] = useState<number>(post?.branch ?? branches[0]?.id ?? 1);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -112,7 +109,6 @@ export default function PostModal({
         is_targeted: targeted,
         is_active: active,
         image_url: image,
-        branch,
         // tayyor gul + tarkibi — bitta payloadda; backend sklad qoldig'ini
         // quantity_total × quantity_stems bo'yicha tekshiradi (400 — yetmasa)
         ...(withCatalog && comp.length
@@ -182,18 +178,11 @@ export default function PostModal({
       {!linkError && linkHint && <p className="mt-1.5 text-[12px] text-[color:var(--muted)]">{linkHint}</p>}
 
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <Field label="Tur">
+        <Field label="Tur" span>
           <Select
             value={postType}
             options={TYPE_OPTIONS}
             onChange={(v) => { setPostType(String(v) as PostType); setTypeTouched(true); }}
-          />
-        </Field>
-        <Field label="Filial">
-          <Select
-            value={String(branch)}
-            options={branches.map((b) => ({ value: String(b.id), label: b.name }))}
-            onChange={(v) => setBranch(+v)}
           />
         </Field>
       </div>

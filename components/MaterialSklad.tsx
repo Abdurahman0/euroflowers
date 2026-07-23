@@ -29,8 +29,7 @@ const TYPE_OPTS = [
 ];
 
 function MaterialModal({ material, onClose, onSaved }: { material: Packaging | null; onClose: () => void; onSaved: (m: Packaging) => void }) {
-  const { user, showToast } = useStore();
-  const branches = user?.profile.branches ?? [];
+  const { showToast } = useStore();
   const [f, setF] = useState({
     name_uz: material?.name_uz ?? "",
     name_ru: material?.name_ru ?? "",
@@ -39,7 +38,6 @@ function MaterialModal({ material, onClose, onSaved }: { material: Packaging | n
     cost_price: material ? String(Math.round(+material.cost_price)) : "",
     sale_price: material ? String(Math.round(+material.sale_price)) : "",
     quantity: material ? String(material.quantity) : "",
-    branch: material?.branch ?? branches[0]?.id ?? 0,
   });
   const [busy, setBusy] = useState(false);
 
@@ -55,7 +53,6 @@ function MaterialModal({ material, onClose, onSaved }: { material: Packaging | n
         cost_price: f.cost_price ? String(+f.cost_price) : "0",
         sale_price: f.sale_price ? String(+f.sale_price) : "0",
         ...(material ? {} : { quantity: +f.quantity || 0 }),
-        branch: f.branch,
         is_active: true,
       };
       const saved = material ? await api.updateMaterial(material.id, payload) : await api.createMaterial(payload);
@@ -96,9 +93,6 @@ function MaterialModal({ material, onClose, onSaved }: { material: Packaging | n
             <input className="inp" type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} placeholder="50" />
           </Field>
         )}
-        <Field label="Filial">
-          <Select value={f.branch} onChange={(v) => setF({ ...f, branch: +v })} options={branches.map((b) => ({ value: b.id, label: b.name, sub: b.code }))} />
-        </Field>
       </div>
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>

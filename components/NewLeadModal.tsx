@@ -26,14 +26,12 @@ export default function NewLeadModal({
   onClose: () => void;
   onSaved: (l: Lead) => void;
 }) {
-  const { user, showToast } = useStore();
-  const branches = user?.profile.branches ?? [];
+  const { showToast } = useStore();
   const [mode, setMode] = useState<"existing" | "new">(customers.length ? "existing" : "new");
   const [f, setF] = useState({
     customer: customers[0]?.id ?? 0,
     customer_name: "",
     customer_phone: "",
-    branch: branches[0]?.id ?? 0,
     request_uz: "",
     arrangement_type: "",
     estimated_price: "",
@@ -136,7 +134,6 @@ export default function NewLeadModal({
         ...(mode === "existing"
           ? { customer: f.customer }
           : { customer_name: f.customer_name.trim(), customer_phone: f.customer_phone.trim() }),
-        branch: f.branch,
         request_uz: (f.request_uz.trim() + catalogLine).trim(),
         arrangement_type: (f.arrangement_type || "") as Lead["arrangement_type"],
         estimated_price: f.estimated_price ? String(+f.estimated_price) : null,
@@ -271,13 +268,6 @@ export default function NewLeadModal({
         </Field>
         <Field label="Yetkazish vaqti" span={isCatalog}>
           <DatePicker value={f.delivery_at} onChange={(v) => setF({ ...f, delivery_at: v })} disablePast withTime placeholder="Sana va vaqt" ariaLabel="Yetkazish vaqti" />
-        </Field>
-        <Field label="Filial" span>
-          <Select
-            value={f.branch}
-            onChange={(v) => setF({ ...f, branch: +v })}
-            options={branches.map((b) => ({ value: b.id, label: b.name, sub: b.code }))}
-          />
         </Field>
         {f.delivery_at && (
           <div className="col-span-full -mt-1 flex flex-col gap-2">

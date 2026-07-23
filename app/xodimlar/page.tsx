@@ -13,7 +13,7 @@ import EmptyState from "@/components/EmptyState";
 import { Icon } from "@/components/icons";
 import { initials } from "@/lib/format";
 import { ROLE_LABEL } from "@/components/badges";
-import type { Branch, User } from "@/lib/types";
+import type { User } from "@/lib/types";
 
 /**
  * Xodimlar (jamoa) — alohida sahifa. Ilgari Sozlamalar ichida edi;
@@ -28,7 +28,6 @@ export default function XodimlarPage() {
   const { canControl } = usePerm();
   const control = canControl("users");
   const [team, setTeam] = useState<User[] | null>(null);
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [userModal, setUserModal] = useState<{ open: boolean; edit: User | null }>({ open: false, edit: null });
@@ -36,11 +35,8 @@ export default function XodimlarPage() {
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   const load = useCallback(() => {
-    Promise.all([api.users(), api.branches()])
-      .then(([us, bs]) => {
-        setTeam(us);
-        setBranches(bs);
-      })
+    api.users()
+      .then(setTeam)
       .catch((e) => {
         setTeam((t) => t ?? []);
         showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
@@ -182,7 +178,7 @@ export default function XodimlarPage() {
       </section>
 
       {userModal.open && (
-        <UserModal editUser={userModal.edit} branches={branches} onClose={() => setUserModal({ open: false, edit: null })} onSaved={onUserSaved} />
+        <UserModal editUser={userModal.edit} onClose={() => setUserModal({ open: false, edit: null })} onSaved={onUserSaved} />
       )}
 
       {/* nofaollashtirish tasdig'i */}

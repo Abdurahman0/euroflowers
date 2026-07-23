@@ -49,6 +49,106 @@ export function HBars({ rows, unit = "", color = "var(--chart-1)", format }: { r
   );
 }
 
+export type DonutSlice = { label: string; value: number; color: string };
+
+/** Donut (pie) — qism-butun taqsimot: har bo'lak o'z rangida (status rangi),
+    bo'laklar orasida 2px yuza oralig'i, markazda jami, hover'da bo'lak
+    kattalashadi + tooltip. Legend har doim ko'rinadi. */
+export function DonutChart({ slices, centerSub = "jami" }: { slices: DonutSlice[]; centerSub?: string }) {
+  const [hov, setHov] = useState<number | null>(null);
+  const total = slices.reduce((t, s) => t + s.value, 0);
+  if (!total) return <p className="py-6 text-center text-[13px]" style={{ color: "var(--muted)" }}>Ma&apos;lumot yo&apos;q.</p>;
+
+  const SIZE = 196;
+  const C = SIZE / 2;
+  const R = 72;          // halqa markazi radiusi
+  const W = 26;          // halqa qalinligi
+  const PAD = 2.2 / R;   // ≈2px yuza oralig'i (radianda)
+
+  const pt = (ang: number, r: number) => [C + r * Math.cos(ang), C + r * Math.sin(ang)];
+  let acc = -Math.PI / 2; // tepa markazdan boshlanadi
+  const segs = slices.map((sl, i) => {
+    const sweep = (sl.value / total) * Math.PI * 2;
+    const a0 = acc + PAD / 2;
+    const a1 = acc + sweep - PAD / 2;
+    acc += sweep;
+    if (a1 <= a0) return { ...sl, d: "", i, mid: (a0 + a1) / 2 };
+    const [x0, y0] = pt(a0, R);
+    const [x1, y1] = pt(a1, R);
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    return { ...sl, i, mid: (a0 + a1) / 2, d: `M${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1}` };
+  });
+
+  const hovSl = hov != null ? slices[hov] : null;
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4">
+      <div className="relative" style={{ width: SIZE, height: SIZE }}>
+        <svg width={SIZE} height={SIZE} role="img" aria-label={`Taqsimot: ${slices.map((s) => `${s.label} ${s.value}`).join(", ")}`}>
+          {segs.map((sg) =>
+            sg.d ? (
+              <path
+                key={sg.i}
+                d={sg.d}
+                fill="none"
+                stroke={sg.color}
+                strokeWidth={hov === sg.i ? W + 6 : W}
+                strokeLinecap="butt"
+                opacity={hov == null || hov === sg.i ? 1 : 0.4}
+                style={{ transition: "stroke-width 0.18s ease, opacity 0.18s ease", cursor: "pointer" }}
+                onPointerEnter={() => setHov(sg.i)}
+                onPointerLeave={() => setHov(null)}
+              />
+            ) : null
+          )}
+        </svg>
+        {/* markaz: hover bo'lak yoki jami */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+          {hovSl ? (
+            <>
+              <span className="text-[22px] font-semibold tracking-tight tabular-nums">{hovSl.value}</span>
+              <span className="max-w-[96px] truncate text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>{hovSl.label}</span>
+              <span className="text-[11px] font-medium" style={{ color: "var(--muted)" }}>{Math.round((hovSl.value / total) * 100)}%</span>
+            </>
+          ) : (
+            <>
+              <span className="text-[26px] font-semibold tracking-tight tabular-nums">{total}</span>
+              <span className="text-[11.5px] font-medium" style={{ color: "var(--muted)" }}>{centerSub}</span>
+            </>
+          )}
+        </div>
+      </div>
+      {/* legend — matn tokenlarida, rang faqat nuqtada */}
+      <div className="flex min-w-[128px] flex-col gap-2" role="list">
+        {slices.map((sl, i) => (
+          <button
+            key={i}
+            type="button"
+            role="listitem"
+            onPointerEnter={() => setHov(i)}
+            onPointerLeave={() => setHov(null)}
+            className="flex items-center justify-between gap-3 rounded-[8px] px-1.5 py-0.5 text-left transition-opacity"
+            style={{ opacity: hov == null || hov === i ? 1 : 0.45 }}
+          >
+            <span className="flex min-w-0 items-center gap-2 text-[12.5px] font-semibold" style={{ color: "var(--text-2)" }}>
+              <span className="h-[9px] w-[9px] shrink-0 rounded-full" style={{ background: sl.color }} aria-hidden />
+              <span className="truncate">{sl.label}</span>
+            </span>
+            <span className="shrink-0 text-[12.5px] font-bold tabular-nums">
+              {sl.value} <span className="font-medium" style={{ color: "var(--muted)" }}>· {Math.round((sl.value / total) * 100)}%</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <table className="sr-only">
+        <caption>Taqsimot</caption>
+        <thead><tr><th>Nomi</th><th>Soni</th></tr></thead>
+        <tbody>{slices.map((sl, i) => <tr key={i}><td>{sl.label}</td><td>{sl.value}</td></tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
 /** Kunlik daromad — ustunli grafik (yagona rang; 4px yumaloq uch, 2px oraliq). */
 export function RevenueBars({ data }: { data: { date: string; revenue: string | number }[] }) {
   const wrapRef = useRef<HTMLDivElement>(null);

@@ -14,14 +14,13 @@ type CompRow = { stock_batch: number; quantity_stems: string };
 
 const EMPTY = {
   name_uz: "", name_ru: "", arrangement_type: "bouquet" as ArrangementType, height_cm: "",
-  price: "", florist_fee: "", quantity_total: "1", instagram_story_url: "", description_uz: "", image_url: "", branch: 0,
+  price: "", florist_fee: "", quantity_total: "1", instagram_story_url: "", description_uz: "", image_url: "",
 };
 
 export default function KatalogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const { user, showToast } = useStore();
-  const branches = user?.profile.branches ?? [];
+  const { showToast } = useStore();
   const [batches, setBatches] = useState<StockBatch[]>([]);
-  const [f, setF] = useState({ ...EMPTY, branch: branches[0]?.id ?? 0 });
+  const [f, setF] = useState({ ...EMPTY });
   const [comp, setComp] = useState<CompRow[]>([{ stock_batch: 0, quantity_stems: "" }]);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
@@ -39,7 +38,6 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
   const save = async () => {
     if (!f.name_uz) return showToast("Nomini kiriting");
     if (!f.price) return showToast("Narxini kiriting");
-    if (!f.branch) return showToast("Filial tanlang");
     const composition = comp
       .filter((r) => r.stock_batch && +r.quantity_stems > 0)
       .map((r) => ({ stock_batch: r.stock_batch, quantity_stems: +r.quantity_stems }));
@@ -57,7 +55,6 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
         instagram_story_url: f.instagram_story_url,
         description_uz: f.description_uz,
         image_url: f.image_url,
-        branch: f.branch,
         composition,
       });
       showToast(`✓ Katalogga qo'shildi: ${f.name_uz}`);
@@ -76,18 +73,11 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (uz)"><input className="inp" value={f.name_uz} onChange={set("name_uz")} placeholder="Yozgi nafosat" /></Field>
         <Field label="Nomi (ru)"><input className="inp" value={f.name_ru} onChange={set("name_ru")} placeholder="bo'sh — uz nomi olinadi" /></Field>
-        <Field label="Turi">
+        <Field label="Turi" span>
           <Select
             value={f.arrangement_type}
             onChange={(v) => setF({ ...f, arrangement_type: v as ArrangementType })}
             options={(["bouquet", "basket", "box"] as const).map((t) => ({ value: t, label: ARRANGEMENT_LABEL[t] }))}
-          />
-        </Field>
-        <Field label="Filial">
-          <Select
-            value={f.branch}
-            onChange={(v) => setF({ ...f, branch: +v })}
-            options={branches.map((b) => ({ value: b.id, label: b.name, sub: b.code }))}
           />
         </Field>
       </div>

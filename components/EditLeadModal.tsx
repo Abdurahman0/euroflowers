@@ -13,7 +13,7 @@ import type { Lead, Packaging, StockBatch } from "@/lib/types";
 /**
  * Buyurtmani TO'LIQ tahrirlash — kanban kartadagi qalam orqali.
  * Hamma narsa shu yerda o'zgaradi: so'rov, turi, gul/material sarfi,
- * florist haqi, narx, sana, filial (backend PATCH /api/leads/{id}/).
+ * florist haqi, narx, sana (backend PATCH /api/leads/{id}/).
  * Sklad allaqachon yechilgan bo'lsa (stock_deducted_at) sarf qulflanadi —
  * o'zgartirish qayta chiqim qilmaydi, chalkashlik bo'lmasin.
  */
@@ -26,8 +26,7 @@ export default function EditLeadModal({
   onClose: () => void;
   onSaved: (l: Lead) => void;
 }) {
-  const { user, showToast } = useStore();
-  const branches = user?.profile.branches ?? [];
+  const { showToast } = useStore();
   const deducted = !!lead.stock_deducted_at;
   const [f, setF] = useState({
     request_uz: lead.request_uz || "",
@@ -36,7 +35,6 @@ export default function EditLeadModal({
     florist_fee: lead.florist_fee ? String(Math.round(+lead.florist_fee)) : "",
     delivery_at: toLocalInput(lead.delivery_at) || (lead.desired_date ? lead.desired_date.slice(0, 10) + "T18:00" : ""),
     recall_at: toLocalInput(lead.recall_at),
-    branch: lead.branch,
   });
   const [customRecall, setCustomRecall] = useState(!!lead.recall_at);
   const [batches, setBatches] = useState<StockBatch[]>([]);
@@ -79,7 +77,6 @@ export default function EditLeadModal({
         florist_fee: f.florist_fee ? String(+f.florist_fee) : null,
         delivery_at: f.delivery_at ? new Date(f.delivery_at).toISOString() : null,
         recall_at: customRecall && f.recall_at ? new Date(f.recall_at).toISOString() : null,
-        branch: f.branch,
         // sklad yechilgandan keyin sarf o'zgartirilmaydi
         ...(deducted
           ? {}
@@ -184,13 +181,6 @@ export default function EditLeadModal({
         </Field>
         <Field label="Yetkazish vaqti">
           <DatePicker value={f.delivery_at} onChange={(v) => setF({ ...f, delivery_at: v })} disablePast withTime placeholder="Sana va vaqt" ariaLabel="Yetkazish vaqti" />
-        </Field>
-        <Field label="Filial">
-          <Select
-            value={f.branch}
-            onChange={(v) => setF({ ...f, branch: +v })}
-            options={branches.map((b) => ({ value: b.id, label: b.name, sub: b.code }))}
-          />
         </Field>
         {f.delivery_at && (
           <div className="col-span-full -mt-1 flex flex-col gap-2">

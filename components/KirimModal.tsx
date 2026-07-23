@@ -9,17 +9,16 @@ import { Icon } from "./icons";
 import type { FlowerVariant } from "@/lib/types";
 
 const EMPTY = {
-  variant: 0, branch: 0, batch_number: "", height_cm: "", stems_per_bunch: "",
+  variant: 0, batch_number: "", height_cm: "", stems_per_bunch: "",
   bunches: "", cost_per_stem: "", sale_price_per_stem: "", sale_price_per_bunch: "",
   minimum_sale_stems: "", image_url: "",
 };
 
 export default function KirimModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const { user, showToast } = useStore();
-  const branches = user?.profile.branches ?? [];
+  const { showToast } = useStore();
   const [variants, setVariants] = useState<FlowerVariant[]>([]);
   const [flowerId, setFlowerId] = useState(0); // gul turi
-  const [f, setF] = useState({ ...EMPTY, branch: branches[0]?.id ?? 0 });
+  const [f, setF] = useState({ ...EMPTY });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
@@ -64,14 +63,12 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
 
   const save = async () => {
     if (!f.variant || !f.bunches) return showToast("Gul navi va pochka sonini kiriting");
-    if (!f.branch) return showToast("Filial tanlang");
     setBusy(true);
     try {
       const today = new Date();
       const num = f.batch_number || `EF-${String(today.getFullYear()).slice(2)}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${f.variant}`;
       await api.createStockBatch({
         variant: f.variant,
-        branch: f.branch,
         batch_number: num,
         height_cm: +f.height_cm || 50,
         stems_per_bunch: stemsPerBunch,
@@ -117,14 +114,7 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
             }))}
           />
         </Field>
-        <Field label="Filial">
-          <Select
-            value={f.branch}
-            onChange={(v) => setF({ ...f, branch: +v })}
-            options={branches.map((b) => ({ value: b.id, label: b.name, sub: b.code }))}
-          />
-        </Field>
-        <Field label="Partiya raqami"><input className="inp" value={f.batch_number} onChange={set("batch_number")} placeholder="bo'sh — avto" /></Field>
+        <Field label="Partiya raqami" span><input className="inp" value={f.batch_number} onChange={set("batch_number")} placeholder="bo'sh — avto" /></Field>
       </div>
       <Section>Miqdor va narx</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
