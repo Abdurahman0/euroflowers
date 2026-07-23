@@ -233,7 +233,7 @@ export default function LeadStatusManager({
           placeholder="Masalan: Yetkazilmoqda"
           onKeyDown={(e) => e.key === "Enter" && add()}
         />
-        <button type="button" onClick={add} disabled={busy} className="icon-btn shrink-0 border disabled:opacity-50" style={{ borderColor: "var(--border)" }} title="Status qo'shish" aria-label="Status qo'shish">
+        <button type="button" onClick={add} disabled={busy} className="icon-btn shrink-0 border disabled:opacity-50" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }} title="Status qo'shish" aria-label="Status qo'shish">
           <Plus size={16} strokeWidth={1.75} />
         </button>
       </div>

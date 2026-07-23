@@ -108,18 +108,31 @@ function LeadCard({ l, accent, dragging, onOpen, onEdit, onDelete, onDrag, onDra
       onDragStart={onDrag}
       onDragEnd={onDragEnd}
       onDragOver={onDragOverCard}
-      className="glass group shrink-0 cursor-grab !rounded-[15px] p-3.5 transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
-      // sudralayotgan kartaning ASL o'RNI — 15% sharpa + shtrixli chegara:
-      // karta ikki nusxada ko'rinmaydi, ustun balandligi saqlanadi
+      // sudralayotgan kartaning ASL O'RNI — FAQAT toza shtrixli bo'sh slot:
+      // glass klassi butunlay olib tashlanadi (blur/soya/video-override'lar
+      // "qoldiq" bo'lib ko'rinmasin), kontent visibility bilan yashirinadi —
+      // balandlik esa aynan saqlanadi
+      className={clsx(
+        "group shrink-0 rounded-[15px] border p-3.5",
+        dragging
+          ? "border-dashed"
+          : "glass cursor-grab !rounded-[15px] transition-[opacity] duration-150 animate-[rowIn_0.18s_var(--ease)] hover:!border-[var(--acc)]"
+      )}
       style={
         dragging
-          ? { opacity: 0.15, borderStyle: "dashed", borderColor: "var(--primary)" }
+          ? {
+              borderColor: "color-mix(in srgb, var(--primary) 55%, transparent)",
+              background: "color-mix(in srgb, var(--primary) 6%, transparent)",
+              boxShadow: "none",
+            }
           : stripe
             ? { boxShadow: `inset 3px 0 0 0 ${stripe}` }
             : undefined
       }
     >
-      <CardBody l={l} onEdit={onEdit} onDelete={onDelete} />
+      <div className={dragging ? "invisible" : undefined}>
+        <CardBody l={l} onEdit={onEdit} onDelete={onDelete} />
+      </div>
     </div>
   );
 }
@@ -512,8 +525,10 @@ export default function BuyurtmalarPage() {
           {canControl("crm") && ["admin", "operator", "developer"].includes(user?.profile.role ?? "") && (
             <button
               onClick={() => setStatusMgr(true)}
-              className="icon-btn border !flex-none"
-              style={{ borderColor: "var(--border)" }}
+              // bg-sfc + text-2: tugma har ikki temada (ayniqsa qorong'i video
+              // fonda) aniq ko'rinadi — yolg'iz muted ikonka fonga singib ketardi
+              className="icon-btn bg-sfc border !flex-none"
+              style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}
               title="Kanban statuslarini boshqarish"
               aria-label="Statuslarni boshqarish"
             >

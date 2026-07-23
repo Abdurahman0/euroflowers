@@ -190,16 +190,16 @@ export default function XodimlarPage() {
             sub="Xodim tizimga kira olmaydigan bo'ladi"
             onClose={() => setConfirmU(null)}
           />
-          <p className="mt-5 text-[14px] leading-relaxed text-white/80">
-            <b className="text-white">{fullName(confirmU)}</b> ({ROLE_LABEL[confirmU.profile?.role] ?? confirmU.profile?.role})
+          {/* matn TEMA tokenlarida — qattiq oq rang light temada ko'rinmay qolardi */}
+          <p className="mt-5 text-[14px] leading-relaxed" style={{ color: "var(--text-2)" }}>
+            <b style={{ color: "var(--text)" }}>{fullName(confirmU)}</b> ({ROLE_LABEL[confirmU.profile?.role] ?? confirmU.profile?.role})
             haqiqatan nofaollashtirilsinmi? Keyin xohlagan payt qayta faollashtirish mumkin.
           </p>
           <ModalFooter>
             <button
               onClick={() => deactivate(confirmU)}
               disabled={confirmBusy}
-              className="flex-1 rounded-[14px] py-3 text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: "#b8544f" }}
+              className={`btn-danger flex-1 ${confirmBusy ? "btn-loading" : ""}`}
             >
               {confirmBusy ? "Bajarilmoqda…" : "Ha, nofaollashtirish"}
             </button>
