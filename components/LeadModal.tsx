@@ -229,7 +229,7 @@ export default function LeadModal({
 
   return (
     <Modal onClose={onClose} width={560}>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 pt-6">
         <div className="avatar-lead flex h-[52px] w-[52px] shrink-0 -rotate-3 items-center justify-center rounded-2xl text-lg font-bold">{initials(name)}</div>
         <div className="min-w-[140px] flex-1">
           <div className="text-[18px] font-extrabold">{name}</div>

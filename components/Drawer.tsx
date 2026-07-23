@@ -128,7 +128,7 @@ export default function Drawer({
           {title ? (
             <>
               {/* qadalgan sarlavha */}
-              <div className="flex items-start gap-3 border-b p-5 pb-4" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-start gap-3 border-b p-5 pb-4 pt-6" style={{ borderColor: "var(--border)" }}>
                 <div className="min-w-0 flex-1">
                   <div className="text-[18px] font-semibold leading-tight tracking-tight">{title}</div>
                   {sub && <div className="mt-0.5 text-[13px]" style={{ color: "var(--muted)" }}>{sub}</div>}
@@ -149,6 +149,8 @@ export default function Drawer({
           ) : (
             // sarlavhasiz rejim: children o'zi ModalHeader/ModalFooter bilan keladi
             // flex-col: qisqa kontentda ham footer (mt-auto) panel tubiga yopishadi
+            // DIQQAT: bu yerga pt qo'ymang — sticky ModalHeader tepasida ochiq
+            // chiziq qoladi; yuqori bo'shliq header'larning O'ZIDA (pt-6)
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 pb-6" data-lenis-prevent>{children}</div>
           )}
         </motion.aside>

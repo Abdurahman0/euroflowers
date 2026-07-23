@@ -28,7 +28,7 @@ export const ModalHeader = ({ icon, title, sub, onClose }: { icon: React.ReactNo
   const close = ctxClose ?? onClose;
   return (
     <div
-      className="sticky top-0 z-10 -mx-6 mb-1 flex items-center gap-3 border-b px-6 pb-4 pt-5"
+      className="sticky top-0 z-10 -mx-6 mb-1 flex items-center gap-3 border-b px-6 pb-4 pt-6"
       style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}
     >
       <div
