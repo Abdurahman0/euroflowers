@@ -663,15 +663,17 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   }
   if (p === "/api/lead-statuses/") return out(page(leadStatuses));
   if (p === "/api/leads/") {
-    // haqiqiy sahifalash — cheksiz skrollni sinash uchun
+    // haqiqiy sahifalash — cheksiz skrollni sinash uchun (+ status filtri)
     const query = new URLSearchParams(path.split("?")[1] ?? "");
+    const st = query.get("status");
+    const pool = st ? leads.filter((l) => l.status === st) : leads;
     const size = Math.min(+(query.get("page_size") ?? 100) || 100, 100);
     const pg = Math.max(+(query.get("page") ?? 1) || 1, 1);
     const start = (pg - 1) * size;
-    const slice = leads.slice(start, start + size);
+    const slice = pool.slice(start, start + size);
     return out({
-      count: leads.length,
-      next: start + size < leads.length ? `/api/leads/?page=${pg + 1}&page_size=${size}` : null,
+      count: pool.length,
+      next: start + size < pool.length ? `/api/leads/?page=${pg + 1}&page_size=${size}` : null,
       previous: pg > 1 ? `/api/leads/?page=${pg - 1}&page_size=${size}` : null,
       results: slice,
     });

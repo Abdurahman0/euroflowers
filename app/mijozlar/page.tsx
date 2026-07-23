@@ -124,7 +124,9 @@ export default function MijozlarPage() {
             <span style={{ color: "var(--mut)" }}>{fmtTime(c.created_at)}</span>
             {/* qator amallari — hover'da (tugma ichida tugma bo'lmasin: span role=button) */}
             {control && (
-              <span className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-[10px] px-1 py-0.5 opacity-0 backdrop-blur-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" style={{ background: "color-mix(in srgb, var(--surface) 78%, transparent)" }}>
+              // markazlash flex bilan — transform emas (hover'dagi translateX(2px) transformni bosib yuboradi)
+              <span className="absolute inset-y-0 right-3 flex items-center opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
+              <span className="flex items-center gap-1 rounded-[10px] px-1 py-0.5 backdrop-blur-sm" style={{ background: "color-mix(in srgb, var(--surface) 78%, transparent)" }}>
                 <span
                   role="button"
                   tabIndex={0}
@@ -147,6 +149,7 @@ export default function MijozlarPage() {
                 >
                   <Trash2 size={13.5} strokeWidth={1.75} />
                 </span>
+              </span>
               </span>
             )}
           </button>

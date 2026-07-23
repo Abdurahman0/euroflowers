@@ -182,6 +182,8 @@ export default function BuyurtmalarPage() {
   const [search, setSearch] = useState("");
   const [q, setQ] = useState(""); // debounce qilingan qiymat
   const [arrType, setArrType] = useState("");
+  // status (kanban ustuni) filtri — FAQAT jadval ko'rinishida ko'rsatiladi
+  const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search.trim()), 350);
@@ -220,12 +222,14 @@ export default function BuyurtmalarPage() {
       ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
       search: q || undefined,
       arrangement_type: arrType || undefined,
+      // status filtri faqat jadvalda amal qiladi — kanban hamma ustunni ko'rsatadi
+      status: view === "table" && statusFilter ? statusFilter : undefined,
     }),
-    [dateRange, dateFilter, q, arrType]
+    [dateRange, dateFilter, q, arrType, view, statusFilter]
   );
 
   // filtr o'zgarsa — sahifalash boshidan
-  useEffect(() => { pagesRef.current = 1; }, [dateRange, dateFilter, q, arrType]);
+  useEffect(() => { pagesRef.current = 1; }, [dateRange, dateFilter, q, arrType, statusFilter, view]);
 
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
@@ -484,10 +488,21 @@ export default function BuyurtmalarPage() {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Buyurtma qidirish" />
           <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />
+          {view === "table" && (
+            <FilterSelect
+              value={statusFilter}
+              onChange={setStatusFilter}
+              label="Status"
+              options={[
+                { value: "", label: "Barcha statuslar" },
+                ...cols.map((s) => ({ value: s.key, label: statusName(s.key, s) })),
+              ]}
+            />
+          )}
           <DateChips />
           <ClearFilters
-            show={!!(search || arrType || dateRange || dateFilter !== "oy")}
-            onClear={() => { setSearch(""); setArrType(""); setDateFilter("oy"); }}
+            show={!!(search || arrType || (view === "table" && statusFilter) || dateRange || dateFilter !== "oy")}
+            onClear={() => { setSearch(""); setArrType(""); setStatusFilter(""); setDateFilter("oy"); }}
           />
           {canControl("crm") && (
             <button onClick={() => setNewLead(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
@@ -644,7 +659,9 @@ export default function BuyurtmalarPage() {
               <span className="text-xs" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
               {/* qator amallari — hover'da (tugma ichida tugma bo'lmasin: span role=button) */}
               {canControl("crm") && (
-                <span className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-[10px] px-1 py-0.5 opacity-0 backdrop-blur-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" style={{ background: "color-mix(in srgb, var(--surface) 78%, transparent)" }}>
+                // markazlash flex bilan — transform emas (hover'dagi translateX(2px) transformni bosib yuboradi)
+                <span className="absolute inset-y-0 right-3 flex items-center opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
+                <span className="flex items-center gap-1 rounded-[10px] px-1 py-0.5 backdrop-blur-sm" style={{ background: "color-mix(in srgb, var(--surface) 78%, transparent)" }}>
                   <span
                     role="button"
                     tabIndex={0}
@@ -667,6 +684,7 @@ export default function BuyurtmalarPage() {
                   >
                     <Trash2 size={13.5} strokeWidth={1.75} />
                   </span>
+                </span>
                 </span>
               )}
             </button>
