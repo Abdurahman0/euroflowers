@@ -143,16 +143,17 @@ const flowers: Flower[] = [
   mkFlower(4, "Lola", "Тюльпан", IMG.hwhite),
 ];
 
-const mkVariant = (id: number, f: Flower, uz: string, ru: string, colorUz: string, colorRu: string, img: string): FlowerVariant => ({
+const mkVariant = (id: number, f: Flower, uz: string, ru: string, colorUz: string, colorRu: string, img: string, desc = ""): FlowerVariant => ({
   id, flower_detail: f, created_at: ago(200), updated_at: ago(5), name_uz: uz, name_ru: ru,
-  color_uz: colorUz, color_ru: colorRu, default_stems_per_bunch: 10, minimum_sale_stems: 5,
+  color_uz: colorUz, color_ru: colorRu, description_uz: desc, description_ru: "",
+  default_stems_per_bunch: 10, minimum_sale_stems: 5,
   image_url: img, is_active: true, flower: f.id,
 });
 
 const variants: FlowerVariant[] = [
-  mkVariant(1, flowers[0], "Oq piyon", "Белый пион", "oq", "белый", IMG.peony),
+  mkVariant(1, flowers[0], "Oq piyon", "Белый пион", "oq", "белый", IMG.peony, "Yirik gul boshi, kuchli xushbo'y — to'y buketlari uchun."),
   mkVariant(2, flowers[0], "Pushti piyon", "Розовый пион", "pushti", "розовый", IMG.peony),
-  mkVariant(3, flowers[1], "Pushti atirgul 60sm", "Роза розовая 60см", "pushti", "розовый", IMG.rose),
+  mkVariant(3, flowers[1], "Pushti atirgul 60sm", "Роза розовая 60см", "pushti", "розовый", IMG.rose, "Uzun poya (60 sm), 7 kungacha turadi."),
   mkVariant(4, flowers[2], "Pushti gortenziya", "Гортензия розовая", "pushti", "розовый", IMG.hpink),
   mkVariant(5, flowers[2], "Ko'k gortenziya", "Гортензия синяя", "ko'k", "синий", IMG.hblue),
 ];

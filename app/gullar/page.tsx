@@ -106,6 +106,8 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
   const [nameRu, setNameRu] = useState(variant?.name_ru ?? "");
   const [colorUz, setColorUz] = useState(variant?.color_uz ?? "");
   const [colorRu, setColorRu] = useState(variant?.color_ru ?? "");
+  // tavsif — faqat o'zbekchasi tahrirlanadi (backend ru maydonini o'zi saqlaydi)
+  const [descUz, setDescUz] = useState(variant?.description_uz ?? "");
   const [perBunch, setPerBunch] = useState(String(variant?.default_stems_per_bunch ?? 10));
   const [minSale, setMinSale] = useState(String(variant?.minimum_sale_stems ?? 5));
   const [image, setImage] = useState(variant?.image_url ?? "");
@@ -124,6 +126,7 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
         name_ru: nameRu.trim(),
         color_uz: colorUz.trim(),
         color_ru: colorRu.trim(),
+        description_uz: descUz.trim(),
         default_stems_per_bunch: +perBunch || 10,
         minimum_sale_stems: +minSale || 1,
         image_url: image,
@@ -158,6 +161,14 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
         </Field>
         <Field label="Rang (RU)">
           <input className="inp" value={colorRu} onChange={(e) => setColorRu(e.target.value)} placeholder="белый" />
+        </Field>
+        <Field label="Tavsif" span>
+          <textarea
+            className="inp min-h-[56px] resize-y"
+            value={descUz}
+            onChange={(e) => setDescUz(e.target.value)}
+            placeholder="Qisqacha izoh: bo'yi, gul boshi, xushbo'ylik… (ixtiyoriy)"
+          />
         </Field>
       </div>
       {(errors.name_uz || errors.flower) && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.name_uz || errors.flower}</p>}
@@ -242,7 +253,9 @@ export default function GullarPage() {
   const q = search.trim().toLowerCase();
   const fFlowers = q ? flowers.filter((f) => [f.name_uz, f.name_ru].some((x) => (x ?? "").toLowerCase().includes(q))) : flowers;
   const fVariants = q
-    ? variants.filter((v) => [v.name_uz, v.name_ru, v.color_uz, v.flower_detail?.name_uz].some((x) => (x ?? "").toLowerCase().includes(q)))
+    ? variants.filter((v) =>
+        [v.name_uz, v.name_ru, v.color_uz, v.description_uz, v.flower_detail?.name_uz].some((x) => (x ?? "").toLowerCase().includes(q))
+      )
     : variants;
 
   if (loading) return <FlowerLoader />;
@@ -343,6 +356,11 @@ export default function GullarPage() {
                   <div className="truncate text-[12px]" style={{ color: "var(--muted)" }}>
                     {v.color_uz || "rang yo'q"} · pochkada {v.default_stems_per_bunch} dona · min. {v.minimum_sale_stems} dona
                   </div>
+                  {v.description_uz && (
+                    <div className="truncate text-[12px] italic" style={{ color: "var(--text-2)" }} title={v.description_uz}>
+                      {v.description_uz}
+                    </div>
+                  )}
                 </div>
                 {control && (
                   <span className="row-actions flex shrink-0 items-center gap-0.5">

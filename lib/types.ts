@@ -170,6 +170,9 @@ export type FlowerVariant = {
   name_ru: string;
   color_uz: string;
   color_ru: string;
+  /** nav tavsifi — UI'da faqat o'zbekchasi ishlatiladi (ru backendda qoladi) */
+  description_uz?: string;
+  description_ru?: string;
   default_stems_per_bunch: number;
   minimum_sale_stems: number;
   image_url: string;
