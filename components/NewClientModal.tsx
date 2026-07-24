@@ -8,9 +8,10 @@ import { Icon } from "./icons";
 import type { Customer } from "@/lib/types";
 
 /**
- * Mijoz yaratish/tahrirlash (bitta forma). Yaratishda backend
- * `instagram_user_id`ni majburiy qiladi — username bo'lmasa
- * "manual_<vaqt>" placeholder yuboriladi. Tahrirda PATCH /api/customers/{id}/.
+ * Mijoz yaratish/tahrirlash (bitta forma). Instagram username FORMADA YO'Q —
+ * u chatdan avtomatik keladi; yaratishda backend `instagram_user_id`ni
+ * majburiy qilgani uchun "manual_<vaqt>" placeholder yuboriladi.
+ * Tahrirda PATCH /api/customers/{id}/ (mavjud username tegilmaydi).
  */
 export default function NewClientModal({
   client = null,
@@ -26,7 +27,6 @@ export default function NewClientModal({
   const [f, setF] = useState({
     name: client?.name ?? "",
     phone: client?.phone ?? "",
-    instagram_username: client?.instagram_username ?? "",
     language: client?.language ?? "uz",
     notes: client?.notes ?? "",
   });
@@ -37,21 +37,18 @@ export default function NewClientModal({
   const save = async () => {
     if (!f.name.trim()) return showToast("Mijoz ismini kiriting");
     setBusy(true);
-    const ig = f.instagram_username.trim().replace(/^@/, "");
     try {
       const c = client
         ? await api.updateCustomer(client.id, {
             name: f.name.trim(),
             phone: f.phone.trim(),
-            instagram_username: ig,
             language: f.language as Customer["language"],
             notes: f.notes.trim(),
           })
         : await api.createCustomer({
             name: f.name.trim(),
             phone: f.phone.trim(),
-            instagram_username: ig,
-            instagram_user_id: ig || `manual_${Date.now()}`,
+            instagram_user_id: `manual_${Date.now()}`,
             language: f.language as Customer["language"],
             notes: f.notes.trim(),
           });
@@ -68,15 +65,14 @@ export default function NewClientModal({
       <ModalHeader
         icon={<Icon name="crm" />}
         title={client ? "Mijozni tahrirlash" : "Yangi mijoz"}
-        sub={client ? `${client.name || "@" + (client.instagram_username || "—")} · #${client.id}` : "Qo'lda kiritish — telefon yoki do'kondan kelganlar"}
+        sub={client ? `${client.name || "Ismsiz mijoz"} · #${client.id}` : "Qo'lda kiritish — telefon yoki do'kondan kelganlar"}
         onClose={onClose}
       />
       <Section>Mijoz ma&apos;lumotlari</Section>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Ism" span><input className="inp" value={f.name} onChange={set("name")} placeholder="Aziza Karimova" autoFocus /></Field>
         <Field label="Telefon"><input className="inp" value={f.phone} onChange={set("phone")} placeholder="+998901234567" inputMode="tel" /></Field>
-        <Field label="Instagram (ixtiyoriy)"><input className="inp" value={f.instagram_username} onChange={set("instagram_username")} placeholder="@username" /></Field>
-        <Field label="Til" span>
+        <Field label="Til">
           <Select
             value={f.language}
             onChange={(v) => setF({ ...f, language: String(v) as Customer["language"] })}

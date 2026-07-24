@@ -8,7 +8,7 @@ import Select from "./Select";
 import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
-import type { ArrangementType, StockBatch } from "@/lib/types";
+import type { ArrangementType, CatalogItem, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; quantity_stems: string };
 
@@ -17,23 +17,49 @@ const EMPTY = {
   price: "", florist_fee: "", quantity_total: "1", instagram_story_url: "", description_uz: "", image_url: "",
 };
 
-export default function KatalogModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+/** Katalog yozuvini yaratish/tahrirlash. `item` berilsa — tahrirlash rejimi
+    (PATCH /api/catalog/{id}/); sotuv boshlangan bo'lsa tarkib qulflanadi. */
+export default function KatalogModal({ item = null, onClose, onSaved }: { item?: CatalogItem | null; onClose: () => void; onSaved: () => void }) {
   const { showToast } = useStore();
   const [batches, setBatches] = useState<StockBatch[]>([]);
-  const [f, setF] = useState({ ...EMPTY });
-  const [comp, setComp] = useState<CompRow[]>([{ stock_batch: 0, quantity_stems: "" }]);
+  const [f, setF] = useState({
+    ...EMPTY,
+    ...(item
+      ? {
+          name_uz: item.name_uz ?? "",
+          name_ru: item.name_ru ?? "",
+          arrangement_type: item.arrangement_type,
+          height_cm: item.height_cm ? String(item.height_cm) : "",
+          price: item.price ? String(Math.round(+item.price)) : "",
+          florist_fee: item.florist_fee ? String(Math.round(+item.florist_fee)) : "",
+          quantity_total: String(item.quantity_total ?? 1),
+          instagram_story_url: item.instagram_story_url ?? "",
+          description_uz: item.description_uz ?? "",
+          image_url: item.image_url ?? "",
+        }
+      : {}),
+  });
+  const [comp, setComp] = useState<CompRow[]>(
+    item?.composition?.length
+      ? item.composition.map((c) => ({ stock_batch: c.stock_batch, quantity_stems: String(c.quantity_stems) }))
+      : [{ stock_batch: 0, quantity_stems: "" }]
+  );
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  // sotuv boshlangach tarkib o'zgartirilmaydi — sklad hisobi chalkashmasin
+  const compLocked = !!item && ((item.quantity_sold ?? 0) > 0 || !!item.stock_deducted_at);
 
   useEffect(() => {
     api.stockBatches({ is_active: true })
       .then((bs) => {
-        const withStock = bs.filter((b) => b.remaining_stems > 0);
-        setBatches(withStock);
-        setComp((c) => c.map((r) => ({ ...r, stock_batch: r.stock_batch || withStock[0]?.id || 0 })));
+        // tahrirda mavjud tarkib partiyalari qoldiq 0 bo'lsa ham ro'yxatda qolsin
+        const used = new Set((item?.composition ?? []).map((c) => c.stock_batch));
+        const usable = bs.filter((b) => b.remaining_stems > 0 || used.has(b.id));
+        setBatches(usable);
+        setComp((c) => c.map((r) => ({ ...r, stock_batch: r.stock_batch || usable[0]?.id || 0 })));
       })
       .catch(() => showToast("Sklad partiyalarini yuklab bo'lmadi"));
-  }, [showToast]);
+  }, [showToast, item]);
 
   const save = async () => {
     if (!f.name_uz) return showToast("Nomini kiriting");
@@ -42,22 +68,23 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
       .filter((r) => r.stock_batch && +r.quantity_stems > 0)
       .map((r) => ({ stock_batch: r.stock_batch, quantity_stems: +r.quantity_stems }));
     setBusy(true);
+    const payload = {
+      name_uz: f.name_uz,
+      name_ru: f.name_ru || f.name_uz,
+      arrangement_type: f.arrangement_type,
+      height_cm: +f.height_cm || null,
+      price: String(+f.price),
+      florist_fee: f.florist_fee ? String(+f.florist_fee) : undefined,
+      quantity_total: Math.max(+f.quantity_total || 1, 1),
+      instagram_story_url: f.instagram_story_url,
+      description_uz: f.description_uz,
+      image_url: f.image_url,
+      ...(compLocked ? {} : { composition }),
+    };
     try {
-      await api.createCatalogItem({
-        name_uz: f.name_uz,
-        name_ru: f.name_ru || f.name_uz,
-        arrangement_type: f.arrangement_type,
-        height_cm: +f.height_cm || null,
-        price: String(+f.price),
-        florist_fee: f.florist_fee ? String(+f.florist_fee) : undefined,
-        quantity_total: Math.max(+f.quantity_total || 1, 1),
-        status: "available",
-        instagram_story_url: f.instagram_story_url,
-        description_uz: f.description_uz,
-        image_url: f.image_url,
-        composition,
-      });
-      showToast(`✓ Katalogga qo'shildi: ${f.name_uz}`);
+      if (item) await api.updateCatalogItem(item.id, payload);
+      else await api.createCatalogItem({ ...payload, status: "available", composition });
+      showToast(item ? "✓ Katalog yozuvi yangilandi" : `✓ Katalogga qo'shildi: ${f.name_uz}`);
       onSaved();
       onClose();
     } catch (e) {
@@ -68,7 +95,12 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
 
   return (
     <Modal onClose={onClose} width={560}>
-      <ModalHeader icon={<Icon name="katalog" />} title="Katalogga qo'shish" sub="Tayyor gul — story havolasi bilan" onClose={onClose} />
+      <ModalHeader
+        icon={<Icon name="katalog" />}
+        title={item ? "Katalog yozuvini tahrirlash" : "Katalogga qo'shish"}
+        sub={item ? `${item.name_uz || item.name_ru} · #${item.id}` : "Tayyor gul — story havolasi bilan"}
+        onClose={onClose}
+      />
       <Section>Asosiy</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (uz)"><input className="inp" value={f.name_uz} onChange={set("name_uz")} placeholder="Yozgi nafosat" /></Field>
@@ -83,6 +115,11 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
       </div>
 
       <Section>Tarkib (skladdan)</Section>
+      {compLocked ? (
+        <div className="rounded-[13px] bg-mint px-3.5 py-2.5 text-[12.5px] font-semibold leading-snug text-mintink">
+          ✓ Sotuv boshlangan — tarkib endi o&apos;zgartirilmaydi (sklad hisobi buzilmasin).
+        </div>
+      ) : (
       <div className="flex flex-col gap-2.5">
         {comp.map((r, i) => (
           <div key={i} className="grid grid-cols-[1fr_110px_36px] items-end gap-2.5">
@@ -107,6 +144,7 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
           <Plus size={16} strokeWidth={1.75} /> Yana gul qo&apos;shish
         </button>
       </div>
+      )}
 
       <Section>O&apos;lchov va narx</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -130,7 +168,7 @@ export default function KatalogModal({ onClose, onSaved }: { onClose: () => void
 
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
-        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Katalogga qo'shish"}</button>
+        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : item ? "Saqlash" : "Katalogga qo'shish"}</button>
       </ModalFooter>
     </Modal>
   );

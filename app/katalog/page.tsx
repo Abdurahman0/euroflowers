@@ -1,5 +1,6 @@
 "use client";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
@@ -11,6 +12,8 @@ import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtTime } from "@/lib/format";
 import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
+import KatalogViewModal from "@/components/KatalogViewModal";
+import { usePerm } from "@/lib/store";
 import type { CatalogItem } from "@/lib/types";
 
 const compositionText = (k: CatalogItem) =>
@@ -36,10 +39,17 @@ const ARR_OPTS = [
 
 export default function KatalogPage() {
   const { showToast, loadNotifs } = useStore();
+  const { canControl } = usePerm();
+  const control = canControl("catalog");
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  // ko'rish / tahrirlash / o'chirish
+  const [viewItem, setViewItem] = useState<CatalogItem | null>(null);
+  const [editItem, setEditItem] = useState<CatalogItem | null>(null);
+  const [confirmDel, setConfirmDel] = useState<CatalogItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   // server filtrlari
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
@@ -104,6 +114,25 @@ export default function KatalogPage() {
     }
   };
 
+  // katalog yozuvini butunlay o'chirish (DELETE /api/catalog/{id}/)
+  const doDelete = async () => {
+    if (!confirmDel) return;
+    const victim = confirmDel;
+    setDeleting(true);
+    try {
+      await api.deleteCatalogItem(victim.id);
+      setItems((xs) => xs.filter((x) => x.id !== victim.id));
+      setViewItem((v) => (v?.id === victim.id ? null : v));
+      setEditItem((v) => (v?.id === victim.id ? null : v));
+      setConfirmDel(null);
+      showToast("✓ Katalog yozuvi o'chirildi");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "O'chirib bo'lmadi");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) return <FlowerLoader />;
 
   return (
@@ -133,9 +162,43 @@ export default function KatalogPage() {
           const sellable = left > 0 && (k.status === "available" || k.status === "reserved" || k.status === "draft");
           const qty = Math.min(Math.max(+(sellQty[k.id] ?? "1") || 1, 1), left || 1);
           return (
-            <article key={k.id} className="glass card-hover flex flex-col overflow-hidden !rounded-[20px]">
-              <div className="relative h-[190px] bg-bg2">
+            <article key={k.id} className="glass card-hover group flex flex-col overflow-hidden !rounded-[20px]">
+              <div
+                className="relative h-[190px] cursor-pointer bg-bg2"
+                role="button"
+                tabIndex={0}
+                onClick={() => setViewItem(k)}
+                onKeyDown={(e) => e.key === "Enter" && setViewItem(k)}
+                title="Batafsil ko'rish"
+              >
                 {k.image_url && <img src={k.image_url} alt={k.name_uz} className="h-full w-full object-cover" />}
+                {/* tahrirlash / o'chirish — rasm ustida, hover'da */}
+                {control && (
+                  <span className="absolute bottom-2.5 right-2.5 flex items-center gap-1 rounded-[11px] p-1 opacity-0 backdrop-blur-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" style={{ background: "color-mix(in srgb, var(--surface-solid) 82%, transparent)" }}>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); setEditItem(k); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setEditItem(k); } }}
+                      title="Tahrirlash"
+                      aria-label={`${k.name_uz || k.name_ru} — tahrirlash`}
+                      className="icon-btn !h-7 !w-7"
+                    >
+                      <Pencil size={13.5} strokeWidth={1.75} />
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDel(k); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setConfirmDel(k); } }}
+                      title="O'chirish"
+                      aria-label={`${k.name_uz || k.name_ru} — o'chirish`}
+                      className="icon-btn icon-btn-danger !h-7 !w-7"
+                    >
+                      <Trash2 size={13.5} strokeWidth={1.75} />
+                    </span>
+                  </span>
+                )}
                 <span className={`absolute left-2.5 top-2.5 -rotate-2 rounded-full border border-[color:var(--border-strong)] px-2.5 py-1 text-[11px] font-bold ${k.status === "available" ? "bg-white/85 text-[#221833]" : "text-white"}`} style={k.status !== "available" ? { background: "var(--acc)" } : undefined}>
                   {(CATALOG_STATUS_LABEL[k.status] ?? k.status).toUpperCase()}
                 </span>
@@ -230,6 +293,43 @@ export default function KatalogPage() {
       </div>
 
       {formOpen && <KatalogModal onClose={() => setFormOpen(false)} onSaved={load} />}
+      {editItem && (
+        <KatalogModal
+          item={editItem}
+          onClose={() => setEditItem(null)}
+          onSaved={() => { setEditItem(null); load(); }}
+        />
+      )}
+      {viewItem && (
+        <KatalogViewModal
+          item={viewItem}
+          onClose={() => setViewItem(null)}
+          onEdit={control ? () => { setEditItem(viewItem); setViewItem(null); } : undefined}
+          onDelete={control ? () => setConfirmDel(viewItem) : undefined}
+        />
+      )}
+
+      {/* o'chirish tasdig'i — body portali (drawer overlay'i ostida qolmasin) */}
+      {confirmDel && createPortal(
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDel(null)} role="dialog" aria-modal="true" data-lenis-prevent>
+          <div className="glass-modal w-[min(400px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold">Katalogdan o&apos;chirish</h3>
+            <p className="mt-2 text-[13px] leading-relaxed" style={{ color: "var(--text-2)" }}>
+              «{confirmDel.name_uz || confirmDel.name_ru}» butunlay o&apos;chirilsinmi? Bu amalni bekor qilib bo&apos;lmaydi.
+            </p>
+            {(confirmDel.quantity_sold ?? 0) > 0 && (
+              <p className="mt-2 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold leading-snug text-peachink">
+                ⚠ Bu yozuvdan {confirmDel.quantity_sold} ta sotilgan — sotuv tarixi ham yo&apos;qolishi mumkin.
+              </p>
+            )}
+            <div className="mt-5 flex gap-2.5">
+              <button onClick={() => setConfirmDel(null)} className="btn-ghost flex-1">Bekor qilish</button>
+              <button onClick={doDelete} disabled={deleting} className={`btn-danger flex-1 ${deleting ? "btn-loading" : ""}`}>O&apos;chirish</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

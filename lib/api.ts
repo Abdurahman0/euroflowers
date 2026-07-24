@@ -320,6 +320,8 @@ export const api = {
     request<Flower>(`/api/flowers/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   updateFlowerVariant: (id: number, data: Partial<FlowerVariant>) =>
     request<FlowerVariant>(`/api/flower-variants/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteFlower: (id: number) => request<void>(`/api/flowers/${id}/`, { method: "DELETE" }),
+  deleteFlowerVariant: (id: number) => request<void>(`/api/flower-variants/${id}/`, { method: "DELETE" }),
 
   stockBatches: (p?: Params) => list<StockBatch>("/api/stock-batches/", p),
   stockBatch: (id: number) => request<StockBatch>(`/api/stock-batches/${id}/`),
@@ -342,6 +344,7 @@ export const api = {
     request<CatalogItem>("/api/catalog/", { method: "POST", body: JSON.stringify(data) }),
   updateCatalogItem: (id: number, data: Record<string, unknown>) =>
     request<CatalogItem>(`/api/catalog/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCatalogItem: (id: number) => request<void>(`/api/catalog/${id}/`, { method: "DELETE" }),
   /** quantity berilmasa backend 1 ta deb oladi */
   sellCatalogItem: (id: number, quantity?: number) =>
     request<CatalogItem>(`/api/catalog/${id}/sell/`, { method: "POST", body: JSON.stringify(quantity ? { quantity } : {}) }),

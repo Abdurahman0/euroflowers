@@ -1,6 +1,7 @@
 "use client";
 import SearchInput from "@/components/SearchInput";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import ImageInput from "@/components/ImageInput";
@@ -194,6 +195,9 @@ export default function GullarPage() {
   const [search, setSearch] = useState("");
   const [flowerModal, setFlowerModal] = useState<{ open: boolean; edit: Flower | null }>({ open: false, edit: null });
   const [variantModal, setVariantModal] = useState<{ open: boolean; edit: FlowerVariant | null }>({ open: false, edit: null });
+  // o'chirish tasdig'i — gul turi yoki nav (bitta dialog ikkalasiga)
+  const [confirmDel, setConfirmDel] = useState<{ kind: "flower" | "variant"; id: number; name: string; note?: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoadErr("");
@@ -210,6 +214,30 @@ export default function GullarPage() {
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
+
+  // o'chirish: gul turi bilan birga navlari ham ketishi mumkin — dialogda ogohlantiramiz.
+  // Backend bog'liqlik sababli 4xx qaytarsa — xabarni ko'rsatamiz (partiya/katalogda ishlatilgan).
+  const doDelete = async () => {
+    if (!confirmDel) return;
+    const victim = confirmDel;
+    setDeleting(true);
+    try {
+      if (victim.kind === "flower") {
+        await api.deleteFlower(victim.id);
+        setFlowers((fs) => fs.filter((f) => f.id !== victim.id));
+        setVariants((vs) => vs.filter((v) => v.flower !== victim.id));
+      } else {
+        await api.deleteFlowerVariant(victim.id);
+        setVariants((vs) => vs.filter((v) => v.id !== victim.id));
+      }
+      setConfirmDel(null);
+      showToast(victim.kind === "flower" ? "✓ Gul turi o'chirildi" : "✓ Nav o'chirildi");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "O'chirib bo'lmadi — sklad yoki katalogda ishlatilgan bo'lishi mumkin");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const q = search.trim().toLowerCase();
   const fFlowers = q ? flowers.filter((f) => [f.name_uz, f.name_ru].some((x) => (x ?? "").toLowerCase().includes(q))) : flowers;
@@ -266,9 +294,23 @@ export default function GullarPage() {
                   </div>
                 </div>
                 {control && (
-                  <button onClick={(e) => { e.stopPropagation(); setFlowerModal({ open: true, edit: f }); }} className="row-actions icon-btn" title="Tahrirlash" aria-label="Tahrirlash">
-                    <Pencil size={16} strokeWidth={1.75} />
-                  </button>
+                  <span className="row-actions flex shrink-0 items-center gap-0.5">
+                    <button onClick={(e) => { e.stopPropagation(); setFlowerModal({ open: true, edit: f }); }} className="icon-btn" title="Tahrirlash" aria-label={`${f.name_uz || f.name_ru} — tahrirlash`}>
+                      <Pencil size={16} strokeWidth={1.75} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const kids = variants.filter((v) => v.flower === f.id).length;
+                        setConfirmDel({ kind: "flower", id: f.id, name: f.name_uz || f.name_ru, note: kids ? `Bu turga bog'langan ${kids} ta nav ham o'chib ketishi mumkin.` : undefined });
+                      }}
+                      className="icon-btn icon-btn-danger"
+                      title="O'chirish"
+                      aria-label={`${f.name_uz || f.name_ru} — o'chirish`}
+                    >
+                      <Trash2 size={16} strokeWidth={1.75} />
+                    </button>
+                  </span>
                 )}
               </div>
             ))}
@@ -303,9 +345,22 @@ export default function GullarPage() {
                   </div>
                 </div>
                 {control && (
-                  <button onClick={(e) => { e.stopPropagation(); setVariantModal({ open: true, edit: v }); }} className="row-actions icon-btn" title="Tahrirlash" aria-label="Tahrirlash">
-                    <Pencil size={16} strokeWidth={1.75} />
-                  </button>
+                  <span className="row-actions flex shrink-0 items-center gap-0.5">
+                    <button onClick={(e) => { e.stopPropagation(); setVariantModal({ open: true, edit: v }); }} className="icon-btn" title="Tahrirlash" aria-label={`${v.name_uz || v.name_ru} — tahrirlash`}>
+                      <Pencil size={16} strokeWidth={1.75} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDel({ kind: "variant", id: v.id, name: `${v.flower_detail?.name_uz ?? ""} — ${v.name_uz || v.name_ru}`.trim(), note: "Skladda shu navdan partiya bo'lsa, backend o'chirishga ruxsat bermasligi mumkin." });
+                      }}
+                      className="icon-btn icon-btn-danger"
+                      title="O'chirish"
+                      aria-label={`${v.name_uz || v.name_ru} — o'chirish`}
+                    >
+                      <Trash2 size={16} strokeWidth={1.75} />
+                    </button>
+                  </span>
                 )}
               </div>
             ))}
@@ -340,6 +395,26 @@ export default function GullarPage() {
             setVariantModal({ open: false, edit: null });
           }}
         />
+      )}
+
+      {/* o'chirish tasdig'i — body portali (sahifa animatsiyasi ostida qolmasin) */}
+      {confirmDel && createPortal(
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDel(null)} role="dialog" aria-modal="true" data-lenis-prevent>
+          <div className="glass-modal w-[min(400px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold">{confirmDel.kind === "flower" ? "Gul turini o'chirish" : "Navni o'chirish"}</h3>
+            <p className="mt-2 text-[13px] leading-relaxed" style={{ color: "var(--text-2)" }}>
+              «{confirmDel.name}» butunlay o&apos;chirilsinmi? Bu amalni bekor qilib bo&apos;lmaydi.
+            </p>
+            {confirmDel.note && (
+              <p className="mt-2 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold leading-snug text-peachink">⚠ {confirmDel.note}</p>
+            )}
+            <div className="mt-5 flex gap-2.5">
+              <button onClick={() => setConfirmDel(null)} className="btn-ghost flex-1">Bekor qilish</button>
+              <button onClick={doDelete} disabled={deleting} className={clsx("btn-danger flex-1", deleting && "btn-loading")}>O&apos;chirish</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </>
   );

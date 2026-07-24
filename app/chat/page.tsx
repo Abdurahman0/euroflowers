@@ -152,7 +152,9 @@ export default function ChatPage() {
   const showToast = useStore((s) => s.showToast);
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selId, setSelId] = useState<number | null>(null);
+  // ?conv=<id> — mijoz kartasidagi «Chatga o'tish» shu suhbatni ochadi
+  const deepConv = typeof window !== "undefined" ? Number(new URLSearchParams(window.location.search).get("conv")) || null : null;
+  const [selId, setSelId] = useState<number | null>(deepConv);
   const [conv, setConv] = useState<Conversation | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   // <768px: bitta panel ko'rinadi — ro'yxat yoki suhbat (orqaga bilan qaytiladi)
@@ -188,12 +190,14 @@ export default function ChatPage() {
       const cs = await api.conversations({ ordering: "-last_message_at", status: statusF || undefined, source: chanF || undefined });
       setConvs(cs);
       setSelId((id) => id ?? cs[0]?.id ?? null);
+      // deep-link kelgan bo'lsa — mobil ko'rinishda darhol suhbat paneli ochiladi
+      if (deepConv && cs.some((c) => c.id === deepConv)) setMobileConv(true);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Suhbatlarni yuklab bo'lmadi");
     } finally {
       setLoading(false);
     }
-  }, [showToast, statusF, chanF]);
+  }, [showToast, statusF, chanF, deepConv]);
 
   const loadConv = useCallback(async (id: number) => {
     try {

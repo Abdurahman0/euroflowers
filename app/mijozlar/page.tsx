@@ -107,18 +107,17 @@ export default function MijozlarPage() {
       </div>
 
       <div className="glass overflow-hidden !rounded-[20px] max-md:overflow-x-auto">
-        <div className="grid min-w-[680px] grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
-          <span>Mijoz</span><span>Telefon</span><span>Instagram</span><span>Xaridlar</span><span>Jami summa</span><span>Qo&apos;shilgan</span>
+        <div className="grid min-w-[620px] grid-cols-[2fr_1.4fr_.8fr_1.2fr_1fr] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
+          <span>Mijoz</span><span>Telefon</span><span>Xaridlar</span><span>Jami summa</span><span>Qo&apos;shilgan</span>
         </div>
         {customers.map((c, ri) => (
-          <button key={c.id} onClick={() => setSelClient(c)} className="row-lux group relative grid w-full min-w-[680px] grid-cols-[2fr_1.3fr_1.2fr_.7fr_1.1fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[14px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
+          <button key={c.id} onClick={() => setSelClient(c)} className="row-lux group relative grid w-full min-w-[620px] grid-cols-[2fr_1.4fr_.8fr_1.2fr_1fr] items-center gap-2.5 border-t px-4 py-3.5 text-left text-[14px]" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 45, 500)}ms` }}>
             <span className="flex min-w-0 items-center gap-2.5">
-              <span className="avatar-lead flex h-[34px] w-[34px] shrink-0 -rotate-3 items-center justify-center rounded-[11px] text-[13px] font-bold">{initials(c.name || c.instagram_username)}</span>
-              <span className="truncate font-bold" title={c.name || `@${c.instagram_username}`}>{c.name || `@${c.instagram_username}`}</span>
+              <span className="avatar-lead flex h-[34px] w-[34px] shrink-0 -rotate-3 items-center justify-center rounded-[11px] text-[13px] font-bold">{initials(c.name)}</span>
+              <span className="truncate font-bold" title={c.name || "Ismsiz mijoz"}>{c.name || "Ismsiz mijoz"}</span>
               {c.is_blocked && <span className="rounded-full bg-rose px-2 py-0.5 text-[11px] font-bold text-roseink">BLOK</span>}
             </span>
             <span>{c.phone || c.masked_phone || "—"}</span>
-            <span className="min-w-0 truncate font-semibold" style={{ color: "var(--acc)" }} title={`@${c.instagram_username || "—"}`}>@{c.instagram_username || "—"}</span>
             <span className="font-bold">{c.purchases_count}</span>
             <span className="font-bold">{parseFloat(c.total_spent) > 0 ? fmt(c.total_spent) : "—"}</span>
             <span style={{ color: "var(--mut)" }}>{fmtTime(c.created_at)}</span>
@@ -133,7 +132,7 @@ export default function MijozlarPage() {
                   onClick={(e) => { e.stopPropagation(); setEditClient(c); }}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setEditClient(c); } }}
                   title="Tahrirlash"
-                  aria-label={`${c.name || c.instagram_username} — tahrirlash`}
+                  aria-label={`${c.name || "Mijoz"} — tahrirlash`}
                   className="icon-btn !h-7 !w-7"
                 >
                   <Pencil size={13.5} strokeWidth={1.75} />
@@ -144,7 +143,7 @@ export default function MijozlarPage() {
                   onClick={(e) => { e.stopPropagation(); setConfirmDel(c); }}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setConfirmDel(c); } }}
                   title="O'chirish"
-                  aria-label={`${c.name || c.instagram_username} — o'chirish`}
+                  aria-label={`${c.name || "Mijoz"} — o'chirish`}
                   className="icon-btn icon-btn-danger !h-7 !w-7"
                 >
                   <Trash2 size={13.5} strokeWidth={1.75} />
@@ -162,6 +161,7 @@ export default function MijozlarPage() {
           client={selClient}
           onClose={() => setSelClient(null)}
           onOpenLead={(l) => { setSelClient(null); router.push(`/buyurtmalar?order=${l.id}`); }}
+          onOpenChat={(cid) => { setSelClient(null); router.push(`/chat?conv=${cid}`); }}
           onEdit={control ? () => setEditClient(selClient) : undefined}
           onDelete={control ? () => setConfirmDel(selClient) : undefined}
         />
@@ -192,7 +192,7 @@ export default function MijozlarPage() {
           <div className="glass-modal w-[min(400px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[16px] font-bold">Mijozni o&apos;chirish</h3>
             <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--text-2)]">
-              «{confirmDel.name || `@${confirmDel.instagram_username || "—"}`}» butunlay o&apos;chirilsinmi? Bu amalni bekor qilib bo&apos;lmaydi.
+              «{confirmDel.name || "Ismsiz mijoz"}» butunlay o&apos;chirilsinmi? Bu amalni bekor qilib bo&apos;lmaydi.
             </p>
             {confirmDel.leads_count > 0 && (
               <p className="mt-2 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold leading-snug text-peachink">

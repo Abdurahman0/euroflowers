@@ -618,6 +618,30 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       if (i >= 0) customers.splice(i, 1);
       return out(undefined);
     }
+    if (/\/api\/flowers\/\d+\//.test(p) && method === "DELETE") {
+      const fid = idOf(/flowers\/(\d+)/);
+      const i = flowers.findIndex((x) => x.id === fid);
+      if (i >= 0) flowers.splice(i, 1);
+      // turga bog'langan navlar ham ketadi (backend cascade)
+      for (let j = variants.length - 1; j >= 0; j--) if (variants[j].flower === fid) variants.splice(j, 1);
+      return out(undefined);
+    }
+    if (/\/api\/flower-variants\/\d+\//.test(p) && method === "DELETE") {
+      const i = variants.findIndex((x) => x.id === idOf(/flower-variants\/(\d+)/));
+      if (i >= 0) variants.splice(i, 1);
+      return out(undefined);
+    }
+    if (/\/api\/catalog\/\d+\/$/.test(p) && method === "DELETE") {
+      const i = catalog.findIndex((x) => x.id === idOf(/catalog\/(\d+)/));
+      if (i >= 0) catalog.splice(i, 1);
+      return out(undefined);
+    }
+    if (/\/api\/catalog\/\d+\/$/.test(p) && method === "PATCH") {
+      const k = catalog.find((x) => x.id === idOf(/catalog\/(\d+)/)) ?? catalog[0];
+      const { composition: _c, ...rest } = body;
+      Object.assign(k, rest, { updated_at: ago(0) });
+      return out({ ...k });
+    }
     if (p === "/api/uploads/") return out({ url: IMG.peony, path: IMG.peony });
     // umumiy yaratish/yangilash: yuborilganini id va sana bilan qaytaramiz
     return out({ id: 999, created_at: ago(0), updated_at: ago(0), ...body });
