@@ -261,6 +261,16 @@ const mkMsg = (conv: number, sender: Message["sender"], text: string, days: numb
   instagram_message_id: `igm_${msgId}`, metadata: {}, conversation: conv,
 });
 
+/** Media xabar — backend kontrakti: metadata.{media_url, media_type, is_non_text_media} */
+const mkMedia = (
+  conv: number, sender: Message["sender"], url: string,
+  type: "image" | "video" | "audio" | "ig_reel" | "file", days: number, hours: number, caption = ""
+): Message => ({
+  id: msgId++, created_at: ago(days, hours), updated_at: ago(days, hours), sender,
+  text: caption || url, instagram_message_id: `igm_${msgId}`,
+  metadata: { media_url: url, media_type: type, is_non_text_media: true }, conversation: conv,
+});
+
 const mkConv = (id: number, c: Customer, status: Conversation["status"], summary: string, msgs: Message[]): Conversation => ({
   id, source: "instagram", customer_detail: c, messages: msgs, last_message: msgs[msgs.length - 1] ?? null,
   created_at: msgs[0]?.created_at ?? ago(1), updated_at: msgs[msgs.length - 1]?.created_at ?? ago(0),
@@ -283,6 +293,16 @@ const conversations: Conversation[] = [
     mkMsg(2, "customer", "Shu shanba. Lekin menga aniq dizayn muhim, rasm ko'rsata olasizmi?", 0, 5),
     mkMsg(2, "system", "Suhbat operatorga o'tkazildi", 0, 5),
     mkMsg(2, "operator", "Assalomu alaykum, men Aziza — floristimiz bilan 3 ta variant tayyorlab yuboramiz 😊", 0, 4),
+    // === MEDIA namunalari (Instagram webhook shakli) ===
+    mkMedia(2, "customer", "/videos/login-scene.mp4", "audio", 0, 4),
+    mkMedia(2, "operator", "/crm-garden-bg.webp", "image", 0, 3, "Mana birinchi variant 🤍"),
+    mkMedia(2, "customer", "/videos/login-scene.mp4", "video", 0, 3),
+    mkMedia(2, "customer", "https://www.instagram.com/reel/DZ5DXzjIQoN/", "ig_reel", 0, 2),
+    mkMedia(2, "operator", "https://euroflowers.uz/files/hisob-faktura.pdf", "file", 0, 2),
+    // ikkinchi ovoz — "bir vaqtda faqat bitta ijro" qoidasini sinash uchun
+    mkMedia(2, "operator", "/videos/login-scene.mp4", "audio", 0, 2),
+    mkMedia(2, "customer", "https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=404&signature=x", "image", 0, 1),
+    mkMsg(2, "operator", "Ovozli xabaringizni tingladim — shanbaga tayyorlaymiz 🌸", 0, 1),
   ]),
   mkConv(3, customers[2], "ai", "Ofis uchun haftalik gul yetkazib berish shartnomasi.", [
     mkMsg(3, "customer", "Ofisimizga har hafta yangi gul kompozitsiyasi kerak", 1, 4),

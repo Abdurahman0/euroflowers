@@ -16,6 +16,7 @@ import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmtTime, initials } from "@/lib/format";
 import { CONV_STATUS_LABEL } from "@/components/badges";
 import { Icon } from "@/components/icons";
+import MessageMedia, { MediaLightbox, isJustMediaUrl, parseMedia } from "@/components/chat/MessageMedia";
 import type { Conversation, Message } from "@/lib/types";
 
 /**
@@ -56,12 +57,18 @@ function MessageRow({
   groupWithPrev,
   groupWithNext,
   onCopy,
+  onOpenImage,
+  onMediaReady,
 }: {
   m: Message;
   custName: string;
   groupWithPrev: boolean;
   groupWithNext: boolean;
   onCopy: (text: string) => void;
+  /** rasm bosilganda lightbox (sahifa boshqaradi) */
+  onOpenImage: (url: string) => void;
+  /** media yuklanib bubble balandligi o'zgardi — skroll pastda qolsin */
+  onMediaReady: () => void;
 }) {
   const side = sideOf(m);
 
@@ -82,8 +89,12 @@ function MessageRow({
         ? { background: "var(--primary)", color: "#fff" }
         : { background: "var(--side)", color: "#F5F0E8" };
 
-  const img = typeof m.metadata?.image_url === "string" ? (m.metadata.image_url as string) : null;
+  // MEDIA: rasm / video / ovoz / reel / fayl (aniqlash MessageMedia'da — MEDIA_NOTES.md)
+  const media = parseMedia(m);
+  // matn aynan media havolasi bo'lsa — xom URL ko'rsatilmaydi
+  const bodyText = media && isJustMediaUrl(m.text, media.url) ? "" : m.text;
   const fileName = typeof m.metadata?.file_name === "string" ? (m.metadata.file_name as string) : null;
+  const mediaOnly = !!media && !bodyText;
 
   return (
     <div className={clsx("group/msg flex items-end gap-2", isLeft ? "justify-start" : "justify-end", groupWithPrev ? "mt-1" : "mt-4")}>
@@ -102,6 +113,7 @@ function MessageRow({
           <span className="px-1.5 text-[11px] font-medium" style={{ color: "var(--muted)" }}>{fmtTime(m.created_at)}</span>
           <button
             onClick={() => onCopy(m.text)}
+            data-copy
             title="Nusxalash"
             className="flex h-6 w-6 items-center justify-center rounded-full transition-colors duration-200 hover:bg-[var(--hover)]"
             style={{ color: "var(--text-2)" }}
@@ -113,24 +125,33 @@ function MessageRow({
         {/* pufak */}
         <div
           className={clsx(
-            "whitespace-pre-line break-words px-4 py-2.5 text-[14px] leading-relaxed",
+            "whitespace-pre-line break-words text-[14px] leading-relaxed",
+            // media-only pufak ixcham: ortiqcha padding yo'q (Telegram uslubi)
+            mediaOnly ? "p-1.5" : "px-4 py-2.5",
             isLeft
               ? clsx("rounded-[16px]", !groupWithNext && "rounded-bl-[6px]")
               : clsx("rounded-[16px]", !groupWithNext && "rounded-br-[6px]")
           )}
           style={bubbleStyle}
         >
-          {img && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={img} alt="" className="mb-2 max-h-[260px] w-full rounded-[10px] object-cover" />
+          {media && (
+            <div className={bodyText ? "mb-2" : undefined}>
+              <MessageMedia
+                media={media}
+                seed={m.id}
+                onLight={m.sender === "customer"}
+                onOpenImage={onOpenImage}
+                onReady={onMediaReady}
+              />
+            </div>
           )}
-          {fileName && (
+          {fileName && !media && (
             <span className="mb-2 flex items-center gap-2.5 rounded-[10px] border border-[color:var(--border)] bg-[color:var(--hover)] px-3 py-2.5">
               <Icon name="attachment" size={15} />
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{fileName}</span>
             </span>
           )}
-          {m.text}
+          {bodyText}
         </div>
 
         {/* guruh oxiridagi vaqt */}
@@ -167,6 +188,9 @@ export default function ChatPage() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // media lightbox (rasm) + xabarlar ro'yxati skrolli
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [chatH, setChatH] = useState<number | null>(null);
@@ -222,6 +246,15 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [conv?.messages.length]);
+
+  /** Media yuklanib bubble balandligi o'zgardi: foydalanuvchi pastda bo'lsa
+      pastga yopishib turamiz, yuqorini o'qiyotgan bo'lsa joyini saqlaymiz. */
+  const keepPinned = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (atBottom) el.scrollTop = el.scrollHeight;
+  }, []);
 
   const send = async () => {
     if (!text.trim() || selId == null || sending) return;
@@ -467,7 +500,7 @@ export default function ChatPage() {
             </div>
 
             {/* xabarlar */}
-            <div data-lenis-prevent className="flex flex-1 flex-col overflow-y-auto overscroll-contain px-5 pb-4 pt-2">
+            <div ref={listRef} data-lenis-prevent className="flex flex-1 flex-col overflow-y-auto overscroll-contain px-5 pb-4 pt-2">
               {conv.messages.map((m, i) => {
                 const prev = conv.messages[i - 1];
                 const next = conv.messages[i + 1];
@@ -479,6 +512,8 @@ export default function ChatPage() {
                     groupWithPrev={!!prev && prev.sender === m.sender}
                     groupWithNext={!!next && next.sender === m.sender}
                     onCopy={copyText}
+                    onOpenImage={setLightbox}
+                    onMediaReady={keepPinned}
                   />
                 );
               })}
@@ -530,6 +565,8 @@ export default function ChatPage() {
           onPaused={(c) => { setPauseOpen(false); setConv(c); loadList(); }}
         />
       )}
+      {/* rasm ko'rinishi — frosted lightbox (Esc/overlay yopadi) */}
+      {lightbox && <MediaLightbox url={lightbox} onClose={() => setLightbox(null)} />}
       {confirmDel && conv && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setConfirmDel(false)} role="dialog" aria-modal="true" data-lenis-prevent>
           <div className="glass-modal w-[min(380px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
