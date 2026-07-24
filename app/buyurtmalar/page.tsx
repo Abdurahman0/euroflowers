@@ -98,7 +98,9 @@ function CardBody({ l, onEdit, onDelete }: { l: Lead; onEdit?: () => void; onDel
   );
 }
 
-function LeadCard({ l, accent, dragging, onOpen, onEdit, onDelete, onDrag, onDragEnd, onDragOverCard }: { l: Lead; accent?: string; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDelete?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void; onDragOverCard?: (e: React.DragEvent) => void }) {
+/** DIQQAT: kartada onDragOver YO'Q — qo'yish indeksi FAQAT ustun darajasida,
+    barqaror geometriya bo'yicha hisoblanadi (titrash halqasini uzadi). */
+function LeadCard({ l, accent, dragging, onOpen, onEdit, onDelete, onDrag, onDragEnd }: { l: Lead; accent?: string; dragging: boolean; onOpen: () => void; onEdit?: () => void; onDelete?: () => void; onDrag: (e: React.DragEvent) => void; onDragEnd: () => void }) {
   // status rangi kartada chap chiziqcha bo'lib ko'rinadi (kontrakt: status_detail.color)
   const stripe = l.status_detail?.color ?? accent;
   return (
@@ -107,7 +109,6 @@ function LeadCard({ l, accent, dragging, onOpen, onEdit, onDelete, onDrag, onDra
       onClick={onOpen}
       onDragStart={onDrag}
       onDragEnd={onDragEnd}
-      onDragOver={onDragOverCard}
       // sudralayotgan kartaning ASL O'RNI — FAQAT toza shtrixli bo'sh slot:
       // glass klassi butunlay olib tashlanadi (blur/soya/video-override'lar
       // "qoldiq" bo'lib ko'rinmasin), kontent visibility bilan yashirinadi —
@@ -169,6 +170,87 @@ export default function BuyurtmalarPage() {
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const grabRef = useRef({ dx: 0, dy: 0, x: 0, y: 0 });
   const emptyImgRef = useRef<HTMLImageElement | null>(null);
+
+  /* ===== DRAG GEOMETRIYASI — TITRASHGA QARSHI =====
+     Muammo (klassik teskari aloqa halqasi): indeksni JONLI kartalar
+     rect'idan hisoblasak, slot qo'yilishi layoutni suradi → kursor ostidagi
+     karta almashadi → indeks qaytadi → layout yana suriladi… (cheksiz
+     tebranish, chegara zonasida "miltillash").
+     Yechim: o'lchovlar drag BOSHIDA bir marta olinadi (slotsiz, "barqaror"
+     fazo) va butun drag davomida DOM o'qilmaydi + gisterezis (chegaradan
+     HYST px o'tilgandagina indeks o'zgaradi) + yo'nalish almashinuvi
+     FLIP_MS ichida rad etiladi. */
+  const HYST = 10;      // chegaradan shuncha px o'tilsa — indeks o'zgaradi
+  const FLIP_MS = 90;   // shu vaqt ichida teskari yo'nalishga qaytish rad etiladi
+  const GAP = 10;       // ustundagi kartalar orasidagi masofa (gap-2.5)
+  type ColGeom = { items: { id: number; h: number }[] };
+  const geomRef = useRef<Map<string, ColGeom>>(new Map());
+  const colElRef = useRef<Map<string, HTMLElement>>(new Map());
+  const dragIdRef = useRef<number | null>(null);
+  const overRef = useRef<{ col: LeadStatus | null; idx: number | null }>({ col: null, idx: null });
+  const flipRef = useRef<{ dir: number; t: number }>({ dir: 0, t: 0 });
+
+  /** Drag boshida BARCHA ustunlar kartalarining balandligini eslab qolamiz */
+  const snapshotCols = useCallback(() => {
+    const map = new Map<string, ColGeom>();
+    colElRef.current.forEach((el, key) => {
+      const items: { id: number; h: number }[] = [];
+      el.querySelectorAll<HTMLElement>("[data-kcard]").forEach((c) => {
+        items.push({ id: Number(c.dataset.kcard), h: c.getBoundingClientRect().height });
+      });
+      map.set(key, { items });
+    });
+    geomRef.current = map;
+  }, []);
+
+  /** Kursor Y → qo'yish indeksi. FAQAT snapshot bo'yicha (jonli DOM o'qilmaydi) */
+  const indexAt = useCallback((col: string, clientY: number): number | null => {
+    const g = geomRef.current.get(col);
+    const el = colElRef.current.get(col);
+    if (!g || !el) return null;
+    const y = clientY - el.getBoundingClientRect().top + el.scrollTop;
+    const items = g.items.filter((it) => it.id !== dragIdRef.current);
+    // "slotsiz" fazodagi o'rta chiziqlar — barqaror, layoutdan mustaqil
+    const mids: number[] = [];
+    let acc = 0;
+    for (const it of items) {
+      mids.push(acc + it.h / 2);
+      acc += it.h + GAP;
+    }
+    const cur = overRef.current.col === col ? overRef.current.idx : null;
+    let raw = mids.length;
+    for (let i = 0; i < mids.length; i++) if (y < mids[i]) { raw = i; break; }
+    if (cur == null || Math.abs(raw - cur) > 1) return raw; // yangi ustun / tez harakat
+    if (raw === cur) return cur;
+    // GISTEREZIS: chegaradan HYST px o'tilmaguncha joriy indeks saqlanadi
+    const boundary = raw > cur ? mids[cur] : mids[raw];
+    if (raw > cur && y < boundary + HYST) return cur;
+    if (raw < cur && y > boundary - HYST) return cur;
+    // YO'NALISH FILTRI: qisqa vaqt ichida orqaga qaytish — tebranish belgisi
+    const dir = raw > cur ? 1 : -1;
+    const now = performance.now();
+    if (flipRef.current.dir === -dir && now - flipRef.current.t < FLIP_MS) return cur;
+    flipRef.current = { dir, t: now };
+    return raw;
+  }, []);
+
+  /** Ustun ustida harakat — indeks faqat shu yerda yangilanadi */
+  const overColumn = useCallback((col: LeadStatus, clientY: number) => {
+    if (dragIdRef.current == null) return;
+    const idx = indexAt(col, clientY);
+    if (idx == null) return;
+    if (overRef.current.col === col && overRef.current.idx === idx) return; // bekorga render yo'q
+    overRef.current = { col, idx };
+    setOverCol(col);
+    setOverIdx(idx);
+  }, [indexAt]);
+
+  const endDrag = useCallback(() => {
+    dragIdRef.current = null;
+    overRef.current = { col: null, idx: null };
+    flipRef.current = { dir: 0, t: 0 };
+    setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null);
+  }, []);
 
   useEffect(() => {
     // 1×1 shaffof rasm — natif drag snapshot butunlay yashiriladi
@@ -245,6 +327,9 @@ export default function BuyurtmalarPage() {
   useEffect(() => { pagesRef.current = 1; }, [dateRange, dateFilter, q, arrType, statusFilter, view]);
 
   const load = useCallback(async () => {
+    // SUDRASH PAYTIDA yangilanish yo'q: ro'yxat o'zgarsa drag geometriyasi
+    // eskiradi va slot sakraydi (drop'dan keyin baribir qayta o'qiladi)
+    if (dragIdRef.current != null) return;
     const seq = ++loadSeq.current;
     try {
       const [pageData, cs, sts] = await Promise.all([
@@ -467,7 +552,7 @@ export default function BuyurtmalarPage() {
 
   const drop = (st: LeadStatus) => {
     if (dragId != null) reorderTo(st);
-    setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null);
+    endDrag();
   };
 
   // buyurtmani butunlay o'chirish — tasdiqdan keyin (DELETE /api/leads/{id}/)
@@ -565,8 +650,13 @@ export default function BuyurtmalarPage() {
             return (
               <div
                 key={sdef.id}
-                onDragOver={(e) => { e.preventDefault(); setOverCol(st); setOverIdx((v) => (overCol === st && v != null ? v : visItems.length)); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setOverCol(null); setOverIdx(null); } }}
+                onDragOver={(e) => { e.preventDefault(); overColumn(st, e.clientY); }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    overRef.current = { col: null, idx: null };
+                    setOverCol(null); setOverIdx(null);
+                  }
+                }}
                 onDrop={(e) => { e.preventDefault(); drop(st); }}
                 className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border-[1.5px] p-3 max-lg:w-[85vw] max-lg:min-w-[85vw] max-lg:max-w-[420px] max-lg:shrink-0 max-lg:snap-center lg:min-w-[235px] lg:flex-1"
                 // ustun foni — backend statusning rangidan yumshoq ohang
@@ -590,6 +680,7 @@ export default function BuyurtmalarPage() {
                     ochiladi — layout animatsiya bilan kartalar SILLIQ suriladi */}
                 <div
                   data-lenis-prevent
+                  ref={(el) => { if (el) colElRef.current.set(st, el); else colElRef.current.delete(st); }}
                   onScroll={(e) => { if (halfReached(e.currentTarget)) loadMore(); }}
                   className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5"
                 >
@@ -624,6 +715,7 @@ export default function BuyurtmalarPage() {
                       rows.push(
                         <motion.div
                           key={l.id}
+                          data-kcard={l.id}
                           layout
                           layoutId={`lead-${l.id}`}
                           transition={{ type: "spring", stiffness: 480, damping: 38 }}
@@ -636,27 +728,24 @@ export default function BuyurtmalarPage() {
                             onOpen={() => setSelLead(l)}
                             onEdit={canControl("crm") ? () => setEditLead(l) : undefined}
                             onDelete={canControl("crm") ? () => setConfirmDelLead(l) : undefined}
-                            onDragOverCard={(e) => {
-                              // kartaning ustki/pastki yarmi — qo'yish nuqtasini belgilaydi
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const r = e.currentTarget.getBoundingClientRect();
-                              setOverCol(st);
-                              setOverIdx(e.clientY < r.top + r.height / 2 ? idx : idx + 1);
-                            }}
                             onDrag={(e) => {
                               e.dataTransfer.effectAllowed = "move";
                               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                               grabRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY };
                               // natif snapshot o'chiriladi — o'rniga jonli ghost kursorga ergashadi
                               if (emptyImgRef.current) e.dataTransfer.setDragImage(emptyImgRef.current, 0, 0);
+                              // O'LCHOVLAR SHU YERDA (slot paydo bo'lishidan OLDIN) olinadi —
+                              // butun drag davomida shu barqaror fazoda hisoblanadi
+                              snapshotCols();
+                              dragIdRef.current = l.id;
                               setGhost({ l, w: r.width, h: r.height });
                               // slot darhol ASL O'RNIDA ochiladi (ko'tarib turishda ham)
+                              overRef.current = { col: st, idx };
                               setOverCol(st);
                               setOverIdx(idx);
                               setTimeout(() => setDragId(l.id), 0);
                             }}
-                            onDragEnd={() => { setDragId(null); setOverCol(null); setOverIdx(null); setGhost(null); }}
+                            onDragEnd={endDrag}
                           />
                         </motion.div>
                       );
