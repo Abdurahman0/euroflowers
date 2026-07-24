@@ -5,14 +5,14 @@ import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import FilterSelect from "@/components/FilterSelect";
 import { fmtTime } from "@/lib/format";
-import type { AISettings, AuditLog, InstagramEvent, IntegrationSettings } from "@/lib/types";
+import type { AISettings, InstagramEvent, IntegrationSettings } from "@/lib/types";
 
 /**
- * Developer/audit bo'limlari (kontrakt):
+ * Developer bo'limlari (kontrakt):
  *   • AI sozlamalari  — GET/PATCH /api/ai/settings/   (ai_settings ruxsati)
  *   • Integratsiyalar — GET/PATCH /api/integrations/  (integrations ruxsati)
  *   • Instagram hodisalari — GET /api/instagram/events/ (debug jadvali)
- *   • Audit jurnali   — GET /api/audit/               (audit ruxsati)
+ * Audit jurnali ALOHIDA sahifada: app/audit/page.tsx (lib/audit.ts tarjimasi).
  * Ruxsat bo'lmasa bo'lim umuman ko'rinmaydi.
  */
 
@@ -240,45 +240,6 @@ export function InstagramEventsSection() {
                 <span className="truncate" style={{ color: "var(--muted)" }}>{e.sender_id || "—"}</span>
                 <span className="truncate" style={{ color: "var(--muted)" }}>{e.media_id || e.story_id || "—"}</span>
                 <span style={{ color: "var(--muted)" }}>{fmtTime(e.created_at)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-export function AuditSection() {
-  const { canView } = usePerm();
-  const [rows, setRows] = useState<AuditLog[] | null>(null);
-  const [err, setErr] = useState("");
-
-  const visible = canView("audit");
-  useEffect(() => {
-    if (!visible) return;
-    api.audit({ page_size: 30 })
-      .then((r) => setRows(r.slice(0, 30)))
-      .catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
-  }, [visible]);
-  if (!visible) return null;
-
-  return (
-    <section className="glass col-span-full p-5">
-      <h2 className="mb-1 text-base font-bold">Audit jurnali</h2>
-      <p className="mb-3 text-[12px]" style={{ color: "var(--muted)" }}>Oxirgi 30 ta amal — kim, nimani, qachon</p>
-      {err && <p className="text-[13px] font-semibold" style={{ color: "var(--danger-ink)" }}>{err}</p>}
-      {!err && rows === null && <p className="text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
-      {rows && rows.length === 0 && <p className="text-[13px]" style={{ color: "var(--muted)" }}>Jurnal bo&apos;sh.</p>}
-      {rows && rows.length > 0 && (
-        <div className="overflow-x-auto">
-          <div className="min-w-[560px]">
-            {rows.map((r) => (
-              <div key={r.id} className="row-lux grid min-w-[520px] grid-cols-[140px_110px_1fr_90px] items-center gap-2 border-b px-3 py-2 text-[13px]" style={{ borderColor: "var(--line2)" }}>
-                <span className="truncate font-semibold" style={{ color: "var(--text-2)" }}>{r.user_detail ? r.user_detail.username : "tizim"}</span>
-                <span className="rounded-full border px-2 py-0.5 text-center text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>{r.action}</span>
-                <span className="truncate" style={{ color: "var(--muted)" }} title={`${r.entity_type} #${r.entity_id}`}>{r.entity_type} #{r.entity_id}</span>
-                <span style={{ color: "var(--muted)" }}>{fmtTime(r.created_at)}</span>
               </div>
             ))}
           </div>

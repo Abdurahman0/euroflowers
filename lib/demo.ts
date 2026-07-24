@@ -435,10 +435,21 @@ const materialMoves = [
   { id: 3, packaging_detail: packaging[2], created_at: ago(1, 3), movement_type: "out", quantity: 1, reason: "Katalog: Pastel kompozitsiya", performed_by_detail: null, packaging: 3 },
 ];
 
+/** Audit — backenddagi kabi xom action kalitlari va before/after JSON'lari
+    (sahifa ularni lib/audit.ts orqali o'zbekchaga o'giradi) */
 const audit: AuditLog[] = [
-  { id: 1, user_detail: users[0], action: "update", entity_type: "catalog", entity_id: "4", before: { status: "available" }, after: { status: "sold" }, created_at: ago(0, 3), user: 1 },
-  { id: 2, user_detail: users[3], action: "create", entity_type: "stock_batch", entity_id: "3", before: null, after: { received_stems: 500 }, created_at: ago(0, 6), user: 4 },
-  { id: 3, user_detail: users[1], action: "update", entity_type: "lead", entity_id: "4", before: { status: "contacted" }, after: { status: "won" }, created_at: ago(1, 2), user: 2 },
+  { id: 12, user_detail: users[0], action: "catalog_sold", entity_type: "CatalogItem", entity_id: "21", before: {}, after: { status: "sold", quantity_sold: 1, notification: 26 }, created_at: ago(0, 1), user: 1 },
+  { id: 11, user_detail: users[0], action: "catalog_stock_deducted", entity_type: "CatalogItem", entity_id: "21", before: {}, after: { rows: 4, quantity: 1, quantity_stock_deducted: 1 }, created_at: ago(0, 1), user: 1 },
+  { id: 10, user_detail: users[1], action: "lead_stock_deducted", entity_type: "Lead", entity_id: "48", before: {}, after: { stock_rows: 2, catalog_rows: 1, packaging_rows: 0 }, created_at: ago(0, 2), user: 2 },
+  { id: 9, user_detail: users[1], action: "lead_reordered", entity_type: "Lead", entity_id: "46", before: { status: "new", sort_order: "1000.000000" }, after: { status: "contacted", sort_order: "3000.000000" }, created_at: ago(0, 3), user: 2 },
+  { id: 8, user_detail: users[3], action: "stock_movement", entity_type: "StockBatch", entity_id: "12", before: { remaining_stems: 100 }, after: { movement: 75, remaining_stems: 110 }, created_at: ago(0, 4), user: 4 },
+  { id: 7, user_detail: users[3], action: "stock_received", entity_type: "StockBatch", entity_id: "15", before: {}, after: { received_stems: 25 }, created_at: ago(0, 6), user: 4 },
+  { id: 6, user_detail: users[0], action: "flowervariant_deleted", entity_type: "FlowerVariant", entity_id: "10", before: { id: 10, flower: 4, name_uz: "Oriental White", color_uz: "Oq", is_active: true, minimum_sale_stems: 3, default_stems_per_bunch: 10 }, after: {}, created_at: ago(1, 1), user: 1 },
+  { id: 5, user_detail: users[0], action: "flower_deleted", entity_type: "Flower", entity_id: "4", before: { id: 4, name_uz: "Liliya", name_ru: "Лилия", is_active: true, season_start_month: 1, season_end_month: 12 }, after: {}, created_at: ago(1, 2), user: 1 },
+  { id: 4, user_detail: users[0], action: "lead_stock_restored", entity_type: "Lead", entity_id: "57", before: {}, after: { stock_rows: 0, catalog_rows: 1, packaging_rows: 0 }, created_at: ago(1, 4), user: 1 },
+  { id: 3, user_detail: users[0], action: "packaging_movement", entity_type: "Packaging", entity_id: "25", before: { quantity: 3 }, after: { movement: 2, quantity: 2 }, created_at: ago(2, 1), user: 1 },
+  { id: 2, user_detail: users[0], action: "packaging_received", entity_type: "Packaging", entity_id: "25", before: {}, after: { movement: 1, quantity: 3 }, created_at: ago(2, 1), user: 1 },
+  { id: 1, user_detail: users[2], action: "customer_updated", entity_type: "Customer", entity_id: "3", before: { name_uz: "", phone: "+998901234561" }, after: { name_uz: "", phone: "+998901234599" }, created_at: ago(3, 2), user: 3 },
 ];
 
 // ===== So'rov marshrutlagichi =====

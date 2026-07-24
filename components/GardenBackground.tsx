@@ -7,6 +7,22 @@ const VIDEO = "/crm-garden-bg.mp4";
 const POSTER = "/crm-garden-bg.webp";
 
 /**
+ * Manba fayllarning O'NG-PASTKI burchagiga generator suv belgisi (KlingAI)
+ * kuydirilgan: gorizontal ~87%, vertikal ~91% dan keyin boshlanadi.
+ * Uni KADRDAN CHIQARIB tashlaymiz:
+ *   • object-position: left top — cover kesishi faqat o'ng/pastdan bo'ladi
+ *     (markazdan kesilsa belgi ichkariga suriladi)
+ *   • scale(1.16) + transform-origin: left top — ko'rinadigan maydon manbaning
+ *     86% qismi; belgi ekran chegarasidan tashqarida qoladi (har qanday nisbatda)
+ * Video ham, poster ham bir xil qirqiladi — rejim almashganda sakrash yo'q.
+ */
+const CROP_WM: React.CSSProperties = {
+  objectPosition: "left top",
+  transform: "scale(1.16)",
+  transformOrigin: "left top",
+};
+
+/**
  * Global fon: Ghibli bog' videosi (uzluksiz sikl, ovoz bilan — sukutda mute)
  * + tema-ga mos o'qiluvchanlik pardasi. HAMMA sahifalar ortida turadi.
  *
@@ -80,14 +96,14 @@ export default function GardenBackground({ active = true }: { active?: boolean }
             preload="none"
             poster={POSTER}
             className="h-full w-full object-cover"
-            style={{ objectPosition: "center" }}
+            style={CROP_WM}
           >
             <source src={VIDEO} type="video/mp4" />
           </video>
         )}
         {allowVideo === false && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={POSTER} alt="" className="h-full w-full object-cover" style={{ objectPosition: "center" }} />
+          <img src={POSTER} alt="" className="h-full w-full object-cover" style={CROP_WM} />
         )}
       </div>
 
