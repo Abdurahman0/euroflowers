@@ -114,17 +114,17 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
             }))}
           />
         </Field>
-        <Field label="Partiya raqami" span><input className="inp" value={f.batch_number} onChange={set("batch_number")} placeholder="bo'sh — avto" /></Field>
+        <Field label="Partiya raqami" span><input className="inp" value={f.batch_number} onChange={set("batch_number")} placeholder="Masalan: EF-260724-1 (bo'sh — avto)" /></Field>
       </div>
       <Section>Miqdor va narx</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="60" /></Field>
-        <Field label="Pochka soni"><input className="inp" type="number" value={f.bunches} onChange={set("bunches")} placeholder="8" /></Field>
-        <Field label="Pochkada dona"><input className="inp" type="number" value={f.stems_per_bunch} onChange={set("stems_per_bunch")} placeholder={String(variant?.default_stems_per_bunch ?? 20)} /></Field>
-        <Field label="Minimal sotuv (dona)"><input className="inp" type="number" value={f.minimum_sale_stems} onChange={set("minimum_sale_stems")} placeholder={String(variant?.minimum_sale_stems ?? 1)} /></Field>
-        <Field label="Tannarx / dona (so'm)"><input className="inp" type="number" value={f.cost_per_stem} onChange={set("cost_per_stem")} placeholder="21000" /></Field>
-        <Field label="Sotuv narxi / dona (so'm)"><input className="inp" type="number" value={f.sale_price_per_stem} onChange={set("sale_price_per_stem")} placeholder="35000" /></Field>
-        <Field label="Pochka sotuv narxi (so'm)" span><input className="inp" type="number" value={f.sale_price_per_bunch} onChange={set("sale_price_per_bunch")} placeholder="avto: dona × pochka" /></Field>
+        <Field label="Bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="Masalan: 60" /></Field>
+        <Field label="Pochka soni"><input className="inp" type="number" value={f.bunches} onChange={set("bunches")} placeholder="Masalan: 8" /></Field>
+        <Field label="Pochkada dona"><input className="inp" type="number" value={f.stems_per_bunch} onChange={set("stems_per_bunch")} placeholder={`Masalan: ${variant?.default_stems_per_bunch ?? 20}`} /></Field>
+        <Field label="Minimal sotuv (dona)"><input className="inp" type="number" value={f.minimum_sale_stems} onChange={set("minimum_sale_stems")} placeholder={`Masalan: ${variant?.minimum_sale_stems ?? 1}`} /></Field>
+        <Field label="Tannarx / dona (so'm)"><input className="inp" type="number" value={f.cost_per_stem} onChange={set("cost_per_stem")} placeholder="Masalan: 21000" /></Field>
+        <Field label="Sotuv narxi / dona (so'm)"><input className="inp" type="number" value={f.sale_price_per_stem} onChange={set("sale_price_per_stem")} placeholder="Masalan: 35000" /></Field>
+        <Field label="Pochka sotuv narxi (so'm)" span><input className="inp" type="number" value={f.sale_price_per_bunch} onChange={set("sale_price_per_bunch")} placeholder="Masalan: 700000 (bo'sh — avto: dona × pochka)" /></Field>
       </div>
       {receivedStems > 0 && (
         <p className="mt-2.5 text-[13px] text-[color:var(--text-2)]">Jami kirim: <b className="text-[color:var(--text)]">{receivedStems} dona</b></p>

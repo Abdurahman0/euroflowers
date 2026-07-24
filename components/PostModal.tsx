@@ -170,7 +170,7 @@ export default function PostModal({
           className="inp"
           value={link}
           onChange={(e) => onLinkChange(e.target.value)}
-          placeholder="https://www.instagram.com/p/… yoki /reel/… yoki /stories/…"
+          placeholder="Masalan: https://www.instagram.com/p/… yoki /reel/…"
           autoFocus={!post}
         />
       </Field>
@@ -190,16 +190,16 @@ export default function PostModal({
       <Section>Kontent</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Sarlavha (UZ)">
-          <input className="inp" value={titleUz} onChange={(e) => { setTitleUz(e.target.value); setErrors((x) => ({ ...x, title_uz: "" })); }} placeholder="Nafis piyonlar to'plami" />
+          <input className="inp" value={titleUz} onChange={(e) => { setTitleUz(e.target.value); setErrors((x) => ({ ...x, title_uz: "" })); }} placeholder="Masalan: Nafis piyonlar to'plami" />
         </Field>
         <Field label="Sarlavha (RU)">
-          <input className="inp" value={titleRu} onChange={(e) => setTitleRu(e.target.value)} placeholder="Набор нежных пионов" />
+          <input className="inp" value={titleRu} onChange={(e) => setTitleRu(e.target.value)} placeholder="Masalan: Набор нежных пионов" />
         </Field>
         <Field label="Tavsif (UZ)" span>
-          <textarea className="inp min-h-[64px]" value={descUz} onChange={(e) => setDescUz(e.target.value)} placeholder="Tarkib, o'lcham, yetkazish sharti…" />
+          <textarea className="inp min-h-[64px]" value={descUz} onChange={(e) => setDescUz(e.target.value)} placeholder="Masalan: 25 dona piyon, 50 sm, bepul yetkazish" />
         </Field>
         <Field label="Tavsif (RU)" span>
-          <textarea className="inp min-h-[64px]" value={descRu} onChange={(e) => setDescRu(e.target.value)} placeholder="Состав, размер, доставка…" />
+          <textarea className="inp min-h-[64px]" value={descRu} onChange={(e) => setDescRu(e.target.value)} placeholder="Masalan: 25 пионов, 50 см, бесплатная доставка" />
         </Field>
       </div>
       {errors.title_uz && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.title_uz}</p>}
@@ -207,10 +207,10 @@ export default function PostModal({
       <Section>Narx va maqsad</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Narx (so'm)">
-          <input className="inp" inputMode="numeric" value={price} onChange={(e) => { setPrice(e.target.value.replace(/\D/g, "")); setErrors((x) => ({ ...x, price: "" })); }} placeholder="850000" />
+          <input className="inp" inputMode="numeric" value={price} onChange={(e) => { setPrice(e.target.value.replace(/\D/g, "")); setErrors((x) => ({ ...x, price: "" })); }} placeholder="Masalan: 850000" />
         </Field>
         <Field label="Gul soni">
-          <input className="inp" inputMode="numeric" value={flowerCount} onChange={(e) => setFlowerCount(e.target.value.replace(/\D/g, ""))} placeholder="25" />
+          <input className="inp" inputMode="numeric" value={flowerCount} onChange={(e) => setFlowerCount(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 25" />
         </Field>
       </div>
       {errors.price && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.price}</p>}
@@ -235,7 +235,7 @@ export default function PostModal({
         <div className="mt-3 flex flex-col gap-3 rounded-[14px] border p-3.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Gul nomi" span>
-              <input className="inp" value={ciName} onChange={(e) => setCiName(e.target.value)} placeholder={titleUz || "Qizil atirgul buket"} />
+              <input className="inp" value={ciName} onChange={(e) => setCiName(e.target.value)} placeholder={titleUz || "Masalan: Qizil atirgul buket"} />
             </Field>
             <Field label="Turi">
               <Select
@@ -249,13 +249,13 @@ export default function PostModal({
               />
             </Field>
             <Field label="Soni (nechta tayyor)">
-              <input className="inp" inputMode="numeric" value={ciQty} onChange={(e) => setCiQty(e.target.value.replace(/\D/g, ""))} placeholder="4" />
+              <input className="inp" inputMode="numeric" value={ciQty} onChange={(e) => setCiQty(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 4" />
             </Field>
             <Field label="Narxi (so'm)">
-              <input className="inp" inputMode="numeric" value={ciPrice} onChange={(e) => setCiPrice(e.target.value.replace(/\D/g, ""))} placeholder={price || "400000"} />
+              <input className="inp" inputMode="numeric" value={ciPrice} onChange={(e) => setCiPrice(e.target.value.replace(/\D/g, ""))} placeholder={price || "Masalan: 400000"} />
             </Field>
             <Field label="Bo'yi (sm)">
-              <input className="inp" inputMode="numeric" value={ciHeight} onChange={(e) => setCiHeight(e.target.value.replace(/\D/g, ""))} placeholder="60" />
+              <input className="inp" inputMode="numeric" value={ciHeight} onChange={(e) => setCiHeight(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 60" />
             </Field>
           </div>
           <Field label="BITTA buket/savat tarkibi (skladdan)" span>

@@ -190,10 +190,10 @@ export default function NewLeadModal({
         ) : (
           <>
             <Field label="Mijoz ismi">
-              <input className="inp" value={f.customer_name} onChange={(e) => setF({ ...f, customer_name: e.target.value })} placeholder="Ali Valiyev" autoFocus />
+              <input className="inp" value={f.customer_name} onChange={(e) => setF({ ...f, customer_name: e.target.value })} placeholder="Masalan: Ali Valiyev" autoFocus />
             </Field>
             <Field label="Telefon">
-              <input className="inp" inputMode="tel" value={f.customer_phone} onChange={(e) => setF({ ...f, customer_phone: e.target.value })} placeholder="90 123 45 67" />
+              <input className="inp" inputMode="tel" value={f.customer_phone} onChange={(e) => setF({ ...f, customer_phone: e.target.value })} placeholder="Masalan: 90 123 45 67" />
             </Field>
           </>
         )}
@@ -253,7 +253,7 @@ export default function NewLeadModal({
               type="number"
               value={f.florist_fee}
               onChange={(e) => setF({ ...f, florist_fee: e.target.value })}
-              placeholder="50000"
+              placeholder="Masalan: 50000"
             />
           </Field>
         )}
@@ -263,7 +263,7 @@ export default function NewLeadModal({
             type="number"
             value={f.estimated_price}
             onChange={(e) => { setPriceTouched(true); setF({ ...f, estimated_price: e.target.value }); }}
-            placeholder="750000"
+            placeholder="Masalan: 750000"
           />
         </Field>
         <Field label="Yetkazish vaqti" span={isCatalog}>

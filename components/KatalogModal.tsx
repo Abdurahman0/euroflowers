@@ -103,8 +103,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       />
       <Section>Asosiy</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nomi (uz)"><input className="inp" value={f.name_uz} onChange={set("name_uz")} placeholder="Yozgi nafosat" /></Field>
-        <Field label="Nomi (ru)"><input className="inp" value={f.name_ru} onChange={set("name_ru")} placeholder="bo'sh — uz nomi olinadi" /></Field>
+        <Field label="Nomi (uz)"><input className="inp" value={f.name_uz} onChange={set("name_uz")} placeholder="Masalan: Yozgi nafosat" /></Field>
+        <Field label="Nomi (ru)"><input className="inp" value={f.name_ru} onChange={set("name_ru")} placeholder="Masalan: Летняя нежность (bo'sh — uz nomi olinadi)" /></Field>
         <Field label="Turi" span>
           <Select
             value={f.arrangement_type}
@@ -135,7 +135,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
               />
             </Field>
             <Field label={i === 0 ? "Dona" : ""}>
-              <input className="inp" type="number" value={r.quantity_stems} onChange={(e) => setComp(comp.map((x, j) => (j === i ? { ...x, quantity_stems: e.target.value } : x)))} placeholder="25" />
+              <input className="inp" type="number" value={r.quantity_stems} onChange={(e) => setComp(comp.map((x, j) => (j === i ? { ...x, quantity_stems: e.target.value } : x)))} placeholder="Masalan: 25" />
             </Field>
             <button type="button" onClick={() => setComp(comp.length > 1 ? comp.filter((_, j) => j !== i) : comp)} className="icon-btn icon-btn-danger mb-[1px] !h-[38px] !w-9 rounded-xl border border-[color:var(--border)]" title="Olib tashlash"><X size={16} strokeWidth={1.75} /></button>
           </div>
@@ -148,11 +148,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
 
       <Section>O&apos;lchov va narx</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="60" /></Field>
-        <Field label="Narxi (so'm)"><input className="inp" type="number" value={f.price} onChange={set("price")} placeholder="675000" /></Field>
-        <Field label="Florist haqi (so'm)"><input className="inp" type="number" value={f.florist_fee} onChange={set("florist_fee")} placeholder="50000" /></Field>
+        <Field label="Bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="Masalan: 60" /></Field>
+        <Field label="Narxi (so'm)"><input className="inp" type="number" value={f.price} onChange={set("price")} placeholder="Masalan: 675000" /></Field>
+        <Field label="Florist haqi (so'm)"><input className="inp" type="number" value={f.florist_fee} onChange={set("florist_fee")} placeholder="Masalan: 50000" /></Field>
         <Field label="Soni (nechta tayyorlanadi)">
-          <input className="inp" type="number" min={1} value={f.quantity_total} onChange={set("quantity_total")} placeholder="1" />
+          <input className="inp" type="number" min={1} value={f.quantity_total} onChange={set("quantity_total")} placeholder="Masalan: 1" />
         </Field>
       </div>
       <p className="mt-1.5 text-[12px]" style={{ color: "var(--muted)" }}>
@@ -161,8 +161,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
 
       <Section>Instagram va tavsif</Section>
       <div className="grid gap-3">
-        <Field label="Story havolasi"><input className="inp" value={f.instagram_story_url} onChange={set("instagram_story_url")} placeholder="https://instagram.com/stories/euroflowers.uz/…" /></Field>
-        <Field label="Izoh (uz)"><input className="inp" value={f.description_uz} onChange={set("description_uz")} placeholder="Krem qog'ozda, atlas lenta" /></Field>
+        <Field label="Story havolasi"><input className="inp" value={f.instagram_story_url} onChange={set("instagram_story_url")} placeholder="Masalan: https://instagram.com/stories/euroflowers.uz/…" /></Field>
+        <Field label="Izoh (uz)"><input className="inp" value={f.description_uz} onChange={set("description_uz")} placeholder="Masalan: krem qog'ozda, atlas lenta" /></Field>
         <Field label="Rasm"><ImageInput value={f.image_url} onChange={(url) => setF({ ...f, image_url: url })} /></Field>
       </div>
 

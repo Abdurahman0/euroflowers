@@ -296,7 +296,7 @@ export default function LeadModal({
             <MaterialUsagePicker materials={materials} rows={packRows} onChange={setPackRows} />
             <label className="flex items-center justify-between gap-3 text-[13px]">
               <span style={{ color: "var(--text-2)" }}>Florist haqi (so&apos;m)</span>
-              <input className="inp !w-[130px] text-right" type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="50000" />
+              <input className="inp !w-[130px] text-right" type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="Masalan: 50000" />
             </label>
             <div className="flex gap-2">
               <button type="button" onClick={saveUsage} disabled={saving} className="btn-primary !flex-none !px-4 !py-2 text-[13px] disabled:opacity-60">

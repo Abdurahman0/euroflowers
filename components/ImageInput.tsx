@@ -125,7 +125,7 @@ export default function ImageInput({ value, onChange }: { value: string; onChang
             className="inp"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="https://…"
+            placeholder="Masalan: https://rasm.uz/gul.jpg"
             autoFocus
             aria-label="Rasm URL manzili"
           />

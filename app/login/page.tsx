@@ -207,7 +207,7 @@ export default function LoginPage() {
                 className="login-inp"
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); setErr(""); }}
-                placeholder="email@misol.uz"
+                placeholder="Masalan: email@misol.uz"
                 autoComplete="username"
                 autoFocus
                 aria-label="Email yoki login"

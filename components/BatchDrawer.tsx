@@ -160,10 +160,10 @@ export default function BatchDrawer({
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-[2px]" style={{ color: "var(--primary)" }}>Tezkor harakat</div>
           <div className="grid grid-cols-[1.2fr_1fr] gap-2.5">
             <Select value={mvType} options={MOVE_OPTIONS} onChange={(x) => setMvType(String(x) as MovementType)} />
-            <input className="inp" inputMode="numeric" value={mvQty} onChange={(e) => setMvQty(e.target.value.replace(/\D/g, ""))} placeholder="Dona" aria-label="Miqdor (dona)" />
+            <input className="inp" inputMode="numeric" value={mvQty} onChange={(e) => setMvQty(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 10" aria-label="Miqdor (dona)" />
           </div>
           <div className="mt-2.5 flex gap-2.5">
-            <input className="inp flex-1" value={mvReason} onChange={(e) => setMvReason(e.target.value)} placeholder="Sabab (ixtiyoriy)" onKeyDown={(e) => e.key === "Enter" && addMovement()} />
+            <input className="inp flex-1" value={mvReason} onChange={(e) => setMvReason(e.target.value)} placeholder="Masalan: buzilgan gullar (ixtiyoriy)" onKeyDown={(e) => e.key === "Enter" && addMovement()} />
             <button onClick={addMovement} disabled={saving} className={clsx("btn-primary !flex-none px-5", saving && "btn-loading")}>Qayd etish</button>
           </div>
         </div>

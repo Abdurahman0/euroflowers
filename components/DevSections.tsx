@@ -169,7 +169,7 @@ export function IntegrationsSection() {
                 <SecretInput label="Telegram bot token" value={form.telegram_bot_token ?? ""} onChange={(v) => setForm((f) => ({ ...f, telegram_bot_token: v }))} />
                 <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                   Instagram akkaunt ID
-                  <input className="rounded-[10px] border px-3 py-2 text-[13px] outline-none focus:shadow-[0_0_0_3px_var(--focus)]" style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text)" }} value={form.instagram_account_id ?? ""} onChange={(e) => setForm((f) => ({ ...f, instagram_account_id: e.target.value }))} placeholder={data.instagram_account_id || "17800…"} />
+                  <input className="rounded-[10px] border px-3 py-2 text-[13px] outline-none focus:shadow-[0_0_0_3px_var(--focus)]" style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text)" }} value={form.instagram_account_id ?? ""} onChange={(e) => setForm((f) => ({ ...f, instagram_account_id: e.target.value }))} placeholder={data.instagram_account_id || "Masalan: 17800…"} />
                 </label>
                 <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                   Telegram guruh chat ID
@@ -178,7 +178,7 @@ export function IntegrationsSection() {
                     style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text)" }}
                     value={form.telegram_group_chat_id ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, telegram_group_chat_id: e.target.value }))}
-                    placeholder={data.telegram_group_chat_id || "-1001234567890"}
+                    placeholder={data.telegram_group_chat_id || "Masalan: -1001234567890"}
                   />
                   <span className="text-[10.5px] font-medium normal-case tracking-normal" style={{ color: "var(--muted)" }}>
                     Recall eslatmalari shu guruhga boradi; bo&apos;sh bo&apos;lsa .env qiymati ishlatiladi

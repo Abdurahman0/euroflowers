@@ -174,10 +174,10 @@ export default function EditLeadModal({
       <Section>Narx va yetkazish</Section>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Florist haqi (so'm)">
-          <input className="inp" type="number" value={f.florist_fee} onChange={(e) => setF({ ...f, florist_fee: e.target.value })} placeholder="50000" />
+          <input className="inp" type="number" value={f.florist_fee} onChange={(e) => setF({ ...f, florist_fee: e.target.value })} placeholder="Masalan: 50000" />
         </Field>
         <Field label="Taxminiy narx (so'm)">
-          <input className="inp" type="number" value={f.estimated_price} onChange={(e) => setF({ ...f, estimated_price: e.target.value })} placeholder="750000" />
+          <input className="inp" type="number" value={f.estimated_price} onChange={(e) => setF({ ...f, estimated_price: e.target.value })} placeholder="Masalan: 750000" />
         </Field>
         <Field label="Yetkazish vaqti">
           <DatePicker value={f.delivery_at} onChange={(v) => setF({ ...f, delivery_at: v })} disablePast withTime placeholder="Sana va vaqt" ariaLabel="Yetkazish vaqti" />

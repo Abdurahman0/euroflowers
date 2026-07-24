@@ -70,8 +70,8 @@ export default function NewClientModal({
       />
       <Section>Mijoz ma&apos;lumotlari</Section>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Ism" span><input className="inp" value={f.name} onChange={set("name")} placeholder="Aziza Karimova" autoFocus /></Field>
-        <Field label="Telefon"><input className="inp" value={f.phone} onChange={set("phone")} placeholder="+998901234567" inputMode="tel" /></Field>
+        <Field label="Ism" span><input className="inp" value={f.name} onChange={set("name")} placeholder="Masalan: Aziza Karimova" autoFocus /></Field>
+        <Field label="Telefon"><input className="inp" value={f.phone} onChange={set("phone")} placeholder="Masalan: +998901234567" inputMode="tel" /></Field>
         <Field label="Til">
           <Select
             value={f.language}
@@ -80,7 +80,7 @@ export default function NewClientModal({
           />
         </Field>
         <Field label="Izoh" span>
-          <textarea className="inp min-h-[70px] resize-y" value={f.notes} onChange={set("notes")} placeholder="Qo'shimcha ma'lumot…" />
+          <textarea className="inp min-h-[70px] resize-y" value={f.notes} onChange={set("notes")} placeholder="Masalan: pushti gullarni yoqtiradi" />
         </Field>
       </div>
       <ModalFooter>

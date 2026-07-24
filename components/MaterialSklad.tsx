@@ -70,7 +70,7 @@ function MaterialModal({ material, onClose, onSaved }: { material: Packaging | n
       <Section>Asosiy</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (uz)" span>
-          <input className="inp" value={f.name_uz} onChange={(e) => setF({ ...f, name_uz: e.target.value })} placeholder="Kraft o'ram" autoFocus={!material} />
+          <input className="inp" value={f.name_uz} onChange={(e) => setF({ ...f, name_uz: e.target.value })} placeholder="Masalan: Kraft o'ram" autoFocus={!material} />
         </Field>
         <Field label="Turi">
           <Select
@@ -80,17 +80,17 @@ function MaterialModal({ material, onClose, onSaved }: { material: Packaging | n
           />
         </Field>
         <Field label="O'lcham">
-          <input className="inp" value={f.size} onChange={(e) => setF({ ...f, size: e.target.value })} placeholder="M" />
+          <input className="inp" value={f.size} onChange={(e) => setF({ ...f, size: e.target.value })} placeholder="Masalan: M" />
         </Field>
         <Field label="Tannarx (so'm)">
-          <input className="inp" type="number" value={f.cost_price} onChange={(e) => setF({ ...f, cost_price: e.target.value })} placeholder="8000" />
+          <input className="inp" type="number" value={f.cost_price} onChange={(e) => setF({ ...f, cost_price: e.target.value })} placeholder="Masalan: 8000" />
         </Field>
         <Field label="Sotuv narxi (so'm)">
-          <input className="inp" type="number" value={f.sale_price} onChange={(e) => setF({ ...f, sale_price: e.target.value })} placeholder="20000" />
+          <input className="inp" type="number" value={f.sale_price} onChange={(e) => setF({ ...f, sale_price: e.target.value })} placeholder="Masalan: 20000" />
         </Field>
         {!material && (
           <Field label="Boshlang'ich soni">
-            <input className="inp" type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} placeholder="50" />
+            <input className="inp" type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} placeholder="Masalan: 50" />
           </Field>
         )}
       </div>
@@ -145,10 +145,10 @@ function MoveModal({ material, onClose, onDone }: { material: Packaging; onClose
       </div>
       <div className="grid grid-cols-1 gap-3">
         <Field label="Soni (dona)">
-          <input className="inp" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} placeholder="10" autoFocus />
+          <input className="inp" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 10" autoFocus />
         </Field>
         <Field label="Sabab">
-          <input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={type === "in" ? "Yangi partiya keldi" : "Buyurtmaga ishlatildi"} />
+          <input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={type === "in" ? "Masalan: yangi partiya keldi" : "Masalan: buyurtmaga ishlatildi"} />
         </Field>
       </div>
       <ModalFooter>

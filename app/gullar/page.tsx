@@ -66,13 +66,13 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
       <Section>Nomi</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (UZ)">
-          <input className="inp" value={nameUz} onChange={(e) => { setNameUz(e.target.value); setErrors({}); }} placeholder="Piyon" autoFocus={!flower} />
+          <input className="inp" value={nameUz} onChange={(e) => { setNameUz(e.target.value); setErrors({}); }} placeholder="Masalan: Piyon" autoFocus={!flower} />
         </Field>
         <Field label="Nomi (RU)">
-          <input className="inp" value={nameRu} onChange={(e) => setNameRu(e.target.value)} placeholder="Пион" />
+          <input className="inp" value={nameRu} onChange={(e) => setNameRu(e.target.value)} placeholder="Masalan: Пион" />
         </Field>
         <Field label="Tavsif" span>
-          <textarea className="inp min-h-[56px]" value={descUz} onChange={(e) => setDescUz(e.target.value)} placeholder="Qisqacha izoh (ixtiyoriy)" />
+          <textarea className="inp min-h-[56px]" value={descUz} onChange={(e) => setDescUz(e.target.value)} placeholder="Masalan: Premium atirgullar — Red Naomi, Mondial" />
         </Field>
       </div>
       {errors.name_uz && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.name_uz}</p>}
@@ -151,23 +151,23 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
       <Section>Nomi va rangi</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (UZ)">
-          <input className="inp" value={nameUz} onChange={(e) => { setNameUz(e.target.value); setErrors({}); }} placeholder="Oq piyon 50sm" autoFocus={!variant} />
+          <input className="inp" value={nameUz} onChange={(e) => { setNameUz(e.target.value); setErrors({}); }} placeholder="Masalan: Oq piyon 50sm" autoFocus={!variant} />
         </Field>
         <Field label="Nomi (RU)">
-          <input className="inp" value={nameRu} onChange={(e) => setNameRu(e.target.value)} placeholder="Белый пион 50см" />
+          <input className="inp" value={nameRu} onChange={(e) => setNameRu(e.target.value)} placeholder="Masalan: Белый пион 50см" />
         </Field>
         <Field label="Rang (UZ)">
-          <input className="inp" value={colorUz} onChange={(e) => setColorUz(e.target.value)} placeholder="oq" />
+          <input className="inp" value={colorUz} onChange={(e) => setColorUz(e.target.value)} placeholder="Masalan: oq" />
         </Field>
         <Field label="Rang (RU)">
-          <input className="inp" value={colorRu} onChange={(e) => setColorRu(e.target.value)} placeholder="белый" />
+          <input className="inp" value={colorRu} onChange={(e) => setColorRu(e.target.value)} placeholder="Masalan: белый" />
         </Field>
         <Field label="Tavsif" span>
           <textarea
             className="inp min-h-[56px] resize-y"
             value={descUz}
             onChange={(e) => setDescUz(e.target.value)}
-            placeholder="Qisqacha izoh: bo'yi, gul boshi, xushbo'ylik… (ixtiyoriy)"
+            placeholder="Masalan: 60 sm poya, yirik gul boshi, xushbo'y"
           />
         </Field>
       </div>
