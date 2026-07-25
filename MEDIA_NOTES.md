@@ -37,6 +37,38 @@ Ko'chirilgani — **LOGIKA**, dizayn EuroFlowers tiliga qayta yozilgan.
 Muhim cheklov (docs'dan): Instagram **har doim** playable CDN link bermaydi —
 voice odatda to'g'ridan-to'g'ri CDN link, reels esa faqat sahifa linki bo'ladi.
 
+## 2b. REAL PAYLOAD (2026-07-24 namunasi) — asosiy shakl
+
+Amaliy javob reference'dagi `metadata.media_url` EMAS, quyidagilarni beradi:
+
+**a) Mijoz media/story yubordi — `metadata.attachments[]`:**
+```json
+{ "sender":"customer", "text":"Nechpul bu\nMedia link: https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=…",
+  "metadata": { "attachments": [ { "url":"https://lookaside…", "kind":"media", "type":"", "source":"instagram_message" } ] } }
+```
+Story uchun `"kind":"story", "type":"ig_story"`. URL — imzolangan IG lookaside CDN
+havolasi, **kengaytmasiz** va **muddati o'tadigan**. `type` ko'pincha bo'sh.
+
+**b) AI katalog rasmini yubordi — `metadata.image_tool_result` (sender:`system`, text:`""`):**
+```json
+{ "sender":"system", "text":"",
+  "metadata": { "image_tool_result": { "image_url":"https://…/Pushti Atirgul buket.jpg", "catalog_id":24, "catalog_name":"Pushti atirgul buketi" } } }
+```
+
+**Shu sabab `parseMedia` manba tartibi:** `attachments[0].url` → `image_tool_result.image_url`
+→ `media_url` alias'lari → matn ichidagi yalang'och havola. Kengaytmasiz IG CDN
+link **rasm** deb olinadi (`kind:"media"/"story"` bo'lsa), xatoda "asl havolani
+ochish" fallback ko'rsatiladi (imzo muddati o'tgani uchun tez-tez yuz beradi).
+`image_tool_result` xabari `system` bo'lsa ham **chiqayotgan pufak** (o'ng tomon) qilib
+ko'rsatiladi, "Katalog rasmi: <nom>" izohi bilan.
+
+**Matn tozalash:** media bo'lsa `text` ichidan barcha havolalar va endi bo'sh qolgan
+"Media link:" / "Story link:" yorliq satrlari olib tashlanadi; "Nechpul bu" kabi
+haqiqiy matn qoladi (`mediaBodyText`).
+
+**Overflow:** probelsiz uzun matn/URL pufakni yorib chiqmasligi uchun bubble'da
+`overflow-wrap: anywhere` + `word-break: break-word` + `min-w-0` qo'yildi.
+
 ## 2. Bizning API (mapping va farqlar)
 
 `GET /api/conversations/{id}/` → `messages[]`; schema (`/api/schema/`) → `Message`:

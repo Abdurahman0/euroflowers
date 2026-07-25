@@ -271,6 +271,23 @@ const mkMedia = (
   metadata: { media_url: url, media_type: type, is_non_text_media: true }, conversation: conv,
 });
 
+/** REAL backend shakli: metadata.attachments[] (mijozdan kelgan media/story).
+    IG lookaside CDN link kengaytmasiz keladi; matn ham havolani o'z ichiga oladi. */
+const mkAttach = (
+  conv: number, text: string, url: string, kind: "media" | "story", type: string, days: number, hours: number
+): Message => ({
+  id: msgId++, created_at: ago(days, hours), updated_at: ago(days, hours), sender: "customer",
+  text, instagram_message_id: `igm_${msgId}`,
+  metadata: { attachments: [{ url, kind, type, source: "instagram_message" }] }, conversation: conv,
+});
+
+/** REAL backend shakli: AI yuborgan katalog rasmi (sender: system, text: "") */
+const mkCatalogImg = (conv: number, imageUrl: string, catalogName: string, days: number, hours: number): Message => ({
+  id: msgId++, created_at: ago(days, hours), updated_at: ago(days, hours), sender: "system",
+  text: "", instagram_message_id: "",
+  metadata: { image_tool_result: { image_url: imageUrl, catalog_id: 24, catalog_name: catalogName } }, conversation: conv,
+});
+
 const mkConv = (id: number, c: Customer, status: Conversation["status"], summary: string, msgs: Message[]): Conversation => ({
   id, source: "instagram", customer_detail: c, messages: msgs, last_message: msgs[msgs.length - 1] ?? null,
   created_at: msgs[0]?.created_at ?? ago(1), updated_at: msgs[msgs.length - 1]?.created_at ?? ago(0),
@@ -293,15 +310,25 @@ const conversations: Conversation[] = [
     mkMsg(2, "customer", "Shu shanba. Lekin menga aniq dizayn muhim, rasm ko'rsata olasizmi?", 0, 5),
     mkMsg(2, "system", "Suhbat operatorga o'tkazildi", 0, 5),
     mkMsg(2, "operator", "Assalomu alaykum, men Aziza — floristimiz bilan 3 ta variant tayyorlab yuboramiz 😊", 0, 4),
-    // === MEDIA namunalari (Instagram webhook shakli) ===
-    mkMedia(2, "customer", "/videos/login-scene.mp4", "audio", 0, 4),
-    mkMedia(2, "operator", "/crm-garden-bg.webp", "image", 0, 3, "Mana birinchi variant 🤍"),
+    // === MEDIA namunalari ===
+    // 1) REAL: attachments[] — mijoz rasm/media yubordi (matnda ham havola bor)
+    mkAttach(2, "Nechpul bu\nMedia link: /crm-garden-bg.webp", "/crm-garden-bg.webp", "media", "", 0, 4),
+    // 2) REAL: attachments[] — Instagram story direct'ga yuborildi (kind:story)
+    mkAttach(2, "Mijoz Instagram storyni directga yubordi.\nStory link: /flowers/textures/peony.png\nTizim izohi: yuborilgan Instagram media bazadagi story/post/reel katalogiga bog'lanmagan.", "/flowers/textures/peony.png", "story", "ig_story", 0, 4),
+    // 3) REAL: AI katalog rasmini yubordi (system + image_tool_result)
+    mkCatalogImg(2, "/crm-garden-bg.webp", "Pushti atirgul buketi", 0, 3),
+    mkMsg(2, "ai", "Siz tanlagan gul rasmi. Bu gulni narxi 500 000 so'm. Sizga qachonga kerak edi?", 0, 3),
+    // 4) ovoz / video / reel / fayl (media_url kontrakti)
+    mkMedia(2, "customer", "/videos/login-scene.mp4", "audio", 0, 3),
     mkMedia(2, "customer", "/videos/login-scene.mp4", "video", 0, 3),
     mkMedia(2, "customer", "https://www.instagram.com/reel/DZ5DXzjIQoN/", "ig_reel", 0, 2),
     mkMedia(2, "operator", "https://euroflowers.uz/files/hisob-faktura.pdf", "file", 0, 2),
     // ikkinchi ovoz — "bir vaqtda faqat bitta ijro" qoidasini sinash uchun
     mkMedia(2, "operator", "/videos/login-scene.mp4", "audio", 0, 2),
-    mkMedia(2, "customer", "https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=404&signature=x", "image", 0, 1),
+    // 5) muddati o'tgan/buzuq media — xato holati (asl havola + qayta urinish)
+    mkAttach(2, "Bu rasmni ko'ring", "https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=404&signature=expired", "media", "", 0, 2),
+    // 6) OVERFLOW sinovi — probelsiz juda uzun URL matn ichida (media EMAS)
+    mkMsg(2, "customer", "Manzil: https://maps.example.com/verylongunbrokenpathwithoutanyspaces/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?token=abcdefghijklmnopqrstuvwxyz0123456789", 0, 1),
     mkMsg(2, "operator", "Ovozli xabaringizni tingladim — shanbaga tayyorlaymiz 🌸", 0, 1),
   ]),
   mkConv(3, customers[2], "ai", "Ofis uchun haftalik gul yetkazib berish shartnomasi.", [

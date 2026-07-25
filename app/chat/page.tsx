@@ -16,7 +16,7 @@ import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmtTime, initials } from "@/lib/format";
 import { CONV_STATUS_LABEL } from "@/components/badges";
 import { Icon } from "@/components/icons";
-import MessageMedia, { MediaLightbox, isJustMediaUrl, parseMedia } from "@/components/chat/MessageMedia";
+import MessageMedia, { MediaLightbox, mediaBodyText, parseMedia } from "@/components/chat/MessageMedia";
 import type { Conversation, Message } from "@/lib/types";
 
 /**
@@ -70,16 +70,25 @@ function MessageRow({
   /** media yuklanib bubble balandligi o'zgardi — skroll pastda qolsin */
   onMediaReady: () => void;
 }) {
-  const side = sideOf(m);
+  // MEDIA: rasm / video / ovoz / reel / fayl / IG story / AI katalog rasmi
+  // (aniqlash MessageMedia'da — real backend attachments[]/image_tool_result — MEDIA_NOTES.md)
+  const media = parseMedia(m);
+  // media URL(lar)i va bo'sh yorliq satrlari matndan olib tashlanadi
+  const bodyText = mediaBodyText(m, media);
 
-  if (side === "center")
+  // AI/tizim yuborgan media (image_tool_result) — CHIQAYOTGAN pufak (o'ngda)
+  const side: Side = m.sender === "system" && media ? "right" : sideOf(m);
+
+  if (side === "center") {
+    if (!m.text.trim()) return null; // bo'sh tizim yozuvi ko'rsatilmaydi
     return (
       <div className="flex justify-center">
-        <span className="rounded-full border px-3 py-1 text-[11px] font-medium" style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}>
+        <span className="max-w-full break-words rounded-full border px-3 py-1 text-center text-[11px] font-medium" style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)", overflowWrap: "anywhere" }}>
           {m.text} · {fmtTime(m.created_at)}
         </span>
       </div>
     );
+  }
 
   const isLeft = side === "left";
   const bubbleStyle =
@@ -89,10 +98,6 @@ function MessageRow({
         ? { background: "var(--primary)", color: "#fff" }
         : { background: "var(--side)", color: "#F5F0E8" };
 
-  // MEDIA: rasm / video / ovoz / reel / fayl (aniqlash MessageMedia'da — MEDIA_NOTES.md)
-  const media = parseMedia(m);
-  // matn aynan media havolasi bo'lsa — xom URL ko'rsatilmaydi
-  const bodyText = media && isJustMediaUrl(m.text, media.url) ? "" : m.text;
   const fileName = typeof m.metadata?.file_name === "string" ? (m.metadata.file_name as string) : null;
   const mediaOnly = !!media && !bodyText;
 
@@ -122,17 +127,18 @@ function MessageRow({
           </button>
         </div>
 
-        {/* pufak */}
+        {/* pufak — overflowWrap:anywhere: probelsiz uzun matn/URL pufakdan
+            toshib chiqmaydi, aksincha o'raladi (min-w-0 flex ichida ham) */}
         <div
           className={clsx(
-            "whitespace-pre-line break-words text-[14px] leading-relaxed",
+            "min-w-0 max-w-full whitespace-pre-line break-words text-[14px] leading-relaxed",
             // media-only pufak ixcham: ortiqcha padding yo'q (Telegram uslubi)
             mediaOnly ? "p-1.5" : "px-4 py-2.5",
             isLeft
               ? clsx("rounded-[16px]", !groupWithNext && "rounded-bl-[6px]")
               : clsx("rounded-[16px]", !groupWithNext && "rounded-br-[6px]")
           )}
-          style={bubbleStyle}
+          style={{ ...bubbleStyle, overflowWrap: "anywhere", wordBreak: "break-word" }}
         >
           {media && (
             <div className={bodyText ? "mb-2" : undefined}>

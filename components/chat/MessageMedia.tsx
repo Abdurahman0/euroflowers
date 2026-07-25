@@ -19,7 +19,8 @@ import type { Message } from "@/lib/types";
  */
 
 export type MediaKind = "image" | "video" | "audio" | "ig_reel" | "file";
-export type MediaPayload = { kind: MediaKind; url: string };
+/** ribbon — rasm ustidagi kichik yorliq (masalan "Story"); caption — media ostidagi izoh */
+export type MediaPayload = { kind: MediaKind; url: string; ribbon?: string; caption?: string };
 
 const EXT: [MediaKind, RegExp][] = [
   ["audio", /\.(aac|m4a|mp3|ogg|opus|wav|weba)$/i],
@@ -56,39 +57,85 @@ const kindFromUrl = (url: string): MediaKind | null => {
   return EXT.find(([, re]) => re.test(path))?.[0] ?? null;
 };
 
-/** Xabardan media chiqarish — media bo'lmasa null (oddiy text bubble) */
+const URL_RE = /https?:\/\/[^\s]+/gi;
+const firstUrl = (text: string): string | null => text.match(URL_RE)?.[0] ?? null;
+
+/** Xom `media_type`/`kind`/`mime` → bizning tur. Explicit=media ekani aniq
+    (attachment/is_non_text_media) — bunda kengaytmasiz IG CDN link RASM deb olinadi. */
+function classify(raw: string, url: string, explicit: boolean): MediaKind | null {
+  const r = raw.toLowerCase();
+  if (r === "voice" || r === "voice_message" || r === "audio" || r.startsWith("audio/")) return "audio";
+  if (r === "video" || r.startsWith("video/")) return "video";
+  if (r === "image" || r === "photo" || r.startsWith("image/")) return "image";
+  if (r === "ig_reel" || r === "reel") return "ig_reel";
+  // story media (ig_story) — ko'pincha rasm/skrinshot: rasm sifatida ko'rsatamiz
+  if (r === "story" || r === "ig_story") return "image";
+  if (r === "file" || r === "document" || r === "doc" || r.startsWith("application/")) return "file";
+  const byUrl = kindFromUrl(url);
+  if (byUrl) return byUrl;
+  if (DOC_EXT.test(url)) return "file";
+  // kengaytmasiz IG lookaside CDN link (kind:"media", type:"") — RASM deb olamiz
+  // (xatoda "asl havolani ochish" fallback ko'rsatiladi). Oddiy matndagi havola
+  // media emas — text bubble bo'lib qoladi.
+  return explicit ? "image" : null;
+}
+
+/** Xabardan media chiqarish — media bo'lmasa null (oddiy text bubble).
+    Manba tartibi (real backend kontrakti): attachments[] → image_tool_result →
+    media_url alias'lari → matn ichidagi yalang'och havola. */
 export function parseMedia(m: Message): MediaPayload | null {
   const meta = (m.metadata ?? {}) as Record<string, unknown>;
   const text = (m.text ?? "").trim();
-  const isMedia = meta.is_non_text_media === true;
-  // alias'lar: backend versiyalari turlicha nomlashi mumkin
-  const metaUrl = str(meta.media_url) ?? str(meta.url) ?? str(meta.attachment_url) ?? str(meta.file_url) ?? str(meta.image_url);
-  const url = isMedia ? metaUrl ?? (parseUrl(text) ? text : null) : metaUrl ?? (parseUrl(text) ? text : null);
-  if (!url) return null;
 
-  const raw = (str(meta.media_type) ?? str(meta.type) ?? str(meta.mime_type) ?? str(meta.mime) ?? "").toLowerCase();
-  let kind: MediaKind | null = null;
-  if (raw === "voice" || raw === "voice_message" || raw === "audio" || raw.startsWith("audio/")) kind = "audio";
-  else if (raw === "video" || raw.startsWith("video/")) kind = "video";
-  else if (raw === "image" || raw === "photo" || raw.startsWith("image/")) kind = "image";
-  else if (raw === "ig_reel" || raw === "reel" || raw === "story") kind = "ig_reel";
-  else if (raw === "file" || raw === "document" || raw === "doc" || raw.startsWith("application/")) kind = "file";
-  // tur berilmagan: URL kengaytmasi → hujjat bo'lsa fayl → IG CDN kabi
-  // kengaytmasiz linklar uchun reference'dagi kabi video deb olinadi
-  if (!kind) kind = kindFromUrl(url) ?? (DOC_EXT.test(url) ? "file" : isMedia ? "video" : null);
-  // matn oddiy havola bo'lsa va turi aniqlanmasa — text bubble bo'lib qolsin
+  // 1) metadata.attachments[] — mijozdan kelgan media/story
+  const atts = Array.isArray(meta.attachments) ? (meta.attachments as Record<string, unknown>[]) : [];
+  const att = atts.find((a) => a && str(a.url));
+  if (att) {
+    const url = str(att.url)!;
+    const kw = (str(att.kind) ?? "").toLowerCase();
+    const raw = str(att.type) || kw; // type bo'sh bo'lsa kind'ga qaraymiz
+    const kind = classify(raw, url, true) ?? "image";
+    const ribbon = kw === "story" || raw === "ig_story" ? "Story" : undefined;
+    return { kind, url, ribbon };
+  }
+
+  // 2) metadata.image_tool_result — AI yuborgan katalog rasmi (sender: system)
+  const itr = (meta.image_tool_result ?? null) as Record<string, unknown> | null;
+  const itrUrl = itr ? str(itr.image_url) : null;
+  if (itrUrl) {
+    const name = itr ? str(itr.catalog_name) : null;
+    return { kind: "image", url: itrUrl, caption: name ? `Katalog rasmi: ${name}` : "Katalog rasmi" };
+  }
+
+  // 3) media_url alias'lari (demo/hujjat kontrakti) → 4) matn ichidagi havola
+  const isMedia = meta.is_non_text_media === true;
+  const aliasUrl = str(meta.media_url) ?? str(meta.url) ?? str(meta.attachment_url) ?? str(meta.file_url) ?? str(meta.image_url);
+  const url = aliasUrl ?? firstUrl(text);
+  if (!url) return null;
+  const raw = str(meta.media_type) ?? str(meta.type) ?? str(meta.mime_type) ?? str(meta.mime) ?? "";
+  const explicit = isMedia || !!aliasUrl;
+  const kind = classify(raw, url, explicit);
   if (!kind) return null;
   return { kind, url };
 }
 
-/** Matn aynan media havolasi bo'lsa — bubble'da xom URL ko'rsatilmaydi */
-export function isJustMediaUrl(text: string, url: string): boolean {
-  const t = (text ?? "").trim();
-  if (!t) return true;
-  if (t === url) return true;
-  const a = parseUrl(t);
-  const b = parseUrl(url);
-  return !!(a && b && a.href === b.href);
+/** Media bubble'i bilan birga ko'rsatiladigan MATN — media URL(lar)i va
+    endi bo'sh qolgan "Media link:" / "Story link:" yorliq satrlari olib tashlanadi. */
+export function mediaBodyText(m: Message, media: MediaPayload | null): string {
+  const text = (m.text ?? "").trim();
+  if (!media) return text;
+  // 1) aynan media URL'ini (nisbiy bo'lsa ham) olib tashlaymiz, 2) qolgan
+  // http havolalarni, 3) endi bo'sh qolgan "Media link:"/"Story link:" satrlarini
+  const cleaned = text
+    .split(media.url).join("")
+    .replace(URL_RE, "")
+    .split("\n")
+    .filter((line) => !/^\s*(media\s*link|story\s*link|media|link|story)\s*:?\s*$/i.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  // matn qolmasa — media caption'i (bo'lsa) ishlatiladi
+  return cleaned || media.caption || "";
 }
 
 const fileNameOf = (url: string) => {
@@ -272,8 +319,8 @@ function VoiceBubble({ url, seed, onLight, onReady }: { url: string; seed: numbe
   );
 }
 
-/* ===== xato holati ===== */
-function MediaFailed({ onLight, onRetry, label }: { onLight: boolean; onRetry: () => void; label: string }) {
+/* ===== xato holati — qayta urinish + (bo'lsa) asl havolani ochish ===== */
+function MediaFailed({ onLight, onRetry, label, url }: { onLight: boolean; onRetry: () => void; label: string; url?: string }) {
   return (
     <div
       className="flex w-[min(260px,58vw)] items-center gap-2.5 rounded-[13px] border px-3 py-2.5"
@@ -285,6 +332,11 @@ function MediaFailed({ onLight, onRetry, label }: { onLight: boolean; onRetry: (
     >
       <FileIcon size={16} strokeWidth={2} className="shrink-0 opacity-80" />
       <span className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug">{label}</span>
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" title="Asl havolani ochish" aria-label="Asl havolani ochish" className="shrink-0 rounded-full p-1 transition-opacity hover:opacity-70">
+          <ExternalLink size={14} strokeWidth={2.2} />
+        </a>
+      )}
       <button type="button" onClick={onRetry} title="Qayta urinish" aria-label="Qayta urinish" className="shrink-0 rounded-full p-1 transition-opacity hover:opacity-70">
         <RotateCcw size={14} strokeWidth={2.2} />
       </button>
@@ -292,13 +344,14 @@ function MediaFailed({ onLight, onRetry, label }: { onLight: boolean; onRetry: (
   );
 }
 
-/* ===== RASM — skelet + lightbox ===== */
-function ImageBubble({ url, onOpen, onReady }: { url: string; onOpen: (u: string) => void; onReady?: () => void }) {
+/* ===== RASM — skelet + lightbox (+ ixtiyoriy "Story" yorlig'i) ===== */
+function ImageBubble({ url, ribbon, onOpen, onReady }: { url: string; ribbon?: string; onOpen: (u: string) => void; onReady?: () => void }) {
   const { ref, seen } = useInView<HTMLButtonElement>();
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(false);
   const [nonce, setNonce] = useState(0);
-  if (err) return <MediaFailed onLight onRetry={() => { setErr(false); setNonce((n) => n + 1); }} label="Media ochilmadi" />;
+  // signed IG lookaside link muddati o'tishi mumkin — xatoda "asl havola" beriladi
+  if (err) return <MediaFailed onLight onRetry={() => { setErr(false); setNonce((n) => n + 1); }} label="Media ochilmadi" url={url} />;
   return (
     <button
       ref={ref}
@@ -320,6 +373,11 @@ function ImageBubble({ url, onOpen, onReady }: { url: string; onOpen: (u: string
           className="block max-h-[300px] w-full object-cover transition-opacity duration-300"
           style={{ opacity: loaded ? 1 : 0 }}
         />
+      )}
+      {ribbon && loaded && (
+        <span className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10.5px] font-bold text-white" style={{ background: "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)" }}>
+          {ribbon}
+        </span>
       )}
     </button>
   );
@@ -503,7 +561,7 @@ export default function MessageMedia({
     case "audio":
       return <VoiceBubble url={media.url} seed={seed} onLight={onLight} onReady={onReady} />;
     case "image":
-      return <ImageBubble url={media.url} onOpen={onOpenImage} onReady={onReady} />;
+      return <ImageBubble url={media.url} ribbon={media.ribbon} onOpen={onOpenImage} onReady={onReady} />;
     case "video":
       return <VideoBubble url={media.url} onReady={onReady} />;
     case "ig_reel":
