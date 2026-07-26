@@ -6,12 +6,13 @@ import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { dateAfterParam, fmt, initials } from "@/lib/format";
+import { dateAfterParam, dateBeforeParam, fmt, initials } from "@/lib/format";
 import { statusBadgeProps, statusName } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
 import { HBars } from "@/components/AnalyticsCharts";
+import { NetProfitCard } from "@/components/AnalyticsExtra";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
 import type { Dashboard } from "@/lib/types";
@@ -40,7 +41,9 @@ export default function DashboardPage() {
   const to = dateRange ? dateRange.to : ymd(new Date());
 
   const load = useCallback(() => {
-    api.dashboard({ from, to }).then(setD).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
+    // date_to EKSKLYUZIV (backend uni kun boshiga oladi) — keyingi kun yuboramiz
+    const toExcl = dateBeforeParam(to);
+    api.dashboard({ from, to: toExcl, date_from: from, date_to: toExcl }).then(setD).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
   }, [from, to]);
 
   useEffect(() => { load(); }, [load]);
@@ -84,6 +87,13 @@ export default function DashboardPage() {
           </Link>
         ))}
       </motion.div>
+
+      {/* YANGI: sof foyda hero (defensiv — backend bergan bo'lsa) */}
+      {(d.net_profit != null || d.catalog_revenue != null) && (
+        <motion.div variants={rise} className="mt-4">
+          <NetProfitCard netProfit={d.net_profit} revenue={d.catalog_revenue} cost={d.catalog_cost} discount={d.catalog_discount} />
+        </motion.div>
+      )}
 
       {(d.daily_stats?.length ?? 0) > 0 && (
         <motion.section variants={rise} className="glass-lite mt-4 p-5">

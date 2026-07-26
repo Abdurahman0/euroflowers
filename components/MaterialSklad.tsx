@@ -1,10 +1,10 @@
 "use client";
-import { ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ArrowDown, ArrowUp, Box, Newspaper, Pencil, Plus, ShoppingBasket, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import SearchInput from "./SearchInput";
 import ClearFilters from "./ClearFilters";
-import FilterSelect from "./FilterSelect";
 import EmptyState from "./EmptyState";
 import FlowerLoader from "./FlowerLoader";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
@@ -14,26 +14,29 @@ import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { useRouter } from "next/navigation";
 import { fmt, fmtTime, movementLeadId } from "@/lib/format";
+import { PACKAGING_LABEL } from "@/lib/inventory";
 import { Icon } from "./icons";
 import type { MaterialMovement, Packaging, PackagingType } from "@/lib/types";
 
 /**
- * Material sklad — o'ram/savat/quti/aksessuarlar (backend: /api/materials/*,
- * ichkarida Packaging modeli). Kirim-chiqim movement orqali yuritiladi.
+ * Material sklad — Buket qog'ozi / Savat / Quti / Aksessuarlar bo'yicha bo'limlangan
+ * (backend: /api/materials/*, ichkarida Packaging modeli, packaging_type enum:
+ * wrap|basket|box|other). Kirim-chiqim movement orqali yuritiladi.
  */
 
-const TYPE_LABEL: Record<string, string> = { wrap: "O'ram", basket: "Savat", box: "Quti", accessory: "Aksessuar" };
-const TYPE_OPTS = [
-  { value: "", label: "Barcha turlar" },
-  ...(["wrap", "basket", "box", "accessory"] as const).map((t) => ({ value: t, label: TYPE_LABEL[t] })),
-];
+// backend enumi: wrap|basket|box|other (accessory YO'Q — eski qiymat other'ga tushiriladi)
+const GROUP_ORDER: PackagingType[] = ["wrap", "basket", "box", "other"];
+const GROUP_ICON: Record<string, LucideIcon> = { wrap: Newspaper, basket: ShoppingBasket, box: Box, other: Sparkles };
+const TYPE_LABEL = PACKAGING_LABEL;
+/** har qanday qiymatni backend enumiga tushiradi (eski "accessory" → "other") */
+const normType = (t: string): PackagingType => (GROUP_ORDER.includes(t as PackagingType) ? (t as PackagingType) : "other");
 
 function MaterialModal({ material, onClose, onSaved }: { material: Packaging | null; onClose: () => void; onSaved: (m: Packaging) => void }) {
   const { showToast } = useStore();
   const [f, setF] = useState({
     name_uz: material?.name_uz ?? "",
     name_ru: material?.name_ru ?? "",
-    packaging_type: (material?.packaging_type ?? "wrap") as PackagingType,
+    packaging_type: normType(material?.packaging_type ?? "wrap"),
     size: material?.size ?? "",
     cost_price: material ? String(Math.round(+material.cost_price)) : "",
     sale_price: material ? String(Math.round(+material.sale_price)) : "",
@@ -76,7 +79,7 @@ function MaterialModal({ material, onClose, onSaved }: { material: Packaging | n
           <Select
             value={f.packaging_type}
             onChange={(v) => setF({ ...f, packaging_type: v as PackagingType })}
-            options={(["wrap", "basket", "box", "accessory"] as const).map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
+            options={GROUP_ORDER.map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
           />
         </Field>
         <Field label="O'lcham">
@@ -217,34 +220,90 @@ export function MaterialMovesJournal() {
   );
 }
 
+/** Bitta material kartasi — qoldiq, narx, kirim/chiqim. */
+function MaterialCard({ m, control, onEdit, onMove }: { m: Packaging; control: boolean; onEdit: () => void; onMove: () => void }) {
+  const low = m.quantity > 0 && m.quantity <= 10;
+  return (
+    <article className="glass card-hover relative flex flex-col gap-2 !rounded-[18px] p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold" title={m.name_uz || m.name_ru}>{m.name_uz || m.name_ru}</div>
+          <div className="text-xs" style={{ color: "var(--mut)" }}>
+            {TYPE_LABEL[normType(m.packaging_type)]}{m.size ? ` · ${m.size}` : ""}
+          </div>
+        </div>
+        {control && (
+          <button onClick={onEdit} className="icon-btn shrink-0" title="Tahrirlash" aria-label="Tahrirlash">
+            <Pencil size={15} strokeWidth={1.75} />
+          </button>
+        )}
+      </div>
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-[12px]" style={{ color: "var(--mut)" }}>Qoldiq</div>
+          <div className="text-sm font-bold">
+            {m.quantity} dona
+            {m.quantity === 0 && <span className="ml-1.5 rounded-full bg-rose px-2 py-0.5 text-[10.5px] font-bold text-roseink">TUGADI</span>}
+            {low && <span className="ml-1.5 rounded-full bg-peach px-2 py-0.5 text-[10.5px] font-bold text-peachink">KAM</span>}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[12px]" style={{ color: "var(--mut)" }}>Narxi</div>
+          <div className="text-sm font-bold" style={{ color: "var(--acc)" }}>{fmt(m.sale_price)}</div>
+        </div>
+      </div>
+      {control && (
+        <button onClick={onMove} className="rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-tint" style={{ borderColor: "var(--line)" }}>
+          Kirim / chiqim
+        </button>
+      )}
+    </article>
+  );
+}
+
 export default function MaterialSklad() {
   const showToast = useStore((s) => s.showToast);
   const { canControl } = usePerm();
   const control = canControl("inventory");
   const [materials, setMaterials] = useState<Packaging[] | null>(null);
   const [search, setSearch] = useState("");
-  const [type, setType] = useState("");
+  const [group, setGroup] = useState<"" | PackagingType>("");
   const [formM, setFormM] = useState<{ open: boolean; edit: Packaging | null }>({ open: false, edit: null });
   const [moveM, setMoveM] = useState<Packaging | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setMaterials(await api.materials({ is_active: true, packaging_type: type || undefined }));
+      // barchasini olamiz — guruhlash va sanoqlar klient tomonda (chip filtri bilan)
+      setMaterials(await api.materials({ is_active: true }));
     } catch (e) {
       setMaterials([]);
       showToast(e instanceof Error ? e.message : "Materiallarni yuklashda xatolik");
     }
-  }, [showToast, type]);
+  }, [showToast]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
+  const patch = (upd: Packaging) => setMaterials((ms) => (ms ?? []).map((x) => (x.id === upd.id ? { ...x, ...upd } : x)));
+
+  // qidiruv + guruhlash (chip filtri saqlangan holda sanoqlar to'liq bo'lishi uchun avval qidiruv)
+  const q = search.trim().toLowerCase();
+  const searched = useMemo(
+    () => (q ? (materials ?? []).filter((m) => [m.name_uz, m.name_ru, m.size].some((x) => (x ?? "").toLowerCase().includes(q))) : (materials ?? [])),
+    [materials, q]
+  );
+  const byGroup = useMemo(() => {
+    const g = new Map<PackagingType, Packaging[]>();
+    GROUP_ORDER.forEach((k) => g.set(k, []));
+    searched.forEach((m) => g.get(normType(m.packaging_type))!.push(m));
+    return g;
+  }, [searched]);
+
   if (materials == null) return <FlowerLoader />;
 
-  const q = search.trim().toLowerCase();
-  const list = q ? materials.filter((m) => [m.name_uz, m.name_ru, m.size].some((x) => (x ?? "").toLowerCase().includes(q))) : materials;
   const totalQty = materials.reduce((a, m) => a + m.quantity, 0);
-  const patch = (upd: Packaging) => setMaterials((ms) => (ms ?? []).map((x) => (x.id === upd.id ? { ...x, ...upd } : x)));
+  const visibleGroups = GROUP_ORDER.filter((k) => (group ? k === group : (byGroup.get(k)!.length > 0)));
+  const nothing = searched.length === 0;
 
   return (
     <>
@@ -254,8 +313,7 @@ export default function MaterialSklad() {
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Material qidirish" />
-          <FilterSelect value={type} onChange={setType} label="Turi" options={TYPE_OPTS} />
-          <ClearFilters show={!!(search || type)} onClear={() => { setSearch(""); setType(""); }} />
+          <ClearFilters show={!!(search || group)} onClear={() => { setSearch(""); setGroup(""); }} />
           {control && (
             <button onClick={() => setFormM({ open: true, edit: null })} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
               <Plus size={18} strokeWidth={1.75} /> Material qo&apos;shish
@@ -264,52 +322,66 @@ export default function MaterialSklad() {
         </div>
       </div>
 
-      <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(235px,1fr))" }}>
-        {list.map((m) => {
-          const low = m.quantity > 0 && m.quantity <= 10;
+      {/* guruh chip qatori — har birida sanoq */}
+      <div className="mb-5 flex flex-wrap gap-1.5">
+        <button
+          onClick={() => setGroup("")}
+          aria-pressed={group === ""}
+          className={clsx("rounded-full border-[1.5px] px-4 py-1.5 text-[12.5px] font-bold transition-colors", group === "" ? "text-white" : "bg-sfc")}
+          style={group === "" ? { background: "var(--acc)", borderColor: "var(--acc)" } : { borderColor: "var(--line)", color: "var(--mut)" }}
+        >
+          Barchasi <span className="opacity-70">{searched.length}</span>
+        </button>
+        {GROUP_ORDER.map((k) => {
+          const GIcon = GROUP_ICON[k];
+          const n = byGroup.get(k)!.length;
+          const on = group === k;
           return (
-            <article key={m.id} className="glass card-hover relative flex flex-col gap-2 !rounded-[18px] p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-bold" title={m.name_uz || m.name_ru}>{m.name_uz || m.name_ru}</div>
-                  <div className="text-xs" style={{ color: "var(--mut)" }}>
-                    {TYPE_LABEL[m.packaging_type] ?? m.packaging_type}{m.size ? ` · ${m.size}` : ""}
-                  </div>
-                </div>
-                {control && (
-                  <button onClick={() => setFormM({ open: true, edit: m })} className="icon-btn shrink-0" title="Tahrirlash" aria-label="Tahrirlash">
-                    <Pencil size={15} strokeWidth={1.75} />
-                  </button>
-                )}
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-[12px]" style={{ color: "var(--mut)" }}>Qoldiq</div>
-                  <div className="text-sm font-bold">
-                    {m.quantity} dona
-                    {m.quantity === 0 && <span className="ml-1.5 rounded-full bg-rose px-2 py-0.5 text-[10.5px] font-bold text-roseink">TUGADI</span>}
-                    {low && <span className="ml-1.5 rounded-full bg-peach px-2 py-0.5 text-[10.5px] font-bold text-peachink">KAM</span>}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[12px]" style={{ color: "var(--mut)" }}>Narxi</div>
-                  <div className="text-sm font-bold" style={{ color: "var(--acc)" }}>{fmt(m.sale_price)}</div>
-                </div>
-              </div>
-              {control && (
-                <button onClick={() => setMoveM(m)} className="rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-tint" style={{ borderColor: "var(--line)" }}>
-                  Kirim / chiqim
-                </button>
-              )}
-            </article>
+            <button
+              key={k}
+              onClick={() => setGroup(on ? "" : k)}
+              aria-pressed={on}
+              className={clsx("flex items-center gap-1.5 rounded-full border-[1.5px] px-4 py-1.5 text-[12.5px] font-bold transition-colors", on ? "text-white" : "bg-sfc")}
+              style={on ? { background: "var(--acc)", borderColor: "var(--acc)" } : { borderColor: "var(--line)", color: "var(--mut)" }}
+            >
+              <GIcon size={14} strokeWidth={2} /> {TYPE_LABEL[k]} <span className="opacity-70">{n}</span>
+            </button>
           );
         })}
-        {list.length === 0 && (
-          <div className="col-span-full">
-            <EmptyState title={q || type ? "Filtrga mos material topilmadi" : "Material sklad bo'sh"} sub={q || type ? "Boshqa so'z yoki tur bilan urinib ko'ring." : "«Material qo'shish» orqali birinchi pozitsiyani kiriting."} />
-          </div>
-        )}
       </div>
+
+      {nothing ? (
+        <EmptyState
+          title={search ? "Qidiruvga mos material topilmadi" : "Material sklad bo'sh"}
+          sub={search ? "Boshqa so'z bilan urinib ko'ring." : "«Material qo'shish» orqali birinchi pozitsiyani kiriting."}
+        />
+      ) : (
+        <div className="flex flex-col gap-6">
+          {visibleGroups.map((k) => {
+            const items = byGroup.get(k)!;
+            if (!items.length) return null;
+            const GIcon = GROUP_ICON[k];
+            const groupQty = items.reduce((a, m) => a + m.quantity, 0);
+            return (
+              <section key={k}>
+                {/* sarlavha note-chip yuzasida — Rasm/Video fonida ham o'qiladi (kontrast kafolati) */}
+                <div className="note-chip !mb-2.5 inline-flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-[8px]" style={{ background: "var(--primary-soft, var(--hover))", color: "var(--primary)" }}>
+                    <GIcon size={15} strokeWidth={2} />
+                  </span>
+                  <h3 className="text-[14px] font-bold">{TYPE_LABEL[k]}</h3>
+                  <span className="text-[12px]" style={{ color: "var(--mut)" }}>{items.length} pozitsiya · {groupQty.toLocaleString("ru")} dona</span>
+                </div>
+                <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(235px,1fr))" }}>
+                  {items.map((m) => (
+                    <MaterialCard key={m.id} m={m} control={control} onEdit={() => setFormM({ open: true, edit: m })} onMove={() => setMoveM(m)} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
 
       {formM.open && (
         <MaterialModal

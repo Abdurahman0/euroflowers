@@ -21,6 +21,7 @@ const TYPE_META: Record<NotificationType, { label: string; color: string; soft: 
   handoff: { label: "Operator", color: "var(--warning)", soft: "var(--warning-soft)" },
   low_stock: { label: "Kam qoldiq", color: "var(--danger)", soft: "var(--danger-soft)" },
   stock_pending: { label: "Sklad yechimi", color: "var(--info)", soft: "var(--info-soft)" },
+  supplier_stock: { label: "Yangi partiya", color: "var(--primary)", soft: "var(--primary-soft)" },
 };
 
 const TYPE_FILTERS: { value: "" | NotificationType; label: string }[] = [

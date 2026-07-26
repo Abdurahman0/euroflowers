@@ -10,19 +10,61 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { dateAfterParam, fmt, fmtDate, fmtTime, movementLeadId, rangeParams } from "@/lib/format";
+import { dateAfterParam, fmtTime, movementLeadId, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
-import KirimModal from "@/components/KirimModal";
 import BatchDrawer from "@/components/BatchDrawer";
+import StockBatchCard from "@/components/StockBatchCard";
+import StockBatchModal from "@/components/StockBatchModal";
+import { BatchMovementModal, BatchMovesModal } from "@/components/BatchMovementModal";
+import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad, { MaterialMovesJournal } from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
-import type { StockBatch, StockMovement } from "@/lib/types";
+import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches } from "@/lib/inventory";
+import type { StockBatch, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "KIRIM", out: "CHIQIM", adjustment: "TUZATISH", waste: "CHIQIT", transfer_out: "O'TKAZMA →", transfer_in: "→ O'TKAZMA",
 };
 const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
+
+/** Jurnal xulosasi — joriy filtr bo'yicha Kirim / Ishlab chiqarishga / Chiqit jami. */
+function MovesSummary({ moves }: { moves: StockMovement[] }) {
+  const bunchSum = (pred: (m: StockMovement) => boolean) =>
+    moves.reduce((a, m) => (pred(m) ? a + (parseFloat(m.quantity_bunches ?? "") || 0) : a), 0);
+  const stemSum = (pred: (m: StockMovement) => boolean) =>
+    moves.reduce((a, m) => (pred(m) ? a + (m.quantity_stems || 0) : a), 0);
+
+  const cards = [
+    { key: "kirim", label: "Kirim", hue: MOVEMENT_HUE.in, is: (m: StockMovement) => m.movement_type === "in" || m.movement_type === "transfer_in" },
+    { key: "prod", label: "Ishlab chiqarishga", hue: MOVEMENT_HUE.out, is: (m: StockMovement) => m.movement_type === "out" || m.movement_type === "transfer_out" },
+    { key: "chiqit", label: "Chiqit", hue: MOVEMENT_HUE.waste, is: (m: StockMovement) => m.movement_type === "waste" },
+  ] as const;
+
+  return (
+    <div className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
+      {cards.map((c) => {
+        const st = stemSum(c.is);
+        const bu = bunchSum(c.is);
+        const count = moves.filter(c.is).length;
+        return (
+          <div key={c.key} className="glass !rounded-[16px] p-3.5" style={{ borderLeft: `3px solid ${c.hue}` }}>
+            {/* rang identifikatsiyasi chegara+nuqta+yorliqda; katta son doim --text
+                (har temada kontrast kafolatlanadi — pushti temada primary yo'qolmaydi) */}
+            <div className="flex items-center gap-1.5 text-[12px] font-bold" style={{ color: c.hue }}>
+              <span className="h-2 w-2 rounded-full" style={{ background: c.hue }} />
+              {c.label}
+            </div>
+            <div className="mt-1 text-[18px] font-extrabold tabular-nums" style={{ color: "var(--text)" }}>{fmtStems(st)}</div>
+            <div className="text-[11.5px]" style={{ color: "var(--mut)" }}>
+              {bu > 0 ? `${fmtBunches(bu)} · ` : ""}{count} harakat
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function SkladPage() {
   const router = useRouter();
@@ -37,6 +79,12 @@ export default function SkladPage() {
   const [search, setSearch] = useState("");
   // server filtrlari
   const [moveType, setMoveType] = useState("");
+  const [moveSupplier, setMoveSupplier] = useState("");
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // partiya amallari
+  const [wasteBatch, setWasteBatch] = useState<StockBatch | null>(null);
+  const [movesBatch, setMovesBatch] = useState<StockBatch | null>(null);
+  const [supplierDetail, setSupplierDetail] = useState<Supplier | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -47,6 +95,7 @@ export default function SkladPage() {
           ordering: "-created_at",
           ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
           movement_type: moveType || undefined,
+          supplier: moveSupplier || undefined,
         }),
       ]);
       setBatches(bs);
@@ -56,26 +105,57 @@ export default function SkladPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, dateFilter, dateRange, moveType]);
+  }, [showToast, dateFilter, dateRange, moveType, moveSupplier]);
+
+  // yetkazib beruvchilar — jurnal filtri uchun (bir marta)
+  useEffect(() => {
+    api.suppliers({ is_active: true }).then(setSuppliers).catch(() => {});
+  }, []);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
+  // WS: supplier_stock (yangi partiya keldi) → sklad darhol yangilanadi
+  useEffect(() => {
+    const onStock = () => load();
+    window.addEventListener("ef:stock-changed", onStock);
+    return () => window.removeEventListener("ef:stock-changed", onStock);
+  }, [load]);
+
+  // chuqur havola: ?tab=partiyalar&batch=N (suppliers'dan) yoki ?batch=N
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("tab") === "partiyalar") setTab("gul");
+    const bid = Number(p.get("batch"));
+    if (bid) api.stockBatch(bid).then(setSelBatch).catch(() => {});
+    const sid = Number(p.get("supplier"));
+    if (sid) api.supplier(sid).then(setSupplierDetail).catch(() => {});
+  }, []);
+
+  // partiya kartasini lokal yangilash (waste/edit'dan keyin darhol ko'rinsin)
+  const patchBatch = (b: StockBatch) => setBatches((bs) => bs.map((x) => (x.id === b.id ? b : x)));
+
   const q = search.trim().toLowerCase();
-  const fBatches = q
+  const searched = q
     ? batches.filter((b) => {
         const v = b.variant_detail;
         return [v?.flower_detail?.name_uz, v?.name_uz, v?.color_uz, b.batch_number]
           .some((x) => (x ?? "").toLowerCase().includes(q));
       })
     : batches;
+  // qoldig'i yetarli bo'lmagan partiyalar YUQORIGA suriladi (restock diqqati):
+  //   0 — kam qoldi (hali sotiladi, tugash arafasida), 1 — tugadi, 2 — normal
+  const stockRank = (b: StockBatch) =>
+    b.remaining_stems === 0 ? 1 : b.remaining_stems <= b.minimum_sale_stems * 2 ? 0 : 2;
+  const fBatches = [...searched].sort((a, b) => stockRank(a) - stockRank(b));
   const total = batches.reduce((a, b) => a + b.remaining_stems, 0);
   const lows = batches.filter((b) => b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2);
   const fMoves = moves;
 
   if (loading) return <FlowerLoader />;
 
-  const TAB_LABEL = { gul: "Gul sklad", material: "Material sklad", jurnal: "Kirim-chiqim jurnali" } as const;
+  const TAB_LABEL = { gul: "Partiyalar", material: "Material sklad", jurnal: "Kirim-chiqim jurnali" } as const;
   const tabBar = (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       {(["gul", "material", "jurnal"] as const).map((t) => (
@@ -124,13 +204,24 @@ export default function SkladPage() {
                 { value: "transfer_out", label: "O'tkazma chiqdi" },
               ]}
             />
+            {suppliers.length > 0 && (
+              <FilterSelect
+                value={moveSupplier}
+                onChange={setMoveSupplier}
+                label="Yetkazib beruvchi"
+                options={[{ value: "", label: "Barcha yetkazib beruvchilar" }, ...suppliers.map((s) => ({ value: String(s.id), label: s.name }))]}
+              />
+            )}
             <DateChips />
             <ClearFilters
-              show={!!(moveType || dateRange || dateFilter !== "oy")}
-              onClear={() => { setMoveType(""); setDateFilter("oy"); }}
+              show={!!(moveType || moveSupplier || dateRange || dateFilter !== "oy")}
+              onClear={() => { setMoveType(""); setMoveSupplier(""); setDateFilter("oy"); }}
             />
           </div>
         </div>
+
+        {/* xulosa — joriy filtr bo'yicha kirim/ishlab chiqarish/chiqit */}
+        <MovesSummary moves={fMoves} />
 
         {/* gul harakatlari — timeline */}
         <section className="glass !rounded-[20px] p-5">
@@ -198,77 +289,50 @@ export default function SkladPage() {
             onClear={() => setSearch("")}
           />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
-            <Plus size={18} strokeWidth={1.75} /> Keldi qilish
+            <Plus size={18} strokeWidth={1.75} /> Yangi partiya
           </button>
         </div>
       </div>
 
-      {/* partiya kartalari */}
-      <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(255px,1fr))" }}>
-        {fBatches.map((b) => {
-          const low = b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2;
-          const v = b.variant_detail;
-          return (
-            <article
-              key={b.id}
-              onClick={() => setSelBatch(b)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && setSelBatch(b)}
-              className="glass card-hover flex cursor-pointer flex-col overflow-hidden !rounded-[18px] text-left"
-            >
-              <div className="relative h-[120px] bg-bg2">
-                {(b.image_url || v?.image_url) && <img src={b.image_url || v.image_url} alt={v?.name_uz} className="h-full w-full object-cover" />}
-                {b.remaining_stems === 0 && <span className="absolute right-2 top-2 rotate-2 rounded-full border border-[#221833] bg-[#5a5a5a] px-2.5 py-0.5 text-[11px] font-bold text-white">TUGADI</span>}
-                {low && <span className="absolute right-2 top-2 rotate-2 rounded-full border border-[#221833] bg-[#E4572E] px-2.5 py-0.5 text-[11px] font-bold text-white">KAM QOLDI</span>}
-              </div>
-              <div className="flex flex-1 flex-col gap-2 p-3.5">
-                <div>
-                  <div className="text-sm font-bold">{v?.flower_detail?.name_uz} — {v?.name_uz}</div>
-                  <div className="text-xs" style={{ color: "var(--mut)" }}>
-                    keldi: {fmtDate(b.received_at)} · №{b.batch_number}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold">{v?.color_uz}</span>
-                  <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold">{b.height_cm} sm</span>
-                  <span className="rounded-full bg-peach px-2.5 py-0.5 text-[12px] font-semibold">min. {b.minimum_sale_stems} dona</span>
-                </div>
-                <div className="mt-auto flex items-end justify-between">
-                  <div>
-                    <div className="text-[12px]" style={{ color: "var(--mut)" }}>Qoldiq</div>
-                    <div className="text-sm font-bold">{b.remaining_bunches} pochka · {b.remaining_stems} dona</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[12px]" style={{ color: "var(--mut)" }}>Dona narxi</div>
-                    <div className="text-sm font-bold" style={{ color: "var(--acc)" }}>{fmt(b.sale_price_per_stem)}</div>
-                  </div>
-                </div>
-              </div>
-            </article>
-          );
-        })}
+      {/* partiya kartalari — stem gauge + freshness + supplier chip */}
+      <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))" }}>
+        {fBatches.map((b) => (
+          <StockBatchCard
+            key={b.id}
+            batch={b}
+            onOpenSupplier={(sid) => api.supplier(sid).then(setSupplierDetail).catch(() => {})}
+            onWaste={() => setWasteBatch(b)}
+            onMoves={() => setMovesBatch(b)}
+            onEdit={() => setSelBatch(b)}
+          />
+        ))}
         {fBatches.length === 0 && (
           <div className="col-span-full">
             <EmptyState
               title={q ? "Qidiruvga mos partiya topilmadi" : "Skladda faol partiya yo'q"}
-              sub={q ? "Boshqa so'z bilan urinib ko'ring." : "«Keldi qilish» orqali birinchi partiyani kiriting."}
+              sub={q ? "Boshqa so'z bilan urinib ko'ring." : "«Yangi partiya» orqali birinchi partiyani kiriting."}
             />
           </div>
         )}
       </div>
 
-      {kirimOpen && <KirimModal onClose={() => setKirimOpen(false)} onSaved={load} />}
+      {kirimOpen && <StockBatchModal onClose={() => setKirimOpen(false)} onSaved={load} />}
       {selBatch && (
         <BatchDrawer
           batch={selBatch}
           onClose={() => setSelBatch(null)}
           onChanged={(upd) => {
             if (upd) setBatches((bs) => bs.map((x) => (x.id === upd.id ? upd : x)));
-            // kartalar + jurnal DARHOL yangilanadi (load jimgina — loader chiqmaydi)
             load();
           }}
         />
+      )}
+      {wasteBatch && (
+        <BatchMovementModal batch={wasteBatch} onClose={() => setWasteBatch(null)} onDone={(upd) => { patchBatch(upd); load(); }} />
+      )}
+      {movesBatch && <BatchMovesModal batch={movesBatch} onClose={() => setMovesBatch(null)} />}
+      {supplierDetail && (
+        <SupplierDetail supplier={supplierDetail} onClose={() => setSupplierDetail(null)} onOpenBatch={(bch) => { setSupplierDetail(null); setSelBatch(bch); }} />
       )}
     </>
   );

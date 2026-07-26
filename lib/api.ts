@@ -1,9 +1,10 @@
 "use client";
 import type {
   AISettings, Analytics, AuditLog, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
-  Flower, FlowerVariant, InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
+  Flower, FloristInput, FloristProfile, FloristSalaryEntry, FloristVolumeRate, FlowerVariant,
+  InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated,
-  SocialPost, StockBatch, StockMovement, UploadResponse, User,
+  SocialPost, StockBatch, StockMovement, Supplier, SupplierInput, UploadResponse, User, VolumeRateInput,
 } from "./types";
 
 /**
@@ -52,15 +53,39 @@ export function isLoggedIn(): boolean {
   return getTokens() != null;
 }
 
-/** DRF maydon xatolarini {maydon: xabar} ko'rinishiga tekislaydi. */
-function extractFieldErrors(body: unknown): Record<string, string> | undefined {
-  if (typeof body !== "object" || body == null || Array.isArray(body)) return undefined;
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
-    if (typeof v === "string") out[k] = v;
-    else if (Array.isArray(v) && v.length && typeof v[0] === "string") out[k] = v.join(" ");
+/**
+ * DRF xatolarini nuqtali kalitli tekis {maydon: xabar} ko'rinishiga keltiradi.
+ * Ichma-ich serializer xatolarini ham ochadi (masalan katalog kompozitsiyasi:
+ *   {"composition":[{"quantity_stems":["..."]}]} → {"composition.0.quantity_stems":"..."}),
+ * shu bilan formalar aynan mos inputga xatoni ko'rsata oladi (nafaqat umumiy toast).
+ */
+function flattenErrors(body: unknown, prefix: string, out: Record<string, string>): Record<string, string> {
+  if (body == null) return out;
+  if (typeof body === "string") {
+    if (prefix) out[prefix] = body;
+    return out;
   }
-  return Object.keys(out).length ? out : undefined;
+  if (Array.isArray(body)) {
+    if (body.length && body.every((x) => typeof x === "string")) {
+      if (prefix) out[prefix] = (body as string[]).join(" ");
+    } else {
+      body.forEach((x, i) => flattenErrors(x, prefix ? `${prefix}.${i}` : String(i), out));
+    }
+    return out;
+  }
+  if (typeof body === "object") {
+    for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
+      flattenErrors(v, prefix ? `${prefix}.${k}` : k, out);
+    }
+  }
+  return out;
+}
+
+function extractFieldErrors(body: unknown): Record<string, string> | undefined {
+  if (typeof body !== "object" || body == null) return undefined;
+  const flat = flattenErrors(body, "", {});
+  delete flat.detail; // umumiy xabar — maydon emas
+  return Object.keys(flat).length ? flat : undefined;
 }
 
 function statusMessage(status: number, body: unknown): string {
@@ -69,8 +94,8 @@ function statusMessage(status: number, body: unknown): string {
   }
   const fields = extractFieldErrors(body);
   if (fields) {
-    // masalan, dublikat post: {"media_id": "Bu Instagram media allaqachon ..."}
-    return Object.values(fields).join(" · ");
+    // takrorlanmas xabarlarni birlashtiramiz (masalan dublikat: {"media_id": "..."})
+    return Array.from(new Set(Object.values(fields))).join(" · ");
   }
   switch (status) {
     case 400: return "So'rov noto'g'ri — maydonlarni tekshiring";
@@ -265,9 +290,9 @@ export function logout() {
 export const api = {
   me: () => request<User>("/api/me/"),
   /** davr statistikasi uchun ?from=YYYY-MM-DD&to=YYYY-MM-DD berish mumkin */
-  dashboard: (p?: { from?: string; to?: string }) => request<Dashboard>(`/api/dashboard/${qs(p)}`),
+  dashboard: (p?: { from?: string; to?: string; date_from?: string; date_to?: string }) => request<Dashboard>(`/api/dashboard/${qs(p)}`),
   /** Analitika — dashboard bilan bir xil ko'rish ruxsati */
-  analytics: (p?: { from?: string; to?: string }) => request<Analytics>(`/api/analytics/${qs(p)}`),
+  analytics: (p?: { from?: string; to?: string; date_from?: string; date_to?: string }) => request<Analytics>(`/api/analytics/${qs(p)}`),
 
   /** Dinamik lead statuslari — kanban ustunlari shu yerdan chiziladi.
       Javob paginatsiyali ({results}) ham, oddiy massiv ham bo'lishi mumkin. */
@@ -333,11 +358,42 @@ export const api = {
   deactivateStockBatch: (id: number) =>
     request<StockBatch>(`/api/stock-batches/${id}/`, { method: "PATCH", body: JSON.stringify({ is_active: false }) }),
   /** DIQQAT: javob shakli kafolatlanmagan (harakat obyekti qaytishi mumkin) —
-      yangilangan partiya kerak bo'lsa api.stockBatch(id) bilan qayta o'qing */
-  batchMovement: (id: number, data: Partial<StockMovement>) =>
+      yangilangan partiya kerak bo'lsa api.stockBatch(id) bilan qayta o'qing.
+      Body: {movement_type, quantity_stems | quantity_bunches (string), reason} */
+  batchMovement: (id: number, data: { movement_type: string; quantity_stems?: number; quantity_bunches?: string; reason?: string }) =>
     request<unknown>(`/api/stock-batches/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
 
   stockMovements: (p?: Params) => list<StockMovement>("/api/stock-movements/", p),
+  stockMovementsPage: (p?: Params) => request<Paginated<StockMovement>>(`/api/stock-movements/${qs({ page_size: 50, ...p })}`),
+
+  /* ===== YETKAZIB BERUVCHILAR ===== */
+  suppliers: (p?: Params) => list<Supplier>("/api/suppliers/", p),
+  supplier: (id: number) => request<Supplier>(`/api/suppliers/${id}/`),
+  createSupplier: (data: SupplierInput) =>
+    request<Supplier>("/api/suppliers/", { method: "POST", body: JSON.stringify(data) }),
+  updateSupplier: (id: number, data: SupplierInput) =>
+    request<Supplier>(`/api/suppliers/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteSupplier: (id: number) => request<void>(`/api/suppliers/${id}/`, { method: "DELETE" }),
+
+  /* ===== FLORISTLAR ===== */
+  florists: (p?: Params) => list<FloristProfile>("/api/florists/", p),
+  florist: (id: number) => request<FloristProfile>(`/api/florists/${id}/`),
+  createFlorist: (data: FloristInput) =>
+    request<FloristProfile>("/api/florists/", { method: "POST", body: JSON.stringify(data) }),
+  updateFlorist: (id: number, data: FloristInput) =>
+    request<FloristProfile>(`/api/florists/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteFlorist: (id: number) => request<void>(`/api/florists/${id}/`, { method: "DELETE" }),
+
+  floristVolumeRates: (p?: Params) => list<FloristVolumeRate>("/api/florist-volume-rates/", p),
+  createVolumeRate: (data: VolumeRateInput) =>
+    request<FloristVolumeRate>("/api/florist-volume-rates/", { method: "POST", body: JSON.stringify(data) }),
+  updateVolumeRate: (id: number, data: VolumeRateInput) =>
+    request<FloristVolumeRate>(`/api/florist-volume-rates/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteVolumeRate: (id: number) => request<void>(`/api/florist-volume-rates/${id}/`, { method: "DELETE" }),
+
+  floristSalary: (p?: Params) => list<FloristSalaryEntry>("/api/florist-salary/", p),
+  createSalaryEntry: (data: Partial<FloristSalaryEntry>) =>
+    request<FloristSalaryEntry>("/api/florist-salary/", { method: "POST", body: JSON.stringify(data) }),
 
   catalog: (p?: Params) => list<CatalogItem>("/api/catalog/", p),
   createCatalogItem: (data: Record<string, unknown>) =>

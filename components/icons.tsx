@@ -6,6 +6,8 @@ import {
   ApiIcon,
   ArrowDown01Icon,
   ClipboardClockIcon,
+  DeliveryTruck01Icon,
+  Scissor01Icon,
   FlowerPotIcon,
   Attachment01Icon,
   BubbleChatIcon,
@@ -48,6 +50,8 @@ const ICONS: Record<string, typeof FlowerIcon> = {
   crm: ShoppingBag01Icon, // Buyurtmalar
   mijozlar: UserGroupIcon,
   sklad: PackageIcon,
+  suppliers: DeliveryTruck01Icon,
+  floristlar: Scissor01Icon,
   katalog: FlowerIcon,
   gullar: FlowerPotIcon,
   bildirishnomalar: Notification03Icon,

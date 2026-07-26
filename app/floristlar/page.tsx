@@ -1,0 +1,167 @@
+"use client";
+import { useCallback, useEffect, useState } from "react";
+import { Clock, Pencil, Plus, Scissors, Trash2 } from "lucide-react";
+import clsx from "clsx";
+import { api } from "@/lib/api";
+import { usePerm, useStore } from "@/lib/store";
+import useAutoRefresh from "@/lib/useAutoRefresh";
+import { initials, fmt } from "@/lib/format";
+import { STAFF_LABEL } from "@/lib/inventory";
+import SearchInput from "@/components/SearchInput";
+import EmptyState from "@/components/EmptyState";
+import FlowerLoader from "@/components/FlowerLoader";
+import FloristModal from "@/components/FloristModal";
+import VolumeRateMatrix from "@/components/VolumeRateMatrix";
+import SalaryLedger from "@/components/SalaryLedger";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import type { FloristProfile } from "@/lib/types";
+
+const TAB_LABEL = { profillar: "Profillar", tariflar: "Hajm tariflari", oyliklar: "Oyliklar" } as const;
+
+export default function FloristlarPage() {
+  const { showToast } = useStore();
+  const { canControl } = usePerm();
+  const control = canControl("settings");
+  const [tab, setTab] = useState<"profillar" | "tariflar" | "oyliklar">("profillar");
+  const [rows, setRows] = useState<FloristProfile[] | null>(null);
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState<{ open: boolean; edit: FloristProfile | null }>({ open: false, edit: null });
+  const [confirmOff, setConfirmOff] = useState<FloristProfile | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api.florists({ ordering: "user" }).then(setRows).catch((e) => showToast(e instanceof Error ? e.message : "Yuklashda xatolik"));
+  }, [showToast]);
+  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
+
+  const name = (fp: FloristProfile) => {
+    const u = fp.user_detail;
+    return u ? [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username : `Florist #${fp.id}`;
+  };
+  const q = search.trim().toLowerCase();
+  const filtered = (rows ?? []).filter((fp) => !q || name(fp).toLowerCase().includes(q) || (fp.phone ?? "").includes(q));
+
+  const deactivate = async () => {
+    if (!confirmOff) return;
+    setBusy(true);
+    try {
+      const upd = await api.updateFlorist(confirmOff.id, { is_active: !confirmOff.is_active });
+      setRows((rs) => rs?.map((r) => (r.id === upd.id ? upd : r)) ?? null);
+      setConfirmOff(null);
+      showToast(upd.is_active ? "✓ Florist faollashtirildi" : "✓ Florist nofaollashtirildi");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Bajarib bo'lmadi");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tabBar = (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      {(["profillar", "tariflar", "oyliklar"] as const).map((t) => (
+        <button
+          key={t}
+          onClick={() => setTab(t)}
+          aria-pressed={tab === t}
+          className={clsx("rounded-full border-[1.5px] px-5 py-2 text-[13px] font-bold", tab === t ? "text-white" : "bg-sfc")}
+          style={tab === t ? { background: "var(--acc)", borderColor: "var(--acc)" } : { borderColor: "var(--line)", color: "var(--mut)" }}
+        >
+          {TAB_LABEL[t]}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (rows === null && tab === "profillar") return <FlowerLoader />;
+
+  if (tab === "tariflar") return <>{tabBar}<VolumeRateMatrix /></>;
+  if (tab === "oyliklar") return <>{tabBar}<SalaryLedger /></>;
+
+  return (
+    <>
+      {tabBar}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>Floristlar ({filtered.length}) — profil, ish vaqti va geofence</p>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Florist qidirish" />
+          {control && (
+            <button onClick={() => setForm({ open: true, edit: null })} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+              <Plus size={17} strokeWidth={1.75} /> Yangi
+            </button>
+          )}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState title="Florist yo'q" sub="Birinchi floristni qo'shing — katalog yaratishda tanlanadi." />
+      ) : (
+        <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))" }}>
+          {filtered.map((fp) => {
+            const isApp = fp.staff_type === "apprentice";
+            return (
+              <article key={fp.id} className="glass group flex flex-col gap-3 !rounded-[18px] p-4" style={{ opacity: fp.is_active ? 1 : 0.55 }}>
+                <div className="flex items-center gap-3">
+                  <span className="avatar-lead flex h-11 w-11 shrink-0 -rotate-3 items-center justify-center rounded-[13px] text-[14px] font-bold">{initials(name(fp))}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-bold" title={name(fp)}>{name(fp)}</div>
+                    <div className="truncate text-[12.5px]" style={{ color: "var(--muted)" }}>{fp.phone || "telefon yo'q"}</div>
+                  </div>
+                  <span className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: isApp ? "color-mix(in srgb, #b3873a 15%, transparent)" : "var(--primary-soft)", color: isApp ? "#b3873a" : "var(--primary)" }}>
+                    {STAFF_LABEL[fp.staff_type]}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 text-[12px]">
+                  {(fp.work_start_time || fp.work_end_time) && (
+                    <span className="flex items-center gap-1 rounded-full bg-sfc px-2.5 py-0.5 font-semibold" style={{ color: "var(--text-2)" }}>
+                      <Clock size={11} strokeWidth={2} /> {fp.work_start_time?.slice(0, 5) ?? "—"}–{fp.work_end_time?.slice(0, 5) ?? "—"}
+                    </span>
+                  )}
+                  <span className="rounded-full bg-sfc px-2.5 py-0.5 font-semibold" style={{ color: "var(--text-2)" }}>Kunlik {fmt(fp.daily_pay)}</span>
+                </div>
+                <div className="mt-auto flex items-end justify-between border-t pt-2.5" style={{ borderColor: "var(--line2)" }}>
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wider" style={{ color: "var(--muted)" }}>Oylik jami</div>
+                    <div className="text-[15px] font-bold" style={{ color: "var(--acc)" }}>{fmt(fp.salary_total)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[11px] uppercase tracking-wider" style={{ color: "var(--muted)" }}>Buketlar</div>
+                    <div className="text-[15px] font-bold tabular-nums">{fp.catalog_count} ta</div>
+                  </div>
+                  {control && (
+                    <span className="ml-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
+                      <button onClick={() => setForm({ open: true, edit: fp })} className="icon-btn !h-8 !w-8" title="Tahrirlash" aria-label={`${name(fp)} — tahrirlash`}><Pencil size={14} strokeWidth={1.75} /></button>
+                      <button onClick={() => setConfirmOff(fp)} className="icon-btn icon-btn-danger !h-8 !w-8" title={fp.is_active ? "Nofaollashtirish" : "Faollashtirish"} aria-label="Holatni o'zgartirish"><Trash2 size={14} strokeWidth={1.75} /></button>
+                    </span>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {form.open && (
+        <FloristModal
+          florist={form.edit}
+          onClose={() => setForm({ open: false, edit: null })}
+          onSaved={(fp) => {
+            setForm({ open: false, edit: null });
+            setRows((rs) => { const list = rs ?? []; const i = list.findIndex((x) => x.id === fp.id); return i >= 0 ? list.map((x) => (x.id === fp.id ? fp : x)) : [fp, ...list]; });
+          }}
+        />
+      )}
+      {confirmOff && (
+        <ConfirmDialog
+          title={confirmOff.is_active ? "Floristni nofaollashtirish" : "Floristni faollashtirish"}
+          body={`«${name(confirmOff)}» ${confirmOff.is_active ? "nofaollashtirilsinmi" : "faollashtirilsinmi"}? Keyin xohlagan payt qaytarish mumkin.`}
+          confirmLabel={confirmOff.is_active ? "Ha, nofaollashtirish" : "Ha, faollashtirish"}
+          danger={confirmOff.is_active}
+          busy={busy}
+          onConfirm={deactivate}
+          onCancel={() => setConfirmOff(null)}
+        />
+      )}
+    </>
+  );
+}

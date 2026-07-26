@@ -11,6 +11,7 @@ import { Icon } from "@/components/icons";
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
+import { slugify } from "@/lib/format";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import type { Flower, FlowerVariant } from "@/lib/types";
@@ -48,6 +49,8 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
         season_end_month: +seasonEnd || null,
         image_url: image,
         is_active: active,
+        // slug backendda MAJBURIY — nomdan avtomatik yasaymiz (tahrirda mavjudini saqlaymiz)
+        slug: flower?.slug || slugify(nameUz.trim() || nameRu.trim()),
       };
       const saved = flower ? await api.updateFlower(flower.id, payload) : await api.createFlower(payload);
       showToast(flower ? "✓ Gul yangilandi" : "✓ Gul qo'shildi");

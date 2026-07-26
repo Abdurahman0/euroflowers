@@ -180,19 +180,42 @@ export type FlowerVariant = {
   flower: number;
 };
 
+/** Yetkazib beruvchi (backend: /api/suppliers/) */
+export type Supplier = {
+  id: number;
+  name: string;
+  phone: string;
+  notes: string;
+  is_active: boolean;
+  /** faqat o'qish uchun statistika */
+  batches_count: number;
+  total_received_stems: number;
+  created_at?: string;
+  updated_at?: string;
+};
+export type SupplierInput = Partial<Pick<Supplier, "name" | "phone" | "notes" | "is_active">>;
+
 export type StockBatch = {
   id: number;
   variant_detail: FlowerVariant;
   branch_detail?: Branch;
+  /** yetkazib beruvchi tafsiloti — mavjud bo'lsa */
+  supplier_detail?: Supplier | null;
   remaining_bunches: number;
   stock_value: string;
+  /** "50 sm" yoki "40–60 sm" — backend tayyorlaydi */
+  height_label?: string;
   created_at: string;
   updated_at: string;
   batch_number: string;
   received_at: string;
   height_cm: number;
+  height_from_cm?: number | null;
+  height_to_cm?: number | null;
   stems_per_bunch: number;
   received_stems: number;
+  /** yozishda: received_stems bo'lmasa backend received_bunches × stems_per_bunch qiladi */
+  received_bunches?: string;
   remaining_stems: number;
   cost_per_stem: string;
   sale_price_per_stem: string;
@@ -203,6 +226,7 @@ export type StockBatch = {
   is_active: boolean;
   branch?: number;
   variant: number;
+  supplier?: number | null;
 };
 
 export type MovementType = "in" | "out" | "adjustment" | "waste" | "transfer_out" | "transfer_in";
@@ -234,6 +258,18 @@ export type CatalogComposition = {
   quantity_bunches: string;
 };
 
+/** Katalogga biriktirilgan material (backend: CatalogMaterialUsage) */
+export type CatalogMaterialUsage = {
+  id: number;
+  packaging: number;
+  packaging_detail?: Packaging;
+  quantity: number;
+};
+
+/** Katalog turi va hajmi (backend enum) */
+export type CatalogKind = "standard" | "custom";
+export type CatalogVolume = "small" | "medium" | "large";
+
 export type CatalogItem = {
   id: number;
   /** katalogga qo'yilgan tayyor buket soni / sotilgani / skladdan yechilgani */
@@ -250,10 +286,20 @@ export type CatalogItem = {
   description_uz: string;
   description_ru: string;
   arrangement_type: ArrangementType;
+  /** standart (florist tayyorladi) yoki maxsus (mijoz do'konda tanladi) */
+  catalog_kind?: CatalogKind;
+  volume?: CatalogVolume | null;
   height_cm: number | null;
   diameter_cm: number | null;
   price: string;
   florist_fee: string;
+  florist?: number | null;
+  florist_detail?: FloristProfile | null;
+  /** backend hisoblaydi — mijoz preview'i faqat yo'l-yo'riq */
+  calculated_cost_price?: string;
+  calculated_component_price?: string;
+  discount_amount?: string;
+  materials?: CatalogMaterialUsage[];
   status: CatalogStatus;
   image_url: string;
   instagram_story_url: string;
@@ -345,7 +391,7 @@ export type Conversation = {
   assigned_to: number | null;
 };
 
-export type NotificationType = "stock_pending" | "low_stock" | "lead" | "handoff";
+export type NotificationType = "stock_pending" | "low_stock" | "lead" | "handoff" | "supplier_stock";
 
 export type Notification = {
   id: number;
@@ -362,7 +408,7 @@ export type Notification = {
   branch?: number;
 };
 
-export type PackagingType = "wrap" | "basket" | "box" | "accessory";
+export type PackagingType = "wrap" | "basket" | "box" | "other" | "accessory";
 
 export type Packaging = {
   id: number;
@@ -441,6 +487,43 @@ export type Dashboard = {
   lead_pipeline: { status: LeadStatus; count: number }[];
   recent_leads: Lead[];
   recent_notifications: Notification[];
+  /** YANGI bloklar — backend qo'shsa keladi (aks holda undefined) */
+  net_profit?: number | string;
+  catalog_revenue?: number | string;
+  catalog_cost?: number | string;
+  catalog_discount?: number | string;
+  florist_salary_total?: number | string;
+  batch_inventory_stats?: BatchInventoryStat[];
+  florist_production_stats?: FloristProductionStat[];
+};
+
+/** Dashboard/Analytics: partiya bo'yicha SARF taqsimoti (jonli API shakli).
+    Diqqat: bu partiyadan CHIQQAN sarf — "qolgan" maydoni yo'q. */
+export type BatchInventoryStat = {
+  batch_id?: number;
+  batch_number?: string;
+  supplier_id?: number | null;
+  supplier_name?: string | null;
+  flower?: string;
+  variant?: string;
+  color?: string;
+  standard_catalog_stems?: number;
+  custom_catalog_stems?: number;
+  waste_stems?: number;
+  total_out_stems?: number;
+};
+
+/** Dashboard/Analytics: florist ishlab chiqarish statistikasi (jonli API shakli) */
+export type FloristProductionStat = {
+  florist_id?: number;
+  name?: string;
+  staff_type?: StaffType;
+  standard_bouquets?: number;
+  standard_baskets?: number;
+  custom_bouquets?: number;
+  custom_baskets?: number;
+  catalog_total?: number;
+  salary_total?: number | string;
 };
 
 /** Analitika sahifasi (GET /api/analytics/) */
@@ -450,6 +533,10 @@ export type Analytics = {
   summary: {
     leads: number; customers: number; conversations: number; orders: number;
     revenue: string; florist_revenue: string; flowers_sold_stems: number; conversion_rate: number;
+    /** jonli API: sof foyda bloklari summary ICHIDA keladi (top-level emas) */
+    net_profit?: number | string; catalog_revenue?: number | string;
+    catalog_cost?: number | string; catalog_discount?: number | string;
+    florist_salary_total?: number | string;
   };
   daily_stats: AnalyticsDaily[];
   top_selling_flowers: { flower_id: number; name_uz: string; name_ru: string; color_uz: string; color_ru: string; stems: number; bunches: string }[];
@@ -458,6 +545,72 @@ export type Analytics = {
   arrangement_types: { arrangement_type: string; count: number }[];
   conversation_sources: { source: string; count: number }[];
   revenue_by_source: { source: string; orders: number; revenue: string }[];
+  /** YANGI bloklar (defensiv — mavjud bo'lsa) */
+  net_profit?: number | string;
+  catalog_revenue?: number | string;
+  catalog_cost?: number | string;
+  catalog_discount?: number | string;
+  florist_salary_total?: number | string;
+  batch_inventory_stats?: BatchInventoryStat[];
+  florist_production_stats?: FloristProductionStat[];
+};
+
+/* ===== FLORISTLAR ===== */
+
+export type StaffType = "florist" | "apprentice";
+
+/** Florist profili (backend: /api/florists/) */
+export type FloristProfile = {
+  id: number;
+  user: number;
+  user_detail?: User;
+  branch: number;
+  branch_detail?: Branch;
+  staff_type: StaffType;
+  phone: string;
+  daily_pay: string;
+  work_start_time: string | null;
+  work_end_time: string | null;
+  shop_latitude: string | null;
+  shop_longitude: string | null;
+  arrival_radius_meters: number | null;
+  departure_radius_meters: number | null;
+  is_active: boolean;
+  /** faqat o'qish */
+  salary_total: string;
+  catalog_count: number;
+  created_at?: string;
+  updated_at?: string;
+};
+export type FloristInput = Partial<Omit<FloristProfile, "id" | "user_detail" | "branch_detail" | "salary_total" | "catalog_count" | "created_at" | "updated_at">>;
+
+/** Florist hajm tarifi (backend: /api/florist-volume-rates/) */
+export type FloristVolumeRate = {
+  id: number;
+  branch: number;
+  branch_detail?: Branch;
+  arrangement_type: "bouquet" | "basket";
+  volume: CatalogVolume;
+  default_stems: number;
+  florist_fee: string;
+  is_active: boolean;
+};
+export type VolumeRateInput = Partial<Omit<FloristVolumeRate, "id" | "branch_detail">>;
+
+/** Florist oylik yozuvi (backend: /api/florist-salary/) */
+export type SalarySource = "catalog" | "custom_catalog" | "daily" | "manual";
+export type FloristSalaryEntry = {
+  id: number;
+  florist: number;
+  florist_detail?: FloristProfile;
+  catalog_item?: number | null;
+  catalog_item_detail?: { id: number; name_uz?: string } | null;
+  amount: string;
+  source: SalarySource;
+  work_date: string;
+  note: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type Paginated<T> = {
@@ -544,7 +697,7 @@ export type InstagramEvent = {
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "analitika" | "chat" | "ai" | "crm" | "mijozlar" | "sklad" | "gullar" | "katalog" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
+export type ScreenId = "dashboard" | "analitika" | "chat" | "ai" | "crm" | "mijozlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";
 /** Maxsus davr — YYYY-MM-DD (ikkalasi ham kiritilgan kun bilan) */
 export type DateRange = { from: string; to: string };

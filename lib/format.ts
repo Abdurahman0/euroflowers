@@ -47,10 +47,18 @@ export const dateAfterParam = (filter: "bugun" | "hafta" | "oy"): string => {
 /** Maxsus oraliq → {created_at_after, created_at_before} (before — keyingi kun,
     DRF "<" solishtiradi, "to" kuni ham qamrab olinadi). */
 export const rangeParams = (r: { from: string; to: string }): { created_at_after: string; created_at_before: string } => {
-  const d = new Date(r.to + "T00:00:00");
+  return { created_at_after: r.from, created_at_before: dateBeforeParam(r.to) };
+};
+
+/**
+ * date_to uchun EKSKLYUZIV oxir. Backend `date_to=YYYY-MM-DD` ni kun BOSHIga
+ * (00:00) deb oladi — ya'ni tanlangan kunni chiqarib tashlaydi (jonli tekshiruvda
+ * tasdiqlangan). Tanlangan kunni to'liq qamrash uchun KEYINGI kun yuboriladi.
+ */
+export const dateBeforeParam = (ymdStr: string): string => {
+  const d = new Date(ymdStr + "T00:00:00");
   d.setDate(d.getDate() + 1);
-  const before = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return { created_at_after: r.from, created_at_before: before };
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 /** ISO datetime → lokal "YYYY-MM-DDTHH:mm" (DatePicker withTime qiymati). */
@@ -79,3 +87,22 @@ export const inDateFilter = (iso: string, filter: "bugun" | "hafta" | "oy"): boo
   const days = filter === "hafta" ? 7 : 30;
   return now.getTime() - d.getTime() <= days * 86400000;
 };
+
+/** Nomdan slug yasaydi (backend `slug` maydonini talab qiladi).
+    O'zbek/kirill harflari lotinga o'giriladi, bo'shliqlar "-" bo'ladi. */
+// apostroflar/tinish belgilari oxirgi regex bilan olib tashlanadi — bu yerda faqat kirill
+const SLUG_MAP: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "j", з: "z", и: "i",
+  й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t",
+  у: "u", ф: "f", х: "x", ц: "s", ч: "ch", ш: "sh", щ: "sh", ъ: "", ы: "i", ь: "",
+  э: "e", ю: "yu", я: "ya", ў: "o", қ: "q", ғ: "g", ҳ: "h",
+};
+export const slugify = (name: string): string =>
+  name
+    .toLowerCase()
+    .split("")
+    .map((ch) => (ch in SLUG_MAP ? SLUG_MAP[ch] : ch))
+    .join("")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "gul";

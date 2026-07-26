@@ -168,6 +168,11 @@ export const useStore = create<State>((set, get) => ({
               : [n as Notification, ...s.notifs],
           }));
           if (!n.is_read) get().pushNotifToast(n as Notification);
+          // supplier_stock — yangi partiya keldi: ochiq sklad sahifalari darhol
+          // yangilanadi (query-cache yo'q — window hodisasi bilan xabar beramiz)
+          if (n.notification_type === "supplier_stock" && typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("ef:stock-changed", { detail: n }));
+          }
         } else {
           // noma'lum xabar turi — ro'yxatni qayta o'qish arzon va doim to'g'ri
           get().loadNotifs();

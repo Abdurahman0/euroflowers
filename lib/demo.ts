@@ -174,10 +174,10 @@ const mkBatch = (
 
 const batches: StockBatch[] = [
   mkBatch(1, variants[0], branches[0], 200, 140, "18000", "35000", 50, 1),
-  mkBatch(2, variants[1], branches[0], 150, 30, "20000", "38000", 50, 3),
+  mkBatch(2, variants[1], branches[0], 150, 0, "20000", "38000", 50, 3),  // TUGADI — yuqoriga suriladi
   mkBatch(3, variants[2], branches[0], 500, 410, "9000", "18000", 60, 0),
   mkBatch(4, variants[3], branches[1], 120, 96, "22000", "42000", 45, 2),
-  mkBatch(5, variants[4], branches[1], 100, 12, "24000", "45000", 45, 5),
+  mkBatch(5, variants[4], branches[1], 100, 8, "24000", "45000", 45, 5),   // KAM QOLDI — eng yuqoriga
 ];
 
 const mkMove = (id: number, b: StockBatch, type: StockMovement["movement_type"], qty: number, reason: string, days: number, hours: number): StockMovement => ({

@@ -6,12 +6,13 @@ import { InstagramIcon, TelegramIcon, SmartPhone01Icon } from "@hugeicons/core-f
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { dateAfterParam, fmt } from "@/lib/format";
+import { dateAfterParam, dateBeforeParam, fmt } from "@/lib/format";
 import { statusName, ARRANGEMENT_LABEL } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
 import { DonutChart, HBars, RevenueBars } from "@/components/AnalyticsCharts";
+import { NetProfitCard, BatchInventoryBars, FloristProductionCards } from "@/components/AnalyticsExtra";
 import FlowerLoader from "@/components/FlowerLoader";
 import type { Analytics, LeadStatusDef } from "@/lib/types";
 
@@ -58,7 +59,10 @@ export default function AnalitikaPage() {
   const to = dateRange ? dateRange.to : ymd(new Date());
 
   const load = useCallback(() => {
-    api.analytics({ from, to }).then(setA).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
+    // date_to EKSKLYUZIV — backend uni kun boshiga oladi, shu bois oxirgi kunni
+    // to'liq qamrash uchun keyingi kun yuboriladi (aks holda "bugun" tushib qoladi).
+    const toExcl = dateBeforeParam(to);
+    api.analytics({ from, to: toExcl, date_from: from, date_to: toExcl }).then(setA).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
     api.leadStatuses().then((s) => s.length && setStatuses(s)).catch(() => {});
   }, [from, to]);
 
@@ -108,6 +112,18 @@ export default function AnalitikaPage() {
           </div>
         ))}
       </motion.div>
+
+      {/* YANGI: sof foyda + florist ishlab chiqarish.
+          Jonli API: pul maydonlari summary ICHIDA, statlar top-level. */}
+      {(s.net_profit != null || s.catalog_revenue != null || a.florist_production_stats?.length) && (
+        <motion.div variants={rise} className="grid items-start gap-4 lg:grid-cols-[minmax(260px,1fr)_2fr]">
+          <NetProfitCard netProfit={s.net_profit} revenue={s.catalog_revenue} cost={s.catalog_cost} discount={s.catalog_discount} />
+          <FloristProductionCards rows={a.florist_production_stats} salaryTotal={s.florist_salary_total} />
+        </motion.div>
+      )}
+      {a.batch_inventory_stats?.length ? (
+        <motion.div variants={rise}><BatchInventoryBars rows={a.batch_inventory_stats} /></motion.div>
+      ) : null}
 
       {/* kunlik dinamika: sonlar (3 seriya) va daromad — ALOHIDA grafiklar */}
       <div className="grid items-start gap-4 xl:grid-cols-2">

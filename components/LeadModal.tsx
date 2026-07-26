@@ -249,6 +249,15 @@ export default function LeadModal({
         <NoteBlock text={lead.request_uz || lead.request_ru || "—"} />
       </div>
 
+      {/* KATALOG buyurtmasi — gullar allaqachon katalog yaratilganda yechilgan,
+          operator qo'lda yana yechmasin (backend qo'sh yechmaydi) */}
+      {lead.arrangement_type === "catalog" && (
+        <div className="mt-3 flex items-start gap-2 rounded-[14px] bg-mint px-3.5 py-2.5 text-[12.5px] font-semibold leading-snug text-mintink">
+          <span aria-hidden>🌸</span>
+          <span>Gullar katalog yaratilganda yechilgan — «Sotildi»da faqat katalog soni kamayadi, sklad qayta yechilmaydi.</span>
+        </div>
+      )}
+
       {/* sklad sarfi — won bo'lganda backend shu qatorlar bo'yicha kamaytiradi */}
       <div className="mt-3 rounded-2xl border border-[color:var(--border)] px-4 py-3">
         <div className="mb-1.5 flex items-center justify-between">
