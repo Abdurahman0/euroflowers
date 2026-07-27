@@ -13,7 +13,9 @@ import FilterSelect from "@/components/FilterSelect";
 import ClearFilters from "@/components/ClearFilters";
 import Modal from "@/components/Modal";
 import { initials } from "@/lib/format";
-import type { AuditLog } from "@/lib/types";
+import type { AuditLog, User } from "@/lib/types";
+
+const userName = (u: User) => [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || `#${u.id}`;
 
 /**
  * Audit jurnali — kim, nima qilgani va NIMA O'ZGARGANI.
@@ -44,23 +46,37 @@ export default function AuditPage() {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState("");
   const [entity, setEntity] = useState("");
+  const [user, setUser] = useState(""); // xodim bo'yicha SERVER filtri (?user=id)
+  const [users, setUsers] = useState<User[]>([]);
   const [sel, setSel] = useState<AuditLog | null>(null);
   const [shown, setShown] = useState(50); // «Yana ko'rsatish» qadami
 
   const load = useCallback(() => {
     if (!visible) return;
-    api.audit({ page_size: 100 })
+    // xodim filtri server tomonda — tanlangan xodimning BARCHA amallari keladi
+    api.audit({ page_size: 100, user: user || undefined })
       .then((r) => setRows(r))
       .catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
-  }, [visible]);
+  }, [visible, user]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash
+
+  // xodimlar ro'yxati — filtr uchun (bir marta)
+  useEffect(() => {
+    if (!visible) return;
+    api.users({ page_size: 100, ordering: "username" }).then(setUsers).catch(() => {});
+  }, [visible]);
 
   const entityOpts = useMemo(() => {
     const uniq = Array.from(new Set((rows ?? []).map((r) => r.entity_type)));
     return [{ value: "", label: "Barcha obyektlar" }, ...uniq.map((e) => ({ value: e, label: entityName(e) }))];
   }, [rows]);
+
+  const userOpts = useMemo(
+    () => [{ value: "", label: "Barcha xodimlar" }, ...users.map((u) => ({ value: String(u.id), label: userName(u) }))],
+    [users]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -88,9 +104,10 @@ export default function AuditPage() {
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Jurnaldan qidirish" />
+          {users.length > 0 && <FilterSelect value={user} options={userOpts} onChange={(v) => { setUser(v); setShown(50); }} label="Xodim" />}
           <FilterSelect value={kind} options={KIND_OPTS} onChange={setKind} label="Amal" />
           <FilterSelect value={entity} options={entityOpts} onChange={setEntity} label="Obyekt" />
-          <ClearFilters show={!!(search || kind || entity)} onClear={() => { setSearch(""); setKind(""); setEntity(""); }} />
+          <ClearFilters show={!!(search || kind || entity || user)} onClear={() => { setSearch(""); setKind(""); setEntity(""); setUser(""); }} />
         </div>
       </div>
 

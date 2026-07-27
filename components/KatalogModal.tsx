@@ -428,6 +428,17 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
         <Field label="Florist haqi (so'm)">
           <input className="inp" type="number" value={f.florist_fee} onChange={(e) => { setFeeFromRate(false); setF({ ...f, florist_fee: e.target.value }); }} placeholder="Masalan: 50000" />
           {feeFromRate && <span className="mt-0.5 block text-[11px] font-semibold" style={{ color: "var(--primary)" }}>Tarifdan olindi</span>}
+          {/* JONLI OYLIK ta'siri — backend: salary = florist_fee × quantity_total */}
+          {+f.florist_fee > 0 && (
+            florist ? (
+              <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
+                Oylikka: {qtyTotal > 1 ? `${(+f.florist_fee).toLocaleString("ru")} × ${qtyTotal} dona = ` : ""}
+                <b style={{ color: "var(--acc)" }}>{fmt(+f.florist_fee * qtyTotal)}</b>
+              </span>
+            ) : (
+              <span className="mt-0.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>Florist tanlanmagan — oylik yozilmaydi</span>
+            )
+          )}
           <Err k="florist_fee" />
         </Field>
         <Field label="Story havolasi" span><input className="inp" value={f.instagram_story_url} onChange={set("instagram_story_url")} placeholder="Masalan: https://instagram.com/stories/…" /></Field>
