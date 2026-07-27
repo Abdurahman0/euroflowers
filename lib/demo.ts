@@ -164,7 +164,7 @@ const mkBatch = (
   id: number, v: FlowerVariant, br: Branch, received: number, remaining: number,
   cost: string, sale: string, height: number, days: number
 ): StockBatch => ({
-  id, variant_detail: v, branch_detail: br, remaining_bunches: Math.floor(remaining / 10),
+  id, variant_detail: v, branch_detail: br, remaining_bunches: (remaining / 10).toFixed(2),
   stock_value: String(remaining * Number(sale)), created_at: ago(days), updated_at: ago(0, 2),
   batch_number: `B-2607-${100 + id}`, received_at: ago(days), height_cm: height, stems_per_bunch: 10,
   received_stems: received, remaining_stems: remaining, cost_per_stem: cost, sale_price_per_stem: sale,
@@ -554,7 +554,7 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       const qty = Number(body.quantity_stems) || 0;
       const delta = body.movement_type === "in" || body.movement_type === "transfer_in" ? qty : -qty;
       bt.remaining_stems = Math.max(bt.remaining_stems + delta, 0);
-      bt.remaining_bunches = Math.floor(bt.remaining_stems / (bt.stems_per_bunch || 10));
+      bt.remaining_bunches = (bt.remaining_stems / (bt.stems_per_bunch || 10)).toFixed(2);
       bt.updated_at = ago(0);
       const mv = mkMove(900 + movements.length, bt, body.movement_type as StockMovement["movement_type"], qty, String(body.reason ?? ""), 0, 0);
       movements.unshift(mv);

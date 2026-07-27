@@ -1,6 +1,6 @@
 "use client";
-import { Info, Plus, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Info, Plus, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -10,7 +10,7 @@ import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
-import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt } from "@/lib/inventory";
+import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials } from "@/lib/inventory";
 import type { ArrangementType, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; mode: "stems" | "bunches"; qty: string };
@@ -48,8 +48,21 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [mats, setMats] = useState<MatRow[]>(item?.materials?.length ? item.materials.map((m) => ({ packaging: m.packaging, qty: String(m.quantity) })) : []);
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
+  // yetarli qoldiq yo'q — backend `detail` (ko'p qatorli) alohida holatda ko'rsatiladi
+  const [stockError, setStockError] = useState<{ lines: string[]; batchId: number | null } | null>(null);
+  // dublikat qator birlashganda qisqa yorug'lik (flash) beriladi
+  const [flashBatch, setFlashBatch] = useState<number | null>(null);
+  const [flashMat, setFlashMat] = useState<number | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>();
+  const flash = (kind: "comp" | "mat", id: number) => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    if (kind === "comp") setFlashBatch(id); else setFlashMat(id);
+    showToast("Mavjud qatorga qo'shildi");
+    flashTimer.current = setTimeout(() => { setFlashBatch(null); setFlashMat(null); }, 600);
+  };
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => { setF({ ...f, [k]: e.target.value }); if (errs[k]) setErrs((x) => { const n = { ...x }; delete n[k]; return n; }); };
   const compLocked = !!item && ((item.quantity_sold ?? 0) > 0 || !!item.stock_deducted_at);
+  const qtyTotal = Math.max(+f.quantity_total || 1, 1);
 
   useEffect(() => {
     api.stockBatches({ is_active: true }).then((bs) => {
@@ -71,6 +84,49 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     return r.mode === "bunches" ? Math.round(n * (b?.stems_per_bunch || 1)) : Math.round(n);
   };
 
+  // DUBLIKAT: bir xil stock_batch tanlansa — ikkinchi qator qo'shilmaydi,
+  // mavjud qatorga miqdor qo'shiladi (qator qisqa yonib chiqadi + toast).
+  const setBatchAt = (i: number, newBatch: number) => {
+    setComp((rows) => {
+      const dupIdx = rows.findIndex((r, j) => j !== i && r.stock_batch === newBatch);
+      if (dupIdx === -1) return rows.map((r, j) => (j === i ? { ...r, stock_batch: newBatch } : r));
+      const spb = batchOf(newBatch)?.stems_per_bunch || 1;
+      const r = rows[i];
+      const incStems = r.mode === "bunches" ? Math.round((parseFloat(r.qty) || 0) * spb) : Math.round(parseFloat(r.qty) || 0);
+      const merged = rows
+        .map((x, j) => {
+          if (j !== dupIdx) return x;
+          const cur = x.mode === "bunches" ? (parseFloat(x.qty) || 0) + incStems / spb : (parseFloat(x.qty) || 0) + incStems;
+          return { ...x, qty: x.mode === "bunches" ? String(+cur.toFixed(2)) : String(Math.round(cur)) };
+        })
+        .filter((_, j) => j !== i);
+      flash("comp", newBatch);
+      return merged;
+    });
+  };
+  const addComp = () => {
+    const used = new Set(comp.map((r) => r.stock_batch));
+    const next = batches.find((b) => !used.has(b.id)) ?? batches[0];
+    setComp([...comp, { stock_batch: next?.id ?? 0, mode: "stems", qty: "" }]);
+  };
+  const setMatAt = (i: number, newPack: number) => {
+    setMats((rows) => {
+      const dupIdx = rows.findIndex((r, j) => j !== i && r.packaging === newPack);
+      if (dupIdx === -1) return rows.map((r, j) => (j === i ? { ...r, packaging: newPack } : r));
+      const inc = +rows[i].qty || 0;
+      const merged = rows
+        .map((x, j) => (j === dupIdx ? { ...x, qty: String((+x.qty || 0) + inc) } : x))
+        .filter((_, j) => j !== i);
+      flash("mat", newPack);
+      return merged;
+    });
+  };
+  const addMat = () => {
+    const used = new Set(mats.map((m) => m.packaging));
+    const next = materials.find((p) => !used.has(p.id)) ?? materials[0];
+    setMats([...mats, { packaging: next?.id ?? 0, qty: "1" }]);
+  };
+
   // hajm + turi tanlansa florist_fee tarifdan olinadi (ko'rsatilmagan bo'lsa)
   useEffect(() => {
     if (!volume || (f.arrangement_type !== "bouquet" && f.arrangement_type !== "basket")) return;
@@ -87,29 +143,37 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     const compCost = comp.reduce((s, r) => { const b = batchOf(r.stock_batch); return s + (b ? Math.round(+b.cost_per_stem) * stemsOfRow(r) : 0); }, 0);
     const matPrice = mats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+p.sale_price) * (+m.qty || 0) : 0); }, 0);
     const matCost = mats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+p.cost_price) * (+m.qty || 0) : 0); }, 0);
-    const sale = +f.price || 0;
     const fee = +f.florist_fee || 0;
-    // BACKEND kontrakti (jonli tekshiruvda tasdiqlangan): florist_fee HAM
-    // calculated_component_price'ga, HAM calculated_cost_price'ga qo'shiladi;
-    // discount = component − sotuv. Shu sabab fee'ni ikkalasiga ham qo'shamiz.
-    const componentPrice = compPrice + matPrice + fee;
-    const cost = compCost + matCost + fee;
-    return { componentPrice, cost, sale, fee, discount: Math.max(0, componentPrice - sale), profit: sale - cost };
-  }, [comp, mats, f.price, f.florist_fee, batches, materials]); // eslint-disable-line react-hooks/exhaustive-deps
+    // BACKEND kontrakti (jonli tekshiruvda tasdiqlangan):
+    //  • florist_fee HAM component narxiga, HAM tannarxga qo'shiladi
+    //  • component, cost, sotuv — HAMMASI quantity_total ga ko'paytiriladi
+    //  • discount = componentTotal − sotuvTotal
+    const perUnitComponent = compPrice + matPrice + fee;
+    const perUnitCost = compCost + matCost + fee;
+    const componentPrice = perUnitComponent * qtyTotal;
+    const cost = perUnitCost * qtyTotal;
+    const sale = (+f.price || 0) * qtyTotal;
+    return { componentPrice, cost, sale, fee: fee * qtyTotal, discount: Math.max(0, componentPrice - sale), profit: sale - cost, qty: qtyTotal };
+  }, [comp, mats, f.price, f.florist_fee, f.quantity_total, qtyTotal, batches, materials]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     if (!f.name_uz) return showToast("Nomini kiriting");
     if (!f.price) return showToast("Narxini kiriting");
-    const composition = comp.filter((r) => r.stock_batch && stemsOfRow(r) > 0).map((r) => {
-      const b = batchOf(r.stock_batch);
-      const st = stemsOfRow(r);
-      return r.mode === "bunches"
-        ? { stock_batch: r.stock_batch, quantity_stems: st, quantity_bunches: (parseFloat(r.qty) || 0).toFixed(2) }
-        : { stock_batch: r.stock_batch, quantity_stems: st, ...(b?.stems_per_bunch ? { quantity_bunches: (st / b.stems_per_bunch).toFixed(2) } : {}) };
-    });
-    const materialsPayload = mats.filter((m) => m.packaging && +m.qty > 0).map((m) => ({ packaging: m.packaging, quantity: +m.qty }));
+    // NORMALLASHTIRISH: bir xil stock_batch/packaging qatorlari BITTAGA
+    // birlashtiriladi (bitta buket = bitta item, ko'p qatorli composition).
+    const composition = normalizeComposition(
+      comp.filter((r) => r.stock_batch && stemsOfRow(r) > 0).map((r) => {
+        const b = batchOf(r.stock_batch);
+        const st = stemsOfRow(r);
+        return r.mode === "bunches"
+          ? { stock_batch: r.stock_batch, quantity_stems: st, quantity_bunches: (parseFloat(r.qty) || 0).toFixed(2) }
+          : { stock_batch: r.stock_batch, quantity_stems: st, ...(b?.stems_per_bunch ? { quantity_bunches: (st / b.stems_per_bunch).toFixed(2) } : {}) };
+      })
+    );
+    const materialsPayload = normalizeMaterials(mats.filter((m) => m.packaging && +m.qty > 0).map((m) => ({ packaging: m.packaging, quantity: +m.qty })));
     setBusy(true);
     setErrs({});
+    setStockError(null);
     const payload: Record<string, unknown> = {
       name_uz: f.name_uz,
       name_ru: f.name_uz,
@@ -140,7 +204,24 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       onSaved();
       onClose();
     } catch (e) {
-      if (e instanceof ApiError && e.fieldErrors) {
+      // backend `detail` MASSIV bo'lishi mumkin (["...\n..."]) — bittalab qatorga yig'amiz
+      const rawDetail = e instanceof ApiError && e.body && typeof e.body === "object" && "detail" in e.body ? (e.body as { detail: unknown }).detail : null;
+      const detail = Array.isArray(rawDetail) ? rawDetail.join("\n") : rawDetail != null ? String(rawDetail) : null;
+      // yig'ilgan xato matnida sklad-yetishmovchilik belgilari bormi?
+      const stockText = [detail, e instanceof ApiError ? e.message : null, ...(e instanceof ApiError && e.fieldErrors ? Object.values(e.fieldErrors) : [])]
+        .find((s) => s && /(yetarli qoldiq|yetmayapti|qoldiq yo|kerak:|bor:)/i.test(s)) || null;
+      if (stockText) {
+        // "Gul: / Partiya: / Kerak: / Bor: / Yetmayapti:" qatorlari — sarlavha
+        // takrorlanmasin uchun umumiy kirish satrini (ikki nuqtasiz) tashlaymiz
+        const all = stockText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        const labeled = all.filter((l) => l.includes(":"));
+        const lines = labeled.length ? labeled : all;
+        // aybdor partiyani topamiz — matnda partiya raqami yoki gul nomi bo'lsa
+        const off = comp.find((r) => { const b = batchOf(r.stock_batch); return b?.batch_number && stockText.includes(b.batch_number); })
+          ?? comp.find((r) => { const nm = batchOf(r.stock_batch)?.variant_detail?.flower_detail?.name_uz; return nm && stockText.includes(nm); });
+        setStockError({ lines, batchId: off?.stock_batch ?? null });
+        showToast("Skladda yetarli qoldiq yo'q");
+      } else if (e instanceof ApiError && e.fieldErrors) {
         setErrs(e.fieldErrors);
         showToast(e.message);
       } else {
@@ -156,6 +237,9 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     materials.forEach((m) => { const k = m.packaging_type; (g.get(k) ?? g.set(k, []).get(k)!).push(m); });
     return g;
   }, [materials]);
+
+  // bitta mahsulotga ketadigan jami gul (skladdan yechish hisobi uchun)
+  const perUnitStems = comp.reduce((s, r) => s + (r.stock_batch ? stemsOfRow(r) : 0), 0);
 
   const Err = ({ k }: { k: string }) =>
     errs[k] ? <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs[k]}</p> : null;
@@ -204,7 +288,14 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
         <Field label="Florist">
           <Select value={florist} onChange={(v) => setFlorist(+v)} placeholder="Tanlang" options={[{ value: 0, label: "—" }, ...florists.map((fp) => ({ value: fp.id, label: floristName(fp) }))]} />
         </Field>
-        <Field label="Soni"><input className="inp" type="number" min={1} value={f.quantity_total} onChange={set("quantity_total")} placeholder="Masalan: 1" /></Field>
+        <Field label={kind === "custom" ? "Soni" : "Soni (nechta bir xil tayyorlandi)"} span>
+          <input className="inp" type="number" min={1} value={f.quantity_total} onChange={set("quantity_total")} placeholder="Masalan: 1" />
+          {kind === "standard" && perUnitStems > 0 && (
+            <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
+              {qtyTotal} dona × {stemsFmt(perUnitStems)} gul = <b style={{ color: "var(--acc)" }}>{stemsFmt(qtyTotal * perUnitStems)}</b> skladdan yechiladi
+            </p>
+          )}
+        </Field>
       </div>
 
       {nestedErrs.length > 0 && (
@@ -212,6 +303,39 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           {nestedErrs.map(([k, v]) => (
             <div key={k}>{k.startsWith("composition") ? "Gullar: " : k.startsWith("materials") ? "Materiallar: " : ""}{v}</div>
           ))}
+        </div>
+      )}
+
+      {/* YETARLI QOLDIQ YO'Q — backend `detail` (ko'p qatorli) to'liq ko'rsatiladi */}
+      {stockError && (
+        <div className="mt-3 rounded-[14px] border p-3.5" style={{ borderColor: "color-mix(in srgb, var(--danger-ink) 40%, var(--border))", background: "var(--danger-soft, rgba(160,74,74,.10))" }}>
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} strokeWidth={2} className="mt-0.5 shrink-0" style={{ color: "var(--danger-ink)" }} />
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}>Skladda yetarli qoldiq yo&apos;q</div>
+              <div className="mt-1.5 flex flex-col gap-0.5 text-[12.5px]" style={{ color: "var(--text-2)" }}>
+                {stockError.lines.map((ln, i) => {
+                  const ci = ln.indexOf(":");
+                  return ci > 0 && ci < 24 ? (
+                    <div key={i}><b style={{ color: "var(--text)" }}>{ln.slice(0, ci + 1)}</b>{ln.slice(ci + 1)}</div>
+                  ) : (
+                    <div key={i}>{ln}</div>
+                  );
+                })}
+              </div>
+              {stockError.batchId != null && (
+                <button
+                  type="button"
+                  onClick={() => { if (typeof window !== "undefined") window.location.assign(`/sklad?tab=partiyalar&batch=${stockError.batchId}`); }}
+                  className="mt-2.5 rounded-full border px-3 py-1 text-[12px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]"
+                  style={{ borderColor: "var(--danger-ink)", color: "var(--danger-ink)" }}
+                >
+                  Partiyani ochish
+                </button>
+              )}
+            </div>
+            <button type="button" onClick={() => setStockError(null)} className="icon-btn !h-7 !w-7 shrink-0" aria-label="Yopish"><X size={14} strokeWidth={2} /></button>
+          </div>
         </div>
       )}
 
@@ -227,10 +351,20 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             const over = b ? st > b.remaining_stems : false;
             const under = b ? st > 0 && st < b.minimum_sale_stems : false;
             const sub = b ? Math.round(+b.sale_price_per_stem) * st : 0;
+            const flashing = flashBatch != null && r.stock_batch === flashBatch;
+            const offending = stockError?.batchId != null && r.stock_batch === stockError.batchId;
             return (
-              <div key={i} className="rounded-[13px] border p-2.5" style={{ borderColor: over || under ? "color-mix(in srgb, #b3873a 45%, var(--border))" : "var(--border)" }}>
+              <div
+                key={i}
+                className="rounded-[13px] border p-2.5 transition-colors duration-300"
+                style={{
+                  borderColor: offending ? "var(--danger-ink)" : over || under ? "color-mix(in srgb, #b3873a 45%, var(--border))" : "var(--border)",
+                  background: flashing ? "color-mix(in srgb, var(--primary) 12%, transparent)" : offending ? "var(--danger-soft, rgba(160,74,74,.10))" : undefined,
+                  boxShadow: flashing ? "inset 0 0 0 1.5px var(--primary)" : undefined,
+                }}
+              >
                 <div className="grid grid-cols-[1fr_auto_92px_32px] items-center gap-2">
-                  <Select value={r.stock_batch} onChange={(v) => setComp(comp.map((x, j) => (j === i ? { ...x, stock_batch: +v } : x)))} options={batches.map((bb) => ({ value: bb.id, label: `${bb.variant_detail?.flower_detail?.name_uz} ${bb.variant_detail?.name_uz}`, sub: `${bb.remaining_stems} dona · ${fmt(bb.sale_price_per_stem)}/dona` }))} />
+                  <Select value={r.stock_batch} onChange={(v) => setBatchAt(i, +v)} options={batches.map((bb) => ({ value: bb.id, label: `${bb.variant_detail?.flower_detail?.name_uz} ${bb.variant_detail?.name_uz}`, sub: `${formatStemsAndBunches(bb.remaining_stems, bb.stems_per_bunch)} · ${fmt(bb.sale_price_per_stem)}/dona` }))} />
                   <button type="button" onClick={() => setComp(comp.map((x, j) => (j === i ? { ...x, mode: x.mode === "stems" ? "bunches" : "stems" } : x)))} className="rounded-full border px-2.5 py-1 text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--text-2)" }} title="Dona/Bog'lam">
                     {r.mode === "stems" ? "Dona" : "Bog'lam"}
                   </button>
@@ -240,14 +374,14 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                 <div className="mt-1 flex items-center justify-between text-[11.5px]">
                   <span style={{ color: over ? "#b3873a" : under ? "#b3873a" : "var(--muted)" }}>
                     {r.mode === "bunches" && b ? `${r.qty || 0} × ${b.stems_per_bunch} = ${st} dona · ` : ""}
-                    {over ? `Qoldiqdan ko'p (${b?.remaining_stems})` : under ? `Min. ${b?.minimum_sale_stems} dona` : b ? `${stemsFmt(b.remaining_stems)} bor` : ""}
+                    {over ? `Qoldiqdan ko'p (${formatStemsAndBunches(b?.remaining_stems, b?.stems_per_bunch)})` : under ? `Min. ${b?.minimum_sale_stems} dona` : b ? `${formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)} bor` : ""}
                   </span>
                   {sub > 0 && <span className="font-semibold" style={{ color: "var(--acc)" }}>{fmt(sub)}</span>}
                 </div>
               </div>
             );
           })}
-          <button type="button" onClick={() => setComp([...comp, { stock_batch: batches[0]?.id ?? 0, mode: "stems", qty: "" }])} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
+          <button type="button" onClick={addComp} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
             <Plus size={15} strokeWidth={1.75} /> Yana gul
           </button>
         </div>
@@ -261,16 +395,27 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             {mats.map((m, i) => {
               const p = matOf(m.packaging);
               const sub = p ? Math.round(+p.sale_price) * (+m.qty || 0) : 0;
+              const overMat = p ? (+m.qty || 0) > p.quantity : false;
+              const flashing = flashMat != null && m.packaging === flashMat;
               return (
-                <div key={i} className="grid grid-cols-[1fr_92px_32px] items-center gap-2">
-                  <Select value={m.packaging} onChange={(v) => setMats(mats.map((x, j) => (j === i ? { ...x, packaging: +v } : x)))} options={Array.from(matGroups.entries()).flatMap(([g, list]) => list.map((pk) => ({ value: pk.id, label: pk.name_uz, sub: `${PACKAGING_LABEL[g as keyof typeof PACKAGING_LABEL] ?? g} · ${fmt(pk.sale_price)}` })))} />
-                  <input className="inp !py-1.5" type="number" value={m.qty} onChange={(e) => setMats(mats.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} placeholder="1" />
-                  <button type="button" onClick={() => setMats(mats.filter((_, j) => j !== i))} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={15} strokeWidth={1.75} /></button>
-                  {sub > 0 && <span className="col-span-3 -mt-1 text-right text-[11.5px] font-semibold" style={{ color: "var(--acc)" }}>{fmt(sub)}</span>}
+                <div
+                  key={i}
+                  className="rounded-[13px] p-1.5 transition-colors duration-300"
+                  style={{ background: flashing ? "color-mix(in srgb, var(--primary) 12%, transparent)" : undefined, boxShadow: flashing ? "inset 0 0 0 1.5px var(--primary)" : undefined }}
+                >
+                  <div className="grid grid-cols-[1fr_92px_32px] items-center gap-2">
+                    <Select value={m.packaging} onChange={(v) => setMatAt(i, +v)} options={Array.from(matGroups.entries()).flatMap(([g, list]) => list.map((pk) => ({ value: pk.id, label: pk.name_uz, sub: `${PACKAGING_LABEL[g as keyof typeof PACKAGING_LABEL] ?? g} · ${pk.quantity} dona bor` })))} />
+                    <input className="inp !py-1.5" type="number" value={m.qty} onChange={(e) => setMats(mats.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} placeholder="1" />
+                    <button type="button" onClick={() => setMats(mats.filter((_, j) => j !== i))} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={15} strokeWidth={1.75} /></button>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between px-0.5 text-[11.5px]">
+                    <span style={{ color: overMat ? "#b3873a" : "var(--muted)" }}>{p ? (overMat ? `Qoldiqdan ko'p (${p.quantity} dona)` : `${p.quantity} dona bor`) : ""}</span>
+                    {sub > 0 && <span className="font-semibold" style={{ color: "var(--acc)" }}>{fmt(sub)}</span>}
+                  </div>
                 </div>
               );
             })}
-            <button type="button" onClick={() => setMats([...mats, { packaging: materials[0]?.id ?? 0, qty: "1" }])} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
+            <button type="button" onClick={addMat} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
               <Plus size={15} strokeWidth={1.75} /> Material qo&apos;shish
             </button>
           </div>
@@ -299,7 +444,9 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           {price.fee > 0 && <PriceLine label="Florist haqi" value={price.fee} />}
           <PriceLine label="Taxminiy foyda" value={price.profit} hue={price.profit >= 0 ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)"} strong />
         </div>
-        <p className="mt-1 text-[11px]" style={{ color: "var(--muted)" }}>Aniq qiymatni saqlagandan so&apos;ng backend hisoblaydi.</p>
+        <p className="mt-1 text-[11px]" style={{ color: "var(--muted)" }}>
+          {price.qty > 1 ? `${price.qty} dona uchun jami · ` : ""}Aniq qiymatni saqlagandan so&apos;ng backend hisoblaydi.
+        </p>
         <div className="mt-3 flex justify-end gap-2.5 pb-2 max-sm:[&>*]:flex-1">
           <button onClick={onClose} className="btn-ghost">Bekor</button>
           <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : item ? "Saqlash" : kind === "custom" ? "Sotildi deb yozish" : "Katalogga qo'shish"}</button>

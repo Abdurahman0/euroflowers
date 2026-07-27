@@ -68,10 +68,12 @@ export default function StockBatchModal({ onClose, onSaved }: { onClose: () => v
     try {
       const today = new Date();
       const num = f.batch_number || `EF-${String(today.getFullYear()).slice(2)}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${f.variant}`;
-      // received_stems kontraktda MAJBURIY — har doim yuboriladi; bog'lam rejimida
-      // received_bunches ham qo'shiladi (backend ko'rsatishi uchun), ikkalasi mos.
+      // Backend endi received_stems ni MAJBURIY qilmaydi va bog'lam rejimida
+      // received_stems = received_bunches × stems_per_bunch ni O'ZI hisoblaydi
+      // (jonli tekshirilgan). Shu bois bog'lamda faqat received_bunches yuboramiz —
+      // matematika serverniki. remaining_stems ham serverda hisoblanadi.
       const qtyField = qtyMode === "bunches"
-        ? { received_stems: receivedStems, received_bunches: (+qty).toFixed(2) }
+        ? { received_bunches: (+qty).toFixed(2) }
         : { received_stems: receivedStems };
       await api.createStockBatch({
         variant: f.variant,
@@ -82,7 +84,6 @@ export default function StockBatchModal({ onClose, onSaved }: { onClose: () => v
         ...(f.received_at ? { received_at: f.received_at.slice(0, 10) } : {}),
         stems_per_bunch: spb,
         ...qtyField,
-        remaining_stems: receivedStems,
         cost_per_stem: String(+f.cost_per_stem || 0),
         sale_price_per_stem: String(+f.sale_price_per_stem || 0),
         sale_price_per_bunch: String(+f.sale_price_per_bunch || (+f.sale_price_per_stem || 0) * spb),

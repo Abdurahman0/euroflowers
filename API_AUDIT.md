@@ -11,6 +11,59 @@ Legend: ✅ used · ⚠️ partially used (fields/filters/actions we ignore) · 
 
 ---
 
+## ⭐ Backend re-verification — round 2 (production, 2026-07-27)
+
+The backend team fixed the reported issues. Re-verified live; verdicts:
+
+1. **Duplicate composition/materials — NOW MERGED by the backend.** Raw payload
+   `composition:[(30,5),(30,7)]` → response `[(30,12)]`; `materials:[(1,1),(1,2)]`
+   → `[(1,3)]`. The earlier "load-bearing" warning is **withdrawn**. We keep
+   client `normalizeComposition`/`normalizeMaterials` anyway (cleaner payloads +
+   the in-builder merge is good UX) — they're now belt-and-suspenders, not required.
+2. **`received_stems` is now OPTIONAL; backend computes it.** Batch create with
+   only `received_bunches:"8"` (spb 25) → `received_stems=200`, `remaining_stems=200`,
+   `remaining_bunches:"8.00"`. (Was HTTP 500 before.) **Client adapted:**
+   `StockBatchModal` bunch-mode now sends `received_bunches` only and drops the
+   client `remaining_stems`; the server math matches our preview ("Jami kirim: 200 dona").
+3. **Insufficient-stock error is now a plain STRING** (`{"detail": "…\n…"}`), no
+   longer `{"detail":[…],"composition":[…]}`. Labels unchanged (Gul/Partiya/Kerak/
+   Bor/Yetmayapti). Our renderer already handles **string | string[]** via
+   `Array.isArray` — verified against the new shape (screenshot).
+4. **Dashboard/Analytics §8 fields are returned with data** (field names match
+   what we wired last round). Dashboard top-level: `net_profit, catalog_revenue,
+   catalog_cost, catalog_discount, florist_salary_total, batch_inventory_stats[],
+   florist_production_stats[]`. Analytics: money in `summary.*`, the two lists
+   top-level. `date_from`/`date_to` **now documented in the schema** and change the
+   numbers (Jul-2026 range → net_profit −135 000, 8 batch stats; Jan-2025 → 0/0).
+   §8 blocks render live (screenshots). Note: `date_to` still exclusive-of-day →
+   we send `end+1` via `dateBeforeParam` (already in place).
+   `batch_inventory_stats[]` item = `{batch_id, batch_number, supplier_id,
+   supplier_name, flower, variant, color, standard_catalog_stems,
+   custom_catalog_stems, waste_stems, total_out_stems}`;
+   `florist_production_stats[]` item = `{florist_id, name, staff_type,
+   standard_bouquets, standard_baskets, custom_bouquets, custom_baskets,
+   catalog_total, salary_total}`.
+5. **`GET /api/mini-app/leads/?init_data=…` now EXISTS** (Telegram mini-app;
+   signed `init_data`, ⛔ not called from the operator CRM). Response schema
+   `MiniAppOrders = { customer: Customer, orders: [] }`. POST body `MiniAppLead =
+   {init_data, arrangement_type(bouquet|basket|catalog), items[], packaging,
+   request_text, name, phone, note}`. `MiniAppLine = {stock_batch, catalog_item,
+   quantity_stems, quantity}`. To be wired in the mini-app project, not this repo.
+
+**Other spec changes since round 1 (adapted where relevant):**
+- Catalog `quantity_total` scales `calculated_component_price`/`calculated_cost_price`
+  AND the auto salary entry (qty 2 → salary = fee×2 = 100 000). Our preview already
+  multiplies by qty — re-verified exact (component 2 000 000, cost 1 120 000,
+  discount 700 000 == server).
+- New read-only fields: `StockBatch.remaining_bunches` (decimal string) +
+  `remaining_bunches_label`; `FloristProfile.volume_rates`; `Packaging.quantity_label`
+  / `packaging_type_label` / `image`; `FloristSalaryEntry.reason`. Added the
+  StockBatch ones to `lib/types.ts` (used for dual-unit display); others are
+  additive/optional and don't affect our client.
+- Enums unchanged (`packaging_type` still `wrap|basket|box|other`, etc.).
+
+---
+
 ## a) Full endpoint inventory + b) Coverage matrix
 
 ### Inventory domain (focus of this integration)
@@ -141,15 +194,17 @@ Legend: ✅ used · ⚠️ partially used (fields/filters/actions we ignore) · 
   wired for real, not dormant (see fixes 8–9). Recorded exact shapes above for
   the backend team.
 
-**Backend issues to relay (not client bugs):**
+**Backend issues to relay (not client bugs):** — ✅ ALL FIXED in round 2 (see
+top section). Kept below for history:
 
-- `POST /stock-batches/` with `received_bunches` but no `received_stems` →
-  **HTTP 500 (NameError on `received_stems`)** instead of computing stems or a
-  clean 400. Our UI always sends `received_stems`, so we avoid it, but the
-  endpoint should not 500.
-- `received_bunches` on a batch is neither computed from stems nor persisted/
-  echoed (always `null` on read; `remaining_bunches` IS computed on read).
-- `date_to` exclusive-of-day semantics (see Q1).
+- ~~`POST /stock-batches/` with `received_bunches` but no `received_stems` →
+  HTTP 500~~ → **FIXED**: now computes `received_stems = received_bunches × spb`.
+- ~~`received_bunches` neither computed nor persisted~~ → **PARTIALLY FIXED**:
+  `remaining_bunches`/`remaining_bunches_label` are now computed and returned;
+  the write field `received_bunches` still isn't echoed back on read (minor).
+- `date_to` treated as exclusive start-of-day — still true; documented + handled
+  client-side via `dateBeforeParam` (send end+1 day). Backend could make it
+  inclusive end-of-day, but no longer blocking.
 
 ---
 

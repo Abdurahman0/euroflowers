@@ -20,7 +20,7 @@ import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad, { MaterialMovesJournal } from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
-import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches } from "@/lib/inventory";
+import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches } from "@/lib/inventory";
 import type { StockBatch, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
@@ -251,8 +251,8 @@ export default function SkladPage() {
                   {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold" title={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} — ${m.quantity_stems} dona${m.reason ? ` · ${m.reason}` : ""}`}>
-                    {v?.flower_detail?.name_uz} {v?.name_uz} — {m.quantity_stems} dona
+                  <div className="truncate text-[14px] font-semibold" title={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} — ${formatStemsAndBunches(Math.abs(m.quantity_stems), m.batch_detail?.stems_per_bunch)}${m.reason ? ` · ${m.reason}` : ""}`}>
+                    {v?.flower_detail?.name_uz} {v?.name_uz} — {formatStemsAndBunches(Math.abs(m.quantity_stems), m.batch_detail?.stems_per_bunch)}
                     {m.reason ? ` · ${m.reason}` : ""}
                   </div>
                   <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>

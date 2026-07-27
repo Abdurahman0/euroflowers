@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
+import TimePicker from "./TimePicker";
 import GeofenceMap from "./GeofenceMap";
 import { STAFF_LABEL } from "@/lib/inventory";
 import type { FloristProfile, StaffType, User } from "@/lib/types";
@@ -73,8 +74,8 @@ export default function FloristModal({ florist, onClose, onSaved }: { florist: F
         </Field>
         <Field label="Telefon"><input className="inp" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="Masalan: +998901234567" inputMode="tel" /></Field>
         <Field label="Kunlik haq (so'm)"><input className="inp" type="number" value={f.daily_pay} onChange={(e) => setF({ ...f, daily_pay: e.target.value })} placeholder="Masalan: 150000" /></Field>
-        <Field label="Ish boshlanishi"><input className="inp" type="time" value={f.work_start_time?.slice(0, 5) ?? ""} onChange={(e) => setF({ ...f, work_start_time: e.target.value })} /></Field>
-        <Field label="Ish tugashi"><input className="inp" type="time" value={f.work_end_time?.slice(0, 5) ?? ""} onChange={(e) => setF({ ...f, work_end_time: e.target.value })} /></Field>
+        <Field label="Ish boshlanishi"><TimePicker value={f.work_start_time?.slice(0, 5) ?? ""} onChange={(v) => setF({ ...f, work_start_time: v })} placeholder="Masalan: 09:00" ariaLabel="Ish boshlanish vaqti" /></Field>
+        <Field label="Ish tugashi"><TimePicker value={f.work_end_time?.slice(0, 5) ?? ""} onChange={(v) => setF({ ...f, work_end_time: v })} placeholder="Masalan: 18:00" ariaLabel="Ish tugash vaqti" /></Field>
       </div>
 
       <Section>Geofence — do&apos;kon joyi</Section>

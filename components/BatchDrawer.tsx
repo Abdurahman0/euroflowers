@@ -6,6 +6,7 @@ import Select from "./Select";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtDate, fmtTime } from "@/lib/format";
+import { formatStemsAndBunches } from "@/lib/inventory";
 import type { MovementType, StockBatch, StockMovement } from "@/lib/types";
 
 /**
@@ -138,7 +139,7 @@ export default function BatchDrawer({
 
       {/* meta */}
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        <Meta label="Qoldiq" value={`${b.remaining_stems} dona · ${b.remaining_bunches} pochka`} />
+        <Meta label="Qoldiq" value={formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)} />
         <Meta label="Qabul qilingan" value={`${b.received_stems} dona`} />
         <Meta label="Dona narxi" value={fmt(b.sale_price_per_stem)} />
         <Meta label="Pochka narxi" value={fmt(b.sale_price_per_bunch)} />

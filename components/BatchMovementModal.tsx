@@ -7,8 +7,11 @@ import Select from "./Select";
 import DualQtyInput, { qtyPayload, type QtyMode } from "./DualQtyInput";
 import { Icon } from "./icons";
 import { fmtDate } from "@/lib/format";
-import { MOVEMENT_LABEL, MOVEMENT_HUE, stems } from "@/lib/inventory";
+import { MOVEMENT_LABEL, MOVEMENT_HUE, stems, formatStemsAndBunches } from "@/lib/inventory";
 import type { MovementType, StockBatch, StockMovement } from "@/lib/types";
+
+const REDUCING = new Set<MovementType>(["waste", "out", "transfer_out"]);
+const ADDING = new Set<MovementType>(["in", "transfer_in"]);
 
 const MOVE_OPTS: { value: MovementType; label: string }[] = [
   { value: "waste", label: MOVEMENT_LABEL.waste },
@@ -27,9 +30,16 @@ export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBat
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const spb = batch.stems_per_bunch || 1;
+  const projStems = mode === "bunches" ? Math.round((parseFloat(qty) || 0) * spb) : Math.round(parseFloat(qty) || 0);
+  const before = batch.remaining_stems;
+  const after = REDUCING.has(type) ? before - projStems : ADDING.has(type) ? before + projStems : before;
+  const below = REDUCING.has(type) && after < 0;
+
   const save = async () => {
     const n = parseFloat(qty) || 0;
     if (n <= 0) return showToast("Miqdorni kiriting");
+    if (below) return showToast(`Qoldiq yetarli emas: bor-yo'g'i ${stems(before)}`);
     setBusy(true);
     try {
       await api.batchMovement(batch.id, { movement_type: type, ...qtyPayload(mode, qty), reason: reason.trim() });
@@ -48,8 +58,24 @@ export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBat
   return (
     <Modal onClose={onClose} width={440}>
       <ModalHeader icon={<Icon name="sklad" size={20} />} title="Harakat qo'shish" sub={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} · №${batch.batch_number}`} onClose={onClose} />
-      <div className="mt-2 rounded-[12px] bg-sfc px-3 py-2 text-[12.5px] font-semibold" style={{ color: "var(--text-2)" }}>
-        Joriy qoldiq: {stems(batch.remaining_stems)}
+      {/* qoldiq: hozirgi → proyeksiya, ikki birlikda; nolga tushsa amber + bloklanadi */}
+      <div
+        className="mt-2 rounded-[12px] px-3 py-2 text-[12.5px] font-semibold transition-colors"
+        style={{
+          background: below ? "var(--danger-soft, rgba(160,74,74,.12))" : "var(--surface-2)",
+          color: below ? "var(--danger-ink)" : "var(--text-2)",
+        }}
+      >
+        {projStems > 0 ? (
+          <>
+            Qoldiq: {before.toLocaleString("ru")} → <b style={{ color: below ? "var(--danger-ink)" : "var(--text)" }}>{after.toLocaleString("ru")}</b>
+            {" dona · "}
+            {(before / spb).toFixed(1).replace(/\.0$/, "")} → <b style={{ color: below ? "var(--danger-ink)" : "var(--text)" }}>{(after / spb).toFixed(1).replace(/\.0$/, "")}</b> bog&apos;lam
+            {below && <span className="mt-1 block text-[11.5px]">Qoldiqdan ko&apos;p — {stems(before)} bor</span>}
+          </>
+        ) : (
+          <>Joriy qoldiq: {formatStemsAndBunches(before, spb)}</>
+        )}
       </div>
       <Section>Harakat</Section>
       <div className="grid grid-cols-1 gap-3">
@@ -70,7 +96,7 @@ export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBat
       </div>
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
-        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Qayd etish"}</button>
+        <button onClick={save} disabled={busy || below} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Qayd etish"}</button>
       </ModalFooter>
     </Modal>
   );
@@ -98,7 +124,7 @@ export function BatchMovesModal({ batch, onClose }: { batch: StockBatch; onClose
                 <span className="block text-[13px] font-semibold">{MOVEMENT_LABEL[m.movement_type as MovementType] ?? m.movement_type}</span>
                 {m.reason && <span className="block truncate text-[12px]" style={{ color: "var(--muted)" }}>{m.reason}</span>}
               </span>
-              <span className="shrink-0 text-[13px] font-bold tabular-nums" style={{ color: hue }}>{stems(m.quantity_stems)}</span>
+              <span className="shrink-0 text-right text-[12.5px] font-bold tabular-nums" style={{ color: hue }} title={formatStemsAndBunches(Math.abs(m.quantity_stems), batch.stems_per_bunch)}>{formatStemsAndBunches(Math.abs(m.quantity_stems), batch.stems_per_bunch)}</span>
               <span className="shrink-0 text-[12px]" style={{ color: "var(--muted)" }}>{fmtDate(m.created_at)}</span>
             </div>
           );

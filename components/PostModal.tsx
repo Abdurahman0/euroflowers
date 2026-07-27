@@ -4,6 +4,7 @@ import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import ImageInput from "./ImageInput";
 import Select from "./Select";
 import { StockUsagePicker, type StockRow } from "./UsagePicker";
+import { normalizeComposition } from "@/lib/inventory";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { Icon } from "./icons";
@@ -122,15 +123,19 @@ export default function PostModal({
                   quantity_total: Math.max(+ciQty || 1, 1),
                   status: "available",
                   height_cm: +ciHeight || null,
-                  composition: comp.map((r) => {
-                    const b = batches.find((x) => x.id === r.stock_batch);
-                    const per = b?.stems_per_bunch || 0;
-                    return {
-                      stock_batch: r.stock_batch,
-                      quantity_stems: r.quantity_stems,
-                      ...(per > 0 ? { quantity_bunches: (r.quantity_stems / per).toFixed(2) } : {}),
-                    };
-                  }),
+                  // BITTA tayyor buket = BITTA catalog_item, ichida ko'p qatorli
+                  // composition; bir xil partiya qatorlari birlashtiriladi.
+                  composition: normalizeComposition(
+                    comp.map((r) => {
+                      const b = batches.find((x) => x.id === r.stock_batch);
+                      const per = b?.stems_per_bunch || 0;
+                      return {
+                        stock_batch: r.stock_batch,
+                        quantity_stems: r.quantity_stems,
+                        ...(per > 0 ? { quantity_bunches: (r.quantity_stems / per).toFixed(2) } : {}),
+                      };
+                    })
+                  ),
                 },
               ],
             }

@@ -21,6 +21,62 @@ export const bunches = (n: number | string | null | undefined): string => {
   return `${s} bog'lam`;
 };
 
+/**
+ * IKKI BIRLIKDA — "340 dona · 13.6 bog'lam". Bog'lam = dona / pochkadagi dona
+ * (1-2 xona, ortiqcha nol tashlanadi). Butun ilova bo'ylab BITTA joydan
+ * (batch gauge, harakatlar jurnali, kompozitsiya qoldiq maslahatlari, chiqit
+ * oynasi) — birliklar bir xil ko'rinishi uchun.
+ */
+export const formatStemsAndBunches = (
+  stemCount: number | string | null | undefined,
+  stemsPerBunch: number | null | undefined
+): string => {
+  const v = typeof stemCount === "string" ? parseFloat(stemCount) : stemCount;
+  if (v == null || Number.isNaN(v)) return "—";
+  if (!stemsPerBunch || stemsPerBunch <= 0) return stems(v);
+  return `${stems(v)} · ${bunches(v / stemsPerBunch)}`;
+};
+
+/* ===== yuborishdan oldin NORMALLASHTIRISH (katalog / social post) =====
+   Bitta buket/savat = BITTA CatalogItem, ichida ko'p qatorli composition.
+   Bir xil stock_batch (yoki packaging) qatorlari BITTAGA birlashtiriladi
+   (miqdorlar qo'shiladi) — backend ham himoya uchun birlashtiradi, ammo biz
+   ideal shaklni yuboramiz. */
+export type CompEntry = { stock_batch: number; quantity_stems: number; quantity_bunches?: string };
+export const normalizeComposition = (rows: CompEntry[]): CompEntry[] => {
+  const map = new Map<number, CompEntry>();
+  for (const r of rows) {
+    if (!r.stock_batch) continue;
+    const ex = map.get(r.stock_batch);
+    if (ex) {
+      ex.quantity_stems += r.quantity_stems || 0;
+      if (r.quantity_bunches != null || ex.quantity_bunches != null) {
+        const sum = (parseFloat(ex.quantity_bunches ?? "0") || 0) + (parseFloat(r.quantity_bunches ?? "0") || 0);
+        ex.quantity_bunches = sum.toFixed(2);
+      }
+    } else {
+      map.set(r.stock_batch, {
+        stock_batch: r.stock_batch,
+        quantity_stems: r.quantity_stems || 0,
+        ...(r.quantity_bunches != null ? { quantity_bunches: r.quantity_bunches } : {}),
+      });
+    }
+  }
+  return Array.from(map.values());
+};
+
+export type MatEntry = { packaging: number; quantity: number };
+export const normalizeMaterials = (rows: MatEntry[]): MatEntry[] => {
+  const map = new Map<number, MatEntry>();
+  for (const r of rows) {
+    if (!r.packaging) continue;
+    const ex = map.get(r.packaging);
+    if (ex) ex.quantity += r.quantity || 0;
+    else map.set(r.packaging, { packaging: r.packaging, quantity: r.quantity || 0 });
+  }
+  return Array.from(map.values());
+};
+
 /* ===== enum yorliqlari ===== */
 export const MOVEMENT_LABEL: Record<MovementType, string> = {
   in: "Kirim",
