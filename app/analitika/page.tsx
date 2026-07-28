@@ -14,7 +14,8 @@ import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
 import { DonutChart, HBars, RevenueBars } from "@/components/AnalyticsCharts";
-import { NetProfitCard, BatchInventoryBars, DiscountStatsCard, FloristProductionCards } from "@/components/AnalyticsExtra";
+import { NetProfitCard, DiscountStatsCard, FloristProductionCards } from "@/components/AnalyticsExtra";
+import BatchSarfiPanel from "@/components/BatchSarfiPanel";
 import FlowerLoader from "@/components/FlowerLoader";
 import type { Analytics, LeadStatusDef } from "@/lib/types";
 
@@ -158,9 +159,7 @@ export default function AnalitikaPage() {
           <FloristProductionCards rows={a.florist_production_stats} salaryTotal={s.florist_salary_total} />
         </motion.div>
       )}
-      {a.batch_inventory_stats?.length ? (
-        <motion.div variants={rise}><BatchInventoryBars rows={a.batch_inventory_stats} /></motion.div>
-      ) : null}
+      <motion.div variants={rise}><BatchSarfiPanel rows={a.batch_inventory_stats} /></motion.div>
 
       {/* kunlik dinamika: sonlar (3 seriya) va daromad — ALOHIDA grafiklar */}
       <div className="grid items-start gap-4 xl:grid-cols-2">

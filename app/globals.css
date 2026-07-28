@@ -950,3 +950,19 @@ body {
     transition-duration: 0.001s !important;
   }
 }
+
+/* iliq shimmer skeleton — Partiya sarfi (va boshqa) yuklanish holati */
+@keyframes shimmerWarm {
+  0% { background-position: -180% 0; }
+  100% { background-position: 180% 0; }
+}
+.skeleton-warm {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-2) 88%, transparent) 25%,
+    color-mix(in srgb, var(--primary) 12%, var(--surface-2)) 50%,
+    color-mix(in srgb, var(--surface-2) 88%, transparent) 75%
+  );
+  background-size: 220% 100%;
+  animation: shimmerWarm 1.4s ease-in-out infinite;
+}

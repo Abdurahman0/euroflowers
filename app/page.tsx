@@ -12,7 +12,8 @@ import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
 import { HBars } from "@/components/AnalyticsCharts";
-import { BatchInventoryBars, DiscountStatsCard, FloristProductionCards, NetProfitCard } from "@/components/AnalyticsExtra";
+import { DiscountStatsCard, FloristProductionCards, NetProfitCard } from "@/components/AnalyticsExtra";
+import BatchSarfiPanel from "@/components/BatchSarfiPanel";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
 import type { Dashboard } from "@/lib/types";
@@ -106,11 +107,9 @@ export default function DashboardPage() {
           <FloristProductionCards rows={d.florist_production_stats} salaryTotal={d.florist_salary_total} />
         </motion.div>
       )}
-      {(d.batch_inventory_stats?.length ?? 0) > 0 && (
-        <motion.div variants={rise} className="mt-4">
-          <BatchInventoryBars rows={d.batch_inventory_stats} />
-        </motion.div>
-      )}
+      <motion.div variants={rise} className="mt-4">
+        <BatchSarfiPanel rows={d.batch_inventory_stats} />
+      </motion.div>
 
       {(d.daily_stats?.length ?? 0) > 0 && (
         <motion.section variants={rise} className="glass-lite mt-4 p-5">

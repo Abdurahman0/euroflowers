@@ -82,6 +82,27 @@ The backend team fixed the reported issues. Re-verified live; verdicts:
   `movement_type`, dates — **no `packaging_type` filter** → material-type filtered
   client-side. `quantity` is a plain int (no stems/bunches).
 
+## ⭐ Round 4 — "Partiya sarfi" (batch_inventory_stats) redesign (2026-07-28)
+
+`batch_inventory_stats[]` item = `{batch_id, batch_number, supplier_id,
+supplier_name, flower, variant, color, standard_catalog_stems,
+custom_catalog_stems, waste_stems, total_out_stems}`.
+
+- **Missing for the redesign:** no `received_stems`, no `remaining_stems`, no
+  `received_at`, no `stems_per_bunch`. So **"Jami kelgan" and "Qolgan" cannot be
+  derived from this endpoint** (the doc's "derive Qolgan = received − out"
+  assumes `received` is present — it isn't).
+- **Workaround (implemented):** `BatchSarfiPanel` fetches `/api/stock-batches/`
+  (no `is_active` filter → includes inactive; verified 10/10 stat batch_ids match)
+  and **joins by `batch_id`** to get `received_stems`, `remaining_stems`,
+  `received_at`, `stems_per_bunch`, supplier. `Qolgan = max(0, received − standard
+  − custom − waste)`. `supplier_name` can be `""` (falls back to the joined
+  batch's supplier).
+- **Ask backend:** add `received_stems` (or `remaining_stems`) + `received_at` +
+  `stems_per_bunch` to `batch_inventory_stats` so the panel doesn't need the second
+  fetch. (`batch_number` + `supplier_name` are already present — good.)
+- Minor: `total_out_stems` ≠ `standard+custom+waste` for some (leftover test) batches.
+
 ## a) Full endpoint inventory + b) Coverage matrix
 
 ### Inventory domain (focus of this integration)

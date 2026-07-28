@@ -1,6 +1,5 @@
 "use client";
-import { useState } from "react";
-import type { BatchInventoryStat, FloristProductionStat } from "@/lib/types";
+import type { FloristProductionStat } from "@/lib/types";
 
 /**
  * Dashboard/Analytics YANGI bloklari — hammasi DEFENSIV: ma'lumot bo'lmasa
@@ -77,53 +76,6 @@ export function DiscountStatsCard({
             <div className="mt-0.5 text-[13px] font-bold tabular-nums">{t.value}</div>
           </div>
         ))}
-      </div>
-    </section>
-  );
-}
-
-/** Partiya sarf taqsimoti — standart/maxsus/chiqit/qolgan stacked bar. Chiqit bo'yicha saralanadi. */
-export function BatchInventoryBars({ rows }: { rows?: BatchInventoryStat[] }) {
-  const [hov, setHov] = useState<string | null>(null);
-  if (!rows?.length) return null;
-  const segs: { key: keyof BatchInventoryStat; label: string; hue: string }[] = [
-    { key: "standard_catalog_stems", label: "Standart katalog", hue: "var(--primary)" },
-    { key: "custom_catalog_stems", label: "Maxsus katalog", hue: "#6a6ac2" },
-    { key: "waste_stems", label: "Chiqit", hue: "#b3873a" },
-  ];
-  const sorted = [...rows].sort((a, b) => num(b.waste_stems) - num(a.waste_stems));
-  return (
-    <section className="glass-lite p-5">
-      <h2 className="text-[15px] font-bold tracking-tight">Partiya sarfi</h2>
-      <p className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--muted)" }}>chiqit ko&apos;p partiyalar birinchi</p>
-      <div className="mt-3 flex flex-wrap gap-3 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>
-        {segs.map((s) => (
-          <span key={s.label} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.hue }} />{s.label}</span>
-        ))}
-      </div>
-      <div className="mt-3 flex flex-col gap-2.5">
-        {sorted.map((r, i) => {
-          const total = Math.max(num(r.total_out_stems) || segs.reduce((t, s) => t + num(r[s.key]), 0), 1);
-          const id = `${r.batch_id ?? r.batch_number ?? i}`;
-          const flowerLabel = [r.flower, r.variant].filter(Boolean).join(" ") || r.variant;
-          return (
-            <div key={id} onMouseEnter={() => setHov(id)} onMouseLeave={() => setHov(null)}>
-              <div className="mb-1 flex items-baseline justify-between gap-2 text-[12px]">
-                <span className="min-w-0 truncate font-semibold" title={`${flowerLabel ?? ""} · ${r.supplier_name ?? ""}`}>
-                  {flowerLabel ?? `Partiya ${r.batch_number ?? id}`}
-                  {r.supplier_name && <span className="ml-1.5 font-medium" style={{ color: "var(--muted)" }}>· {r.supplier_name}</span>}
-                </span>
-                {hov === id && <span className="shrink-0 tabular-nums" style={{ color: "var(--muted)" }}>chiqit {num(r.waste_stems)} / {total} dona</span>}
-              </div>
-              <div className="flex h-[12px] overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
-                {segs.map((s) => {
-                  const w = (num(r[s.key]) / total) * 100;
-                  return w > 0 ? <div key={s.key} title={`${s.label}: ${num(r[s.key])} dona`} style={{ width: `${w}%`, background: s.hue }} /> : null;
-                })}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </section>
   );
