@@ -5,7 +5,8 @@ import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { initials, fmt, dateAfterParam } from "@/lib/format";
+import { initials, fmt, dateAfterParam, dateBeforeParam } from "@/lib/format";
+import { exportAllFlorists, exportFloristOwn } from "@/lib/exports";
 import { STAFF_LABEL } from "@/lib/inventory";
 import SearchInput from "@/components/SearchInput";
 import EmptyState from "@/components/EmptyState";
@@ -22,7 +23,7 @@ type Tab = keyof typeof TAB_LABEL;
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/** Oyliklar tabidagi Excel eksport paneli — joriy davr bo'yicha (florist/florists). */
+/** Oyliklar tabidagi Excel eksport paneli — KLIENT tomonda (SheetJS), joriy davr. */
 function SalaryExport({ control }: { control: boolean }) {
   const { showToast, dateFilter, dateRange } = useStore();
   const [busy, setBusy] = useState<"me" | "all" | null>(null);
@@ -31,10 +32,22 @@ function SalaryExport({ control }: { control: boolean }) {
   const run = async (which: "me" | "all") => {
     setBusy(which);
     try {
-      await (which === "all" ? api.exportFlorists({ date_from: from, date_to: to }) : api.exportFlorist({ date_from: from, date_to: to }));
+      if (which === "all") {
+        const [entries, florists] = await Promise.all([
+          api.floristSalary({ created_at_after: from, created_at_before: dateBeforeParam(to), ordering: "-work_date" }),
+          api.florists({ is_active: true }),
+        ]);
+        if (!entries.length) { showToast("Tanlangan davrda oylik yozuvi yo'q"); return; }
+        await exportAllFlorists(entries, florists, from, to);
+      } else {
+        const me = await api.floristMe(); // florist bo'lmasa 404
+        const entries = await api.floristSalary({ florist: me.id, created_at_after: from, created_at_before: dateBeforeParam(to), ordering: "-work_date" });
+        await exportFloristOwn(entries, [me.user_detail?.first_name, me.user_detail?.last_name].filter(Boolean).join(" ") || me.user_detail?.username || `#${me.id}`, from, to);
+      }
       showToast("✓ Excel yuklab olindi");
     } catch (e) {
-      showToast(e instanceof ApiError ? e.message : "Eksport qilib bo'lmadi");
+      const msg = e instanceof ApiError ? (e.status === 404 ? "Siz florist emassiz — o'z hisoboti faqat floristlar uchun" : e.message) : "Eksport qilib bo'lmadi";
+      showToast(msg);
     } finally {
       setBusy(null);
     }

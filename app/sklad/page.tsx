@@ -17,11 +17,11 @@ import StockBatchCard from "@/components/StockBatchCard";
 import StockBatchModal from "@/components/StockBatchModal";
 import { BatchMovementModal, BatchMovesModal } from "@/components/BatchMovementModal";
 import { SupplierDetail } from "@/components/SupplierModal";
-import MaterialSklad, { MaterialMovesJournal } from "@/components/MaterialSklad";
+import MaterialSklad from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
-import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches } from "@/lib/inventory";
-import type { StockBatch, StockMovement, Supplier } from "@/lib/types";
+import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, PACKAGING_LABEL } from "@/lib/inventory";
+import type { MaterialMovement, PackagingType, StockBatch, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "KIRIM", out: "CHIQIM", adjustment: "TUZATISH", waste: "CHIQIT", transfer_out: "O'TKAZMA →", transfer_in: "→ O'TKAZMA",
@@ -66,6 +66,36 @@ function MovesSummary({ moves }: { moves: StockMovement[] }) {
   );
 }
 
+/** Material jurnali xulosasi — plain dona (gul emas, bog'lam yo'q). */
+function MatSummary({ moves }: { moves: MaterialMovement[] }) {
+  const sum = (pred: (m: MaterialMovement) => boolean) =>
+    moves.reduce((a, m) => (pred(m) ? a + (m.quantity || 0) : a), 0);
+  const cards = [
+    { key: "kirim", label: "Kirim", hue: MOVEMENT_HUE.in, is: (m: MaterialMovement) => m.movement_type === "in" || m.movement_type === "transfer_in" },
+    { key: "prod", label: "Ishlab chiqarishga", hue: MOVEMENT_HUE.out, is: (m: MaterialMovement) => m.movement_type === "out" || m.movement_type === "transfer_out" },
+    { key: "chiqit", label: "Chiqit", hue: MOVEMENT_HUE.waste, is: (m: MaterialMovement) => m.movement_type === "waste" },
+  ] as const;
+  return (
+    <div className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
+      {cards.map((c) => {
+        const qty = sum(c.is);
+        const count = moves.filter(c.is).length;
+        return (
+          <div key={c.key} className="glass !rounded-[16px] p-3.5" style={{ borderLeft: `3px solid ${c.hue}` }}>
+            <div className="flex items-center gap-1.5 text-[12px] font-bold" style={{ color: c.hue }}>
+              <span className="h-2 w-2 rounded-full" style={{ background: c.hue }} />{c.label}
+            </div>
+            <div className="mt-1 text-[18px] font-extrabold tabular-nums" style={{ color: "var(--text)" }}>{Math.abs(qty).toLocaleString("ru")} dona</div>
+            <div className="text-[11.5px]" style={{ color: "var(--mut)" }}>{count} harakat</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const MAT_TYPES: PackagingType[] = ["wrap", "basket", "box", "other"];
+
 export default function SkladPage() {
   const router = useRouter();
   const { showToast, dateFilter, dateRange, setDateFilter } = useStore();
@@ -81,6 +111,10 @@ export default function SkladPage() {
   const [moveType, setMoveType] = useState("");
   const [moveSupplier, setMoveSupplier] = useState("");
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // jurnal manbasi — Gul sklad / Material sklad (sahifada saqlanadi)
+  const [jSource, setJSource] = useState<"gul" | "material">("gul");
+  const [matMoves, setMatMoves] = useState<MaterialMovement[]>([]);
+  const [matType, setMatType] = useState(""); // material turi — KLIENT filtri (packaging_type)
   // partiya amallari
   const [wasteBatch, setWasteBatch] = useState<StockBatch | null>(null);
   const [movesBatch, setMovesBatch] = useState<StockBatch | null>(null);
@@ -111,6 +145,18 @@ export default function SkladPage() {
   useEffect(() => {
     api.suppliers({ is_active: true }).then(setSuppliers).catch(() => {});
   }, []);
+
+  // material harakatlari — faqat Material manbasi tanlanganda, davr+tur filtri server tomonda
+  const loadMat = useCallback(async () => {
+    try {
+      setMatMoves(await api.materialMovements({
+        ordering: "-created_at",
+        ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
+        movement_type: moveType || undefined,
+      }));
+    } catch { /* jimgina */ }
+  }, [dateFilter, dateRange, moveType]);
+  useEffect(() => { if (tab === "jurnal" && jSource === "material") loadMat(); }, [tab, jSource, loadMat]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
@@ -152,6 +198,10 @@ export default function SkladPage() {
   const total = batches.reduce((a, b) => a + b.remaining_stems, 0);
   const lows = batches.filter((b) => b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2);
   const fMoves = moves;
+  // material turi — packaging_type bo'yicha KLIENT filtri (API'da faqat packaging id filtri bor)
+  const fMatMoves = matType
+    ? matMoves.filter((m) => (m.packaging_detail?.packaging_type ?? m.material_detail?.packaging_type) === matType)
+    : matMoves;
 
   if (loading) return <FlowerLoader />;
 
@@ -182,12 +232,27 @@ export default function SkladPage() {
   }
 
   if (tab === "jurnal") {
+    const isGul = jSource === "gul";
     return (
       <>
         {tabBar}
+        {/* MANBA — Gul sklad / Material sklad (segment) */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {(["gul", "material"] as const).map((sVal) => (
+            <button
+              key={sVal}
+              onClick={() => setJSource(sVal)}
+              aria-pressed={jSource === sVal}
+              className={clsx("flex items-center gap-1.5 rounded-full border-[1.5px] px-4 py-1.5 text-[12.5px] font-bold transition-colors", jSource === sVal ? "text-white" : "bg-sfc")}
+              style={jSource === sVal ? { background: "var(--primary)", borderColor: "var(--primary)" } : { borderColor: "var(--line)", color: "var(--mut)" }}
+            >
+              {sVal === "gul" ? "Gul sklad" : "Material sklad"}
+            </button>
+          ))}
+        </div>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
-            Sklad bo&apos;yicha barcha harakatlar — gul va material kirim-chiqimlari
+            {isGul ? "Gul partiyalari bo'yicha kirim-chiqim harakatlari" : "Material (o'ram/savat/quti) kirim-chiqim harakatlari"}
           </p>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <FilterSelect
@@ -204,7 +269,8 @@ export default function SkladPage() {
                 { value: "transfer_out", label: "O'tkazma chiqdi" },
               ]}
             />
-            {suppliers.length > 0 && (
+            {/* gul → yetkazib beruvchi; material → material turi */}
+            {isGul && suppliers.length > 0 && (
               <FilterSelect
                 value={moveSupplier}
                 onChange={setMoveSupplier}
@@ -212,18 +278,73 @@ export default function SkladPage() {
                 options={[{ value: "", label: "Barcha yetkazib beruvchilar" }, ...suppliers.map((s) => ({ value: String(s.id), label: s.name }))]}
               />
             )}
+            {!isGul && (
+              <FilterSelect
+                value={matType}
+                onChange={setMatType}
+                label="Material turi"
+                options={[{ value: "", label: "Barcha turlar" }, ...MAT_TYPES.map((t) => ({ value: t, label: PACKAGING_LABEL[t] }))]}
+              />
+            )}
             <DateChips />
             <ClearFilters
-              show={!!(moveType || moveSupplier || dateRange || dateFilter !== "oy")}
-              onClear={() => { setMoveType(""); setMoveSupplier(""); setDateFilter("oy"); }}
+              show={!!(moveType || (isGul ? moveSupplier : matType) || dateRange || dateFilter !== "oy")}
+              onClear={() => { setMoveType(""); setMoveSupplier(""); setMatType(""); setDateFilter("oy"); }}
             />
           </div>
         </div>
 
-        {/* xulosa — joriy filtr bo'yicha kirim/ishlab chiqarish/chiqit */}
-        <MovesSummary moves={fMoves} />
+        {/* xulosa — manba bo'yicha (gul: dona+bog'lam, material: dona) */}
+        {isGul ? <MovesSummary moves={fMoves} /> : <MatSummary moves={fMatMoves} />}
 
-        {/* gul harakatlari — timeline */}
+        {/* MATERIAL harakatlari — timeline */}
+        {!isGul && (
+          <section className="glass !rounded-[20px] p-5">
+            <div className="mb-1.5 flex items-center justify-between">
+              <h2 className="text-base font-bold">Material harakatlari</h2>
+              <span className="text-xs" style={{ color: "var(--mut)" }}>o&apos;ram/savat/quti kirim-chiqim</span>
+            </div>
+            {fMatMoves.map((m) => {
+              const isIn = MOVE_IN.has(m.movement_type);
+              const md = m.packaging_detail ?? m.material_detail;
+              const leadId = movementLeadId(m);
+              const who = m.performed_by_detail
+                ? [m.performed_by_detail.first_name, m.performed_by_detail.last_name].filter(Boolean).join(" ") || m.performed_by_detail.username
+                : "Tizim";
+              return (
+                <div
+                  key={m.id}
+                  onClick={leadId ? () => router.push(`/buyurtmalar?order=${leadId}`) : undefined}
+                  role={leadId ? "link" : undefined}
+                  tabIndex={leadId ? 0 : undefined}
+                  onKeyDown={leadId ? (e) => e.key === "Enter" && router.push(`/buyurtmalar?order=${leadId}`) : undefined}
+                  className={`row-lux flex items-center gap-3.5 border-t py-3 ${leadId ? "cursor-pointer" : ""}`}
+                  style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(fMatMoves.indexOf(m) * 40, 480)}ms` }}
+                >
+                  <div className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`}>
+                    {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-semibold">
+                      {md?.name_uz || md?.name_ru || `Material #${m.packaging ?? "—"}`} — {Math.abs(m.quantity)} dona
+                      {m.reason ? ` · ${m.reason}` : ""}
+                    </div>
+                    <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>
+                      {md?.packaging_type ? `${PACKAGING_LABEL[md.packaging_type as PackagingType] ?? md.packaging_type} · ` : ""}{who} · {fmtTime(m.created_at)}
+                    </div>
+                  </div>
+                  <span className={`min-w-[52px] rounded-full border px-2.5 py-0.5 text-center text-[11px] font-bold ${isIn ? "bg-mint text-mintink" : "bg-peach text-peachink"}`} style={{ borderColor: "var(--line2)" }}>
+                    {MOVE_LABEL[m.movement_type] ?? m.movement_type.toUpperCase()}
+                  </span>
+                </div>
+              );
+            })}
+            {fMatMoves.length === 0 && <EmptyState title="Tanlangan davrda material harakati yo&apos;q" sub="Davr yoki tur filtrini kengaytirib ko&apos;ring." />}
+          </section>
+        )}
+
+        {/* GUL harakatlari — timeline */}
+        {isGul && (
         <section className="glass !rounded-[20px] p-5">
           <div className="mb-1.5 flex items-center justify-between">
             <h2 className="text-base font-bold">Gul harakatlari</h2>
@@ -268,9 +389,7 @@ export default function SkladPage() {
           })}
           {fMoves.length === 0 && <EmptyState title="Tanlangan davrda harakat yo&apos;q" sub="Davr filtrini kengaytirib ko&apos;ring." />}
         </section>
-
-        {/* material harakatlari */}
-        <MaterialMovesJournal />
+        )}
       </>
     );
   }

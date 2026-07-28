@@ -64,6 +64,24 @@ The backend team fixed the reported issues. Re-verified live; verdicts:
 
 ---
 
+## ⭐ Round 3 — CRM 5-task pass (production, 2026-07-28)
+
+- **Branch removal:** `branch` is `null` on ALL florists/volume-rates, `required=false`
+  on write, no `/api/branches/` endpoint, create-without-branch → 201. Removed
+  cleanly from florist types + UI (no client-side hiding needed). Ask backend to
+  drop the field entirely if unused.
+- **Catalog `note`:** exists and round-trips, BUT `?search=` does **not** cover it
+  (note-only token → 0 hits). → not server-searchable (report to backend if wanted).
+- **Catalog florist filter:** no `?florist=` param → filtered **client-side**.
+- **Exports:** `/exports/florist/` **404s for non-florist users** ("Florist profile
+  topilmadi"). Switched all exports to **client-side SheetJS** (`lib/exports.ts`)
+  for exact columns + per-day/payment aggregation (backend `/accounting/` has
+  `by_payment` cash/card + per-sale `history`, but **no per-day breakdown** — we
+  aggregate client-side).
+- **Material movements:** `/material-movements/` filters by `packaging` (id),
+  `movement_type`, dates — **no `packaging_type` filter** → material-type filtered
+  client-side. `quantity` is a plain int (no stems/bunches).
+
 ## a) Full endpoint inventory + b) Coverage matrix
 
 ### Inventory domain (focus of this integration)

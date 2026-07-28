@@ -718,8 +718,6 @@ export type FloristProfile = {
   id: number;
   user: number;
   user_detail?: User;
-  branch: number;
-  branch_detail?: Branch;
   staff_type: StaffType;
   phone: string;
   daily_pay: string;
@@ -736,20 +734,19 @@ export type FloristProfile = {
   created_at?: string;
   updated_at?: string;
 };
-export type FloristInput = Partial<Omit<FloristProfile, "id" | "user_detail" | "branch_detail" | "salary_total" | "catalog_count" | "created_at" | "updated_at">>;
+export type FloristInput = Partial<Omit<FloristProfile, "id" | "user_detail" | "salary_total" | "catalog_count" | "created_at" | "updated_at">>;
 
-/** Florist hajm tarifi (backend: /api/florist-volume-rates/) */
+/** Florist hajm tarifi (backend: /api/florist-volume-rates/). Single-branch —
+    filial (branch) OLIB TASHLANDI: matritsa faqat hajm × turi. */
 export type FloristVolumeRate = {
   id: number;
-  branch: number;
-  branch_detail?: Branch;
   arrangement_type: "bouquet" | "basket";
   volume: CatalogVolume;
   default_stems: number;
   florist_fee: string;
   is_active: boolean;
 };
-export type VolumeRateInput = Partial<Omit<FloristVolumeRate, "id" | "branch_detail">>;
+export type VolumeRateInput = Partial<Omit<FloristVolumeRate, "id">>;
 
 /** Florist oylik yozuvi (backend: /api/florist-salary/) */
 export type SalarySource = "catalog" | "custom_catalog" | "daily" | "manual";

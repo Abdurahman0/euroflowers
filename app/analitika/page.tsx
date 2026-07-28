@@ -1,12 +1,14 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { Download } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { InstagramIcon, TelegramIcon, SmartPhone01Icon } from "@hugeicons/core-free-icons";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { dateAfterParam, dateBeforeParam, fmt } from "@/lib/format";
+import { exportAccountingByDay } from "@/lib/exports";
 import { statusName, ARRANGEMENT_LABEL } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
@@ -50,13 +52,29 @@ function Card({ title, sub, children, className = "" }: { title: string; sub?: s
 }
 
 export default function AnalitikaPage() {
-  const { dateFilter, dateRange } = useStore();
+  const { dateFilter, dateRange, showToast } = useStore();
   const [a, setA] = useState<Analytics | null>(null);
   const [statuses, setStatuses] = useState<LeadStatusDef[]>([]);
   const [err, setErr] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
   const to = dateRange ? dateRange.to : ymd(new Date());
+
+  // HISOB-KITOB eksporti (kunlar bo'yicha: savdo/naqd/karta/tannarx/chegirma/foyda)
+  const doExport = async () => {
+    setExporting(true);
+    try {
+      // accounting date_to INKLYUZIV (jonli tekshirilgan) — xom `to` yuboriladi
+      const acc = await api.accounting({ date_from: from, date_to: to });
+      await exportAccountingByDay(acc, from, to);
+      showToast("✓ Excel yuklab olindi");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "Eksport qilib bo'lmadi");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const load = useCallback(() => {
     // date_to EKSKLYUZIV — backend uni kun boshiga oladi, shu bois oxirgi kunni
@@ -97,7 +115,18 @@ export default function AnalitikaPage() {
       {/* sarlavha + davr */}
       <motion.div variants={rise} className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[15px] font-bold" style={{ color: "var(--text-2)" }}>Davr analitikasi</h2>
-        <DateChips />
+        <div className="flex flex-wrap items-center gap-2">
+          <DateChips />
+          <button
+            onClick={doExport}
+            disabled={exporting}
+            className="flex items-center gap-1.5 rounded-[13px] border-[1.5px] px-3.5 py-2 text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)] disabled:opacity-60"
+            style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}
+            title="Hisob-kitobni Excel'ga yuklab olish (kunlar bo'yicha)"
+          >
+            <Download size={15} strokeWidth={2} /> {exporting ? "Yuklanmoqda…" : "Excel"}
+          </button>
+        </div>
       </motion.div>
 
       {/* xulosa plitkalari */}

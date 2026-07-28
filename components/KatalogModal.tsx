@@ -337,6 +337,20 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             </p>
           )}
         </Field>
+        {/* IZOH — ko'p qatorli, ixtiyoriy (maks 500), mijozga ko'rinmaydi */}
+        <Field label="Izoh" span>
+          <textarea
+            className="inp min-h-[68px] resize-y leading-relaxed"
+            value={f.note}
+            onChange={(e) => setF({ ...f, note: e.target.value.slice(0, 500) })}
+            placeholder="Ixtiyoriy — ichki izoh yoki nazoratchi izohi (mijozga ko'rinmaydi)"
+            maxLength={500}
+            rows={2}
+          />
+          {f.note.length > 0 && (
+            <span className="mt-0.5 block text-right text-[11px] font-medium" style={{ color: f.note.length >= 500 ? "var(--danger-ink)" : "var(--muted)" }}>{f.note.length}/500</span>
+          )}
+        </Field>
       </div>
 
       {nestedErrs.length > 0 && (
@@ -530,9 +544,6 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
         )}
 
         <Field label="Story havolasi" span><input className="inp" value={f.instagram_story_url} onChange={set("instagram_story_url")} placeholder="Masalan: https://instagram.com/stories/…" /></Field>
-        <Field label="Ichki izoh" span>
-          <input className="inp" value={f.note} onChange={set("note")} placeholder="Masalan: nazoratchi izohi — mijozga ko'rinmaydi" />
-        </Field>
         <Field label="Rasm" span><ImageInput value={f.image_url} onChange={(url) => setF({ ...f, image_url: url })} /></Field>
       </div>
 

@@ -6,6 +6,7 @@ import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtDate, dateAfterParam } from "@/lib/format";
 import { KIND_LABEL, VOLUME_LABEL } from "@/lib/inventory";
+import { exportAccountingByDay } from "@/lib/exports";
 import { HBars } from "@/components/AnalyticsCharts";
 import DateChips from "@/components/DateChips";
 import EmptyState from "@/components/EmptyState";
@@ -64,9 +65,11 @@ export default function HisobKitobPage() {
   }, [load]);
 
   const doExport = async () => {
+    if (!data) return;
     setExporting(true);
     try {
-      await api.exportProfit({ date_from: from, date_to: to });
+      // KLIENT eksport — yuklangan hisob-kitob ma'lumotidan (qayta so'rovsiz)
+      await exportAccountingByDay(data, from, to);
       showToast("✓ Excel yuklab olindi");
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Eksport qilib bo'lmadi");

@@ -9,13 +9,19 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { fmt, fmtTime } from "@/lib/format";
+import { fmt, fmtTime, initials } from "@/lib/format";
 import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
 import KatalogViewModal from "@/components/KatalogViewModal";
 import KatalogSellModal from "@/components/KatalogSellModal";
 import { usePerm } from "@/lib/store";
-import type { CatalogItem } from "@/lib/types";
+import type { CatalogItem, FloristProfile } from "@/lib/types";
+
+/** Florist ismi (user_detail'dan) — bo'lmasa bo'sh */
+const floristName = (fp?: FloristProfile | null): string => {
+  const u = fp?.user_detail;
+  return fp ? [u?.first_name, u?.last_name].filter(Boolean).join(" ") || u?.username || `#${fp.id}` : "";
+};
 
 const compositionText = (k: CatalogItem) =>
   k.composition
@@ -56,6 +62,9 @@ export default function KatalogPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [arrType, setArrType] = useState("");
+  // florist filtri KLIENT tomonda — API'da ?florist= yo'q (jonli tekshirilgan)
+  const [floristFilter, setFloristFilter] = useState("");
+  const [florists, setFlorists] = useState<FloristProfile[]>([]);
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search.trim()), 350);
@@ -79,6 +88,12 @@ export default function KatalogPage() {
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
+
+  // florist ro'yxati — filtr uchun (bir marta)
+  useEffect(() => { api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {}); }, []);
+
+  // KLIENT filtri: florist bo'yicha (API'da ?florist= yo'qligi uchun)
+  const shownItems = floristFilter ? items.filter((k) => String(k.florist ?? "") === floristFilter) : items;
 
   // ?item=<id> — bildirishnomadan («Sizga yangi katalog ishi biriktirildi»)
   // to'g'ridan-to'g'ri katalog kartasini ochamiz (ro'yxatda bo'lmasa ham).
@@ -144,6 +159,14 @@ export default function KatalogPage() {
           <SearchInput value={search} onChange={setSearch} ariaLabel="Katalog qidirish" />
           <FilterSelect value={status} options={STATUS_OPTS} onChange={setStatus} label="Holat" />
           <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />
+          {florists.length > 0 && (
+            <FilterSelect
+              value={floristFilter}
+              onChange={setFloristFilter}
+              label="Florist"
+              options={[{ value: "", label: "Barcha floristlar" }, ...florists.map((fp) => ({ value: String(fp.id), label: floristName(fp) }))]}
+            />
+          )}
         </div>
         <button onClick={() => setFormOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
           <Plus size={18} strokeWidth={1.75} /> Katalogga qo&apos;shish
@@ -151,7 +174,7 @@ export default function KatalogPage() {
       </div>
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(275px,1fr))" }}>
-        {items.map((k) => {
+        {shownItems.map((k) => {
           // yangi kontrakt: soni bilan ishlash; eski yozuvlar uchun statusga tayanamiz
           const total = k.quantity_total ?? 1;
           const sold = k.quantity_sold ?? (k.status === "sold" ? total : 0);
@@ -219,6 +242,19 @@ export default function KatalogPage() {
                 {(k.description_uz || k.description_ru) && (
                   <p className="text-[13px] italic" style={{ color: "var(--mut)" }}>{k.description_uz || k.description_ru}</p>
                 )}
+                {/* florist chipi (kim tayyorladi) */}
+                {k.florist_detail ? (
+                  <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>
+                    <span className="avatar-lead flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold">{initials(floristName(k.florist_detail))}</span>
+                    <span className="truncate" title={floristName(k.florist_detail)}>{floristName(k.florist_detail)}</span>
+                  </span>
+                ) : (
+                  <span className="text-[12px] italic" style={{ color: "var(--muted)" }}>Florist ko&apos;rsatilmagan</span>
+                )}
+                {/* ichki izoh — bir qatorli preview, to'liq matn tooltip'da */}
+                {k.note && (
+                  <p className="truncate text-[12.5px] italic" style={{ color: "var(--mut)" }} title={k.note}>✎ {k.note}</p>
+                )}
                 {k.instagram_story_url && (
                   <a href={k.instagram_story_url.startsWith("http") ? k.instagram_story_url : `https://${k.instagram_story_url}`} target="_blank" className="text-[13px] font-semibold">
                     ↗ Instagram story ({fmtTime(k.created_at)})
@@ -274,7 +310,7 @@ export default function KatalogPage() {
             </article>
           );
         })}
-        {items.length === 0 && <div className="col-span-full"><EmptyState title="Katalog hozircha bo&apos;sh" sub="Birinchi tayyor guldastani qo&apos;shing — story havolasi bilan." /></div>}
+        {shownItems.length === 0 && <div className="col-span-full"><EmptyState title={floristFilter ? "Bu floristda katalog yo'q" : "Katalog hozircha bo'sh"} sub={floristFilter ? "Boshqa floristni tanlang." : "Birinchi tayyor guldastani qo'shing — story havolasi bilan."} /></div>}
       </div>
 
       {sellItem && (

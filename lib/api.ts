@@ -440,6 +440,8 @@ export const api = {
     request<FloristVolumeRate>(`/api/florist-volume-rates/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteVolumeRate: (id: number) => request<void>(`/api/florist-volume-rates/${id}/`, { method: "DELETE" }),
 
+  /** Joriy foydalanuvchining florist profili (o'z hisoboti uchun). Florist bo'lmasa 404. */
+  floristMe: () => request<FloristProfile>("/api/florists/me/"),
   floristSalary: (p?: Params) => list<FloristSalaryEntry>("/api/florist-salary/", p),
   createSalaryEntry: (data: Partial<FloristSalaryEntry>) =>
     request<FloristSalaryEntry>("/api/florist-salary/", { method: "POST", body: JSON.stringify(data) }),
