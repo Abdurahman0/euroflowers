@@ -69,6 +69,18 @@ export const auditAction = (action: string): ActionDef => {
   return { label: raw.charAt(0).toUpperCase() + raw.slice(1), kind: "update" };
 };
 
+/**
+ * Qatorning ASOSIY yorlig'i. Kontrakt: backend `action_label` bersa —
+ * AVTORITATIV (u yerda yangi amallar ham tarjima qilingan); bo'lmasa
+ * lokal lug'at ishlaydi. `action` — texnik kod, filtr/debug uchun.
+ * Turkum (rang/ikonka) doim lokal `action` bo'yicha aniqlanadi.
+ */
+export const auditLabel = (row: Pick<AuditLog, "action" | "action_label">): ActionDef => {
+  const local = auditAction(row.action);
+  const label = row.action_label?.trim();
+  return label ? { label, kind: local.kind } : local;
+};
+
 /** Har turkumga o'z rangi — badge va ikonka shu rangda */
 export const KIND_HUE: Record<AuditKind, string> = {
   create: "#3d8a5f",
@@ -207,8 +219,10 @@ export function auditChanges(row: AuditLog, includeNoise = false): AuditChange[]
   return out;
 }
 
-/** Jadval uchun bitta qatorlik xulosa — eng muhim o'zgarish(lar) */
+/** Jadval uchun bitta qatorlik xulosa — backend `summary` bo'lsa o'sha,
+    aks holda before/after diffidan eng muhim o'zgarish(lar). */
 export function auditSummary(row: AuditLog): string {
+  if (row.summary?.trim()) return row.summary.trim();
   const ch = auditChanges(row);
   if (!ch.length) return "—";
   return ch
@@ -217,8 +231,10 @@ export function auditSummary(row: AuditLog): string {
     .join(" · ");
 }
 
-/** Xodim ismi — familiya bilan, bo'lmasa login; tizim amallari uchun «Tizim» */
+/** Xodim ismi — backend `actor_name` ustuvor; bo'lmasa user_detail'dan
+    (familiya bilan, aks holda login); tizim amallari uchun «Tizim» */
 export const auditActor = (row: AuditLog): string => {
+  if (row.actor_name?.trim()) return row.actor_name.trim();
   const u = row.user_detail;
   if (!u) return "Tizim";
   const full = [u.first_name, u.last_name].filter(Boolean).join(" ");

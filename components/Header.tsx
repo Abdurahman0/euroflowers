@@ -6,13 +6,15 @@ import { useStore, THEMES } from "@/lib/store";
 import { logout } from "@/lib/api";
 import { ROLE_LABEL } from "./badges";
 import { fmtTime } from "@/lib/format";
+import { notifHref, notifMeta } from "@/lib/notifications";
 import { Icon } from "./icons";
 import clsx from "clsx";
-import { Film, Image as ImageIcon } from "lucide-react";
+import { Film, Image as ImageIcon, KeyRound } from "lucide-react";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
   "/analitika": "Analitika",
+  "/hisob-kitob": "Hisob-kitob",
   "/chat": "AI chatlar — Instagram va Telegram",
   "/ai": "AI yordamchi",
   "/buyurtmalar": "Buyurtmalar",
@@ -228,16 +230,27 @@ export default function Header() {
                 )}
               </div>
               {notifs.length === 0 && <p className="px-3 pb-3 text-[13px] text-[color:var(--muted)]">Bildirishnoma yo&apos;q.</p>}
-              {notifs.map((n) => (
-                <button key={n.id} onClick={() => { if (!n.is_read) markNotifRead(n.id); setNotifOpen(false); router.push("/bildirishnomalar"); }} className={clsx("flex w-full items-start gap-2.5 rounded-xl p-3 text-left transition-colors duration-200 hover:bg-[color:var(--hover)]", n.is_read && "opacity-70")}>
-                  <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: n.notification_type === "lead" ? "var(--success)" : "var(--danger)" }} />
-                  <div className="flex-1">
-                    <div className="text-[13px] font-bold leading-snug">{n.title_uz || n.title_ru}</div>
-                    {(n.body_uz || n.body_ru) && <div className="mt-0.5 text-[13px] leading-relaxed text-[color:var(--text-2)]">{n.body_uz || n.body_ru}</div>}
-                    <div className="mt-0.5 text-[12px] text-[color:var(--muted)]">{fmtTime(n.created_at)}{!n.is_read && " · o'qilmagan"}</div>
-                  </div>
-                </button>
-              ))}
+              {notifs.map((n) => {
+                const meta = notifMeta(n.notification_type);
+                const mine = n.target_user != null && n.target_user === user?.id;
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => { if (!n.is_read) markNotifRead(n.id); setNotifOpen(false); router.push(notifHref(n)); }}
+                    className={clsx("flex w-full items-start gap-2.5 rounded-xl p-3 text-left transition-colors duration-200 hover:bg-[color:var(--hover)]", n.is_read && "opacity-70")}
+                  >
+                    <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: meta.color }} />
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[13px] font-bold leading-snug">{n.title_uz || n.title_ru}</span>
+                        {mine && <span className="rounded-full px-1.5 text-[10.5px] font-bold text-white" style={{ background: "var(--primary)" }}>Sizga</span>}
+                      </div>
+                      {(n.body_uz || n.body_ru) && <div className="mt-0.5 text-[13px] leading-relaxed text-[color:var(--text-2)]">{n.body_uz || n.body_ru}</div>}
+                      <div className="mt-0.5 text-[12px] text-[color:var(--muted)]">{meta.label} · {fmtTime(n.created_at)}{!n.is_read && " · o'qilmagan"}</div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -269,8 +282,8 @@ export default function Header() {
                 <div className="text-[11px] text-[color:var(--muted)]">{ROLE_LABEL[role] ?? role}</div>
               </div>
               <div className="pt-1.5">
-                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-[color:var(--text-2)] transition-colors duration-200 hover:bg-[color:var(--hover)] hover:text-[color:var(--text)]">
-                  <Icon name="user" size={15} /> Profil
+                <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar#parol"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-[color:var(--text-2)] transition-colors duration-200 hover:bg-[color:var(--hover)] hover:text-[color:var(--text)]">
+                  <KeyRound size={15} strokeWidth={1.9} /> Parolni o&apos;zgartirish
                 </button>
                 <button onClick={() => { setProfileOpen(false); router.push("/sozlamalar"); }} className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[13px] font-medium text-[color:var(--text-2)] transition-colors duration-200 hover:bg-[color:var(--hover)] hover:text-[color:var(--text)]">
                   <Icon name="sozlamalar" size={15} /> Sozlamalar

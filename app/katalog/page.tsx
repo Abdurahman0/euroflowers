@@ -13,6 +13,7 @@ import { fmt, fmtTime } from "@/lib/format";
 import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
 import KatalogViewModal from "@/components/KatalogViewModal";
+import KatalogSellModal from "@/components/KatalogSellModal";
 import { usePerm } from "@/lib/store";
 import type { CatalogItem } from "@/lib/types";
 
@@ -79,26 +80,24 @@ export default function KatalogPage() {
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
-  const patchItem = (upd: CatalogItem) => setItems((xs) => xs.map((x) => (x.id === upd.id ? upd : x)));
+  // ?item=<id> — bildirishnomadan («Sizga yangi katalog ishi biriktirildi»)
+  // to'g'ridan-to'g'ri katalog kartasini ochamiz (ro'yxatda bo'lmasa ham).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = Number(new URLSearchParams(window.location.search).get("item"));
+    if (!id) return;
+    api.catalogItem(id)
+      .then((it) => { if (it && typeof it.id === "number") setViewItem(it); else showToast("Katalog yozuvi topilmadi"); })
+      .catch(() => showToast("Katalog yozuvi topilmadi"));
+  }, [showToast]);
 
-  // «Sotish» bosilganda nechta sotilishi SO'RALADI (kartada doimiy input yo'q)
-  const [sellQty, setSellQty] = useState<Record<number, string>>({});
-  const [askSell, setAskSell] = useState<Record<number, boolean>>({});
-
-  const markSold = async (k: CatalogItem, qty: number) => {
-    setBusyId(k.id);
-    try {
-      patchItem(await api.sellCatalogItem(k.id, qty > 1 ? qty : undefined));
-      showToast(`✓ «${k.name_uz}»: ${qty} ta sotildi deb belgilandi`);
-      setSellQty((m) => ({ ...m, [k.id]: "1" }));
-      setAskSell((m) => ({ ...m, [k.id]: false }));
-      loadNotifs();
-    } catch (e) {
-      showToast(e instanceof ApiError ? e.message : "Belgilab bo'lmadi");
-    } finally {
-      setBusyId(null);
-    }
+  const patchItem = (upd: CatalogItem) => {
+    setItems((xs) => xs.map((x) => (x.id === upd.id ? upd : x)));
+    setViewItem((v) => (v?.id === upd.id ? upd : v));
   };
+
+  // «Sotish» — modal orqali: soni + ixtiyoriy chegirma narxi va sababi
+  const [sellItem, setSellItem] = useState<CatalogItem | null>(null);
 
   /** quantity bermasak backend sotilgan-u hali yechilmagan HAMMA sonni yechadi */
   const deduct = async (k: CatalogItem) => {
@@ -160,7 +159,6 @@ export default function KatalogPage() {
           const pending = Math.max(sold - dedu, 0);
           const left = Math.max(total - sold, 0);
           const sellable = left > 0 && (k.status === "available" || k.status === "reserved" || k.status === "draft");
-          const qty = Math.min(Math.max(+(sellQty[k.id] ?? "1") || 1, 1), left || 1);
           return (
             <article key={k.id} className="glass card-hover group flex flex-col overflow-hidden !rounded-[20px]">
               <div
@@ -234,6 +232,16 @@ export default function KatalogPage() {
                     <span className="rounded-full bg-tint px-2.5 py-0.5">Jami: {total}</span>
                     <span className="rounded-full bg-tint px-2.5 py-0.5">Sotildi: {sold}</span>
                     {pending > 0 && <span className="rounded-full bg-peach px-2.5 py-0.5 text-peachink">Kutilmoqda: {pending}</span>}
+                    {/* chegirmada sotilgan — sotuv tarixida sabab bilan saqlanadi */}
+                    {+(k.discount_amount ?? 0) > 0 && (
+                      <span
+                        className="rounded-full px-2.5 py-0.5"
+                        style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}
+                        title={k.discount_reason || "Chegirma bilan sotilgan"}
+                      >
+                        Chegirma: {fmt(k.discount_amount)}
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -252,38 +260,15 @@ export default function KatalogPage() {
                   <div className="rounded-[11px] bg-mint px-3 py-2 text-xs font-bold text-mintink">✓ Sklad kamaytirilgan · {fmtTime(k.stock_deducted_at)}</div>
                 )}
 
-                {/* faqat «Sotish» — nechta sotilishi bosilganda SO'RALADI */}
-                {sellable && !askSell[k.id] && (
+                {/* «Sotish» — modal: soni, ixtiyoriy chegirma narxi va sababi */}
+                {sellable && (
                   <button
-                    onClick={() => (left <= 1 ? markSold(k, 1) : setAskSell((m) => ({ ...m, [k.id]: true })))}
-                    disabled={busyId === k.id}
-                    className="mt-auto rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint disabled:opacity-60"
+                    onClick={() => setSellItem(k)}
+                    className="mt-auto rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint"
                     style={{ borderColor: "var(--line)" }}
                   >
-                    {busyId === k.id ? "…" : "Sotish"}
+                    Sotish
                   </button>
-                )}
-                {sellable && askSell[k.id] && (
-                  <div className="mt-auto rounded-[13px] border-[1.5px] bg-tint p-2.5" style={{ borderColor: "var(--line)" }}>
-                    <p className="mb-1.5 text-[12.5px] font-bold">Nechta sotiladi?</p>
-                    <div className="flex items-center gap-2">
-                      <input
-                        className="inp !w-[56px] shrink-0 text-right"
-                        inputMode="numeric"
-                        autoFocus
-                        value={sellQty[k.id] ?? "1"}
-                        onChange={(e) => setSellQty((m) => ({ ...m, [k.id]: e.target.value.replace(/\D/g, "") }))}
-                        onKeyDown={(e) => e.key === "Enter" && markSold(k, qty)}
-                        aria-label="Nechta sotiladi"
-                      />
-                      <button onClick={() => markSold(k, qty)} disabled={busyId === k.id} className="min-w-0 flex-1 rounded-[10px] py-2 text-[13px] font-bold text-white disabled:opacity-60" style={{ background: "var(--side)" }}>
-                        {busyId === k.id ? "…" : "Sotish"}
-                      </button>
-                      <button onClick={() => setAskSell((m) => ({ ...m, [k.id]: false }))} className="rounded-[10px] border px-3 py-2 text-[13px] font-bold" style={{ borderColor: "var(--line)" }}>
-                        Bekor
-                      </button>
-                    </div>
-                  </div>
                 )}
               </div>
             </article>
@@ -291,6 +276,14 @@ export default function KatalogPage() {
         })}
         {items.length === 0 && <div className="col-span-full"><EmptyState title="Katalog hozircha bo&apos;sh" sub="Birinchi tayyor guldastani qo&apos;shing — story havolasi bilan." /></div>}
       </div>
+
+      {sellItem && (
+        <KatalogSellModal
+          item={sellItem}
+          onClose={() => setSellItem(null)}
+          onSold={(upd) => { patchItem(upd); setSellItem(null); loadNotifs(); load(); }}
+        />
+      )}
 
       {formOpen && <KatalogModal onClose={() => setFormOpen(false)} onSaved={load} />}
       {editItem && (

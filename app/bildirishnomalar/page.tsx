@@ -4,46 +4,37 @@ import ClearFilters from "@/components/ClearFilters";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowUpRight, Bell } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmtTime } from "@/lib/format";
+import { NOTIF_TYPE_FILTERS, notifHref, notifMeta } from "@/lib/notifications";
 import type { Notification, NotificationType } from "@/lib/types";
 
 /**
  * Bildirishnomalar sahifasi — to'liq ro'yxat, tur va o'qilganlik filtrlari,
  * bittalab yoki barchasini o'qilgan qilish. Filtrlash server tomonda.
+ * Har qator BOSILADI: o'qilgan qilinadi va tegishli obyektga o'tadi
+ * (reference_type/reference_id → katalog, buyurtma, davomat, partiya…).
  */
 
-const TYPE_META: Record<NotificationType, { label: string; color: string; soft: string }> = {
-  lead: { label: "Lead", color: "var(--success)", soft: "var(--success-soft)" },
-  handoff: { label: "Operator", color: "var(--warning)", soft: "var(--warning-soft)" },
-  low_stock: { label: "Kam qoldiq", color: "var(--danger)", soft: "var(--danger-soft)" },
-  stock_pending: { label: "Sklad yechimi", color: "var(--info)", soft: "var(--info-soft)" },
-  supplier_stock: { label: "Yangi partiya", color: "var(--primary)", soft: "var(--primary-soft)" },
-};
-
-const TYPE_FILTERS: { value: "" | NotificationType; label: string }[] = [
-  { value: "", label: "Hammasi" },
-  { value: "lead", label: "Leadlar" },
-  { value: "handoff", label: "Operator" },
-  { value: "low_stock", label: "Kam qoldiq" },
-  { value: "stock_pending", label: "Sklad" },
-];
-
 export default function BildirishnomalarPage() {
+  const router = useRouter();
   const { showToast, loadNotifs } = useStore();
+  const me = useStore((s) => s.user);
   const { canControl } = usePerm();
   const control = canControl("notifications");
   const [items, setItems] = useState<Notification[] | null>(null);
   const [loadErr, setLoadErr] = useState("");
   const [type, setType] = useState<"" | NotificationType>("");
   const [onlyUnread, setOnlyUnread] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
   const load = useCallback(async () => {
-    setItems(null);
     setLoadErr("");
     try {
       const ns = await api.notifications({
@@ -57,6 +48,7 @@ export default function BildirishnomalarPage() {
     }
   }, [type, onlyUnread]);
 
+  useEffect(() => { setItems(null); }, [type, onlyUnread]);
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
@@ -70,6 +62,13 @@ export default function BildirishnomalarPage() {
       setItems((xs) => xs?.map((x) => (x.id === n.id ? { ...x, is_read: false } : x)) ?? null);
       showToast(e instanceof ApiError ? e.message : "Belgilab bo'lmadi");
     }
+  };
+
+  /** Qator bosilishi: o'qilgan qilamiz va bog'liq obyektga o'tamiz */
+  const open = (n: Notification) => {
+    markOne(n);
+    const href = notifHref(n);
+    if (href && href !== "/bildirishnomalar") router.push(href);
   };
 
   const markAll = async () => {
@@ -86,7 +85,9 @@ export default function BildirishnomalarPage() {
     }
   };
 
+  const shown = (items ?? []).filter((n) => !onlyMine || (n.target_user != null && n.target_user === me?.id));
   const unread = items?.filter((n) => !n.is_read).length ?? 0;
+  const mineCount = (items ?? []).filter((n) => n.target_user != null && n.target_user === me?.id).length;
 
   return (
     <>
@@ -96,12 +97,17 @@ export default function BildirishnomalarPage() {
           onChange={(v) => setType(v as typeof type)}
           label="Turi"
           align="left"
-          options={TYPE_FILTERS.map((f) => ({ value: f.value, label: f.value ? f.label : "Barcha turlar" }))}
+          options={NOTIF_TYPE_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
         />
         <button onClick={() => setOnlyUnread((v) => !v)} className={clsx("chip", onlyUnread && "chip-active")} aria-pressed={onlyUnread}>
           Faqat o&apos;qilmagan
         </button>
-        <ClearFilters show={!!(type || onlyUnread)} onClear={() => { setType(""); setOnlyUnread(false); }} />
+        {mineCount > 0 && (
+          <button onClick={() => setOnlyMine((v) => !v)} className={clsx("chip", onlyMine && "chip-active")} aria-pressed={onlyMine}>
+            Menga ({mineCount})
+          </button>
+        )}
+        <ClearFilters show={!!(type || onlyUnread || onlyMine)} onClear={() => { setType(""); setOnlyUnread(false); setOnlyMine(false); }} />
         {control && unread > 0 && (
           <button onClick={markAll} disabled={markingAll} className={clsx("btn-secondary ml-auto !h-8 !flex-none px-4 !text-[12px]", markingAll && "btn-loading")}>
             Barchasini o&apos;qish ({unread})
@@ -120,25 +126,32 @@ export default function BildirishnomalarPage() {
 
       {items && (
         <div className="glass reading-glass !rounded-[18px] p-2">
-          {items.map((n, i) => {
-            const meta = TYPE_META[n.notification_type] ?? TYPE_META.lead;
+          {shown.map((n, i) => {
+            const meta = notifMeta(n.notification_type);
+            const mine = n.target_user != null && n.target_user === me?.id;
+            const href = notifHref(n);
+            const linked = href !== "/bildirishnomalar";
             return (
               <button
                 key={n.id}
-                onClick={() => markOne(n)}
+                onClick={() => open(n)}
                 className={clsx(
-                  "row-lux notif-row flex w-full items-start gap-3 rounded-[12px] px-3.5 py-3 text-left",
+                  "row-lux notif-row group flex w-full items-start gap-3 rounded-[12px] px-3.5 py-3 text-left",
                   n.is_read && "opacity-60"
                 )}
                 style={{ animationDelay: `${Math.min(i * 35, 420)}ms` }}
+                title={linked ? "Ochish" : undefined}
               >
-                <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold" style={{ background: meta.soft, color: meta.color }}>
-                  !
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: meta.soft, color: meta.color }}>
+                  <Bell size={14} strokeWidth={2.2} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     <b className="min-w-0 max-w-full truncate text-[14px]" title={n.title_uz || n.title_ru}>{n.title_uz || n.title_ru}</b>
                     <span className="rounded-full border px-2 py-px text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>{meta.label}</span>
+                    {mine && (
+                      <span className="rounded-full px-2 py-px text-[11px] font-bold text-white" style={{ background: "var(--primary)" }}>Sizga</span>
+                    )}
                     {!n.is_read && <span className="h-2 w-2 rounded-full" style={{ background: "var(--primary)" }} aria-label="o'qilmagan" />}
                   </span>
                   {(n.body_uz || n.body_ru) && (
@@ -146,12 +159,17 @@ export default function BildirishnomalarPage() {
                   )}
                   <span className="mt-0.5 block text-[12px]" style={{ color: "var(--muted)" }}>{fmtTime(n.created_at)}</span>
                 </span>
+                {linked && (
+                  <span className="mt-1 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-60" style={{ color: "var(--primary)" }}>
+                    <ArrowUpRight size={16} strokeWidth={2} />
+                  </span>
+                )}
               </button>
             );
           })}
-          {items.length === 0 && (
+          {shown.length === 0 && (
             <EmptyState
-              title={onlyUnread ? "O'qilmagan bildirishnoma yo'q" : "Bildirishnoma yo'q"}
+              title={onlyUnread ? "O'qilmagan bildirishnoma yo'q" : onlyMine ? "Sizga yo'naltirilgan bildirishnoma yo'q" : "Bildirishnoma yo'q"}
               sub={type ? "Boshqa tur filtrini tanlab ko'ring." : "Yangi hodisalar shu yerda ko'rinadi."}
             />
           )}

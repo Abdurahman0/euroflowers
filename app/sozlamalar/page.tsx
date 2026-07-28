@@ -5,31 +5,34 @@ import clsx from "clsx";
 import { api } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import { fmt } from "@/lib/format";
+import PasswordCard from "@/components/PasswordCard";
 import type { BusinessSettings } from "@/lib/types";
 
 /**
- * Sozlamalar: faqat Florist xizmat haqi (single-branch rejim — filiallar yo'q).
- * O'ram/savat narxlari BU YERDA EMAS — ular Sklad → Material sklad'da
- * boshqariladi (foydalanuvchi talabi). Jamoa /xodimlar'da.
+ * Sozlamalar: Florist xizmat haqi (single-branch rejim — filiallar yo'q) va
+ * o'z parolini almashtirish. O'ram/savat narxlari BU YERDA EMAS — ular
+ * Sklad → Material sklad'da boshqariladi. Jamoa /xodimlar'da.
  */
 
 export default function SozlamalarPage() {
   const { showToast } = useStore();
-  const { canControl } = usePerm();
+  const { canControl, canView } = usePerm();
   const control = canControl("settings");
+  const seeSettings = canView("settings");
   const [st, setSt] = useState<BusinessSettings | null>(null);
   const [fee, setFee] = useState("");
   const [savingFee, setSavingFee] = useState(false);
   const [feeEditing, setFeeEditing] = useState(false);
 
   useEffect(() => {
+    if (!seeSettings) return; // ruxsat yo'q — faqat parol bo'limi ko'rinadi
     api.settings()
       .then((sts) => {
         setSt(sts);
         setFee(String(Math.round(parseFloat(sts.default_florist_fee) || 0)));
       })
       .catch((e) => showToast(e instanceof Error ? e.message : "Yuklashda xatolik"));
-  }, [showToast]);
+  }, [showToast, seeSettings]);
 
   const saveFee = async () => {
     if (!st) return;
@@ -49,7 +52,7 @@ export default function SozlamalarPage() {
   return (
     <div className="grid items-start gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
       {/* ===== Florist xizmat haqi — yagona narx sozlamasi ===== */}
-      <section className="glass p-5">
+      <section className="glass p-5" hidden={!seeSettings}>
         <h2 className="text-base font-bold">Florist xizmat haqi</h2>
         <p className="mt-0.5 text-[13px]" style={{ color: "var(--muted)" }}>
           Har bir buket/savatga qo&apos;shiladigan standart xizmat haqi — yangi buyurtma formasi va AI tavsiyalari shu qiymatdan boshlanadi.
@@ -104,6 +107,9 @@ export default function SozlamalarPage() {
           O&apos;ram, savat va boshqa material narxlari Sklad → Material sklad bo&apos;limida boshqariladi.
         </p>
       </section>
+
+      {/* ===== Parol — har bir foydalanuvchi o'ziniki ===== */}
+      <PasswordCard />
     </div>
   );
 }

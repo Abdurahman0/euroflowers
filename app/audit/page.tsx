@@ -1,16 +1,17 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Minus, Package, Pencil, Plus, ShoppingBag, Trash2, Move } from "lucide-react";
+import { ArrowRight, Globe, Minus, Package, Pencil, Plus, ShoppingBag, Trash2, Move } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmtTime } from "@/lib/format";
-import { auditAction, auditActor, auditChanges, auditSummary, entityName, KIND_HUE, KIND_LABEL, type AuditKind } from "@/lib/audit";
+import { auditActor, auditChanges, auditLabel, auditSummary, entityName, KIND_HUE, KIND_LABEL, type AuditKind } from "@/lib/audit";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
 import ClearFilters from "@/components/ClearFilters";
+import DatePicker from "@/components/DatePicker";
 import Modal from "@/components/Modal";
 import { initials } from "@/lib/format";
 import type { AuditLog, User } from "@/lib/types";
@@ -19,8 +20,11 @@ const userName = (u: User) => [u.first_name, u.last_name].filter(Boolean).join("
 
 /**
  * Audit jurnali — kim, nima qilgani va NIMA O'ZGARGANI.
- * Xom backend kalitlari (`stock_movement`, `CatalogItem`, before/after JSON)
- * lib/audit.ts orqali o'zbekchaga o'giriladi. Ruxsat: audit.
+ * Yorliq sifatida backend `action_label`i ishlatiladi (`action` — texnik kod).
+ * FILTRLAR SERVER TOMONDA: ?user=<id>, ?action=, ?entity_type=,
+ * ?created_at_after= / ?created_at_before= (kontrakt: audit user filter).
+ * Developer amallari backenddan umuman kelmaydi — alohida yashirish shart emas.
+ * Ruxsat: audit.
  */
 
 const KIND_ICON: Record<AuditKind, typeof Plus> = {
@@ -33,9 +37,12 @@ const KIND_ICON: Record<AuditKind, typeof Plus> = {
 };
 
 const KIND_OPTS = [
-  { value: "", label: "Barcha amallar" },
+  { value: "", label: "Barcha turkumlar" },
   ...(Object.keys(KIND_LABEL) as AuditKind[]).map((k) => ({ value: k, label: KIND_LABEL[k] })),
 ];
+
+/** `to` sanasi ham qamrab olinsin — created_at_before kun OXIRI qilib yuboriladi */
+const endOfDay = (ymd: string) => `${ymd}T23:59:59`;
 
 export default function AuditPage() {
   const { canView } = usePerm();
@@ -44,32 +51,60 @@ export default function AuditPage() {
   const [rows, setRows] = useState<AuditLog[] | null>(null);
   const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
-  const [kind, setKind] = useState("");
-  const [entity, setEntity] = useState("");
-  const [user, setUser] = useState(""); // xodim bo'yicha SERVER filtri (?user=id)
+  const [q, setQ] = useState(""); // debounced — server `search`
+  const [kind, setKind] = useState(""); // lokal turkum (rang guruhi)
+  const [action, setAction] = useState(""); // server `action` — texnik kod
+  const [entity, setEntity] = useState(""); // server `entity_type`
+  const [user, setUser] = useState(""); // server `user`
+  const [from, setFrom] = useState(""); // server `created_at_after`
+  const [to, setTo] = useState(""); // server `created_at_before`
   const [users, setUsers] = useState<User[]>([]);
   const [sel, setSel] = useState<AuditLog | null>(null);
   const [shown, setShown] = useState(50); // «Yana ko'rsatish» qadami
 
+  useEffect(() => {
+    const t = setTimeout(() => { setQ(search.trim()); setShown(50); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const load = useCallback(() => {
     if (!visible) return;
-    // xodim filtri server tomonda — tanlangan xodimning BARCHA amallari keladi
-    api.audit({ page_size: 100, user: user || undefined })
-      .then((r) => setRows(r))
+    api.audit({
+      page_size: 100,
+      ordering: "-created_at",
+      user: user || undefined,
+      action: action || undefined,
+      entity_type: entity || undefined,
+      search: q || undefined,
+      created_at_after: from || undefined,
+      created_at_before: to ? endOfDay(to) : undefined,
+    })
+      .then((r) => { setRows(r); setErr(""); })
       .catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
-  }, [visible, user]);
+  }, [visible, user, action, entity, q, from, to]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash
 
-  // xodimlar ro'yxati — filtr uchun (bir marta)
+  // xodimlar ro'yxati — filtr uchun (bir marta).
+  // Developer hisoblari ro'yxatdan olib tashlanadi: ularning amallari auditga
+  // tushmaydi, tanlansa natija bo'sh chiqib foydalanuvchini chalg'itadi.
   useEffect(() => {
     if (!visible) return;
-    api.users({ page_size: 100, ordering: "username" }).then(setUsers).catch(() => {});
+    api.users({ page_size: 100, ordering: "username" })
+      .then((us) => setUsers(us.filter((u) => u.profile?.role !== "developer")))
+      .catch(() => {});
   }, [visible]);
 
+  // amal va obyekt variantlari — kelgan yozuvlardan yig'iladi (backend enum bermaydi)
+  const actionOpts = useMemo(() => {
+    const map = new Map<string, string>();
+    (rows ?? []).forEach((r) => map.set(r.action, auditLabel(r).label));
+    return [{ value: "", label: "Barcha amallar" }, ...Array.from(map, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label))];
+  }, [rows]);
+
   const entityOpts = useMemo(() => {
-    const uniq = Array.from(new Set((rows ?? []).map((r) => r.entity_type)));
+    const uniq = Array.from(new Set((rows ?? []).map((r) => r.entity_type).filter(Boolean)));
     return [{ value: "", label: "Barcha obyektlar" }, ...uniq.map((e) => ({ value: e, label: entityName(e) }))];
   }, [rows]);
 
@@ -78,17 +113,11 @@ export default function AuditPage() {
     [users]
   );
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (rows ?? []).filter((r) => {
-      const def = auditAction(r.action);
-      if (kind && def.kind !== kind) return false;
-      if (entity && r.entity_type !== entity) return false;
-      if (!q) return true;
-      return [def.label, entityName(r.entity_type), auditActor(r), r.entity_id, auditSummary(r)]
-        .some((x) => (x ?? "").toLowerCase().includes(q));
-    });
-  }, [rows, search, kind, entity]);
+  // turkum filtri — lokal (backendda turkum tushunchasi yo'q)
+  const filtered = useMemo(() => (kind ? (rows ?? []).filter((r) => auditLabel(r).kind === kind) : rows ?? []), [rows, kind]);
+
+  const hasFilter = !!(search || kind || action || entity || user || from || to);
+  const clearAll = () => { setSearch(""); setQ(""); setKind(""); setAction(""); setEntity(""); setUser(""); setFrom(""); setTo(""); setShown(50); };
 
   if (!visible) return <EmptyState title="Ruxsat yo'q" sub="Bu sahifa uchun sizda ko'rish huquqi yo'q." />;
   if (err) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--danger-ink)" }}>{err}</p>;
@@ -98,6 +127,7 @@ export default function AuditPage() {
 
   return (
     <>
+      {/* FILTR PANELI — qidiruv, xodim, amal, obyekt, sana oralig'i */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
           Audit jurnali ({filtered.length < rows.length ? `${filtered.length} / ${rows.length}` : rows.length}) — kim, nima qilgani va nima o&apos;zgargani
@@ -105,26 +135,33 @@ export default function AuditPage() {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Jurnaldan qidirish" />
           {users.length > 0 && <FilterSelect value={user} options={userOpts} onChange={(v) => { setUser(v); setShown(50); }} label="Xodim" />}
-          <FilterSelect value={kind} options={KIND_OPTS} onChange={setKind} label="Amal" />
-          <FilterSelect value={entity} options={entityOpts} onChange={setEntity} label="Obyekt" />
-          <ClearFilters show={!!(search || kind || entity || user)} onClear={() => { setSearch(""); setKind(""); setEntity(""); setUser(""); }} />
+          <FilterSelect value={action} options={actionOpts} onChange={(v) => { setAction(v); setShown(50); }} label="Amal" />
+          <FilterSelect value={kind} options={KIND_OPTS} onChange={setKind} label="Turkum" />
+          <FilterSelect value={entity} options={entityOpts} onChange={(v) => { setEntity(v); setShown(50); }} label="Obyekt" />
+          <div className="flex items-center gap-1.5">
+            <div className="w-[140px]"><DatePicker value={from} onChange={(v) => { setFrom(v); setShown(50); }} placeholder="Sanadan" ariaLabel="Boshlanish sanasi" /></div>
+            <span style={{ color: "var(--muted)" }}>–</span>
+            <div className="w-[140px]"><DatePicker value={to} onChange={(v) => { setTo(v); setShown(50); }} placeholder="Sanagacha" ariaLabel="Tugash sanasi" /></div>
+          </div>
+          <ClearFilters show={hasFilter} onClear={clearAll} />
         </div>
       </div>
 
       <div className="glass overflow-hidden !rounded-[20px] max-md:overflow-x-auto">
-        <div className="grid min-w-[860px] grid-cols-[150px_1.1fr_1fr_1.5fr_140px] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
+        <div className="grid min-w-[880px] grid-cols-[150px_1.1fr_1fr_1.5fr_140px] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
           <span>Xodim</span><span>Amal</span><span>Obyekt</span><span>O&apos;zgarish</span><span>Vaqt</span>
         </div>
         {page.map((r, ri) => {
-          const def = auditAction(r.action);
+          const def = auditLabel(r);
           const hue = KIND_HUE[def.kind];
           const Icon = KIND_ICON[def.kind];
           const changes = auditChanges(r);
+          const summary = auditSummary(r);
           return (
             <button
               key={r.id}
               onClick={() => setSel(r)}
-              className="row-lux grid w-full min-w-[860px] grid-cols-[150px_1.1fr_1fr_1.5fr_140px] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]"
+              className="row-lux grid w-full min-w-[880px] grid-cols-[150px_1.1fr_1fr_1.5fr_140px] items-center gap-2.5 border-t px-4 py-3 text-left text-[13px]"
               style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(ri * 30, 400)}ms` }}
               title="Batafsil ko'rish"
             >
@@ -142,6 +179,7 @@ export default function AuditPage() {
                     borderColor: `color-mix(in srgb, ${hue} 28%, transparent)`,
                     color: `color-mix(in srgb, ${hue} 72%, var(--text))`,
                   }}
+                  title={r.action}
                 >
                   <Icon size={11} strokeWidth={2.2} /> {def.label}
                 </span>
@@ -149,8 +187,10 @@ export default function AuditPage() {
               <span className="min-w-0 truncate" style={{ color: "var(--text-2)" }} title={`${entityName(r.entity_type)} #${r.entity_id}`}>
                 {entityName(r.entity_type)} <span style={{ color: "var(--muted)" }}>#{r.entity_id}</span>
               </span>
-              <span className="min-w-0 truncate" style={{ color: "var(--muted)" }} title={auditSummary(r)}>
-                {changes.length ? (
+              <span className="min-w-0 truncate" style={{ color: "var(--muted)" }} title={summary}>
+                {r.summary?.trim() ? (
+                  <span className="truncate">{r.summary}</span>
+                ) : changes.length ? (
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate">{changes[0].label}:</span>
                     {changes[0].from !== undefined && <span className="shrink-0 line-through opacity-70">{changes[0].from}</span>}
@@ -185,10 +225,11 @@ export default function AuditPage() {
 
 /** Bitta yozuvning to'liq tafsiloti — barcha maydonlar, oldin → keyin */
 function AuditDetail({ row, onClose, onCopy }: { row: AuditLog; onClose: () => void; onCopy: () => void }) {
-  const def = auditAction(row.action);
+  const def = auditLabel(row);
   const hue = KIND_HUE[def.kind];
   const Icon = KIND_ICON[def.kind];
   const changes = auditChanges(row, true);
+  const request = [row.request_method, row.request_path].filter(Boolean).join(" ");
 
   return (
     <Modal onClose={onClose} width={520}>
@@ -209,7 +250,13 @@ function AuditDetail({ row, onClose, onCopy }: { row: AuditLog; onClose: () => v
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-[color:var(--border)]">
+      {row.summary?.trim() && (
+        <p className="mt-3.5 rounded-[14px] px-4 py-3 text-[13px] leading-relaxed" style={{ background: "var(--primary-soft)", color: "var(--text)" }}>
+          {row.summary}
+        </p>
+      )}
+
+      <div className="mt-3.5 rounded-2xl border border-[color:var(--border)]">
         <div className="flex justify-between gap-3.5 px-4 py-3">
           <span className="text-[13px]" style={{ color: "var(--text-2)" }}>Kim</span>
           <span className="text-right text-[13px] font-semibold">
@@ -221,6 +268,18 @@ function AuditDetail({ row, onClose, onCopy }: { row: AuditLog; onClose: () => v
           <span className="text-[13px]" style={{ color: "var(--text-2)" }}>Amal kaliti</span>
           <code className="text-right text-[12px]" style={{ color: "var(--muted)" }}>{row.action}</code>
         </div>
+        {row.ip_address && (
+          <div className="flex justify-between gap-3.5 border-t border-[color:var(--border)] px-4 py-3">
+            <span className="flex items-center gap-1.5 text-[13px]" style={{ color: "var(--text-2)" }}><Globe size={13} strokeWidth={1.9} /> IP manzil</span>
+            <code className="text-right text-[12px]" style={{ color: "var(--muted)" }}>{row.ip_address}</code>
+          </div>
+        )}
+        {request && (
+          <div className="flex justify-between gap-3.5 border-t border-[color:var(--border)] px-4 py-3">
+            <span className="text-[13px]" style={{ color: "var(--text-2)" }}>So&apos;rov</span>
+            <code className="min-w-0 truncate text-right text-[12px]" style={{ color: "var(--muted)" }} title={request}>{request}</code>
+          </div>
+        )}
       </div>
 
       <div className="mt-3.5 rounded-2xl border border-[color:var(--border)] px-4 py-3">

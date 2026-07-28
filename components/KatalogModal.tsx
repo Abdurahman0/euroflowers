@@ -11,14 +11,15 @@ import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
 import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials } from "@/lib/inventory";
-import type { ArrangementType, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, StockBatch } from "@/lib/types";
+import type { ArrangementType, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; mode: "stems" | "bunches"; qty: string };
 type MatRow = { packaging: number; qty: string };
 
 const EMPTY = {
   name_uz: "", arrangement_type: "bouquet" as ArrangementType, height_cm: "",
-  price: "", florist_fee: "", quantity_total: "1", instagram_story_url: "", description_uz: "", image_url: "",
+  price: "", florist_fee: "", florist_salary_amount: "", discount_reason: "", note: "",
+  quantity_total: "1", instagram_story_url: "", description_uz: "", image_url: "",
 };
 
 /** KATALOG KOMPOZITSIYA QURUVCHI — Standart/Maxsus, hajm tarifi, materiallar,
@@ -38,10 +39,14 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     ...(item ? {
       name_uz: item.name_uz ?? "", arrangement_type: item.arrangement_type, height_cm: item.height_cm ? String(item.height_cm) : "",
       price: item.price ? String(Math.round(+item.price)) : "", florist_fee: item.florist_fee ? String(Math.round(+item.florist_fee)) : "",
+      florist_salary_amount: item.florist_salary_amount ? String(Math.round(+item.florist_salary_amount)) : "",
+      discount_reason: item.discount_reason ?? "", note: item.note ?? "",
       quantity_total: String(item.quantity_total ?? 1), instagram_story_url: item.instagram_story_url ?? "",
       description_uz: item.description_uz ?? "", image_url: item.image_url ?? "",
     } : {}),
   });
+  // maxsus katalog auto-sotiladi → to'lov turi shu paytda yoziladi
+  const [payment, setPayment] = useState<PaymentType>("cash");
   const [comp, setComp] = useState<CompRow[]>(
     item?.composition?.length ? item.composition.map((c) => ({ stock_batch: c.stock_batch, mode: "stems" as const, qty: String(c.quantity_stems) })) : [{ stock_batch: 0, mode: "stems", qty: "" }]
   );
@@ -153,12 +158,24 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     const componentPrice = perUnitComponent * qtyTotal;
     const cost = perUnitCost * qtyTotal;
     const sale = (+f.price || 0) * qtyTotal;
-    return { componentPrice, cost, sale, fee: fee * qtyTotal, discount: Math.max(0, componentPrice - sale), profit: sale - cost, qty: qtyTotal };
-  }, [comp, mats, f.price, f.florist_fee, f.quantity_total, qtyTotal, batches, materials]); // eslint-disable-line react-hooks/exhaustive-deps
+    // OYLIK: standart katalogda florist_fee × soni floristga yoziladi.
+    // MAXSUS katalogda backend endi fee'ni oylikka QO'SHMAYDI — alohida
+    // `florist_salary_amount` yoziladi (kontrakt: 82e8106).
+    const salary = kind === "custom" ? +f.florist_salary_amount || 0 : fee * qtyTotal;
+    return { componentPrice, cost, sale, fee: fee * qtyTotal, salary, discount: Math.max(0, componentPrice - sale), profit: sale - cost, qty: qtyTotal };
+  }, [comp, mats, f.price, f.florist_fee, f.florist_salary_amount, f.quantity_total, kind, qtyTotal, batches, materials]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // MAXSUS katalog komponent narxidan arzon sotilsa — sabab MAJBURIY
+  // (backend ham talab qiladi: 4471e90 catalog discount sale history)
+  const needsDiscountReason = kind === "custom" && price.discount > 0;
 
   const save = async () => {
     if (!f.name_uz) return showToast("Nomini kiriting");
     if (!f.price) return showToast("Narxini kiriting");
+    if (needsDiscountReason && !f.discount_reason.trim()) {
+      setErrs((x) => ({ ...x, discount_reason: "Chegirma sababini yozing" }));
+      return showToast("Chegirma sababini yozing");
+    }
     // NORMALLASHTIRISH: bir xil stock_batch/packaging qatorlari BITTAGA
     // birlashtiriladi (bitta buket = bitta item, ko'p qatorli composition).
     const composition = normalizeComposition(
@@ -184,14 +201,18 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       height_cm: +f.height_cm || null,
       price: String(+f.price),
       florist_fee: f.florist_fee ? String(+f.florist_fee) : undefined,
+      // maxsus katalogda oylik summasi ALOHIDA yuboriladi (fee'dan ajratilgan)
+      ...(kind === "custom" && f.florist_salary_amount ? { florist_salary_amount: String(+f.florist_salary_amount) } : {}),
+      ...(f.discount_reason.trim() ? { discount_reason: f.discount_reason.trim() } : {}),
+      ...(f.note.trim() ? { note: f.note.trim() } : {}),
       quantity_total: Math.max(+f.quantity_total || 1, 1),
       instagram_story_url: f.instagram_story_url,
       description_uz: f.description_uz,
       image_url: f.image_url,
       ...(compLocked ? {} : { composition, materials: materialsPayload }),
     };
-    // maxsus: mijoz do'konda tanladi → sotilgan sifatida yoziladi
-    if (kind === "custom" && !item) payload.status = "sold";
+    // maxsus: mijoz do'konda tanladi → sotilgan sifatida yoziladi; to'lov turi shu paytda
+    if (kind === "custom" && !item) { payload.status = "sold"; payload.payment_type = payment; }
     else if (!item) payload.status = "available";
     try {
       await (item ? api.updateCatalogItem(item.id, payload) : api.createCatalogItem(payload));
@@ -271,9 +292,29 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
         {kind === "standard" ? "Standart — florist tayyorlagan buket/savat." : "Maxsus — mijoz do'konda o'zi tanladi."}
       </p>
       {kind === "custom" && !item && (
-        <div className="mt-2 flex items-center gap-1.5 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold text-peachink">
-          <Info size={14} strokeWidth={2} /> Sotilgan sifatida yoziladi (status = sotildi).
-        </div>
+        <>
+          <div className="mt-2 flex items-center gap-1.5 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold text-peachink">
+            <Info size={14} strokeWidth={2} /> Sotilgan sifatida yoziladi (status = sotildi).
+          </div>
+          {/* to'lov turi — maxsus katalog darhol sotilgani uchun shu paytda yoziladi */}
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>To&apos;lov:</span>
+            <div className="flex flex-1 gap-1.5">
+              {(["cash", "card"] as const).map((pv) => (
+                <button
+                  key={pv}
+                  type="button"
+                  onClick={() => setPayment(pv)}
+                  aria-pressed={payment === pv}
+                  className="flex-1 rounded-[11px] border-[1.5px] py-1.5 text-[12.5px] font-bold transition-colors duration-150"
+                  style={payment === pv ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" } : { borderColor: "var(--border)", color: "var(--text-2)" }}
+                >
+                  {pv === "cash" ? "Naqd" : "Karta"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
       <Section>Asosiy</Section>
@@ -425,23 +466,73 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       <Section>Narx va tavsif</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Sotuv narxi (so'm)"><input className="inp" type="number" value={f.price} onChange={set("price")} placeholder="Masalan: 850000" /><Err k="price" /></Field>
-        <Field label="Florist haqi (so'm)">
+        <Field label={kind === "custom" ? "Floristika xizmati (mijozdan)" : "Florist haqi (so'm)"}>
           <input className="inp" type="number" value={f.florist_fee} onChange={(e) => { setFeeFromRate(false); setF({ ...f, florist_fee: e.target.value }); }} placeholder="Masalan: 50000" />
           {feeFromRate && <span className="mt-0.5 block text-[11px] font-semibold" style={{ color: "var(--primary)" }}>Tarifdan olindi</span>}
-          {/* JONLI OYLIK ta'siri — backend: salary = florist_fee × quantity_total */}
-          {+f.florist_fee > 0 && (
-            florist ? (
-              <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
-                Oylikka: {qtyTotal > 1 ? `${(+f.florist_fee).toLocaleString("ru")} × ${qtyTotal} dona = ` : ""}
-                <b style={{ color: "var(--acc)" }}>{fmt(+f.florist_fee * qtyTotal)}</b>
-              </span>
-            ) : (
-              <span className="mt-0.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>Florist tanlanmagan — oylik yozilmaydi</span>
+          {kind === "custom" ? (
+            <span className="mt-0.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>
+              Mijozdan olinadi — foydaga kiradi, oylikka QO&apos;SHILMAYDI
+            </span>
+          ) : (
+            /* JONLI OYLIK ta'siri — standart katalogda: salary = florist_fee × quantity_total */
+            +f.florist_fee > 0 && (
+              florist ? (
+                <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
+                  Oylikka: {qtyTotal > 1 ? `${(+f.florist_fee).toLocaleString("ru")} × ${qtyTotal} dona = ` : ""}
+                  <b style={{ color: "var(--acc)" }}>{fmt(+f.florist_fee * qtyTotal)}</b>
+                </span>
+              ) : (
+                <span className="mt-0.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>Florist tanlanmagan — oylik yozilmaydi</span>
+              )
             )
           )}
           <Err k="florist_fee" />
         </Field>
+
+        {/* MAXSUS katalog: oylikka yoziladigan summa fee'dan AJRATILGAN */}
+        {kind === "custom" && (
+          <Field label="Floristga yoziladigan ish haqi (so'm)" span>
+            <input
+              className="inp"
+              type="number"
+              value={f.florist_salary_amount}
+              onChange={set("florist_salary_amount")}
+              placeholder="Masalan: 125000"
+            />
+            <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: florist ? "var(--text-2)" : "var(--muted)" }}>
+              {florist
+                ? +f.florist_salary_amount > 0
+                  ? <>Florist oyligiga qo&apos;shiladi: <b style={{ color: "var(--acc)" }}>{fmt(+f.florist_salary_amount)}</b></>
+                  : "Bo'sh qoldirilsa oylikka yozuv qo'shilmaydi"
+                : "Florist tanlanmagan — oylik yozilmaydi"}
+            </span>
+            <Err k="florist_salary_amount" />
+          </Field>
+        )}
+
+        {/* CHEGIRMA SABABI — komponent narxidan arzon sotilganda majburiy */}
+        {(kind === "custom" || f.discount_reason) && (
+          <Field label={needsDiscountReason ? "Chegirma sababi (majburiy)" : "Chegirma sababi"} span>
+            <input
+              className="inp"
+              value={f.discount_reason}
+              onChange={set("discount_reason")}
+              placeholder="Masalan: Mijozga kelishilgan chegirma"
+              style={needsDiscountReason && !f.discount_reason.trim() ? { borderColor: "var(--danger-ink)" } : undefined}
+            />
+            {needsDiscountReason && (
+              <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>
+                Narx komponent narxidan {fmt(price.discount)} arzon — sabab yozilishi shart
+              </span>
+            )}
+            <Err k="discount_reason" />
+          </Field>
+        )}
+
         <Field label="Story havolasi" span><input className="inp" value={f.instagram_story_url} onChange={set("instagram_story_url")} placeholder="Masalan: https://instagram.com/stories/…" /></Field>
+        <Field label="Ichki izoh" span>
+          <input className="inp" value={f.note} onChange={set("note")} placeholder="Masalan: nazoratchi izohi — mijozga ko'rinmaydi" />
+        </Field>
         <Field label="Rasm" span><ImageInput value={f.image_url} onChange={(url) => setF({ ...f, image_url: url })} /></Field>
       </div>
 
@@ -452,7 +543,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           <PriceLine label="Tannarx" value={price.cost} />
           <PriceLine label="Sotuv narxi" value={price.sale} strong />
           {price.discount > 0 && <PriceLine label="Chegirma" value={price.discount} hue="var(--danger-ink)" />}
-          {price.fee > 0 && <PriceLine label="Florist haqi" value={price.fee} />}
+          {price.fee > 0 && <PriceLine label={kind === "custom" ? "Floristika xizmati" : "Florist haqi"} value={price.fee} />}
+          {price.salary > 0 && florist > 0 && <PriceLine label="Florist oyligiga" value={price.salary} hue="var(--acc)" />}
           <PriceLine label="Taxminiy foyda" value={price.profit} hue={price.profit >= 0 ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)"} strong />
         </div>
         <p className="mt-1 text-[11px]" style={{ color: "var(--muted)" }}>

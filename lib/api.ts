@@ -1,9 +1,9 @@
 "use client";
 import type {
-  AISettings, Analytics, AuditLog, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
-  Flower, FloristInput, FloristProfile, FloristSalaryEntry, FloristVolumeRate, FlowerVariant,
+  Accounting, AISettings, Analytics, AuditLog, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
+  Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
-  LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated,
+  LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   SocialPost, StockBatch, StockMovement, Supplier, SupplierInput, UploadResponse, User, VolumeRateInput,
 } from "./types";
 
@@ -90,7 +90,11 @@ function extractFieldErrors(body: unknown): Record<string, string> | undefined {
 
 function statusMessage(status: number, body: unknown): string {
   if (typeof body === "object" && body != null && "detail" in body) {
-    return String((body as { detail: unknown }).detail);
+    // `detail` MASSIV bo'lishi mumkin (["Skladda yetarli qoldiq yo'q", …]) —
+    // elementlar qatorma-qator ko'rsatiladi (kontrakt: xatolarni ko'rsatish qoidasi)
+    const d = (body as { detail: unknown }).detail;
+    if (Array.isArray(d)) return d.map((x) => String(x)).join("\n");
+    return String(d);
   }
   const fields = extractFieldErrors(body);
   if (fields) {
@@ -211,6 +215,34 @@ const qs = (params?: Record<string, string | number | boolean | undefined>) => {
 
 type Params = Record<string, string | number | boolean | undefined>;
 
+/**
+ * Excel/fayl EKSPORTI — JSON emas, BLOB. Auth bilan yuklab olib, brauzerda
+ * yuklashni ishga tushiradi. Fayl nomi Content-Disposition'dan (bo'lsa) yoki
+ * fallback + davr + .xlsx'dan yasaladi. Demo rejimda ishlamaydi (real backend).
+ */
+async function downloadFile(path: string, params?: { date_from?: string; date_to?: string }, fallback = "hisobot"): Promise<void> {
+  if (DEMO_MODE) throw new ApiError(0, { detail: "Eksport demo rejimda ishlamaydi — real backendga kiring" });
+  const t = getTokens();
+  const res = await fetch(`${API_BASE}${path}${qs(params)}`, {
+    headers: t ? { Authorization: `Bearer ${t.access}` } : undefined,
+  }).catch(() => { throw new ApiError(0, { detail: "Server bilan aloqa yo'q — tarmoqni tekshiring" }); });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new ApiError(res.status, body);
+  }
+  const blob = await res.blob();
+  // fayl nomi: Content-Disposition'dagi filename yoki fallback-davr.xlsx
+  const cd = res.headers.get("Content-Disposition") || "";
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+  const span = [params?.date_from, params?.date_to].filter(Boolean).join("_");
+  const name = m ? decodeURIComponent(m[1]) : `euroflowers-${fallback}${span ? `-${span}` : ""}.xlsx`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 // bitta katta sahifa yetarli; count oshsa keyingi sahifalar ham olinadi (maks 5)
 const list = async <T,>(path: string, params?: Params): Promise<T[]> => {
   // maksimal page_size 100 (leads kontrakti); kattaroq qiymat 400 berishi mumkin
@@ -272,6 +304,16 @@ export async function login(username: string, password: string, remember = true)
   return null;
 }
 
+/**
+ * Foydalanuvchi O'Z parolini almashtiradi.
+ * DIQQAT: jonli backendda manzil `/api/me/change-password/` (hujjatdagi
+ * `/api/auth/change-password/` 404 qaytaradi) va `new_password_confirm`
+ * MAJBURIY — shu sababli tasdiq maydoni serverga ham yuboriladi.
+ */
+export function changePassword(data: { old_password: string; new_password: string; new_password_confirm: string }) {
+  return request<{ detail: string }>("/api/me/change-password/", { method: "POST", body: JSON.stringify(data) });
+}
+
 export function logout() {
   const t = getTokens();
   if (t && !DEMO_MODE) {
@@ -293,6 +335,13 @@ export const api = {
   dashboard: (p?: { from?: string; to?: string; date_from?: string; date_to?: string }) => request<Dashboard>(`/api/dashboard/${qs(p)}`),
   /** Analitika — dashboard bilan bir xil ko'rish ruxsati */
   analytics: (p?: { from?: string; to?: string; date_from?: string; date_to?: string }) => request<Analytics>(`/api/analytics/${qs(p)}`),
+
+  /** Hisob-kitob — sotuv/foyda/chegirma xulosalari (davr bo'yicha) */
+  accounting: (p?: { date_from?: string; date_to?: string; from?: string; to?: string }) => request<Accounting>(`/api/accounting/${qs(p)}`),
+  /** Excel eksportlar — fayl (blob) sifatida yuklab olinadi */
+  exportFlorist: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florist/", p, "florist-hisobot"),
+  exportFlorists: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florists/", p, "floristlar-hisobot"),
+  exportProfit: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/profit/", p, "hisob-kitob"),
 
   /** Dinamik lead statuslari — kanban ustunlari shu yerdan chiziladi.
       Javob paginatsiyali ({results}) ham, oddiy massiv ham bo'lishi mumkin. */
@@ -401,9 +450,20 @@ export const api = {
   updateCatalogItem: (id: number, data: Record<string, unknown>) =>
     request<CatalogItem>(`/api/catalog/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteCatalogItem: (id: number) => request<void>(`/api/catalog/${id}/`, { method: "DELETE" }),
-  /** quantity berilmasa backend 1 ta deb oladi */
-  sellCatalogItem: (id: number, quantity?: number) =>
-    request<CatalogItem>(`/api/catalog/${id}/sell/`, { method: "POST", body: JSON.stringify(quantity ? { quantity } : {}) }),
+  /** Katalogdan sotish. quantity berilmasa backend 1 ta deb oladi.
+      Arzonroq sotilsa: sale_price (dona narxi) + discount_reason yuboriladi —
+      backend chegirmani hisoblab history'ga yozadi. */
+  sellCatalogItem: (id: number, data?: { quantity?: number; sale_price?: string; discount_reason?: string; payment_type?: PaymentType }) =>
+    request<CatalogItem>(`/api/catalog/${id}/sell/`, {
+      method: "POST",
+      body: JSON.stringify({
+        ...(data?.quantity && data.quantity > 1 ? { quantity: data.quantity } : {}),
+        ...(data?.sale_price ? { sale_price: data.sale_price } : {}),
+        ...(data?.discount_reason ? { discount_reason: data.discount_reason } : {}),
+        ...(data?.payment_type ? { payment_type: data.payment_type } : {}),
+      }),
+    }),
+  catalogItem: (id: number) => request<CatalogItem>(`/api/catalog/${id}/`),
   /** quantity berilmasa sotilgan-u hali yechilmagan hamma son yechiladi */
   deductCatalogStock: (id: number, quantity?: number) =>
     request<CatalogItem>(`/api/catalog/${id}/deduct_stock/`, { method: "POST", body: JSON.stringify(quantity ? { quantity } : {}) }),
@@ -496,7 +556,13 @@ export const api = {
     request<Packaging>(`/api/materials/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
   materialMovements: (p?: Params) => list<MaterialMovement>("/api/material-movements/", p),
 
+  /** Audit jurnali. Filtrlar SERVER tomonda:
+      user (yoki user_id), action, entity_type, created_at_after/before, search */
   audit: (p?: Params) => list<AuditLog>("/api/audit/", p),
+
+  /** Florist keldi-ketdi yozuvlari — check-in bildirishnomasidan o'tish uchun */
+  attendance: (p?: Params) => list<FloristAttendance>("/api/florist-attendance/", p),
+  attendanceEntry: (id: number) => request<FloristAttendance>(`/api/florist-attendance/${id}/`),
 
   // Eslatma: /api/mini-app/* endpointlari Telegram mini-ilova uchun
   // (init_data imzosi talab qilinadi) — CRM interfeysidan chaqirilmaydi.

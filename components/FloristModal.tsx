@@ -35,9 +35,10 @@ export default function FloristModal({ florist, onClose, onSaved }: { florist: F
     if (!f.user) return showToast("Foydalanuvchini tanlang");
     setBusy(true);
     try {
+      // single-branch: `branch` YUBORILMAYDI — backend default filialni o'zi
+      // qo'yadi (kontrakt: 2b26aa2 default branch for florist APIs)
       const payload = {
         user: f.user,
-        branch: florist?.branch ?? 1, // single-branch: default filial
         staff_type: f.staff_type,
         phone: f.phone.trim(),
         daily_pay: f.daily_pay ? String(+f.daily_pay) : "0",

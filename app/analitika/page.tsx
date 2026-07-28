@@ -12,7 +12,7 @@ import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
 import { DonutChart, HBars, RevenueBars } from "@/components/AnalyticsCharts";
-import { NetProfitCard, BatchInventoryBars, FloristProductionCards } from "@/components/AnalyticsExtra";
+import { NetProfitCard, BatchInventoryBars, DiscountStatsCard, FloristProductionCards } from "@/components/AnalyticsExtra";
 import FlowerLoader from "@/components/FlowerLoader";
 import type { Analytics, LeadStatusDef } from "@/lib/types";
 
@@ -117,7 +117,15 @@ export default function AnalitikaPage() {
           Jonli API: pul maydonlari summary ICHIDA, statlar top-level. */}
       {(s.net_profit != null || s.catalog_revenue != null || a.florist_production_stats?.length) && (
         <motion.div variants={rise} className="grid items-start gap-4 lg:grid-cols-[minmax(260px,1fr)_2fr]">
-          <NetProfitCard netProfit={s.net_profit} revenue={s.catalog_revenue} cost={s.catalog_cost} discount={s.catalog_discount} />
+          <div className="flex flex-col gap-4">
+            <NetProfitCard netProfit={s.net_profit} revenue={s.catalog_revenue} cost={s.catalog_cost} discount={s.catalog_discount} />
+            {/* chegirmada sotilgan kataloglar — soni, donasi, summasi */}
+            <DiscountStatsCard
+              count={s.discounted_catalog_sales_count ?? a.discounted_catalog_sales_count}
+              quantity={s.discounted_catalog_quantity ?? a.discounted_catalog_quantity}
+              amount={s.discounted_catalog_amount ?? a.discounted_catalog_amount}
+            />
+          </div>
           <FloristProductionCards rows={a.florist_production_stats} salaryTotal={s.florist_salary_total} />
         </motion.div>
       )}
@@ -167,6 +175,21 @@ export default function AnalitikaPage() {
             color="var(--chart-2)"
           />
         </Card>
+
+        {/* so'nggi kunlarda ko'p sotilgan katalog gullari (backend alohida beradi) */}
+        {(a.recent_top_catalog_items?.length ?? 0) > 0 && (
+          <Card title="So'nggi kunlar hiti" sub="oxirgi sotuvlar bo'yicha katalog gullari">
+            <HBars
+              rows={a.recent_top_catalog_items!.map((c) => ({
+                label: c.catalog_item__name_uz || c.catalog_item__name_ru,
+                value: c.quantity,
+                sub: `${ARRANGEMENT_LABEL[c.catalog_item__arrangement_type] ?? c.catalog_item__arrangement_type} · ${fmt(c.revenue)}`,
+              }))}
+              unit="ta"
+              color="var(--chart-1)"
+            />
+          </Card>
+        )}
 
         {/* buyurtmalar holati — donut, har status o'z rangida */}
         <Card title="Buyurtmalar holati" sub="statuslar bo'yicha taqsimot">

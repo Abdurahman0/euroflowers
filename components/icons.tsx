@@ -5,6 +5,7 @@ import {
   Analytics01Icon,
   ApiIcon,
   ArrowDown01Icon,
+  Calculator01Icon,
   ClipboardClockIcon,
   DeliveryTruck01Icon,
   Scissor01Icon,
@@ -46,6 +47,7 @@ import {
 const ICONS: Record<string, typeof FlowerIcon> = {
   dashboard: DashboardSquare01Icon,
   analitika: Analytics01Icon,
+  hisob: Calculator01Icon,
   chat: BubbleChatIcon,
   crm: ShoppingBag01Icon, // Buyurtmalar
   mijozlar: UserGroupIcon,

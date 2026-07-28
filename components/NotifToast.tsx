@@ -3,6 +3,7 @@ import { Bell, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
+import { notifHref, notifMeta } from "@/lib/notifications";
 
 /**
  * Yangi bildirishnoma toast-kartasi — o'ng yuqoridan suzib chiqadi,
@@ -32,14 +33,15 @@ export default function NotifToast() {
             onClick={() => {
               if (!n.is_read) markRead(n.id);
               clear();
-              router.push("/bildirishnomalar");
+              // reference_type/reference_id bo'yicha to'g'ridan-to'g'ri obyektga
+              router.push(notifHref(n));
             }}
             className="flex w-full items-start gap-3 rounded-[16px] border p-3.5 text-left transition-transform duration-200 hover:-translate-y-0.5"
             style={{ background: "var(--surface-solid)", borderColor: "var(--border)", boxShadow: "var(--shadow-lg)" }}
           >
             <span
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
-              style={{ background: "linear-gradient(135deg, var(--primary), var(--primary-strong))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2)" }}
+              style={{ background: notifMeta(n.notification_type).color, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2)" }}
             >
               <Bell size={16} strokeWidth={1.75} />
             </span>

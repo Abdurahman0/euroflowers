@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeft, MoonStar, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Clock3, MoonStar, RotateCw, Trash2 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { InstagramIcon, TelegramIcon } from "@hugeicons/core-free-icons";
 import SearchInput from "@/components/SearchInput";
@@ -59,6 +59,8 @@ function MessageRow({
   onCopy,
   onOpenImage,
   onMediaReady,
+  onRetry,
+  onEditFailed,
 }: {
   m: Message;
   custName: string;
@@ -69,6 +71,10 @@ function MessageRow({
   onOpenImage: (url: string) => void;
   /** media yuklanib bubble balandligi o'zgardi — skroll pastda qolsin */
   onMediaReady: () => void;
+  /** yuborilmagan xabarni qayta yuborish */
+  onRetry?: () => void;
+  /** yuborilmagan matnni kiritish maydoniga qaytarish */
+  onEditFailed?: () => void;
 }) {
   // MEDIA: rasm / video / ovoz / reel / fayl / IG story / AI katalog rasmi
   // (aniqlash MessageMedia'da — real backend attachments[]/image_tool_result — MEDIA_NOTES.md)
@@ -138,7 +144,14 @@ function MessageRow({
               ? clsx("rounded-[16px]", !groupWithNext && "rounded-bl-[6px]")
               : clsx("rounded-[16px]", !groupWithNext && "rounded-br-[6px]")
           )}
-          style={{ ...bubbleStyle, overflowWrap: "anywhere", wordBreak: "break-word" }}
+          style={{
+            ...bubbleStyle,
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+            // optimistik holatlar: yuborilmoqda — sustroq, yuborilmadi — qizil kontur
+            ...(m.ui_status === "sending" ? { opacity: 0.6 } : {}),
+            ...(m.ui_status === "failed" ? { boxShadow: "inset 0 0 0 1.5px var(--danger-ink)" } : {}),
+          }}
         >
           {media && (
             <div className={bodyText ? "mb-2" : undefined}>
@@ -160,11 +173,42 @@ function MessageRow({
           {bodyText}
         </div>
 
+        {/* YUBORILMADI — aniq xato, qayta yuborish va matnni tahrirlash */}
+        {m.ui_status === "failed" && (
+          <div className="mt-1 flex max-w-full flex-col items-end gap-1">
+            <span className="flex items-center gap-1.5 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>
+              <AlertCircle size={12} strokeWidth={2.2} />
+              {m.ui_error || "Message yuborilmadi. Qayta urinib ko'ring."}
+            </span>
+            <span className="flex items-center gap-1.5">
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]"
+                  style={{ borderColor: "var(--danger-ink)", color: "var(--danger-ink)" }}
+                >
+                  <RotateCw size={11} strokeWidth={2.2} /> Qayta yuborish
+                </button>
+              )}
+              {onEditFailed && (
+                <button
+                  onClick={onEditFailed}
+                  className="rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]"
+                  style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+                >
+                  Tahrirlash
+                </button>
+              )}
+            </span>
+          </div>
+        )}
+
         {/* guruh oxiridagi vaqt */}
-        {!groupWithNext && (
-          <span className={clsx("mt-1 text-[11px] font-medium", isLeft ? "ml-1" : "mr-1")} style={{ color: "var(--muted)" }}>
+        {!groupWithNext && m.ui_status !== "failed" && (
+          <span className={clsx("mt-1 flex items-center gap-1 text-[11px] font-medium", isLeft ? "ml-1" : "mr-1")} style={{ color: "var(--muted)" }}>
+            {m.ui_status === "sending" && <Clock3 size={10} strokeWidth={2.2} />}
             {m.sender === "ai" ? "AI · " : m.sender === "operator" ? "Operator · " : ""}
-            {fmtTime(m.created_at)}
+            {m.ui_status === "sending" ? "yuborilmoqda…" : fmtTime(m.created_at)}
           </span>
         )}
       </div>
@@ -193,6 +237,10 @@ export default function ChatPage() {
   const [chanF, setChanF] = useState<"" | "instagram" | "telegram">(""); // platforma filtri
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  /** Optimistik (hali serverga tushmagan) operator xabarlari — suhbat bo'yicha.
+      Gateway/Instagram xatosida yozuv YO'QOLMAYDI: pufak "failed" bo'lib qoladi,
+      qayta yuborish yoki matnni inputga qaytarish mumkin (kontrakt: 6fa3c47, 2d10b96). */
+  const [pending, setPending] = useState<{ key: number; conv: number; text: string; created_at: string; status: "sending" | "failed"; error?: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   // media lightbox (rasm) + xabarlar ro'yxati skrolli
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -249,9 +297,12 @@ export default function ChatPage() {
     return () => clearInterval(t);
   }, [selId, loadConv]);
 
+  /** joriy suhbatning yuborilmagan/yuborilayotgan xabarlari */
+  const convPending = pending.filter((p) => p.conv === selId);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conv?.messages.length]);
+  }, [conv?.messages.length, convPending.length]);
 
   /** Media yuklanib bubble balandligi o'zgardi: foydalanuvchi pastda bo'lsa
       pastga yopishib turamiz, yuqorini o'qiyotgan bo'lsa joyini saqlaymiz. */
@@ -262,17 +313,37 @@ export default function ChatPage() {
     if (atBottom) el.scrollTop = el.scrollHeight;
   }, []);
 
+  /**
+   * Xabar yuborish — optimistik. Backend endi gateway xatosida 500 bermaydi,
+   * boshqariladigan xato qaytaradi: uni odam o'qiydigan holatga aylantiramiz.
+   */
+  const deliver = useCallback(async (key: number, convId: number, body: string) => {
+    setPending((ps) => ps.map((p) => (p.key === key ? { ...p, status: "sending", error: undefined } : p)));
+    try {
+      await api.sendMessage(convId, body);
+      setPending((ps) => ps.filter((p) => p.key !== key)); // haqiqiy xabar ro'yxatdan keladi
+      await loadConv(convId);
+      loadList();
+    } catch (e) {
+      // `detail` massiv bo'lsa ApiError uni qatorlarga yig'ib beradi
+      const msg = e instanceof ApiError ? e.message : "Message yuborilmadi. Qayta urinib ko'ring.";
+      setPending((ps) => ps.map((p) => (p.key === key ? { ...p, status: "failed", error: msg } : p)));
+      showToast(msg);
+    }
+  }, [loadConv, loadList, showToast]);
+
   const send = async () => {
     if (!text.trim() || selId == null || sending) return;
     const t = text.trim();
+    const key = Date.now();
+    const convId = selId;
     setSending(true);
+    // matn darhol pufak bo'lib chiqadi va input bo'shaydi — xato bo'lsa
+    // pufakda "failed" holatida saqlanadi (yozuv yo'qolmaydi)
+    setPending((ps) => [...ps, { key, conv: convId, text: t, created_at: new Date().toISOString(), status: "sending" }]);
+    setText("");
     try {
-      await api.sendMessage(selId, t);
-      setText("");
-      await loadConv(selId);
-      loadList();
-    } catch (e) {
-      showToast(e instanceof ApiError ? e.message : "Yuborib bo'lmadi");
+      await deliver(key, convId, t);
     } finally {
       setSending(false);
     }
@@ -510,19 +581,50 @@ export default function ChatPage() {
               {conv.messages.map((m, i) => {
                 const prev = conv.messages[i - 1];
                 const next = conv.messages[i + 1];
+                const lastReal = i === conv.messages.length - 1;
                 return (
                   <MessageRow
                     key={m.id}
                     m={m}
                     custName={custName(conv)}
                     groupWithPrev={!!prev && prev.sender === m.sender}
-                    groupWithNext={!!next && next.sender === m.sender}
+                    groupWithNext={(!!next && next.sender === m.sender) || (lastReal && convPending.length > 0 && m.sender === "operator")}
                     onCopy={copyText}
                     onOpenImage={setLightbox}
                     onMediaReady={keepPinned}
                   />
                 );
               })}
+              {/* optimistik xabarlar — yuborilmoqda / yuborilmadi */}
+              {convPending.map((p, i) => (
+                <MessageRow
+                  key={`p${p.key}`}
+                  m={{
+                    id: -p.key,
+                    created_at: p.created_at,
+                    updated_at: p.created_at,
+                    sender: "operator",
+                    text: p.text,
+                    instagram_message_id: "",
+                    metadata: {},
+                    conversation: p.conv,
+                    ui_status: p.status,
+                    ui_error: p.error,
+                  }}
+                  custName={custName(conv)}
+                  groupWithPrev={i > 0}
+                  groupWithNext={i < convPending.length - 1}
+                  onCopy={copyText}
+                  onOpenImage={setLightbox}
+                  onMediaReady={keepPinned}
+                  onRetry={p.status === "failed" ? () => deliver(p.key, p.conv, p.text) : undefined}
+                  onEditFailed={
+                    p.status === "failed"
+                      ? () => { setText((cur) => (cur ? `${cur} ${p.text}` : p.text)); setPending((ps) => ps.filter((x) => x.key !== p.key)); }
+                      : undefined
+                  }
+                />
+              ))}
               <div ref={bottomRef} />
             </div>
 

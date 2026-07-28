@@ -107,9 +107,11 @@ export function parseMedia(m: Message): MediaPayload | null {
     return { kind: "image", url: itrUrl, caption: name ? `Katalog rasmi: ${name}` : "Katalog rasmi" };
   }
 
-  // 3) media_url alias'lari (demo/hujjat kontrakti) → 4) matn ichidagi havola
+  // 3) TOP-LEVEL media_url/image_url (AI stock rasm vositasi — d52ad7d) va
+  //    metadata media_url alias'lari → 4) matn ichidagi havola
   const isMedia = meta.is_non_text_media === true;
-  const aliasUrl = str(meta.media_url) ?? str(meta.url) ?? str(meta.attachment_url) ?? str(meta.file_url) ?? str(meta.image_url);
+  const topUrl = str(m.media_url) ?? str(m.image_url);
+  const aliasUrl = topUrl ?? str(meta.media_url) ?? str(meta.url) ?? str(meta.attachment_url) ?? str(meta.file_url) ?? str(meta.image_url);
   const url = aliasUrl ?? firstUrl(text);
   if (!url) return null;
   const raw = str(meta.media_type) ?? str(meta.type) ?? str(meta.mime_type) ?? str(meta.mime) ?? "";

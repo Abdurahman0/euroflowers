@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Clock, Pencil, Plus, Scissors, Trash2 } from "lucide-react";
+import { Clock, Download, Pencil, Plus, Scissors, Trash2, User } from "lucide-react";
 import clsx from "clsx";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { initials, fmt } from "@/lib/format";
+import { initials, fmt, dateAfterParam } from "@/lib/format";
 import { STAFF_LABEL } from "@/lib/inventory";
 import SearchInput from "@/components/SearchInput";
 import EmptyState from "@/components/EmptyState";
@@ -13,16 +13,57 @@ import FlowerLoader from "@/components/FlowerLoader";
 import FloristModal from "@/components/FloristModal";
 import VolumeRateMatrix from "@/components/VolumeRateMatrix";
 import SalaryLedger from "@/components/SalaryLedger";
+import AttendanceLedger from "@/components/AttendanceLedger";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import type { FloristProfile } from "@/lib/types";
 
-const TAB_LABEL = { profillar: "Profillar", tariflar: "Hajm tariflari", oyliklar: "Oyliklar" } as const;
+const TAB_LABEL = { profillar: "Profillar", tariflar: "Hajm tariflari", oyliklar: "Oyliklar", davomat: "Keldi-ketdi" } as const;
+type Tab = keyof typeof TAB_LABEL;
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Oyliklar tabidagi Excel eksport paneli — joriy davr bo'yicha (florist/florists). */
+function SalaryExport({ control }: { control: boolean }) {
+  const { showToast, dateFilter, dateRange } = useStore();
+  const [busy, setBusy] = useState<"me" | "all" | null>(null);
+  const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
+  const to = dateRange ? dateRange.to : ymd(new Date());
+  const run = async (which: "me" | "all") => {
+    setBusy(which);
+    try {
+      await (which === "all" ? api.exportFlorists({ date_from: from, date_to: to }) : api.exportFlorist({ date_from: from, date_to: to }));
+      showToast("✓ Excel yuklab olindi");
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "Eksport qilib bo'lmadi");
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <span className="text-[13px] font-semibold" style={{ color: "var(--mut)" }}>Excel hisobot:</span>
+      <button onClick={() => run("me")} disabled={busy !== null} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3 py-1.5 text-[12.5px] font-bold transition-colors duration-150 hover:bg-[var(--hover)] disabled:opacity-60" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
+        <User size={14} strokeWidth={2} /> {busy === "me" ? "Yuklanmoqda…" : "O'z hisobotim"}
+      </button>
+      {control && (
+        <button onClick={() => run("all")} disabled={busy !== null} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3 py-1.5 text-[12.5px] font-bold transition-colors duration-150 hover:bg-[var(--hover)] disabled:opacity-60" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
+          <Download size={14} strokeWidth={2} /> {busy === "all" ? "Yuklanmoqda…" : "Barcha floristlar"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function FloristlarPage() {
   const { showToast } = useStore();
   const { canControl } = usePerm();
-  const control = canControl("settings");
-  const [tab, setTab] = useState<"profillar" | "tariflar" | "oyliklar">("profillar");
+  const control = canControl("florists", "settings");
+  // ?tab=davomat&attendance=<id> — check-in bildirishnomasidan kirish
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === "undefined") return "profillar";
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t && t in TAB_LABEL ? (t as Tab) : "profillar";
+  });
   const [rows, setRows] = useState<FloristProfile[] | null>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<{ open: boolean; edit: FloristProfile | null }>({ open: false, edit: null });
@@ -59,7 +100,7 @@ export default function FloristlarPage() {
 
   const tabBar = (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      {(["profillar", "tariflar", "oyliklar"] as const).map((t) => (
+      {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
         <button
           key={t}
           onClick={() => setTab(t)}
@@ -76,7 +117,8 @@ export default function FloristlarPage() {
   if (rows === null && tab === "profillar") return <FlowerLoader />;
 
   if (tab === "tariflar") return <>{tabBar}<VolumeRateMatrix /></>;
-  if (tab === "oyliklar") return <>{tabBar}<SalaryLedger /></>;
+  if (tab === "oyliklar") return <>{tabBar}<SalaryExport control={control} /><SalaryLedger /></>;
+  if (tab === "davomat") return <>{tabBar}<AttendanceLedger /></>;
 
   return (
     <>

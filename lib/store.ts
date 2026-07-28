@@ -242,11 +242,11 @@ if (typeof window !== "undefined") {
  * bo'lmasa rol bo'yicha zaxira qoida (developer/admin — hammasi).
  */
 const ROLE_FALLBACK: Record<Role, PermissionPage[]> = {
-  developer: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "settings", "ai_settings", "integrations", "users", "mini_app", "audit"],
-  admin: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "settings", "users", "audit"],
+  developer: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "ai_settings", "integrations", "users", "mini_app", "audit"],
+  admin: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "users", "audit"],
   operator: ["dashboard", "crm", "customers", "conversations", "catalog", "social_posts", "notifications"],
-  florist: ["dashboard", "inventory", "catalog", "notifications"],
-  warehouse: ["dashboard", "inventory", "catalog", "notifications"],
+  florist: ["dashboard", "inventory", "catalog", "notifications", "attendance"],
+  warehouse: ["dashboard", "inventory", "catalog", "notifications", "suppliers"],
   content: ["dashboard", "catalog", "social_posts", "notifications"],
 };
 
@@ -265,13 +265,15 @@ export function checkPerm(
   return ROLE_FALLBACK[role]?.includes(page) ?? false;
 }
 
-/** Sahifa ruxsatlari hooki: canView/canControl */
+/** Sahifa ruxsatlari hooki: canView/canControl (bir nechta sahifa berilsa —
+    ULARDAN BIRORTASI yetarli; backend ruxsat sahifalarini ajratgan: masalan
+    florists/suppliers/attendance ilgari settings/inventory ostida edi). */
 export const usePerm = () => {
   const permissions = useStore((s) => s.permissions);
   const role = useStore((s) => s.user?.profile.role);
   return {
-    canView: (page: PermissionPage) => checkPerm(permissions, role, page, "view"),
-    canControl: (page: PermissionPage) => checkPerm(permissions, role, page, "control"),
+    canView: (...pages: PermissionPage[]) => pages.some((p) => checkPerm(permissions, role, p, "view")),
+    canControl: (...pages: PermissionPage[]) => pages.some((p) => checkPerm(permissions, role, p, "control")),
   };
 };
 

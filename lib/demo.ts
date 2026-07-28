@@ -535,12 +535,34 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       return out({ ...c, status: p.includes("handoff") ? "operator" : "ai" });
     }
     if (/\/api\/catalog\/\d+\/sell\//.test(p)) {
-      // qisman sotish: quantity_sold oshadi; hammasi sotilsa status=sold
+      // qisman sotish: quantity_sold oshadi; hammasi sotilsa status=sold.
+      // sale_price berilsa — chegirma hisoblanib tarixga yoziladi (jonli kontrakt).
       const it = catalog.find((x) => x.id === idOf(/catalog\/(\d+)/)) ?? catalog[0];
       const total = it.quantity_total ?? 1;
-      const sold = Math.min((it.quantity_sold ?? 0) + (Number(body.quantity) || 1), total);
-      return out({ ...it, quantity_sold: sold, status: sold >= total ? "sold" : it.status, sold_at: sold >= total ? ago(0) : it.sold_at });
+      const qty = Number(body.quantity) || 1;
+      const sold = Math.min((it.quantity_sold ?? 0) + qty, total);
+      const listed = Math.round(+it.price || 0);
+      const unit = body.sale_price != null ? Math.round(+String(body.sale_price)) : listed;
+      const disc = Math.max(listed - unit, 0);
+      const hist = [
+        ...(it.history ?? []),
+        {
+          id: Date.now(),
+          catalog_item: it.id,
+          action: "sold" as const,
+          quantity: qty,
+          listed_unit_price: listed.toFixed(2),
+          sold_unit_price: unit.toFixed(2),
+          discount_amount: (disc * qty).toFixed(2),
+          discount_percent: listed > 0 ? ((disc / listed) * 100).toFixed(2) : "0.00",
+          discount_reason: String(body.discount_reason ?? ""),
+          created_by_detail: users[0],
+          created_at: ago(0),
+        },
+      ];
+      return out({ ...it, quantity_sold: sold, history: hist, status: sold >= total ? "sold" : it.status, sold_at: ago(0) });
     }
+    if (p === "/api/me/change-password/") return out({ detail: "Password muvaffaqiyatli o'zgartirildi." });
     if (/\/api\/catalog\/\d+\/deduct_stock\//.test(p)) {
       // quantity berilmasa sotilgan-u yechilmagan hammasi yechiladi
       const it = catalog.find((x) => x.id === idOf(/catalog\/(\d+)/)) ?? catalog[0];
@@ -775,6 +797,7 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
     return out(page(bId ? movements.filter((m) => m.batch === +bId) : movements));
   }
   if (p === "/api/catalog/") return out(page(catalog));
+  if (/\/api\/catalog\/\d+\//.test(p)) return out(catalog.find((x) => x.id === idOf(/catalog\/(\d+)/)) ?? catalog[0]);
   if (p === "/api/social-posts/") return out(page(posts));
   if (p === "/api/conversations/") {
     const query = new URLSearchParams(path.split("?")[1] ?? "");

@@ -7,25 +7,28 @@ import { usePerm, useStore } from "@/lib/store";
 import { Icon } from "./icons";
 import type { PermissionPage, ScreenId } from "@/lib/types";
 
-/** NAV sahifalari backend ruxsat sahifalariga bog'langan (kontrakt: can_view) */
-const NAV: { id: ScreenId; href: string; label: string; page: PermissionPage }[] = [
-  { id: "dashboard", href: "/", label: "Dashboard", page: "dashboard" },
-  { id: "analitika", href: "/analitika", label: "Analitika", page: "dashboard" },
-  { id: "chat", href: "/chat", label: "AI chatlar", page: "conversations" },
-  { id: "ai", href: "/ai", label: "AI yordamchi", page: "ai_settings" },
-  { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", page: "crm" },
-  { id: "mijozlar", href: "/mijozlar", label: "Mijozlar", page: "customers" },
-  { id: "sklad", href: "/sklad", label: "Sklad", page: "inventory" },
-  { id: "suppliers", href: "/suppliers", label: "Yetkazib beruvchilar", page: "inventory" },
-  { id: "gullar", href: "/gullar", label: "Gullar", page: "inventory" },
-  { id: "katalog", href: "/katalog", label: "Katalog", page: "catalog" },
-  { id: "floristlar", href: "/floristlar", label: "Floristlar", page: "settings" },
-  { id: "postlar", href: "/postlar", label: "Postlar", page: "social_posts" },
-  { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", page: "notifications" },
-  { id: "xodimlar", href: "/xodimlar", label: "Xodimlar", page: "users" },
-  { id: "integratsiyalar", href: "/integratsiyalar", label: "Integratsiyalar", page: "integrations" },
-  { id: "audit", href: "/audit", label: "Audit jurnali", page: "audit" },
-  { id: "sozlamalar", href: "/sozlamalar", label: "Sozlamalar", page: "settings" },
+/** NAV sahifalari backend ruxsat sahifalariga bog'langan (kontrakt: can_view).
+    `pages` — bir nechtasidan BIRORTASI yetarli (backend florists/suppliers/
+    attendance ruxsatlarini alohida ajratdi, eski matritsalarda ular yo'q). */
+const NAV: { id: ScreenId; href: string; label: string; pages: PermissionPage[] }[] = [
+  { id: "dashboard", href: "/", label: "Dashboard", pages: ["dashboard"] },
+  { id: "analitika", href: "/analitika", label: "Analitika", pages: ["dashboard"] },
+  { id: "hisob", href: "/hisob-kitob", label: "Hisob-kitob", pages: ["dashboard"] },
+  { id: "chat", href: "/chat", label: "AI chatlar", pages: ["conversations"] },
+  { id: "ai", href: "/ai", label: "AI yordamchi", pages: ["ai_settings"] },
+  { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", pages: ["crm"] },
+  { id: "mijozlar", href: "/mijozlar", label: "Mijozlar", pages: ["customers"] },
+  { id: "sklad", href: "/sklad", label: "Sklad", pages: ["inventory"] },
+  { id: "suppliers", href: "/suppliers", label: "Yetkazib beruvchilar", pages: ["suppliers", "inventory"] },
+  { id: "gullar", href: "/gullar", label: "Gullar", pages: ["inventory"] },
+  { id: "katalog", href: "/katalog", label: "Katalog", pages: ["catalog"] },
+  { id: "floristlar", href: "/floristlar", label: "Floristlar", pages: ["florists", "attendance", "settings"] },
+  { id: "postlar", href: "/postlar", label: "Postlar", pages: ["social_posts"] },
+  { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", pages: ["notifications"] },
+  { id: "xodimlar", href: "/xodimlar", label: "Xodimlar", pages: ["users"] },
+  { id: "integratsiyalar", href: "/integratsiyalar", label: "Integratsiyalar", pages: ["integrations"] },
+  { id: "audit", href: "/audit", label: "Audit jurnali", pages: ["audit"] },
+  { id: "sozlamalar", href: "/sozlamalar", label: "Sozlamalar", pages: ["settings"] },
 ];
 
 export default function Sidebar() {
@@ -78,7 +81,7 @@ export default function Sidebar() {
 
       {/* nav */}
       <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
-        {NAV.filter((n) => canView(n.page)).map((n) => {
+        {NAV.filter((n) => canView(...n.pages)).map((n) => {
           const active = pathname === n.href;
           return (
             <button

@@ -102,8 +102,8 @@ function RateEditModal({ init, onClose, onSaved }: { init: { rate: FloristVolume
   const save = async () => {
     setBusy(true);
     try {
+      // single-branch: `branch` yuborilmaydi — backend default filialni qo'yadi
       const payload = {
-        branch: init.rate?.branch ?? 1,
         arrangement_type: init.arr,
         volume: init.volume,
         default_stems: +dStems || 0,

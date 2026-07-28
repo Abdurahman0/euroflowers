@@ -44,6 +44,44 @@ export function NetProfitCard({ netProfit, revenue, cost, discount }: { netProfi
   );
 }
 
+/**
+ * CHEGIRMA BLOKI — katalog chegirmada sotilganda backend history yozadi
+ * (summary.discounted_catalog_*). Uch ko'rsatkich: nechta sotuv, nechta dona,
+ * jami chegirma summasi. Ma'lumot yo'q bo'lsa blok chiqmaydi.
+ */
+export function DiscountStatsCard({
+  count,
+  quantity,
+  amount,
+}: {
+  count?: number;
+  quantity?: number;
+  amount?: number | string;
+}) {
+  if (count == null && quantity == null && amount == null) return null;
+  const tiles = [
+    { label: "Skidkada sotuvlar", value: count != null ? `${count} ta` : "—" },
+    { label: "Skidkada donalar", value: quantity != null ? `${quantity} dona` : "—" },
+  ];
+  return (
+    <section className="glass-lite p-5">
+      <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Chegirmalar</div>
+      <div className="mt-1.5 whitespace-nowrap text-[26px] font-semibold tracking-tight" style={{ color: num(amount) > 0 ? "var(--danger-ink)" : "var(--text)" }}>
+        {money(amount)}
+      </div>
+      <p className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--muted)" }}>jami chegirma qilingan summa</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {tiles.map((t) => (
+          <div key={t.label} className="rounded-[12px] border px-3 py-2" style={{ borderColor: "var(--border)" }}>
+            <div className="text-[11px] font-medium" style={{ color: "var(--muted)" }}>{t.label}</div>
+            <div className="mt-0.5 text-[13px] font-bold tabular-nums">{t.value}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** Partiya sarf taqsimoti — standart/maxsus/chiqit/qolgan stacked bar. Chiqit bo'yicha saralanadi. */
 export function BatchInventoryBars({ rows }: { rows?: BatchInventoryStat[] }) {
   const [hov, setHov] = useState<string | null>(null);

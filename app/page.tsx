@@ -12,7 +12,7 @@ import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
 import { HBars } from "@/components/AnalyticsCharts";
-import { NetProfitCard } from "@/components/AnalyticsExtra";
+import { BatchInventoryBars, DiscountStatsCard, FloristProductionCards, NetProfitCard } from "@/components/AnalyticsExtra";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
 import type { Dashboard } from "@/lib/types";
@@ -88,10 +88,27 @@ export default function DashboardPage() {
         ))}
       </motion.div>
 
-      {/* YANGI: sof foyda hero (defensiv — backend bergan bo'lsa) */}
-      {(d.net_profit != null || d.catalog_revenue != null) && (
-        <motion.div variants={rise} className="mt-4">
+      {/* YANGI: sof foyda + chegirma bloklari (defensiv — backend bergan bo'lsa) */}
+      {(d.net_profit != null || d.catalog_revenue != null || d.discounted_catalog_amount != null) && (
+        <motion.div variants={rise} className="mt-4 grid items-start gap-4 lg:grid-cols-2">
           <NetProfitCard netProfit={d.net_profit} revenue={d.catalog_revenue} cost={d.catalog_cost} discount={d.catalog_discount} />
+          <DiscountStatsCard
+            count={d.discounted_catalog_sales_count}
+            quantity={d.discounted_catalog_quantity}
+            amount={d.discounted_catalog_amount}
+          />
+        </motion.div>
+      )}
+
+      {/* florist ishlab chiqarish va partiya sarfi — analitikadagi bloklar */}
+      {(d.florist_production_stats?.length ?? 0) > 0 && (
+        <motion.div variants={rise} className="mt-4">
+          <FloristProductionCards rows={d.florist_production_stats} salaryTotal={d.florist_salary_total} />
+        </motion.div>
+      )}
+      {(d.batch_inventory_stats?.length ?? 0) > 0 && (
+        <motion.div variants={rise} className="mt-4">
+          <BatchInventoryBars rows={d.batch_inventory_stats} />
         </motion.div>
       )}
 

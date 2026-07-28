@@ -5,7 +5,8 @@ export type Role = "developer" | "admin" | "operator" | "florist" | "warehouse" 
 /** Sahifa darajasidagi ruxsatlar (kontrakt: can_view — ochish, can_control — amallar) */
 export type PermissionPage =
   | "dashboard" | "inventory" | "catalog" | "crm" | "customers" | "conversations"
-  | "social_posts" | "notifications" | "settings" | "ai_settings" | "integrations"
+  | "social_posts" | "notifications" | "suppliers" | "florists" | "attendance"
+  | "settings" | "ai_settings" | "integrations"
   | "users" | "mini_app" | "audit";
 
 export type PagePermission = {
@@ -275,6 +276,34 @@ export type CatalogMaterialUsage = {
 export type CatalogKind = "standard" | "custom";
 export type CatalogVolume = "small" | "medium" | "large";
 
+/** Katalog tarixi amali (backend: CatalogHistory.action) */
+export type CatalogHistoryAction = "created" | "updated" | "sold" | "inventory_deducted" | "inventory_restored";
+
+/**
+ * Katalog SOTUV/CHEGIRMA TARIXI (backend: CatalogItem.history, faqat o'qish).
+ * Har sotuvda kim sotgani, nechta, e'lon narxi, sotilgan narx va chegirma
+ * (summa/foiz/sabab) yoziladi — katalog detalida jadval bo'lib chiqadi.
+ */
+export type CatalogHistory = {
+  id: number;
+  catalog_item: number;
+  action: CatalogHistoryAction;
+  quantity?: number;
+  /** e'lon qilingan (asl) dona narxi */
+  listed_unit_price?: string;
+  /** haqiqatda sotilgan dona narxi */
+  sold_unit_price?: string;
+  discount_amount?: string;
+  discount_percent?: string;
+  discount_reason?: string;
+  note?: string;
+  snapshot?: unknown;
+  created_by?: number | null;
+  created_by_detail?: User | null;
+  created_at: string;
+  updated_at?: string;
+};
+
 export type CatalogItem = {
   id: number;
   /** katalogga qo'yilgan tayyor buket soni / sotilgani / skladdan yechilgani */
@@ -297,13 +326,26 @@ export type CatalogItem = {
   height_cm: number | null;
   diameter_cm: number | null;
   price: string;
+  /** mijozdan olinadigan floristika xizmati (foydaga kiradi) */
   florist_fee: string;
+  /** florist OYLIGIGA yoziladigan summa — maxsus katalogda fee'dan AJRATILGAN
+      (backend: custom'da florist_fee avtomatik oylikka qo'shilmaydi) */
+  florist_salary_amount?: string;
   florist?: number | null;
   florist_detail?: FloristProfile | null;
   /** backend hisoblaydi — mijoz preview'i faqat yo'l-yo'riq */
   calculated_cost_price?: string;
   calculated_component_price?: string;
   discount_amount?: string;
+  discount_percent?: string;
+  /** chegirma sababi — calculated narxdan past sotilganda MAJBURIY */
+  discount_reason?: string;
+  /** ichki izoh / nazoratchi izohi — create/update'da yuboriladi, javobda qaytadi */
+  note?: string;
+  /** to'lov turi — sotishda yuboriladi (write-only), javobda qaytmaydi */
+  payment_type?: PaymentType;
+  /** sotuv/chegirma tarixi (faqat o'qish) */
+  history?: CatalogHistory[];
   materials?: CatalogMaterialUsage[];
   status: CatalogStatus;
   image_url: string;
@@ -313,6 +355,41 @@ export type CatalogItem = {
   branch?: number;
   social_post: number | null;
   created_by: number | null;
+};
+
+/** To'lov turi — katalog sotuvida (kontrakt: cash|card) */
+export type PaymentType = "cash" | "card";
+
+/* ===== HISOB-KITOB (backend: GET /api/accounting/) — barcha pul maydonlari STRING ===== */
+export type AccountingPeriod = { date_from: string | null; date_to: string | null };
+export type AccountingSummary = {
+  total_sales: string; cash_total: string; card_total: string; unknown_total: string;
+  total_quantity: number; standard_quantity: number; custom_quantity: number;
+  discount_total: string; discounted_sales_count: number; discounted_quantity: number;
+  cost_total: string; net_profit: string;
+};
+export type AccountingByKind = { catalog_kind: CatalogKind; quantity: number; sales: string; discount: string };
+export type AccountingByPayment = { payment_type: string; label: string; quantity: number; sales: string };
+export type AccountingByVolume = { catalog_kind: CatalogKind; volume: CatalogVolume | null; quantity: number; sales: string; discount: string };
+/** history va discounted_sales bir xil shakl (discounted — chegirma > 0 bo'lganlari) */
+export type AccountingSale = {
+  history_id: number; catalog_id: number; catalog_name: string;
+  catalog_kind: CatalogKind; arrangement_type: string; volume: CatalogVolume | null;
+  quantity: number; created_at: string; catalog_created_at: string; sold_at: string;
+  florist_id: number | null; florist_name: string;
+  listed_unit_price: string; sold_unit_price: string; listed_total: string;
+  sale_total: string; cost_total: string; net_profit: string;
+  payment_type: string; payment_label: string;
+  discount_amount: string; discount_percent: string; discount_reason: string; sold_by: string;
+};
+export type Accounting = {
+  period: AccountingPeriod;
+  summary: AccountingSummary;
+  by_kind: AccountingByKind[];
+  by_payment: AccountingByPayment[];
+  by_volume: AccountingByVolume[];
+  discounted_sales: AccountingSale[];
+  history: AccountingSale[];
 };
 
 export type PostType = "post" | "reel" | "story" | "ad";
@@ -369,6 +446,13 @@ export type Message = {
   instagram_message_id: string;
   metadata: Record<string, unknown>;
   conversation: number;
+  /** AI/mijoz yuborgan media — metadata'dan tashqari top-level ham kelishi mumkin */
+  media_url?: string | null;
+  image_url?: string | null;
+  /** FAQAT UI: optimistik yuborilgan xabar holati (backendda yo'q) */
+  ui_status?: "sending" | "failed";
+  /** FAQAT UI: yuborishda qaytgan xato matni */
+  ui_error?: string;
 };
 
 export type ConversationStatus = "ai" | "operator" | "closed";
@@ -396,7 +480,14 @@ export type Conversation = {
   assigned_to: number | null;
 };
 
-export type NotificationType = "stock_pending" | "low_stock" | "lead" | "handoff" | "supplier_stock";
+export type NotificationType =
+  | "stock_pending" | "low_stock" | "lead" | "handoff" | "supplier_stock"
+  /** floristga biriktirilgan katalog ishi */
+  | "florist_catalog"
+  /** florist oyligiga yozuv qo'shildi */
+  | "florist_salary"
+  /** florist ishga keldi / ketdi (adminlarga) */
+  | "attendance";
 
 export type Notification = {
   id: number;
@@ -410,7 +501,28 @@ export type Notification = {
   reference_type: string;
   reference_id: number | null;
   is_read: boolean;
+  /** aynan shu foydalanuvchiga yo'naltirilgan (null — umumiy bildirishnoma) */
+  target_user?: number | null;
+  target_user_detail?: User | null;
   branch?: number;
+};
+
+/** Florist keldi-ketdi yozuvi (backend: /api/florist-attendance/) */
+export type FloristAttendance = {
+  id: number;
+  florist: number;
+  florist_detail?: FloristProfile;
+  work_date?: string;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  check_in_latitude?: string | null;
+  check_in_longitude?: string | null;
+  check_out_latitude?: string | null;
+  check_out_longitude?: string | null;
+  source?: string;
+  note?: string;
+  created_at: string;
+  updated_at?: string;
 };
 
 export type PackagingType = "wrap" | "basket" | "box" | "other" | "accessory";
@@ -453,11 +565,20 @@ export type MaterialMovement = {
 export type AuditLog = {
   id: number;
   user_detail: User | null;
+  /** backend tayyorlagan ism — user_detail bo'lmasa ham keladi */
+  actor_name?: string;
   action: string;
+  /** backend tarjimasi — jadvalda ASOSIY yorliq (action — texnik kod) */
+  action_label?: string;
+  /** qisqa izoh (bo'sh bo'lishi mumkin) */
+  summary?: string;
   entity_type: string;
   entity_id: string;
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
+  ip_address?: string | null;
+  request_method?: string;
+  request_path?: string;
   created_at: string;
   user: number | null;
 };
@@ -498,8 +619,19 @@ export type Dashboard = {
   catalog_cost?: number | string;
   catalog_discount?: number | string;
   florist_salary_total?: number | string;
+  /** chegirmada sotilgan katalog statistikasi */
+  discounted_catalog_sales_count?: number;
+  discounted_catalog_quantity?: number;
+  discounted_catalog_amount?: number | string;
   batch_inventory_stats?: BatchInventoryStat[];
   florist_production_stats?: FloristProductionStat[];
+};
+
+/** Chegirma bloki — dashboard va analitikada bir xil ko'rinadi */
+export type DiscountStats = {
+  count?: number;
+  quantity?: number;
+  amount?: number | string;
 };
 
 /** Dashboard/Analytics: partiya bo'yicha SARF taqsimoti (jonli API shakli).
@@ -533,6 +665,14 @@ export type FloristProductionStat = {
 
 /** Analitika sahifasi (GET /api/analytics/) */
 export type AnalyticsDaily = { date: string; leads: number; conversations: number; orders: number; revenue: string };
+export type TopCatalogItem = {
+  catalog_item_id: number;
+  catalog_item__name_uz: string;
+  catalog_item__name_ru: string;
+  catalog_item__arrangement_type: string;
+  quantity: number;
+  revenue: string;
+};
 export type Analytics = {
   period: { from: string; to: string };
   summary: {
@@ -542,10 +682,16 @@ export type Analytics = {
     net_profit?: number | string; catalog_revenue?: number | string;
     catalog_cost?: number | string; catalog_discount?: number | string;
     florist_salary_total?: number | string;
+    /** chegirmada sotilgan katalog statistikasi */
+    discounted_catalog_sales_count?: number;
+    discounted_catalog_quantity?: number;
+    discounted_catalog_amount?: number | string;
   };
   daily_stats: AnalyticsDaily[];
   top_selling_flowers: { flower_id: number; name_uz: string; name_ru: string; color_uz: string; color_ru: string; stems: number; bunches: string }[];
-  top_catalog_items: { catalog_item_id: number; catalog_item__name_uz: string; catalog_item__name_ru: string; catalog_item__arrangement_type: string; quantity: number; revenue: string }[];
+  top_catalog_items: TopCatalogItem[];
+  /** so'nggi kunlarda ko'p sotilganlar — backend alohida hisoblaydi */
+  recent_top_catalog_items?: TopCatalogItem[];
   lead_statuses: { status: string; count: number }[];
   arrangement_types: { arrangement_type: string; count: number }[];
   conversation_sources: { source: string; count: number }[];
@@ -556,6 +702,9 @@ export type Analytics = {
   catalog_cost?: number | string;
   catalog_discount?: number | string;
   florist_salary_total?: number | string;
+  discounted_catalog_sales_count?: number;
+  discounted_catalog_quantity?: number;
+  discounted_catalog_amount?: number | string;
   batch_inventory_stats?: BatchInventoryStat[];
   florist_production_stats?: FloristProductionStat[];
 };
@@ -702,7 +851,7 @@ export type InstagramEvent = {
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "analitika" | "chat" | "ai" | "crm" | "mijozlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
+export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "crm" | "mijozlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";
 /** Maxsus davr — YYYY-MM-DD (ikkalasi ham kiritilgan kun bilan) */
 export type DateRange = { from: string; to: string };
