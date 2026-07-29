@@ -1,5 +1,5 @@
 "use client";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { useRef, useState } from "react";
 import Popover from "./Popover";
 
@@ -23,19 +23,31 @@ export default function Select({
   options,
   onChange,
   placeholder = "Tanlang",
+  searchable = false,
+  searchPlaceholder = "Qidirish…",
 }: {
   value: number | string;
   options: SelectOption[];
   onChange: (v: number | string) => void;
   placeholder?: string;
+  /** ro'yxat ustida qidiruv maydoni ko'rsatiladi (uzun ro'yxatlar, masalan gullar) */
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const sel = options.find((o) => o.value === value);
+  const close = () => { setOpen(false); setQ(""); };
+
+  const needle = q.trim().toLowerCase();
+  const shown = searchable && needle
+    ? options.filter((o) => `${o.label} ${o.sub ?? ""}`.toLowerCase().includes(needle))
+    : options;
 
   return (
     <div ref={rootRef} className="relative">
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="inp flex items-center gap-2 text-left normal-case tracking-normal">
+      <button type="button" onClick={() => (open ? close() : setOpen(true))} aria-expanded={open} className="inp flex items-center gap-2 text-left normal-case tracking-normal">
         {sel?.dot && <span className="h-3 w-3 shrink-0 rounded-full border border-[color:var(--border-strong)]" style={{ background: sel.dot }} />}
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
           {sel ? sel.label : <span className="opacity-50">{placeholder}</span>}
@@ -53,16 +65,35 @@ export default function Select({
       <Popover
         anchor={rootRef}
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={close}
         width="anchor"
-        className="max-h-[212px] overflow-y-auto overscroll-contain rounded-[14px] border shadow-2xl"
+        className="max-h-[260px] overflow-y-auto overscroll-contain rounded-[14px] border shadow-2xl"
         style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}
       >
-        {options.map((o) => (
+        {searchable && (
+          <div className="sticky top-0 z-10 border-b p-2" style={{ background: "var(--surface-solid)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2 rounded-[10px] border px-2.5 py-1.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <Search size={14} strokeWidth={2} className="shrink-0 opacity-60" />
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && shown.length) { e.preventDefault(); onChange(shown[0].value); close(); }
+                }}
+                placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
+                className="w-full bg-transparent text-[13px] font-medium outline-none placeholder:text-[color:var(--muted)]"
+                style={{ color: "var(--text)" }}
+              />
+            </div>
+          </div>
+        )}
+        {shown.map((o) => (
           <button
             key={o.value}
             type="button"
-            onClick={() => { onChange(o.value); setOpen(false); }}
+            onClick={() => { onChange(o.value); close(); }}
             className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left normal-case tracking-normal hover:bg-[color:var(--hover)] ${o.value === value ? "bg-[color:var(--primary-soft)]" : ""}`}
           >
             {o.dot && <span className="h-3 w-3 shrink-0 rounded-full border border-[color:var(--border-strong)]" style={{ background: o.dot }} />}
@@ -73,7 +104,7 @@ export default function Select({
             {o.value === value && <span className="text-[11px]" style={{ color: "var(--primary)" }}>✓</span>}
           </button>
         ))}
-        {options.length === 0 && <p className="px-3.5 py-2.5 text-[12px] text-[color:var(--muted)]">Variant topilmadi</p>}
+        {shown.length === 0 && <p className="px-3.5 py-2.5 text-[12px] text-[color:var(--muted)]">{needle ? "Mos variant topilmadi" : "Variant topilmadi"}</p>}
       </Popover>
     </div>
   );

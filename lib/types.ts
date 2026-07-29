@@ -202,9 +202,9 @@ export type StockBatch = {
   branch_detail?: Branch;
   /** yetkazib beruvchi tafsiloti — mavjud bo'lsa */
   supplier_detail?: Supplier | null;
-  /** qoldiq bog'lamda — backend hisoblab beradi (decimal string, masalan "8.00") */
+  /** qoldiq pochkada — backend hisoblab beradi (decimal string, masalan "8.00") */
   remaining_bunches?: string;
-  /** "8 bog'lam" ko'rinishida tayyor yorliq — backend beradi */
+  /** "8 pochka" ko'rinishida tayyor yorliq — backend beradi */
   remaining_bunches_label?: string;
   stock_value: string;
   /** "50 sm" yoki "40–60 sm" — backend tayyorlaydi */
@@ -218,7 +218,7 @@ export type StockBatch = {
   height_to_cm?: number | null;
   stems_per_bunch: number;
   /** o'qishda doim keladi; YOZISHDA ixtiyoriy — faqat bittasini yuboring:
-      received_bunches (bog'lam) YOKI received_stems (dona). Backend qolganini
+      received_bunches (pochka) YOKI received_stems (dona). Backend qolganini
       va remaining_stems/remaining_bunches ni O'ZI hisoblaydi. */
   received_stems: number;
   received_bunches?: string;

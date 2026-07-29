@@ -34,6 +34,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [volume, setVolume] = useState<CatalogVolume | "">(item?.volume ?? "");
   const [florist, setFlorist] = useState<number>(item?.florist ?? 0);
   const [feeFromRate, setFeeFromRate] = useState(false);
+  const [stemsFromRate, setStemsFromRate] = useState(false);
   const [f, setF] = useState({
     ...EMPTY,
     ...(item ? {
@@ -132,14 +133,42 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     setMats([...mats, { packaging: next?.id ?? 0, qty: "1" }]);
   };
 
-  // hajm + turi tanlansa florist_fee tarifdan olinadi (ko'rsatilmagan bo'lsa)
+  // hajm+turi uchun Floristlar > "Hajm tariflari" dan mos tarifni topadi (bouquet/basket)
+  const rateFor = (vol: CatalogVolume | "", arr: ArrangementType) =>
+    vol && (arr === "bouquet" || arr === "basket")
+      ? rates.find((r) => r.volume === vol && r.arrangement_type === arr)
+      : undefined;
+
+  // tarifning "standart dona"sini kompozitsiyaga bir marta yozadi — FAQAT bitta
+  // gul qatori dona rejimida bo'lsa. force=false → faqat bo'sh bo'lsa; force=true
+  // (hajm/turi almashdi) → bo'sh yoki avval tarifdan yozilgan bo'lsa yangilaydi.
+  const writeStems = (defaultStems: number, force: boolean) => {
+    if (!defaultStems) return;
+    if (comp.length !== 1 || comp[0].mode !== "stems") return;
+    if (comp[0].qty && !(force && stemsFromRate)) return; // qo'lda kiritilgan — tegilmaydi
+    setComp([{ ...comp[0], qty: String(defaultStems) }]);
+    setStemsFromRate(true);
+  };
+
+  // AVTO-TUZATISH: foydalanuvchi hajm/turini tanlaganda florist haqi VA standart
+  // dona darhol shu tarifga tenglashadi (tanlov aniq signal).
+  const applyRate = (vol: CatalogVolume | "", arr: ArrangementType) => {
+    const rate = rateFor(vol, arr);
+    if (!rate) return;
+    setF((p) => ({ ...p, florist_fee: String(Math.round(+rate.florist_fee)) }));
+    setFeeFromRate(true);
+    writeStems(rate.default_stems, true);
+  };
+
+  // tariflar KEYIN yuklansa yoki bo'sh qiymatda — birinchi to'ldirish (mavjudni bosib o'tmaydi)
   useEffect(() => {
-    if (!volume || (f.arrangement_type !== "bouquet" && f.arrangement_type !== "basket")) return;
-    const rate = rates.find((r) => r.volume === volume && r.arrangement_type === f.arrangement_type);
-    if (rate && (!f.florist_fee || feeFromRate)) {
+    const rate = rateFor(volume, f.arrangement_type);
+    if (!rate) return;
+    if (!f.florist_fee) {
       setF((p) => ({ ...p, florist_fee: String(Math.round(+rate.florist_fee)) }));
       setFeeFromRate(true);
     }
+    writeStems(rate.default_stems, false);
   }, [volume, f.arrangement_type, rates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // JONLI NARX (klient preview — server calculated_* bilan solishtiriladi)
@@ -321,10 +350,10 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (uz)" span><input className="inp" value={f.name_uz} onChange={set("name_uz")} placeholder="Masalan: Gortenziya savat" /><Err k="name_uz" /></Field>
         <Field label="Turi">
-          <Select value={f.arrangement_type} onChange={(v) => setF({ ...f, arrangement_type: v as ArrangementType })} options={(["bouquet", "basket", "box"] as const).map((t) => ({ value: t, label: ARRANGEMENT_LABEL[t] }))} />
+          <Select value={f.arrangement_type} onChange={(v) => { const a = v as ArrangementType; setF((p) => ({ ...p, arrangement_type: a })); applyRate(volume, a); }} options={(["bouquet", "basket", "box"] as const).map((t) => ({ value: t, label: ARRANGEMENT_LABEL[t] }))} />
         </Field>
         <Field label="Hajm">
-          <Select value={volume} onChange={(v) => setVolume(v as CatalogVolume)} placeholder="Tanlang" options={[{ value: "", label: "—" }, ...(["small", "medium", "large"] as const).map((v) => ({ value: v, label: VOLUME_LABEL[v] }))]} />
+          <Select value={volume} onChange={(v) => { const vol = v as CatalogVolume | ""; setVolume(vol); applyRate(vol, f.arrangement_type); }} placeholder="Tanlang" options={[{ value: "", label: "—" }, ...(["small", "medium", "large"] as const).map((v) => ({ value: v, label: VOLUME_LABEL[v] }))]} />
         </Field>
         <Field label="Florist">
           <Select value={florist} onChange={(v) => setFlorist(+v)} placeholder="Tanlang" options={[{ value: 0, label: "—" }, ...florists.map((fp) => ({ value: fp.id, label: floristName(fp) }))]} />
@@ -419,11 +448,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                 }}
               >
                 <div className="grid grid-cols-[1fr_auto_92px_32px] items-center gap-2">
-                  <Select value={r.stock_batch} onChange={(v) => setBatchAt(i, +v)} options={batches.map((bb) => ({ value: bb.id, label: `${bb.variant_detail?.flower_detail?.name_uz} ${bb.variant_detail?.name_uz}`, sub: `${formatStemsAndBunches(bb.remaining_stems, bb.stems_per_bunch)} · ${fmt(bb.sale_price_per_stem)}/dona` }))} />
-                  <button type="button" onClick={() => setComp(comp.map((x, j) => (j === i ? { ...x, mode: x.mode === "stems" ? "bunches" : "stems" } : x)))} className="rounded-full border px-2.5 py-1 text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--text-2)" }} title="Dona/Bog'lam">
-                    {r.mode === "stems" ? "Dona" : "Bog'lam"}
+                  <Select searchable value={r.stock_batch} onChange={(v) => setBatchAt(i, +v)} options={batches.map((bb) => ({ value: bb.id, label: `${bb.variant_detail?.flower_detail?.name_uz} ${bb.variant_detail?.name_uz}`, sub: `${formatStemsAndBunches(bb.remaining_stems, bb.stems_per_bunch)} · ${fmt(bb.sale_price_per_stem)}/dona` }))} />
+                  <button type="button" onClick={() => setComp(comp.map((x, j) => (j === i ? { ...x, mode: x.mode === "stems" ? "bunches" : "stems" } : x)))} className="rounded-full border px-2.5 py-1 text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--text-2)" }} title="Dona/Pochka">
+                    {r.mode === "stems" ? "Dona" : "Pochka"}
                   </button>
-                  <input className="inp !py-1.5" type="number" value={r.qty} onChange={(e) => setComp(comp.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} placeholder={r.mode === "stems" ? "25" : "1"} />
+                  <input className="inp !py-1.5" type="number" value={r.qty} onChange={(e) => { setStemsFromRate(false); setComp(comp.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x))); }} placeholder={r.mode === "stems" ? "25" : "1"} />
                   <button type="button" onClick={() => setComp(comp.length > 1 ? comp.filter((_, j) => j !== i) : comp)} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={15} strokeWidth={1.75} /></button>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[11.5px]">

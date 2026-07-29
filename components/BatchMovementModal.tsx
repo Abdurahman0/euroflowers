@@ -21,7 +21,7 @@ const MOVE_OPTS: { value: MovementType; label: string }[] = [
 ];
 const REASON_CHIPS = ["Chiqit", "So'lgan", "Sinov", "Tuzatish"];
 
-/** Qo'lda harakat / chiqit (POST /stock-batches/{id}/movement/). Dona/Bog'lam toggle + sabab chiplari. */
+/** Qo'lda harakat / chiqit (POST /stock-batches/{id}/movement/). Dona/Pochka toggle + sabab chiplari. */
 export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBatch; onClose: () => void; onDone: (updated: StockBatch) => void }) {
   const { showToast } = useStore();
   const [type, setType] = useState<MovementType>("waste");

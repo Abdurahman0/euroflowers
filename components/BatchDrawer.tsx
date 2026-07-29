@@ -1,18 +1,24 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Pencil, Plus } from "lucide-react";
 import clsx from "clsx";
 import Drawer from "./Drawer";
 import Select from "./Select";
+import DatePicker from "./DatePicker";
+import ImageInput from "./ImageInput";
+import { Field } from "./Modal";
+import { BatchMovementModal } from "./BatchMovementModal";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtDate, fmtTime } from "@/lib/format";
 import { formatStemsAndBunches } from "@/lib/inventory";
-import type { MovementType, StockBatch, StockMovement } from "@/lib/types";
+import type { StockBatch, StockMovement, Supplier } from "@/lib/types";
 
 /**
- * Partiya batafsil ko'rinishi — premium drawer:
- * meta-ma'lumot, harakatlar tarixи (timeline), tezkor amal (kirim/chiqim/
- * chiqit) va nofaollashtirish (kontrakt: PATCH is_active=false).
+ * Partiya batafsil (VIEW) modali — barcha amallar shu yerda:
+ * meta-ma'lumot + harakatlar tarixi (timeline), "Harakat / Chiqit" (BatchMovementModal),
+ * "Tahrirlash" (partiya ma'lumotlari PATCH orqali o'zgaradi — qoldiq/qabul soni
+ * bundan mustasno, ular harakatlar orqali) va nofaollashtirish (PATCH is_active=false).
  */
 
 const MOVE_LABEL: Record<string, string> = {
@@ -20,12 +26,19 @@ const MOVE_LABEL: Record<string, string> = {
 };
 const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
 
-const MOVE_OPTIONS: { value: MovementType; label: string }[] = [
-  { value: "in", label: "Kirim (+)" },
-  { value: "out", label: "Chiqim (−)" },
-  { value: "waste", label: "Chiqit" },
-  { value: "adjustment", label: "Tuzatish" },
-];
+const formFrom = (x: StockBatch) => ({
+  batch_number: x.batch_number ?? "",
+  received_at: (x.received_at ?? "").slice(0, 10),
+  height_cm: x.height_cm ? String(x.height_cm) : "",
+  stems_per_bunch: x.stems_per_bunch ? String(x.stems_per_bunch) : "",
+  cost_per_stem: x.cost_per_stem ? String(Math.round(+x.cost_per_stem)) : "",
+  sale_price_per_stem: x.sale_price_per_stem ? String(Math.round(+x.sale_price_per_stem)) : "",
+  sale_price_per_bunch: x.sale_price_per_bunch ? String(Math.round(+x.sale_price_per_bunch)) : "",
+  minimum_sale_stems: x.minimum_sale_stems ? String(x.minimum_sale_stems) : "",
+  notes: x.notes ?? "",
+  image_url: x.image_url ?? "",
+  supplier: x.supplier ?? 0,
+});
 
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -51,49 +64,69 @@ export default function BatchDrawer({
   const [b, setB] = useState(batch);
   const [moves, setMoves] = useState<StockMovement[] | null>(null);
   const [movesErr, setMovesErr] = useState("");
-  const [mvType, setMvType] = useState<MovementType>("out");
-  const [mvQty, setMvQty] = useState("");
-  const [mvReason, setMvReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
+  // amallar — barchasi shu view modal ichida
+  const [wasteOpen, setWasteOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [f, setF] = useState(formFrom(batch));
+  const [errs, setErrs] = useState<Record<string, string>>({});
+  const set = (k: keyof ReturnType<typeof formFrom>) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const Err = ({ k }: { k: string }) => (errs[k] ? <p className="mt-1 text-[12px] font-semibold text-[color:var(--danger-ink)]">{errs[k]}</p> : null);
 
   const v = b.variant_detail;
 
-  // tarix HAR DOIM asl partiya id'si bilan so'raladi (batch.id — o'zgarmas prop);
-  // harakat POST javobi partiya emas, harakat obyekti bo'lishi mumkin
-  useEffect(() => {
+  const loadMoves = () =>
     api.stockMovements({ batch: batch.id, ordering: "-created_at", page_size: 50 })
       .then(setMoves)
       .catch((e) => setMovesErr(e instanceof Error ? e.message : "Tarixni yuklab bo'lmadi"));
-  }, [batch.id]);
 
-  const addMovement = async () => {
-    const qty = +mvQty;
-    if (!qty || qty <= 0) return showToast("Miqdorni kiriting");
+  // tarix HAR DOIM asl partiya id'si bilan so'raladi (batch.id — o'zgarmas prop)
+  useEffect(() => { loadMoves(); /* eslint-disable-next-line */ }, [batch.id]);
+  // yetkazib beruvchilar — tahrirlashdagi select uchun
+  useEffect(() => { api.suppliers({ is_active: true }).then(setSuppliers).catch(() => {}); }, []);
+
+  const startEdit = () => { setF(formFrom(b)); setErrs({}); setEditing(true); };
+
+  const saveEdit = async () => {
+    if (!f.batch_number.trim()) return setErrs({ batch_number: "Partiya raqamini kiriting" });
+    if (!(+f.height_cm > 0)) return setErrs({ height_cm: "Bo'yini kiriting (majburiy)" });
     setSaving(true);
+    setErrs({});
     try {
-      await api.batchMovement(batch.id, { movement_type: mvType, quantity_stems: qty, reason: mvReason.trim() });
-      setMvQty("");
-      setMvReason("");
-      // yangilangan partiyani ishonchli manbadan qayta o'qiymiz
-      const freshB = await api.stockBatch(batch.id).catch(() => null);
-      if (freshB) {
-        setB(freshB);
-        onChanged(freshB);
-      } else {
-        onChanged(null); // sahifa o'zi qayta yuklaydi
-      }
-      // tarixni yangilaymiz; xato bo'lsa (masalan, partiya nofaol bo'lib
-      // filtrdan chiqib ketsa) eski ro'yxat saqlanadi — 400 ko'rsatilmaydi
-      api.stockMovements({ batch: batch.id, ordering: "-created_at", page_size: 50 })
-        .then(setMoves)
-        .catch(() => {});
-      showToast("✓ Harakat qayd etildi");
+      const payload: Partial<StockBatch> = {
+        batch_number: f.batch_number.trim(),
+        ...(f.received_at ? { received_at: f.received_at.slice(0, 10) } : {}),
+        height_cm: +f.height_cm,
+        stems_per_bunch: +f.stems_per_bunch || b.stems_per_bunch,
+        cost_per_stem: String(+f.cost_per_stem || 0),
+        sale_price_per_stem: String(+f.sale_price_per_stem || 0),
+        sale_price_per_bunch: String(+f.sale_price_per_bunch || (+f.sale_price_per_stem || 0) * (+f.stems_per_bunch || b.stems_per_bunch || 1)),
+        minimum_sale_stems: +f.minimum_sale_stems || 1,
+        notes: f.notes,
+        image_url: f.image_url,
+        supplier: f.supplier || null,
+      };
+      const upd = await api.updateStockBatch(b.id, payload);
+      setB(upd);
+      onChanged(upd);
+      setEditing(false);
+      showToast("✓ Partiya yangilandi");
     } catch (e) {
-      showToast(e instanceof ApiError ? e.message : "Qayd etib bo'lmadi");
+      if (e instanceof ApiError && e.fieldErrors) setErrs(e.fieldErrors);
+      showToast(e instanceof ApiError ? e.message : "Saqlab bo'lmadi");
     } finally {
       setSaving(false);
     }
+  };
+
+  // chiqit/harakat modalidan qaytgach — partiya + tarix yangilanadi
+  const onMovementDone = (upd: StockBatch) => {
+    setB(upd);
+    onChanged(upd);
+    loadMoves().catch(() => {});
+    setWasteOpen(false);
   };
 
   const deactivate = async () => {
@@ -137,39 +170,65 @@ export default function BatchDrawer({
         </div>
       )}
 
-      {/* meta */}
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        <Meta label="Qoldiq" value={formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)} />
-        <Meta label="Qabul qilingan" value={`${b.received_stems} dona`} />
-        <Meta label="Dona narxi" value={fmt(b.sale_price_per_stem)} />
-        <Meta label="Pochka narxi" value={fmt(b.sale_price_per_bunch)} />
-        <Meta label="Tannarx (dona)" value={fmt(b.cost_per_stem)} />
-        <Meta label="Sklad qiymati" value={fmt(b.stock_value)} />
-        <Meta label="Keldi" value={fmtDate(b.received_at)} />
-        <Meta label="Minimal sotuv" value={`${b.minimum_sale_stems} dona`} />
-      </div>
-
-      {b.notes && (
-        <div className="mt-3 rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2.5 text-[13px] leading-relaxed text-[color:var(--text-2)]">
-          {b.notes}
+      {/* AMALLAR — barchasi shu view modal ichida */}
+      {control && b.is_active && !editing && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button onClick={() => setWasteOpen(true)} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3.5 py-2 text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border-strong)", color: "var(--danger-ink)" }}>
+            <Plus size={15} strokeWidth={2} /> Harakat / Chiqit
+          </button>
+          <button onClick={startEdit} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3.5 py-2 text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
+            <Pencil size={15} strokeWidth={2} /> Tahrirlash
+          </button>
         </div>
       )}
 
-      {/* tezkor amal */}
-      {control && b.is_active && (
-        <div className="mt-5">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[2px]" style={{ color: "var(--primary)" }}>Tezkor harakat</div>
-          <div className="grid grid-cols-[1.2fr_1fr] gap-2.5">
-            <Select value={mvType} options={MOVE_OPTIONS} onChange={(x) => setMvType(String(x) as MovementType)} />
-            <input className="inp" inputMode="numeric" value={mvQty} onChange={(e) => setMvQty(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 10" aria-label="Miqdor (dona)" />
+      {editing ? (
+        /* TAHRIRLASH — partiya ma'lumotlari o'zgartiriladi (PATCH) */
+        <div className="flex flex-col gap-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[2px]" style={{ color: "var(--primary)" }}>Partiyani tahrirlash</div>
+          <p className="-mt-1.5 text-[12px]" style={{ color: "var(--muted)" }}>Qoldiq va qabul soni harakatlar orqali o&apos;zgaradi — bu yerda narx, bo&apos;yi va boshqa ma&apos;lumotlar.</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Partiya raqami"><input className="inp" value={f.batch_number} onChange={set("batch_number")} placeholder="Masalan: EF-260726-1" /><Err k="batch_number" /></Field>
+            <Field label="Kelgan sana"><DatePicker value={f.received_at} onChange={(vv) => setF((p) => ({ ...p, received_at: vv }))} placeholder="Sana" ariaLabel="Kelgan sana" /></Field>
+            <Field label="Yetkazib beruvchi" span>
+              <Select value={f.supplier} onChange={(vv) => setF((p) => ({ ...p, supplier: +vv }))} placeholder="Tanlang (ixtiyoriy)" options={[{ value: 0, label: "—" }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))]} />
+            </Field>
+            <Field label="Gul bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="Masalan: 60" /><Err k="height_cm" /></Field>
+            <Field label="Pochkada dona"><input className="inp" type="number" value={f.stems_per_bunch} onChange={set("stems_per_bunch")} placeholder="Masalan: 25" /><Err k="stems_per_bunch" /></Field>
+            <Field label="Tannarx / dona (so'm)"><input className="inp" type="number" value={f.cost_per_stem} onChange={set("cost_per_stem")} placeholder="Masalan: 21000" /><Err k="cost_per_stem" /></Field>
+            <Field label="Sotuv / dona (so'm)"><input className="inp" type="number" value={f.sale_price_per_stem} onChange={set("sale_price_per_stem")} placeholder="Masalan: 35000" /><Err k="sale_price_per_stem" /></Field>
+            <Field label="Pochka sotuv narxi (so'm)"><input className="inp" type="number" value={f.sale_price_per_bunch} onChange={set("sale_price_per_bunch")} placeholder="Avto" /><Err k="sale_price_per_bunch" /></Field>
+            <Field label="Minimal sotuv (dona)"><input className="inp" type="number" value={f.minimum_sale_stems} onChange={set("minimum_sale_stems")} placeholder="Masalan: 5" /><Err k="minimum_sale_stems" /></Field>
+            <Field label="Izoh" span><input className="inp" value={f.notes} onChange={set("notes")} placeholder="Ixtiyoriy" /></Field>
+            <Field label="Rasm" span><ImageInput value={f.image_url} onChange={(url) => setF((p) => ({ ...p, image_url: url }))} /></Field>
           </div>
-          <div className="mt-2.5 flex gap-2.5">
-            <input className="inp flex-1" value={mvReason} onChange={(e) => setMvReason(e.target.value)} placeholder="Masalan: buzilgan gullar (ixtiyoriy)" onKeyDown={(e) => e.key === "Enter" && addMovement()} />
-            <button onClick={addMovement} disabled={saving} className={clsx("btn-primary !flex-none px-5", saving && "btn-loading")}>Qayd etish</button>
+          <div className="mt-1 flex gap-2.5">
+            <button onClick={() => { setEditing(false); setErrs({}); }} className="btn-ghost flex-1">Bekor</button>
+            <button onClick={saveEdit} disabled={saving} className={clsx("btn-primary flex-1", saving && "btn-loading")}>Saqlash</button>
           </div>
         </div>
+      ) : (
+        <>
+          {/* meta */}
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <Meta label="Qoldiq" value={formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)} />
+            <Meta label="Qabul qilingan" value={`${b.received_stems} dona`} />
+            <Meta label="Dona narxi" value={fmt(b.sale_price_per_stem)} />
+            <Meta label="Pochka narxi" value={fmt(b.sale_price_per_bunch)} />
+            <Meta label="Tannarx (dona)" value={fmt(b.cost_per_stem)} />
+            <Meta label="Sklad qiymati" value={fmt(b.stock_value)} />
+            <Meta label="Keldi" value={fmtDate(b.received_at)} />
+            <Meta label="Minimal sotuv" value={`${b.minimum_sale_stems} dona`} />
+          </div>
+          {b.notes && (
+            <div className="mt-3 rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2.5 text-[13px] leading-relaxed text-[color:var(--text-2)]">
+              {b.notes}
+            </div>
+          )}
+        </>
       )}
 
+      {!editing && (<>
       {/* tarix — timeline */}
       <div className="mt-5">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[2px]" style={{ color: "var(--primary)" }}>Harakatlar tarixi</div>
@@ -219,6 +278,10 @@ export default function BatchDrawer({
           )}
         </div>
       )}
+      </>)}
+
+      {/* chiqit / harakat modali — view modal ichidan ochiladi */}
+      {wasteOpen && <BatchMovementModal batch={b} onClose={() => setWasteOpen(false)} onDone={onMovementDone} />}
     </Drawer>
   );
 }

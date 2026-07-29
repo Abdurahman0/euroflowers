@@ -1,5 +1,5 @@
 "use client";
-import { Pencil, ScrollText, Trash2, Truck } from "lucide-react";
+import { ChevronRight, Truck } from "lucide-react";
 import StemGauge from "./StemGauge";
 import { fmt } from "@/lib/format";
 import { bunches, freshness, stems } from "@/lib/inventory";
@@ -7,28 +7,31 @@ import type { StockBatch } from "@/lib/types";
 
 /**
  * GUL PARTIYASI kartasi — sklad "Partiyalar" tabining bosh elementi.
- * Stem gauge + freshness chip + narx qatori + amallar. Tema tokenlari.
+ * Butun karta bosiladi → batafsil (view) modal ochiladi; barcha amallar
+ * (chiqit/harakat/tahrirlash/nofaollashtirish) SHU modal ichida. Tema tokenlari.
  */
 export default function StockBatchCard({
   batch,
   onOpenSupplier,
-  onWaste,
-  onMoves,
-  onEdit,
-  onDelete,
+  onView,
 }: {
   batch: StockBatch;
   onOpenSupplier?: (id: number) => void;
-  onWaste?: () => void;
-  onMoves?: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
+  onView?: () => void;
 }) {
   const v = batch.variant_detail;
   const fr = freshness(batch.received_at);
 
   return (
-    <article className="glass group flex flex-col gap-3 !rounded-[18px] p-4" style={{ opacity: batch.is_active ? 1 : 0.55 }}>
+    <article
+      className="glass card-hover group flex cursor-pointer flex-col gap-3 !rounded-[18px] p-4 text-left"
+      style={{ opacity: batch.is_active ? 1 : 0.55 }}
+      role="button"
+      tabIndex={0}
+      onClick={onView}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView?.(); } }}
+      title="Batafsil ko'rish va amallar"
+    >
       {/* header */}
       <div className="flex items-start gap-2.5">
         <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[12px] border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -46,7 +49,7 @@ export default function StockBatchCard({
             {batch.supplier_detail && (
               <button
                 type="button"
-                onClick={() => onOpenSupplier?.(batch.supplier_detail!.id)}
+                onClick={(e) => { e.stopPropagation(); onOpenSupplier?.(batch.supplier_detail!.id); }}
                 className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold transition-colors duration-150 hover:border-[color:var(--primary)]"
                 style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
                 title={batch.supplier_detail.name}
@@ -76,28 +79,10 @@ export default function StockBatchCard({
         {batch.height_label && <span className="rounded-full bg-sfc px-2 py-0.5 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>{batch.height_label}</span>}
       </div>
 
-      {/* amallar */}
-      <div className="mt-auto flex items-center gap-1.5 border-t pt-2.5" style={{ borderColor: "var(--line2)" }}>
-        {onWaste && (
-          <button type="button" onClick={onWaste} className="flex items-center gap-1.5 rounded-[10px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--danger-ink)" }}>
-            <Trash2 size={13} strokeWidth={1.9} /> Chiqit
-          </button>
-        )}
-        {onMoves && (
-          <button type="button" onClick={onMoves} className="flex items-center gap-1.5 rounded-[10px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
-            <ScrollText size={13} strokeWidth={1.9} /> Harakatlar
-          </button>
-        )}
-        {onEdit && (
-          <button type="button" onClick={onEdit} className="ml-auto icon-btn !h-8 !w-8" title="Tahrirlash" aria-label="Partiyani tahrirlash">
-            <Pencil size={14} strokeWidth={1.75} />
-          </button>
-        )}
-        {onDelete && (
-          <button type="button" onClick={onDelete} className="icon-btn icon-btn-danger !h-8 !w-8" title="O'chirish" aria-label="Partiyani o'chirish">
-            <Trash2 size={14} strokeWidth={1.75} />
-          </button>
-        )}
+      {/* batafsil — barcha amallar (chiqit/harakat/tahrirlash) shu modal ichida */}
+      <div className="mt-auto flex items-center justify-between border-t pt-2.5 text-[12px] font-bold transition-colors" style={{ borderColor: "var(--line2)", color: "var(--primary)" }}>
+        <span>Batafsil va amallar</span>
+        <ChevronRight size={16} strokeWidth={2.2} className="transition-transform duration-150 group-hover:translate-x-0.5" />
       </div>
     </article>
   );

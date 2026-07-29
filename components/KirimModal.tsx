@@ -96,6 +96,7 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Gul turi">
           <Select
+            searchable
             value={flowerId}
             onChange={(v) => pickFlower(+v)}
             placeholder="Turini tanlang"
@@ -104,6 +105,7 @@ export default function KirimModal({ onClose, onSaved }: { onClose: () => void; 
         </Field>
         <Field label="Gul navi">
           <Select
+            searchable
             value={f.variant}
             onChange={(v) => setF({ ...f, variant: +v })}
             placeholder={flowerId ? "Navini tanlang" : "Avval turini tanlang"}

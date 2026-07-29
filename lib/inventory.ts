@@ -13,16 +13,16 @@ export const stems = (n: number | string | null | undefined): string => {
   const v = typeof n === "string" ? parseFloat(n) : n;
   return v == null || Number.isNaN(v) ? "—" : `${groups(v)} dona`;
 };
-/** "6 bog'lam" (o'nlik bo'lsa .00 tashlanadi) */
+/** "6 pochka" (o'nlik bo'lsa .00 tashlanadi) */
 export const bunches = (n: number | string | null | undefined): string => {
   const v = typeof n === "string" ? parseFloat(n) : n;
   if (v == null || Number.isNaN(v)) return "—";
   const s = Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/\.?0+$/, "");
-  return `${s} bog'lam`;
+  return `${s} pochka`;
 };
 
 /**
- * IKKI BIRLIKDA — "340 dona · 13.6 bog'lam". Bog'lam = dona / pochkadagi dona
+ * IKKI BIRLIKDA — "340 dona · 13.6 pochka". Pochka = dona / pochkadagi dona
  * (1-2 xona, ortiqcha nol tashlanadi). Butun ilova bo'ylab BITTA joydan
  * (batch gauge, harakatlar jurnali, kompozitsiya qoldiq maslahatlari, chiqit
  * oynasi) — birliklar bir xil ko'rinishi uchun.

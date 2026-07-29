@@ -2,10 +2,10 @@
 import clsx from "clsx";
 
 /**
- * DONA / BOG'LAM segment toggle + miqdor kiritish.
- * Bog'lam rejimida jonli "6 bog'lam × 25 = 150 dona" preview ko'rsatadi.
+ * DONA / POCHKA segment toggle + miqdor kiritish.
+ * Pochka rejimida jonli "6 pochka × 25 = 150 dona" preview ko'rsatadi.
  * Ota komponent qaysi rejim (mode) va qiymatni (value) boshqaradi — API'ga
- * FAQAT bittasi yuboriladi (dona YOKI bog'lam), hech qachon ikkalasi.
+ * FAQAT bittasi yuboriladi (dona YOKI pochka), hech qachon ikkalasi.
  */
 export type QtyMode = "stems" | "bunches";
 
@@ -44,7 +44,7 @@ export default function DualQtyInput({
               className={clsx("rounded-full px-3 py-1 text-[11.5px] font-bold transition-colors duration-150", mode === m ? "text-white" : "")}
               style={mode === m ? { background: "var(--primary)" } : { color: "var(--muted)" }}
             >
-              {m === "stems" ? "Dona" : "Bog'lam"}
+              {m === "stems" ? "Dona" : "Pochka"}
             </button>
           ))}
         </div>
@@ -59,7 +59,7 @@ export default function DualQtyInput({
       />
       {mode === "bunches" && num > 0 && (
         <span className="text-[12px] font-semibold" style={{ color: "var(--primary)" }}>
-          {value} bog'lam × {spb} = {computedStems} dona
+          {value} pochka × {spb} = {computedStems} dona
         </span>
       )}
     </div>

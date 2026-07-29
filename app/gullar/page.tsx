@@ -140,7 +140,7 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
     <Modal onClose={onClose} width={480}>
       <ModalHeader icon={<Icon name="gullar" size={20} />} title={variant ? "Navni tahrirlash" : "Yangi nav"} sub="Rang, o'lcham va sotuv qoidalari" onClose={onClose} />
       <Section>Gul turi</Section>
-      <Select value={String(flowerId)} options={flowers.map((f) => ({ value: String(f.id), label: f.name_uz || f.name_ru }))} onChange={(v) => setFlowerId(+v)} />
+      <Select searchable value={String(flowerId)} options={flowers.map((f) => ({ value: String(f.id), label: f.name_uz || f.name_ru }))} onChange={(v) => setFlowerId(+v)} />
       <Section>Nomi va rangi</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi">

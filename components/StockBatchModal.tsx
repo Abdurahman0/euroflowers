@@ -13,7 +13,7 @@ import { Icon } from "./icons";
 import { fmt } from "@/lib/format";
 import type { FlowerVariant, StockBatch, Supplier } from "@/lib/types";
 
-/** GUL PARTIYASI yaratish — Dona/Bog'lam toggle, supplier, margin hint (backend: /api/stock-batches/). */
+/** GUL PARTIYASI yaratish — Dona/Pochka toggle, supplier, margin hint (backend: /api/stock-batches/). */
 export default function StockBatchModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const { showToast } = useStore();
   const [variants, setVariants] = useState<FlowerVariant[]>([]);
@@ -68,9 +68,9 @@ export default function StockBatchModal({ onClose, onSaved }: { onClose: () => v
     try {
       const today = new Date();
       const num = f.batch_number || `EF-${String(today.getFullYear()).slice(2)}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${f.variant}`;
-      // Backend endi received_stems ni MAJBURIY qilmaydi va bog'lam rejimida
+      // Backend endi received_stems ni MAJBURIY qilmaydi va pochka rejimida
       // received_stems = received_bunches × stems_per_bunch ni O'ZI hisoblaydi
-      // (jonli tekshirilgan). Shu bois bog'lamda faqat received_bunches yuboramiz —
+      // (jonli tekshirilgan). Shu bois pochkada faqat received_bunches yuboramiz —
       // matematika serverniki. remaining_stems ham serverda hisoblanadi.
       const qtyField = qtyMode === "bunches"
         ? { received_bunches: (+qty).toFixed(2) }
@@ -115,10 +115,10 @@ export default function StockBatchModal({ onClose, onSaved }: { onClose: () => v
         <Section>Gul va manba</Section>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Gul turi">
-            <Select value={flowerId} onChange={(v) => pickFlower(+v)} placeholder="Turini tanlang" options={flowers.map((fl) => ({ value: fl.id, label: fl.name }))} />
+            <Select searchable value={flowerId} onChange={(v) => pickFlower(+v)} placeholder="Turini tanlang" options={flowers.map((fl) => ({ value: fl.id, label: fl.name }))} />
           </Field>
           <Field label="Gul navi">
-            <Select value={f.variant} onChange={(v) => { setF({ ...f, variant: +v }); setErrs((x) => { const n = { ...x }; delete n.variant; return n; }); }} placeholder={flowerId ? "Navini tanlang" : "Avval turini tanlang"} options={filteredVariants.map((v) => ({ value: v.id, label: `${v.name_uz} (${v.color_uz})`, sub: `pochkada ${v.default_stems_per_bunch}` }))} />
+            <Select searchable value={f.variant} onChange={(v) => { setF({ ...f, variant: +v }); setErrs((x) => { const n = { ...x }; delete n.variant; return n; }); }} placeholder={flowerId ? "Navini tanlang" : "Avval turini tanlang"} options={filteredVariants.map((v) => ({ value: v.id, label: `${v.name_uz} (${v.color_uz})`, sub: `pochkada ${v.default_stems_per_bunch}` }))} />
             <Err k="variant" />
           </Field>
           <Field label="Yetkazib beruvchi" span>

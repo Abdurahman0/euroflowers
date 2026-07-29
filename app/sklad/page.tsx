@@ -15,7 +15,6 @@ import DateChips from "@/components/DateChips";
 import BatchDrawer from "@/components/BatchDrawer";
 import StockBatchCard from "@/components/StockBatchCard";
 import StockBatchModal from "@/components/StockBatchModal";
-import { BatchMovementModal, BatchMovesModal } from "@/components/BatchMovementModal";
 import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad from "@/components/MaterialSklad";
 import clsx from "clsx";
@@ -66,7 +65,7 @@ function MovesSummary({ moves }: { moves: StockMovement[] }) {
   );
 }
 
-/** Material jurnali xulosasi — plain dona (gul emas, bog'lam yo'q). */
+/** Material jurnali xulosasi — plain dona (gul emas, pochka yo'q). */
 function MatSummary({ moves }: { moves: MaterialMovement[] }) {
   const sum = (pred: (m: MaterialMovement) => boolean) =>
     moves.reduce((a, m) => (pred(m) ? a + (m.quantity || 0) : a), 0);
@@ -115,9 +114,7 @@ export default function SkladPage() {
   const [jSource, setJSource] = useState<"gul" | "material">("gul");
   const [matMoves, setMatMoves] = useState<MaterialMovement[]>([]);
   const [matType, setMatType] = useState(""); // material turi — KLIENT filtri (packaging_type)
-  // partiya amallari
-  const [wasteBatch, setWasteBatch] = useState<StockBatch | null>(null);
-  const [movesBatch, setMovesBatch] = useState<StockBatch | null>(null);
+  // partiya batafsil (view) modali — barcha amallar shu yerda
   const [supplierDetail, setSupplierDetail] = useState<Supplier | null>(null);
 
   const load = useCallback(async () => {
@@ -178,9 +175,6 @@ export default function SkladPage() {
     const sid = Number(p.get("supplier"));
     if (sid) api.supplier(sid).then(setSupplierDetail).catch(() => {});
   }, []);
-
-  // partiya kartasini lokal yangilash (waste/edit'dan keyin darhol ko'rinsin)
-  const patchBatch = (b: StockBatch) => setBatches((bs) => bs.map((x) => (x.id === b.id ? b : x)));
 
   const q = search.trim().toLowerCase();
   const searched = q
@@ -294,7 +288,7 @@ export default function SkladPage() {
           </div>
         </div>
 
-        {/* xulosa — manba bo'yicha (gul: dona+bog'lam, material: dona) */}
+        {/* xulosa — manba bo'yicha (gul: dona+pochka, material: dona) */}
         {isGul ? <MovesSummary moves={fMoves} /> : <MatSummary moves={fMatMoves} />}
 
         {/* MATERIAL harakatlari — timeline */}
@@ -420,9 +414,7 @@ export default function SkladPage() {
             key={b.id}
             batch={b}
             onOpenSupplier={(sid) => api.supplier(sid).then(setSupplierDetail).catch(() => {})}
-            onWaste={() => setWasteBatch(b)}
-            onMoves={() => setMovesBatch(b)}
-            onEdit={() => setSelBatch(b)}
+            onView={() => setSelBatch(b)}
           />
         ))}
         {fBatches.length === 0 && (
@@ -446,10 +438,6 @@ export default function SkladPage() {
           }}
         />
       )}
-      {wasteBatch && (
-        <BatchMovementModal batch={wasteBatch} onClose={() => setWasteBatch(null)} onDone={(upd) => { patchBatch(upd); load(); }} />
-      )}
-      {movesBatch && <BatchMovesModal batch={movesBatch} onClose={() => setMovesBatch(null)} />}
       {supplierDetail && (
         <SupplierDetail supplier={supplierDetail} onClose={() => setSupplierDetail(null)} onOpenBatch={(bch) => { setSupplierDetail(null); setSelBatch(bch); }} />
       )}

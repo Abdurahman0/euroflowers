@@ -61,6 +61,7 @@ export function StockUsagePicker({
       <span className="flex items-center gap-2">
         <span className="min-w-0 flex-1">
           <Select
+            searchable
             value={pick}
             onChange={(v) => setPick(+v)}
             placeholder={batches.length ? "Sklad partiyasini tanlang" : "Skladda faol partiya yo'q"}
@@ -144,6 +145,7 @@ export function CatalogUsagePicker({
       <span className="flex items-center gap-2">
         <span className="min-w-0 flex-1">
           <Select
+            searchable
             value={pick}
             onChange={(v) => setPick(+v)}
             placeholder={items.length ? "Katalogdan tayyor gul tanlang" : "Katalogda sotuvdagi gul yo'q"}
