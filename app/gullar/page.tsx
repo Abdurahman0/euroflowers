@@ -28,7 +28,6 @@ const monthOptions = [{ value: "0", label: "—" }, ...MONTHS.slice(1).map((m, i
 function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onClose: () => void; onSaved: (f: Flower) => void }) {
   const showToast = useStore((s) => s.showToast);
   const [nameUz, setNameUz] = useState(flower?.name_uz ?? "");
-  const [nameRu, setNameRu] = useState(flower?.name_ru ?? "");
   const [descUz, setDescUz] = useState(flower?.description_uz ?? "");
   const [seasonStart, setSeasonStart] = useState(String(flower?.season_start_month ?? 0));
   const [seasonEnd, setSeasonEnd] = useState(String(flower?.season_end_month ?? 0));
@@ -38,19 +37,18 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const save = async () => {
-    if (!nameUz.trim() && !nameRu.trim()) return setErrors({ name_uz: "Kamida bitta til uchun nom kiriting" });
+    if (!nameUz.trim()) return setErrors({ name_uz: "Nom kiriting" });
     setSaving(true);
     try {
       const payload: Partial<Flower> = {
         name_uz: nameUz.trim(),
-        name_ru: nameRu.trim(),
         description_uz: descUz.trim(),
         season_start_month: +seasonStart || null,
         season_end_month: +seasonEnd || null,
         image_url: image,
         is_active: active,
         // slug backendda MAJBURIY — nomdan avtomatik yasaymiz (tahrirda mavjudini saqlaymiz)
-        slug: flower?.slug || slugify(nameUz.trim() || nameRu.trim()),
+        slug: flower?.slug || slugify(nameUz.trim()),
       };
       const saved = flower ? await api.updateFlower(flower.id, payload) : await api.createFlower(payload);
       showToast(flower ? "✓ Gul yangilandi" : "✓ Gul qo'shildi");
@@ -67,12 +65,9 @@ function FlowerModal({ flower, onClose, onSaved }: { flower: Flower | null; onCl
     <Modal onClose={onClose} width={480}>
       <ModalHeader icon={<Icon name="katalog" size={20} />} title={flower ? "Gulni tahrirlash" : "Yangi gul turi"} sub="Sklad va katalog uchun ma'lumotnoma" onClose={onClose} />
       <Section>Nomi</Section>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nomi (UZ)">
+      <div className="grid grid-cols-1 gap-3">
+        <Field label="Nomi" span>
           <input className="inp" value={nameUz} onChange={(e) => { setNameUz(e.target.value); setErrors({}); }} placeholder="Masalan: Piyon" autoFocus={!flower} />
-        </Field>
-        <Field label="Nomi (RU)">
-          <input className="inp" value={nameRu} onChange={(e) => setNameRu(e.target.value)} placeholder="Masalan: Пион" />
         </Field>
         <Field label="Tavsif" span>
           <textarea className="inp min-h-[56px]" value={descUz} onChange={(e) => setDescUz(e.target.value)} placeholder="Masalan: Premium atirgullar — Red Naomi, Mondial" />
@@ -106,10 +101,7 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
   const showToast = useStore((s) => s.showToast);
   const [flowerId, setFlowerId] = useState<number>(variant?.flower ?? flowers[0]?.id ?? 0);
   const [nameUz, setNameUz] = useState(variant?.name_uz ?? "");
-  const [nameRu, setNameRu] = useState(variant?.name_ru ?? "");
   const [colorUz, setColorUz] = useState(variant?.color_uz ?? "");
-  const [colorRu, setColorRu] = useState(variant?.color_ru ?? "");
-  // tavsif — faqat o'zbekchasi tahrirlanadi (backend ru maydonini o'zi saqlaydi)
   const [descUz, setDescUz] = useState(variant?.description_uz ?? "");
   const [perBunch, setPerBunch] = useState(String(variant?.default_stems_per_bunch ?? 10));
   const [minSale, setMinSale] = useState(String(variant?.minimum_sale_stems ?? 5));
@@ -119,16 +111,14 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const save = async () => {
-    if (!nameUz.trim() && !nameRu.trim()) return setErrors({ name_uz: "Kamida bitta til uchun nom kiriting" });
+    if (!nameUz.trim()) return setErrors({ name_uz: "Nom kiriting" });
     if (!flowerId) return setErrors({ flower: "Gul turini tanlang" });
     setSaving(true);
     try {
       const payload: Partial<FlowerVariant> = {
         flower: flowerId,
         name_uz: nameUz.trim(),
-        name_ru: nameRu.trim(),
         color_uz: colorUz.trim(),
-        color_ru: colorRu.trim(),
         description_uz: descUz.trim(),
         default_stems_per_bunch: +perBunch || 10,
         minimum_sale_stems: +minSale || 1,
@@ -153,17 +143,11 @@ function VariantModal({ variant, flowers, onClose, onSaved }: { variant: FlowerV
       <Select value={String(flowerId)} options={flowers.map((f) => ({ value: String(f.id), label: f.name_uz || f.name_ru }))} onChange={(v) => setFlowerId(+v)} />
       <Section>Nomi va rangi</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nomi (UZ)">
+        <Field label="Nomi">
           <input className="inp" value={nameUz} onChange={(e) => { setNameUz(e.target.value); setErrors({}); }} placeholder="Masalan: Oq piyon 50sm" autoFocus={!variant} />
         </Field>
-        <Field label="Nomi (RU)">
-          <input className="inp" value={nameRu} onChange={(e) => setNameRu(e.target.value)} placeholder="Masalan: Белый пион 50см" />
-        </Field>
-        <Field label="Rang (UZ)">
+        <Field label="Rang">
           <input className="inp" value={colorUz} onChange={(e) => setColorUz(e.target.value)} placeholder="Masalan: oq" />
-        </Field>
-        <Field label="Rang (RU)">
-          <input className="inp" value={colorRu} onChange={(e) => setColorRu(e.target.value)} placeholder="Masalan: белый" />
         </Field>
         <Field label="Tavsif" span>
           <textarea

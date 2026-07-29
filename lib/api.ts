@@ -495,8 +495,10 @@ export const api = {
     request<Conversation>(`/api/conversations/${id}/resume_ai/`, { method: "POST", body: "{}" }),
 
   notifications: (p?: Params) => list<Notification>("/api/notifications/", p),
+  /** Bitta bildirishnomani o'qilgan qilish (yangi kanonik endpoint: mark-read/;
+      eski /read/ ham ishlaydi, ikkisi bir xil — jonli tekshirilgan). */
   markNotificationRead: (id: number) =>
-    request<Notification>(`/api/notifications/${id}/read/`, { method: "POST", body: "{}" }),
+    request<Notification>(`/api/notifications/${id}/mark-read/`, { method: "POST", body: "{}" }),
   markAllNotificationsRead: () =>
     request<{ updated: number }>("/api/notifications/read_all/", { method: "POST", body: "{}" }),
 

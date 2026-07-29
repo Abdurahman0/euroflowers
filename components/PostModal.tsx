@@ -46,9 +46,7 @@ export default function PostModal({
   const [postType, setPostType] = useState<PostType>(post?.post_type ?? "post");
   const [typeTouched, setTypeTouched] = useState(!!post);
   const [titleUz, setTitleUz] = useState(post?.title_uz ?? "");
-  const [titleRu, setTitleRu] = useState(post?.title_ru ?? "");
   const [descUz, setDescUz] = useState(post?.description_uz ?? "");
-  const [descRu, setDescRu] = useState(post?.description_ru ?? "");
   const [price, setPrice] = useState(post?.price ? String(Math.round(+post.price)) : "");
   const [flowerCount, setFlowerCount] = useState(post?.flower_count ? String(post.flower_count) : "");
   const [targeted, setTargeted] = useState(post?.is_targeted ?? false);
@@ -89,7 +87,7 @@ export default function PostModal({
 
   const save = async () => {
     const errs: Record<string, string> = {};
-    if (!titleUz.trim() && !titleRu.trim()) errs.title_uz = "Kamida bitta til uchun sarlavha kiriting";
+    if (!titleUz.trim()) errs.title_uz = "Sarlavha kiriting";
     if (postType !== "ad" && !link.trim()) errs.permalink = "Instagram havolasini kiriting";
     if (price && !/^\d+$/.test(price)) errs.price = "Faqat raqam kiriting";
     if (withCatalog && comp.length === 0) errs.catalog_items = "Tayyor gul tarkibini kiriting — kamida bitta sklad partiyasi";
@@ -102,9 +100,10 @@ export default function PostModal({
         post_type: postType,
         permalink: link.trim(),
         title_uz: titleUz.trim(),
-        title_ru: titleRu.trim(),
+        // title_ru backendda MAJBURIY — o'zbekchadan ko'chiramiz (RU input olib tashlangan)
+        title_ru: titleUz.trim(),
         description_uz: descUz.trim(),
-        description_ru: descRu.trim(),
+        description_ru: descUz.trim(),
         price: price ? price : null,
         flower_count: flowerCount ? +flowerCount : 0,
         is_targeted: targeted,
@@ -116,8 +115,8 @@ export default function PostModal({
           ? {
               catalog_items: [
                 {
-                  name_uz: (ciName || titleUz || titleRu).trim(),
-                  name_ru: (titleRu || ciName || titleUz).trim(),
+                  name_uz: (ciName || titleUz).trim(),
+                  name_ru: (ciName || titleUz).trim(),
                   arrangement_type: ciType,
                   price: String(+(ciPrice || price || 0)),
                   quantity_total: Math.max(+ciQty || 1, 1),
@@ -193,18 +192,12 @@ export default function PostModal({
       </div>
 
       <Section>Kontent</Section>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Sarlavha (UZ)">
+      <div className="grid grid-cols-1 gap-3">
+        <Field label="Sarlavha" span>
           <input className="inp" value={titleUz} onChange={(e) => { setTitleUz(e.target.value); setErrors((x) => ({ ...x, title_uz: "" })); }} placeholder="Masalan: Nafis piyonlar to'plami" />
         </Field>
-        <Field label="Sarlavha (RU)">
-          <input className="inp" value={titleRu} onChange={(e) => setTitleRu(e.target.value)} placeholder="Masalan: Набор нежных пионов" />
-        </Field>
-        <Field label="Tavsif (UZ)" span>
+        <Field label="Tavsif" span>
           <textarea className="inp min-h-[64px]" value={descUz} onChange={(e) => setDescUz(e.target.value)} placeholder="Masalan: 25 dona piyon, 50 sm, bepul yetkazish" />
-        </Field>
-        <Field label="Tavsif (RU)" span>
-          <textarea className="inp min-h-[64px]" value={descRu} onChange={(e) => setDescRu(e.target.value)} placeholder="Masalan: 25 пионов, 50 см, бесплатная доставка" />
         </Field>
       </div>
       {errors.title_uz && <p className="mt-1.5 text-[12px] font-semibold text-[color:var(--danger-ink)]" role="alert">{errors.title_uz}</p>}
