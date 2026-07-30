@@ -1,6 +1,7 @@
 "use client";
 import SearchInput from "@/components/SearchInput";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import FilterSelect from "@/components/FilterSelect";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -21,6 +22,10 @@ import type { Flower, FlowerVariant } from "@/lib/types";
  * ma'lumotnoma: gul turlari (Flower) va ularning navlari (FlowerVariant),
  * to'liq CRUD bilan. Ruxsat: inventory.
  */
+
+// Gul turi rangi — Flower'da rang maydoni yo'q, shu bois tema tokenlarini aylantiramiz
+// (qattiq hex YO'Q). Gul turining ro'yxatdagi o'rni bo'yicha barqaror rang beriladi.
+const FLOWER_HUES = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--acc)", "var(--info)", "var(--success-ink)", "var(--warning-ink)"];
 
 const MONTHS = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
 const monthOptions = [{ value: "0", label: "—" }, ...MONTHS.slice(1).map((m, i) => ({ value: String(i + 1), label: m }))];
@@ -191,6 +196,7 @@ export default function GullarPage() {
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState("");
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<number | null>(null); // Navlar — gul turi bo'yicha filtr
   const [flowerModal, setFlowerModal] = useState<{ open: boolean; edit: Flower | null }>({ open: false, edit: null });
   const [variantModal, setVariantModal] = useState<{ open: boolean; edit: FlowerVariant | null }>({ open: false, edit: null });
   // o'chirish tasdig'i — gul turi yoki nav (bitta dialog ikkalasiga)
@@ -245,6 +251,53 @@ export default function GullarPage() {
       )
     : variants;
 
+  // ── Navlar: gul turi bo'yicha GURUHLASH (Gul turlari paneli tartibida) yoki FILTR ──
+  const activeType = typeFilter != null ? flowers.find((f) => f.id === typeFilter) ?? null : null;
+  const typeOptions = [
+    { value: "", label: "Barcha turlar" },
+    ...flowers.filter((f) => variants.some((v) => v.flower === f.id)).map((f) => ({ value: String(f.id), label: `${f.name_uz || f.name_ru} · ${variants.filter((v) => v.flower === f.id).length}` })),
+  ];
+  // FILTR faol → tekis ro'yxat; aks holda gul turi bo'yicha guruhlar (bo'sh guruhlar chiqmaydi).
+  // Guruh ichida navlar MAVJUD (yuklangan) tartibda qoladi. Rang gul turining ro'yxatdagi o'rni bo'yicha barqaror.
+  const flatVariants = typeFilter != null ? fVariants.filter((v) => v.flower === typeFilter) : [];
+  const groups = typeFilter != null ? [] : flowers
+    .map((f, idx) => ({ flower: f, hue: FLOWER_HUES[idx % FLOWER_HUES.length], items: fVariants.filter((v) => v.flower === f.id) }))
+    .filter((g) => g.items.length > 0);
+
+  const variantRow = (v: FlowerVariant, i: number) => (
+    <div key={v.id} onClick={() => control && setVariantModal({ open: true, edit: v })} className="row-lux group flex items-center gap-3 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms` }}>
+      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[10px] border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {v.image_url && <img src={v.image_url} alt="" className="h-full w-full object-cover" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[14px] font-semibold" title={`${v.flower_detail?.name_uz ?? ""} — ${v.name_uz || v.name_ru}`}>
+          {v.flower_detail?.name_uz} — {v.name_uz || v.name_ru}
+          {!v.is_active && <span className="ml-2 rounded-full px-2 py-px text-[11px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
+        </div>
+        <div className="truncate text-[12px]" style={{ color: "var(--muted)" }}>
+          {v.color_uz || "rang yo'q"} · pochkada {v.default_stems_per_bunch} dona · min. {v.minimum_sale_stems} dona
+        </div>
+        {v.description_uz && (
+          <div className="truncate text-[12px] italic" style={{ color: "var(--text-2)" }} title={v.description_uz}>{v.description_uz}</div>
+        )}
+      </div>
+      {control && (
+        <span className="row-actions flex shrink-0 items-center gap-0.5">
+          <button onClick={(e) => { e.stopPropagation(); setVariantModal({ open: true, edit: v }); }} className="icon-btn" title="Tahrirlash" aria-label={`${v.name_uz || v.name_ru} — tahrirlash`}>
+            <Pencil size={16} strokeWidth={1.75} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setConfirmDel({ kind: "variant", id: v.id, name: `${v.flower_detail?.name_uz ?? ""} — ${v.name_uz || v.name_ru}`.trim(), note: "Skladda shu navdan partiya bo'lsa, backend o'chirishga ruxsat bermasligi mumkin." }); }}
+            className="icon-btn icon-btn-danger" title="O'chirish" aria-label={`${v.name_uz || v.name_ru} — o'chirish`}
+          >
+            <Trash2 size={16} strokeWidth={1.75} />
+          </button>
+        </span>
+      )}
+    </div>
+  );
+
   if (loading) return <FlowerLoader />;
 
   if (loadErr)
@@ -279,7 +332,16 @@ export default function GullarPage() {
           </div>
           <div className="flex flex-col">
             {fFlowers.map((f, i) => (
-              <div key={f.id} onClick={() => control && setFlowerModal({ open: true, edit: f })} className="row-lux group flex items-center gap-3 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms` }}>
+              <div
+                key={f.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setTypeFilter(typeFilter === f.id ? null : f.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTypeFilter(typeFilter === f.id ? null : f.id); } }}
+                title="Navlarni shu tur bo'yicha filtrlash"
+                className={clsx("row-lux group flex cursor-pointer items-center gap-3 rounded-[10px] px-2 py-2.5 transition-colors duration-150", typeFilter !== f.id && "border-t first:border-t-0", typeFilter === f.id && "shadow-inner")}
+                style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms`, ...(typeFilter === f.id ? { background: "var(--primary-soft)" } : {}) }}
+              >
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[10px] border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {f.image_url && <img src={f.image_url} alt="" className="h-full w-full object-cover" />}
@@ -318,58 +380,61 @@ export default function GullarPage() {
           </div>
         </section>
 
-        {/* Navlar */}
+        {/* Navlar — gul turi bo'yicha guruhlangan (rail + sticky sarlavha) yoki filtrlangan tekis ro'yxat */}
         <section className="glass p-5">
-          <div className="mb-3.5 flex items-center justify-between">
+          <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-bold">Navlar</h2>
-            {control && (
-              <button onClick={() => setVariantModal({ open: true, edit: null })} disabled={flowers.length === 0} className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white transition-transform duration-200 hover:-translate-y-px disabled:opacity-50" style={{ background: "var(--primary)" }}>
-                <Plus size={16} strokeWidth={1.75} /> Nav
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              <FilterSelect
+                value={typeFilter != null ? String(typeFilter) : ""}
+                options={typeOptions}
+                onChange={(v) => setTypeFilter(v ? +v : null)}
+                label="Tur"
+              />
+              {control && (
+                <button onClick={() => setVariantModal({ open: true, edit: null })} disabled={flowers.length === 0} className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white transition-transform duration-200 hover:-translate-y-px disabled:opacity-50" style={{ background: "var(--primary)" }}>
+                  <Plus size={16} strokeWidth={1.75} /> Nav
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col">
-            {fVariants.map((v, i) => (
-              <div key={v.id} onClick={() => control && setVariantModal({ open: true, edit: v })} className="row-lux group flex items-center gap-3 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)", animationDelay: `${Math.min(i * 35, 350)}ms` }}>
-                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[10px] border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {v.image_url && <img src={v.image_url} alt="" className="h-full w-full object-cover" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold" title={`${v.flower_detail?.name_uz ?? ""} — ${v.name_uz || v.name_ru}`}>
-                    {v.flower_detail?.name_uz} — {v.name_uz || v.name_ru}
-                    {!v.is_active && <span className="ml-2 rounded-full px-2 py-px text-[11px] font-bold" style={{ background: "var(--danger-soft)", color: "var(--danger-ink)" }}>NOFAOL</span>}
-                  </div>
-                  <div className="truncate text-[12px]" style={{ color: "var(--muted)" }}>
-                    {v.color_uz || "rang yo'q"} · pochkada {v.default_stems_per_bunch} dona · min. {v.minimum_sale_stems} dona
-                  </div>
-                  {v.description_uz && (
-                    <div className="truncate text-[12px] italic" style={{ color: "var(--text-2)" }} title={v.description_uz}>
-                      {v.description_uz}
-                    </div>
-                  )}
-                </div>
-                {control && (
-                  <span className="row-actions flex shrink-0 items-center gap-0.5">
-                    <button onClick={(e) => { e.stopPropagation(); setVariantModal({ open: true, edit: v }); }} className="icon-btn" title="Tahrirlash" aria-label={`${v.name_uz || v.name_ru} — tahrirlash`}>
-                      <Pencil size={16} strokeWidth={1.75} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmDel({ kind: "variant", id: v.id, name: `${v.flower_detail?.name_uz ?? ""} — ${v.name_uz || v.name_ru}`.trim(), note: "Skladda shu navdan partiya bo'lsa, backend o'chirishga ruxsat bermasligi mumkin." });
-                      }}
-                      className="icon-btn icon-btn-danger"
-                      title="O'chirish"
-                      aria-label={`${v.name_uz || v.name_ru} — o'chirish`}
-                    >
-                      <Trash2 size={16} strokeWidth={1.75} />
-                    </button>
-                  </span>
-                )}
+
+          {/* faol filtr chipi */}
+          {activeType && (
+            <div className="mb-3">
+              <button onClick={() => setTypeFilter(null)} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--primary)", color: "var(--primary)" }} title="Filtrni tozalash">
+                {activeType.name_uz || activeType.name_ru} <X size={13} strokeWidth={2.4} />
+              </button>
+            </div>
+          )}
+
+          <div className="thin-scroll flex flex-col gap-1.5 overflow-y-auto transition-opacity duration-200" style={{ maxHeight: "calc(100vh - 240px)" }}>
+            {/* FILTR faol → tekis ro'yxat (rail/sarlavhasiz) */}
+            {typeFilter != null ? (
+              <div className="flex flex-col">
+                {flatVariants.map((v, i) => variantRow(v, i))}
+                {flatVariants.length === 0 && <EmptyState title={q ? "Topilmadi" : "Nav yo'q"} sub={q ? "Boshqa so'z bilan urinib ko'ring." : "Bu turda nav yo'q."} />}
               </div>
-            ))}
-            {fVariants.length === 0 && <EmptyState title={q ? "Topilmadi" : "Nav yo'q"} sub={q ? "Boshqa so'z bilan urinib ko'ring." : "Avval gul turini, so'ng navini qo'shing."} />}
+            ) : (
+              <>
+                {groups.map((g) => (
+                  <div key={g.flower.id} className="group/grp">
+                    {/* sticky sarlavha — bo'lim-header-pill uslubi */}
+                    <div className="sticky top-0 z-10 -mx-1 mb-0.5 flex items-center gap-2 px-1 py-1.5 backdrop-blur-sm" style={{ background: "color-mix(in srgb, var(--surface-solid) 88%, transparent)" }}>
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: g.hue }} />
+                      <span className="text-[13px] font-bold">{g.flower.name_uz || g.flower.name_ru}</span>
+                      <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>{g.items.length} nav</span>
+                    </div>
+                    {/* rail + rows */}
+                    <div className="relative pl-3 transition-colors duration-150 group-hover/grp:bg-[color:var(--hover)] rounded-[12px]">
+                      <span className="pointer-events-none absolute left-0 inset-y-1 w-[3px] rounded-full sm:w-1" style={{ background: g.hue }} aria-hidden />
+                      {g.items.map((v, i) => variantRow(v, i))}
+                    </div>
+                  </div>
+                ))}
+                {groups.length === 0 && <EmptyState title={q ? "Topilmadi" : "Nav yo'q"} sub={q ? "Boshqa so'z bilan urinib ko'ring." : "Avval gul turini, so'ng navini qo'shing."} />}
+              </>
+            )}
           </div>
         </section>
       </div>
