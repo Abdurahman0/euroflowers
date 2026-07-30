@@ -11,6 +11,26 @@ import type { FloristStats } from "@/lib/types";
  */
 
 const fmtMoney = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+/** by_day'ni davr oralig'i bo'yicha kun-ba-kun to'ldiradi (bo'sh kunlar 0). Davr chegarasi
+    period.date_from/date_to yoki (berilmasa) mavjud eng erta/kech work_date. */
+function gapFill(stats: FloristStats): { date: string; amount: number; sold: number }[] {
+  const byDate = new Map(stats.by_day.map((d) => [d.work_date, d]));
+  const dates = stats.by_day.map((d) => d.work_date).sort();
+  const from = stats.period?.date_from || dates[0];
+  const to = stats.period?.date_to || dates[dates.length - 1];
+  if (!from || !to) return [];
+  const out: { date: string; amount: number; sold: number }[] = [];
+  const cur = new Date(from + "T00:00:00Z"); const end = new Date(to + "T00:00:00Z");
+  let guard = 0;
+  while (cur <= end && guard++ < 400) {
+    const key = cur.toISOString().slice(0, 10);
+    const d = byDate.get(key);
+    out.push({ date: key, amount: d ? +d.amount : 0, sold: d ? d.sold_quantity : 0 });
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
 const Tip = ({ text }: { text: string }) => <span title={text} className="ml-1 cursor-help align-middle text-[10px] font-bold" style={{ color: "var(--muted)" }}>ⓘ</span>;
 
 function Card({ label, value, sub, hero, tip }: { label: string; value: string; sub?: string; hero?: boolean; tip?: string }) {
@@ -25,8 +45,9 @@ function Card({ label, value, sub, hero, tip }: { label: string; value: string; 
 
 export default function FloristStats({ stats }: { stats: FloristStats }) {
   const s = stats.summary;
-  // by_day yangi kun BIRINCHI keladi — grafik uchun teskari (eski → yangi)
-  const daily = [...stats.by_day].reverse().map((d) => ({ date: d.work_date, oylik: Math.round(+d.amount), sotildi: d.sold_quantity }));
+  // by_day faqat FAOL kunlarni qaytaradi (yangi kun birinchi). BUG-4: grafik yolg'on
+  // masofa ko'rsatmasligi uchun to'liq davr oralig'ini KUN-BA-KUN to'ldiramiz (0 bilan).
+  const daily = gapFill(stats).map((d) => ({ date: d.date, oylik: Math.round(d.amount), sotildi: d.sold }));
   const srcMax = Math.max(...stats.by_source.map((x) => +x.amount), 1);
 
   return (

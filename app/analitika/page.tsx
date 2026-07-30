@@ -115,31 +115,39 @@ export default function AnalitikaPage() {
 
   const s = a.summary;
   const ps = prev?.summary;
-  const aov = (rev: number, ord: number) => (ord > 0 ? Math.round(rev / ord) : 0);
-  const aovNow = aov(+s.revenue, s.orders);
-  const aovPrev = aov(+(ps?.revenue ?? 0), ps?.orders ?? 0);
+  // SAVDO = HAQIQIY katalog sotuvi (accounting), lead-pipeline emas (BUG-1).
+  const catCount = acc?.summary?.total_quantity ?? 0;
+  const catRevenue = +(s.catalog_revenue ?? 0);
+  const aovNow = catCount > 0 ? Math.round(catRevenue / catCount) : 0;
 
   const tiles: { label: string; cur: number; prev: number; money?: boolean; suffix?: string; sub?: string }[] = [
-    { label: "Daromad", cur: +s.revenue, prev: +(ps?.revenue ?? 0), money: true, sub: `${s.orders} ta sotuv` },
-    { label: "Sotuvlar", cur: s.orders, prev: ps?.orders ?? 0, sub: "ta buyurtma" },
+    { label: "Savdo", cur: catRevenue, prev: +(ps?.catalog_revenue ?? 0), money: true, sub: "haqiqiy katalog sotuvi" },
+    { label: "Kutilayotgan buyurtmalar", cur: +s.revenue, prev: +(ps?.revenue ?? 0), money: true, sub: "won leadlar summasi" },
     { label: "So'rovlar", cur: s.leads, prev: ps?.leads ?? 0, sub: "lead" },
     { label: "Konversiya", cur: +s.conversion_rate, prev: +(ps?.conversion_rate ?? 0), suffix: "%", sub: "so'rovdan sotuvga" },
-    { label: "O'rtacha chek", cur: aovNow, prev: aovPrev, money: true, sub: "bitta sotuvga" },
+    { label: "O'rtacha chek", cur: aovNow, prev: 0, money: true, sub: "1 sotuvga (katalog)" },
     { label: "Sotilgan gul", cur: s.flowers_sold_stems, prev: ps?.flowers_sold_stems ?? 0, sub: "dona" },
   ];
 
-  // kunlik hosila seriyalari (o'rtacha chek, konversiya) + chiqit kunlik bucket
   // GUARD: ZZZ_TEST_ partiyalardagi chiqitni chiqarib tashlaymiz (lib/finance)
   const wN = excludeTest(wasteNow, (m) => m.batch_detail?.batch_number);
   const wP = excludeTest(wastePrev, (m) => m.batch_detail?.batch_number);
   const wasteByDate = new Map<string, number>();
   for (const m of wN) { const d = (m.created_at ?? "").slice(0, 10); wasteByDate.set(d, (wasteByDate.get(d) ?? 0) + Math.abs(m.quantity_stems)); }
-  const daily = a.daily_stats.map((d) => ({
-    ...d,
-    aov: d.orders > 0 ? Math.round(Number(d.revenue) / d.orders) : 0,
-    conv: d.leads > 0 ? Math.round((d.orders / d.leads) * 100) : 0,
-    waste: wasteByDate.get(d.date) ?? 0,
-  }));
+  // KUNLIK SAVDO: backend daily_stats.revenue lead asosida (katalog emas) → accounting
+  // history'dan Tashkent (+5) kuni bo'yicha o'zimiz yig'amiz; BUG-3: to+1 kunini kesamiz.
+  const tashDay = (iso: string) => new Date(new Date(iso).getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+  const catRevByDay = new Map<string, number>(); const catCntByDay = new Map<string, number>();
+  for (const h of acc?.history ?? []) { const day = tashDay(h.sold_at); catRevByDay.set(day, (catRevByDay.get(day) ?? 0) + +h.sale_total); catCntByDay.set(day, (catCntByDay.get(day) ?? 0) + 1); }
+  const inRange = a.daily_stats.filter((d) => d.date <= to); // BUG-3: trailing to+1 kunini olib tashlaymiz
+  const daily = inRange.map((d) => {
+    const rev = catRevByDay.get(d.date) ?? 0; const cnt = catCntByDay.get(d.date) ?? 0;
+    return { ...d, revenue: rev, aov: cnt > 0 ? Math.round(rev / cnt) : 0, conv: d.leads > 0 ? Math.round((d.orders / d.leads) * 100) : 0, waste: wasteByDate.get(d.date) ?? 0 };
+  });
+  // reconcile: Σ kunlik savdo == accounting total_sales? (aks holda chart yashiriladi)
+  const sumDailyRev = daily.reduce((t, d) => t + d.revenue, 0);
+  const catTotal = +(acc?.summary?.total_sales ?? 0);
+  const dailyRevReconciles = Math.abs(sumDailyRev - catTotal) <= 1;
 
   // chiqit foizi = chiqit / (chiqit + sotilgan gul) — davr vs oldingi davr
   const wasteStemsNow = wN.reduce((t, m) => t + Math.abs(m.quantity_stems), 0);
@@ -195,9 +203,11 @@ export default function AnalitikaPage() {
 
       {/* TRENDLAR */}
       <div className="grid items-start gap-4 xl:grid-cols-2">
-        <Card title="Kunlik daromad" sub="so'mda, sotuvlar bo'yicha"><RevenueBars data={a.daily_stats} /></Card>
+        <Card title="Kunlik savdo" sub="haqiqiy katalog sotuvi (accounting), so'mda">
+          {dailyRevReconciles ? <RevenueBars data={daily} /> : <p className="py-8 text-center text-[13px]" style={{ color: "var(--muted)" }}>Kunlik savdo ma&apos;lumoti mavjud emas.</p>}
+        </Card>
         <Card title="Kunlik faollik" sub="so'rovlar, suhbatlar va sotuvlar soni">
-          <DailyChart data={a.daily_stats} series={[
+          <DailyChart data={daily} series={[
             { key: "leads", label: "So'rovlar", varName: "var(--chart-1)" },
             { key: "conversations", label: "Suhbatlar", varName: "var(--chart-2)" },
             { key: "orders", label: "Sotuvlar", varName: "var(--chart-3)" },
@@ -206,8 +216,8 @@ export default function AnalitikaPage() {
         <Card title="Konversiya trendi" sub="kunlik: sotuv / so'rov (%)">
           <DailyChart data={daily} series={[{ key: "conv", label: "Konversiya %", varName: "var(--chart-1)" }]} />
         </Card>
-        <Card title="O'rtacha chek trendi" sub="kunlik: daromad / sotuv (so'm)">
-          <DailyChart data={daily} series={[{ key: "aov", label: "O'rtacha chek", varName: "var(--chart-2)" }]} />
+        <Card title="O'rtacha chek trendi" sub="kunlik: katalog savdo / sotuv soni (so'm)">
+          {dailyRevReconciles ? <DailyChart data={daily} series={[{ key: "aov", label: "O'rtacha chek", varName: "var(--chart-2)" }]} /> : <p className="py-8 text-center text-[13px]" style={{ color: "var(--muted)" }}>Ma&apos;lumot mavjud emas.</p>}
         </Card>
       </div>
 
