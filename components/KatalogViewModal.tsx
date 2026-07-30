@@ -138,6 +138,9 @@ export default function KatalogViewModal({
             v={[full.florist_detail.user_detail?.first_name, full.florist_detail.user_detail?.last_name].filter(Boolean).join(" ") || full.florist_detail.user_detail?.username || `#${full.florist_detail.id}`}
           />
         )}
+        {full.customer_detail && (
+          <Row k="Mijoz" v={`${full.customer_detail.name || "Mijoz"}${full.customer_detail.masked_phone ? ` · ${full.customer_detail.masked_phone}` : ""}`} />
+        )}
         <Row k="Qo'shilgan" v={fmtTime(full.created_at)} />
         {full.sold_at && <Row k="Sotilgan" v={fmtTime(full.sold_at)} />}
         {full.stock_deducted_at && <Row k="Skladdan yechilgan" v={fmtTime(full.stock_deducted_at)} />}

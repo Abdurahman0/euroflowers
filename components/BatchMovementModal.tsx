@@ -4,7 +4,9 @@ import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
+import DatePicker from "./DatePicker";
 import DualQtyInput, { qtyPayload, type QtyMode } from "./DualQtyInput";
+import { CalendarClock } from "lucide-react";
 import { Icon } from "./icons";
 import { fmtDate } from "@/lib/format";
 import { MOVEMENT_LABEL, MOVEMENT_HUE, stems, formatStemsAndBunches } from "@/lib/inventory";
@@ -29,6 +31,9 @@ export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBat
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  // HARAKAT SANASI — ixtiyoriy; yoqilib o'zgartirilsagina yuboriladi (aks holda backend: hozir)
+  const [dateOn, setDateOn] = useState(false);
+  const [movedAt, setMovedAt] = useState("");
 
   const spb = batch.stems_per_bunch || 1;
   const projStems = mode === "bunches" ? Math.round((parseFloat(qty) || 0) * spb) : Math.round(parseFloat(qty) || 0);
@@ -42,7 +47,7 @@ export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBat
     if (below) return showToast(`Qoldiq yetarli emas: bor-yo'g'i ${stems(before)}`);
     setBusy(true);
     try {
-      await api.batchMovement(batch.id, { movement_type: type, ...qtyPayload(mode, qty), reason: reason.trim() });
+      await api.batchMovement(batch.id, { movement_type: type, ...qtyPayload(mode, qty), reason: reason.trim(), ...(dateOn && movedAt ? { created_at: movedAt } : {}) });
       // javob shakli kafolatlanmagan — partiyani qayta o'qiymiz
       const fresh = await api.stockBatch(batch.id).catch(() => null);
       showToast("✓ Harakat qayd etildi");
@@ -93,6 +98,18 @@ export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBat
             </button>
           ))}
         </div>
+        {/* HARAKAT SANASI — ixtiyoriy; default hozir */}
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[13px] border px-3.5 py-2.5" style={{ borderColor: dateOn ? "var(--primary)" : "var(--border)", background: dateOn ? "var(--primary-soft)" : undefined }}>
+          <span className="flex min-w-0 items-center gap-2">
+            <CalendarClock size={15} strokeWidth={2} style={{ color: dateOn ? "var(--primary)" : "var(--muted)" }} />
+            <span className="min-w-0">
+              <span className="block text-[12.5px] font-bold">Boshqa harakat sanasi</span>
+              <span className="block text-[11px]" style={{ color: "var(--muted)" }}>Belgilanmasa — hozirgi vaqt</span>
+            </span>
+          </span>
+          <input type="checkbox" checked={dateOn} onChange={(e) => { setDateOn(e.target.checked); if (!e.target.checked) setMovedAt(""); }} className="h-4 w-4 shrink-0 accent-[var(--primary)]" />
+        </label>
+        {dateOn && <DatePicker value={movedAt} onChange={setMovedAt} withTime placeholder="Harakat sanasi va vaqti" ariaLabel="Harakat sanasi" />}
       </div>
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>

@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
+import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
@@ -48,6 +49,13 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   });
   // maxsus katalog auto-sotiladi → to'lov turi shu paytda yoziladi
   const [payment, setPayment] = useState<PaymentType>("cash");
+  // MIJOZ — walk-in yoki mavjud; item'da biriktirilgan bo'lsa oldindan tanlanadi
+  const hadCustomer = !!(item?.customer_detail || item?.customer);
+  const [cust, setCust] = useState<CustomerPick>(
+    item?.customer_detail
+      ? { mode: "existing", id: item.customer_detail.id, detail: item.customer_detail }
+      : { mode: "none" }
+  );
   const [comp, setComp] = useState<CompRow[]>(
     item?.composition?.length ? item.composition.map((c) => ({ stock_batch: c.stock_batch, mode: "stems" as const, qty: String(c.quantity_stems) })) : [{ stock_batch: 0, mode: "stems", qty: "" }]
   );
@@ -235,10 +243,12 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       ...(f.discount_reason.trim() ? { discount_reason: f.discount_reason.trim() } : {}),
       ...(f.note.trim() ? { note: f.note.trim() } : {}),
       quantity_total: Math.max(+f.quantity_total || 1, 1),
-      instagram_story_url: f.instagram_story_url,
+      ...(kind === "custom" ? {} : { instagram_story_url: f.instagram_story_url }),
       description_uz: f.description_uz,
       image_url: f.image_url,
       ...(compLocked ? {} : { composition, materials: materialsPayload }),
+      // MIJOZ: existing→{customer}, new→{customer_name,customer_phone}, tozalash→{customer:null}
+      ...(customerPayload(cust, hadCustomer) ?? {}),
     };
     // maxsus: mijoz do'konda tanladi → sotilgan sifatida yoziladi; to'lov turi shu paytda
     if (kind === "custom" && !item) { payload.status = "sold"; payload.payment_type = payment; }
@@ -471,7 +481,13 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
         </div>
       )}
 
-      {/* MATERIALLAR */}
+      {/* MATERIALLAR — materiallar bazasi bo'sh bo'lsa bo'lim yashirinmaydi, ko'rsatma beriladi */}
+      {!compLocked && materials.length === 0 && (
+        <>
+          <Section>Materiallar</Section>
+          <p className="text-[13px]" style={{ color: "var(--muted)" }}>Faol material yo&apos;q — avval <b>Sklad → Materiallar</b> bo&apos;limida qo&apos;shing.</p>
+        </>
+      )}
       {!compLocked && materials.length > 0 && (
         <>
           <Section>Materiallar</Section>
@@ -505,6 +521,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           </div>
         </>
       )}
+
+      <Section>Mijoz</Section>
+      <div className="mb-1">
+        <CustomerPicker value={cust} onChange={setCust} label={kind === "custom" && !item ? "Mijoz (ixtiyoriy — kim sotib oldi)" : "Mijoz (ixtiyoriy)"} />
+      </div>
 
       <Section>Narx va tavsif</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -572,7 +593,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           </Field>
         )}
 
-        <Field label="Story havolasi" span><input className="inp" value={f.instagram_story_url} onChange={set("instagram_story_url")} placeholder="Masalan: https://instagram.com/stories/…" /></Field>
+        {/* Story havolasi — faqat STANDART katalogda (Maxsus/custom formadan olib tashlandi) */}
+        {kind !== "custom" && <Field label="Story havolasi" span><input className="inp" value={f.instagram_story_url} onChange={set("instagram_story_url")} placeholder="Masalan: https://instagram.com/stories/…" /></Field>}
         <Field label="Rasm" span><ImageInput value={f.image_url} onChange={(url) => setF({ ...f, image_url: url })} /></Field>
       </div>
 

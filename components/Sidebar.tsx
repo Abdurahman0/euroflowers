@@ -10,19 +10,22 @@ import type { PermissionPage, ScreenId } from "@/lib/types";
 /** NAV sahifalari backend ruxsat sahifalariga bog'langan (kontrakt: can_view).
     `pages` — bir nechtasidan BIRORTASI yetarli (backend florists/suppliers/
     attendance ruxsatlarini alohida ajratdi, eski matritsalarda ular yo'q). */
-const NAV: { id: ScreenId; href: string; label: string; pages: PermissionPage[] }[] = [
-  { id: "dashboard", href: "/", label: "Dashboard", pages: ["dashboard"] },
+// Eng ko'p ishlatiladigan 6 sahifa TEPADA (top:true) — keyin ajratgich, so'ng qolganlari
+// JORIY NISBIY tartibda. Ruxsat gating o'zgarmaydi (yashirilgan element render bo'lmaydi).
+const NAV: { id: ScreenId; href: string; label: string; pages: PermissionPage[]; top?: boolean }[] = [
+  { id: "dashboard", href: "/", label: "Dashboard", pages: ["dashboard"], top: true },
+  { id: "sklad", href: "/sklad", label: "Sklad", pages: ["inventory"], top: true },
+  { id: "katalog", href: "/katalog", label: "Katalog", pages: ["catalog"], top: true },
+  { id: "floristlar", href: "/floristlar", label: "Floristlar", pages: ["florists", "attendance", "settings"], top: true },
+  { id: "gullar", href: "/gullar", label: "Gullar", pages: ["inventory"], top: true },
+  { id: "chat", href: "/chat", label: "AI chatlar", pages: ["conversations"], top: true },
+  // qolganlari — joriy nisbiy tartibda
   { id: "analitika", href: "/analitika", label: "Analitika", pages: ["dashboard"] },
   { id: "hisob", href: "/hisob-kitob", label: "Hisob-kitob", pages: ["dashboard"] },
-  { id: "chat", href: "/chat", label: "AI chatlar", pages: ["conversations"] },
   { id: "ai", href: "/ai", label: "AI yordamchi", pages: ["ai_settings"] },
   { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", pages: ["crm"] },
   { id: "mijozlar", href: "/mijozlar", label: "Mijozlar", pages: ["customers"] },
-  { id: "sklad", href: "/sklad", label: "Sklad", pages: ["inventory"] },
   { id: "suppliers", href: "/suppliers", label: "Yetkazib beruvchilar", pages: ["suppliers", "inventory"] },
-  { id: "gullar", href: "/gullar", label: "Gullar", pages: ["inventory"] },
-  { id: "katalog", href: "/katalog", label: "Katalog", pages: ["catalog"] },
-  { id: "floristlar", href: "/floristlar", label: "Floristlar", pages: ["florists", "attendance", "settings"] },
   { id: "postlar", href: "/postlar", label: "Postlar", pages: ["social_posts"] },
   { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", pages: ["notifications"] },
   { id: "xodimlar", href: "/xodimlar", label: "Xodimlar", pages: ["users"] },
@@ -81,11 +84,13 @@ export default function Sidebar() {
 
       {/* nav */}
       <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
-        {NAV.filter((n) => canView(...n.pages)).map((n) => {
+        {NAV.filter((n) => canView(...n.pages)).map((n, i, arr) => {
           const active = pathname === n.href;
+          // tepa 6lik va qolganlari orasida yumshoq ajratgich (label yo'q — faqat bo'shliq)
+          const divider = i > 0 && arr[i - 1].top && !n.top;
           return (
+            <div key={n.id} className={divider ? (sideOpen ? "mt-2 border-t border-white/[0.08] pt-2" : "mt-2 border-t border-white/[0.08] pt-2") : "contents"}>
             <button
-              key={n.id}
               onClick={() => {
                 router.push(n.href);
                 if (window.matchMedia("(max-width: 767px)").matches) toggleSide();
@@ -125,6 +130,7 @@ export default function Sidebar() {
                 </span>
               )}
             </button>
+            </div>
           );
         })}
       </nav>

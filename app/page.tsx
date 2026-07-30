@@ -105,7 +105,7 @@ export default function DashboardPage() {
 
   // OPERATSION KPI — mijoz/operatsiya fokusli; ATIGI BITTA pul raqami (bugungi savdo).
   const stats: { label: string; num: number; money?: boolean; suffix?: string; sub: string; href: string; dark?: boolean }[] = [
-    { label: "Savdo (davr)", num: +(d.catalog_revenue ?? 0), money: true, sub: `haqiqiy sotuv · kutilayotgan: ${fmtMoney(+(d.period_revenue ?? d.revenue_today ?? 0))} so'm`, href: "/hisob-kitob", dark: true },
+    { label: "Savdo (davr)", num: +(d.period_catalog_sales_revenue ?? d.catalog_sales_revenue_today ?? 0), money: true, sub: `haqiqiy katalog sotuvi · kutilayotgan: ${fmtMoney(+(d.period_lead_revenue ?? d.lead_revenue_today ?? 0))} so'm`, href: "/hisob-kitob", dark: true },
     { label: "Faol buyurtmalar", num: d.active_leads, sub: `${d.new_leads_today} tasi bugun tushdi`, href: "/buyurtmalar" },
     { label: "Konversiya", num: +d.conversion_rate, suffix: "%", sub: "so'rovdan sotuvga", href: "/analitika" },
     { label: "AI suhbatlar", num: d.ai_conversations, sub: `${d.operator_conversations} ta operatorda`, href: "/chat" },

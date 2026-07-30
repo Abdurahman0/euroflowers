@@ -99,9 +99,60 @@ Legend: **REAL-BE** = backend returns the daily series · **CLIENT** = frontend 
 - **BUG-4 (FloristStats by_day spacing) — FIXED.** `FloristStats` now gap-fills `by_day` across `period.date_from…date_to` (0 for empty days) before charting, so `DailyChart` spaces points by real calendar day.
 - tsc clean · 17 Vitest pass · no console errors · empty-state render verified (no NaN, honest flat-zero when sales are genuinely zero).
 
+## BUG-1/2/3 RESOLVED BY BACKEND FIELDS (2026-07-30, second pass)
+
+Backend shipped the catalog-sales fields (spec file `FRONTEND_DASHBOARD_CATALOG_REVENUE.md` was **NOT in the repo** — proceeded from the task description + live GET verification).
+
+- **BUG-1 CLOSED.** The earlier fix used `catalog_revenue` (quantity_sold-based). Switched everything to the **accounting-consistent** field: Dashboard "Savdo" → `period_catalog_sales_revenue` (secondary "Kutilayotgan" → `period_lead_revenue`); Analitika "Savdo" → `summary.catalog_sales_revenue`, "Kutilayotgan" → `summary.lead_revenue`; **AOV** → `catalog_sales_revenue / catalog_sales_quantity`. *Note on the trap:* on current live data `catalog_revenue`, `catalog_sales_revenue`, and accounting `total_sales` all equal **5 900 000** (they coincide when items are fully sold and lead revenue is 0), but the semantics differ per spec — switched regardless. Also audited `revenue`/`orders`: they now mean **lead+catalog combined**; every headline uses `catalog_sales_*` (sales) or `lead_*` (pipeline), never the combined field ambiguously.
+  **ACCEPTANCE TEST (live):** Dashboard `period_catalog_sales_revenue` = **5 900 000** == Analitika `catalog_sales_revenue` = **5 900 000** == Hisob-kitob `total_sales` = **5 900 000.00** ✓.
+- **Daily charts — client derivation DELETED.** Removed the `accounting.history[].sold_at` Tashkent-bucketing and the reconcile-gate. "Kunlik savdo" now plots server `daily_stats[].catalog_revenue` + `lead_revenue` as **two lines**; conversion trend = `catalog_orders / leads`; AOV trend = `catalog_revenue / catalog_quantity`; each chart's sub states the fields. **Σ daily `catalog_revenue` == summary `catalog_sales_revenue` = 5 900 000 ✓.**
+- **BUG-2 CLOSED.** `top_catalog_items` populated (6 items) — rebuilt as a rich clickable list (image thumb, name, Standart/Maxsus badge from `catalog_kind`, quantity + `orders` + revenue + "oxirgi: `last_sold_at`", links to `/katalog?item=<catalog_item_id>`). `revenue_by_source` now carries the `catalog` row ("Katalogdan sotuv") — switched to server `source_label`.
+- **BUG-3 verdict — trim STILL needed, kept.** Verified live: we send `date_to = to+1` (correct for the exclusive summary), and `daily_stats` then returns a row for `to+1` (last date = 08-01 when we send 08-01; raw `date_to=07-31` → last = 07-31). So the client `date <= to` trim is still required and remains; x-axis correctly ends at the selected end (screenshot confirms 30-iyl, not 08-01).
+- **BUG-4 unchanged** (FloristStats `by_day` gap-fill) — endpoint untouched, still works.
+- **Section 5** — material writes already use the action endpoint `POST /api/materials/{id}/movement/`; reads use `/api/material-movements/` (200). Correct, no fix.
+- tsc clean · Vitest green · no console errors · lib/finance.ts unchanged (the deleted bucketing lived in the page, not finance.ts).
+
+### Untested / deferred under the read-only constraint
+- **Section 4 (writable historical timestamps) — NOT implemented this pass.** The SELL-dialog "Sotuv sanasi" belongs to the catalog-customer sell dialog (never built); the movement-drawer "Harakat sanasi" (BatchMovementModal) date input was not added. These are additive; flagged for a follow-up. **Timezone correctness (a 23:30 sale landing on the right day) is now testable — please verify manually once.**
+- `top_catalog_items` row → `/katalog?item=<id>`: the Katalog page's deep-link handling for `?item=` is **not wired/verified** — the link lands on the catalog list if unsupported.
+- `revenue_by_source`: used `source_label` (correct); a distinct SourceBadge tint for the `catalog` source was not added (HBars doesn't use SourceBadge). Minor.
+- Material movement `cost_value`/`sale_value` surfacing in the journal: not added (additive).
+
 ## BACKEND REQUEST (ready to forward)
 
 **REQ-1 — daily catalog-sales series.** `/api/analytics/` `daily_stats[]` `revenue`/`orders` track **lead-pipeline** (won-lead `estimated_price`), not catalog sales — so the daily revenue chart has no real backend source and we derive it client-side from `accounting.history[]`. Please add a **per-day catalog-sales series** (e.g. `daily_stats[].catalog_revenue` + `catalog_orders`, bucketed by `sold_at` in Asia/Tashkent, gap-filled to the range) so revenue/AOV charts have an authoritative source. Also: `top_catalog_items` and `revenue_by_source` are won-lead based and read **empty despite real catalog sales** (BUG-2) — please base them on catalog sales (or add catalog-sales variants). Nice-to-have: make `sold_at` writable on `/catalog/{id}/sell/` so historical data can be seeded/imported.
 
 ## NEXT (after your review)
 Phase 2 (page-by-page field checks), Phase 4 (cross-page consistency — starting from BUG-1), Phase 5 (order-flow/edge/exports/empty-state/themes), Phase 6 (fixes + `ZZZ_TEST_` cleanup in reverse order + baseline restore). I'll fix BUG-1/3/4 (frontend) and forward BUG-1(backend)/BUG-2 as backend requests.
+
+## CUSTOMER ATTACHMENT + LEFTOVERS CLOSED (2026-07-30, third pass)
+
+Spec file `FRONTEND_CATALOG_CUSTOMER_API.md` was **NOT in the repo** (third time a named spec was missing) — proceeded from the OpenAPI schema (`GET /api/schema/?format=json`) + live GET, per the user's explicit allowance. **Strict read-only: no POST/PATCH/DELETE issued against production; all write paths implemented per contract and listed below for manual testing.**
+
+### Contract verified (OpenAPI + GET)
+- `CatalogSellRequest` = `[quantity, sale_price, discount_reason, payment_type, sold_at]` — **NO customer fields.** → **Path taken: PATCH `/api/catalog/{id}/` (customer) THEN POST `/sell/`.** PATCH-first so a PATCH failure aborts the sale (no orphaned sale record); a sell failure after a successful PATCH leaves the customer attached and is retryable.
+- `CatalogItem` carries `customer`, `customer_name`, `customer_phone`, `customer_detail{id,name,masked_phone}` (read-only detail). Added to `lib/types.ts`.
+- Catalog list filters `?customer=`, `?catalog_kind=`, `?florist=`, `search` (name/phone server-side) all exist. **Note:** the old code comment claiming `?florist=` doesn't exist was wrong — florist filter moved from client-side to server-side.
+- `sold_at` writable on `/sell/`; `created_at` writable on stock `MovementRequest` and `PackagingMovementRequest`.
+- **`cost_value`/`sale_value` live on `StockMovement` (gul batches), NOT on `PackagingMovement` (materials).** The leftover said "material movements journal" but the fields only exist on stock movements — surfaced them in the **gul (stock) movements journal** accordingly.
+
+### Implemented
+- **`components/CustomerPicker.tsx`** (new, shared) — 3 modes: Biriktirmayman / Mavjud mijoz (debounced `GET /api/customers/?search=`, name + masked_phone) / Yangi mijoz (Ism + Telefon, sent as typed — no client-side dedup). Exports `customerPayload(pick, hadCustomer)` → `{customer:id}` | `{customer_name,customer_phone}` | `{customer:null}` (clear only when one existed) | null.
+- **Sell dialog** (`KatalogSellModal`) — CustomerPicker (pre-selects `customer_detail`), PATCH-then-sell, single busy state, success toast names `customer_detail` (so the operator sees when the backend matched an existing customer by phone). Optional "Boshqa sotuv sanasi" (`sold_at`, only sent when toggled+set).
+- **Composer** (`KatalogModal`) — CustomerPicker in a "Mijoz" section; customer merged into create/update payload.
+- **Surfacing** — customer chip on catalog cards (click → filter by that customer), in the detail view modal (Mijoz row), and Hisob-kitob §2 (new "Mijoz" column, colspan 8→9). Katalog page: added `catalog_kind` + server-side `florist` + URL-driven `?customer=` filters (with a clearable banner that fetches the customer name), search placeholder → "Nomi, mijoz ismi yoki telefoni…". `?item=<id>` deep link was already wired (confirmed). Customer detail page (`ClientModal`): new "Katalog xaridlari" list (`GET /api/catalog/?customer=<id>`) with "Katalogda ochish" → `/katalog?customer=<id>` and per-item → `/katalog?item=<id>`.
+- **Stock movements journal** (`app/sklad/page.tsx`) — surfaced `cost_value`/`sale_value` (Tannarx/Sotuv) in each row's meta line.
+- **BatchMovementModal** — optional "Boshqa harakat sanasi" (`created_at`, only sent when toggled+set); added `created_at?` to `api.batchMovement`.
+- **Revenue-by-source** (Analitika) — catalog source row now gets a distinct tint (`var(--primary)`) via per-row HBar `color`.
+
+### WRITE PATHS TO TEST MANUALLY (none exercised — read-only)
+1. **Sell + existing customer:** open a catalog item → Sotish → "Mavjud mijoz" → search+pick → sell. Expect: PATCH `{customer:<id>}` then POST `/sell/`; toast shows the customer name; chip appears on the card/detail; item shows under that customer's "Katalog xaridlari".
+2. **Sell + new customer (phone dedup):** "Yangi mijoz" → type Ism + a phone that ALREADY exists → sell. Expect: backend links the existing customer; toast names that existing customer (masked_phone). Then repeat with a brand-new phone → new customer created + linked.
+3. **Sell + clear customer:** on an item that already has a customer → "Biriktirmayman" → sell. Expect PATCH `{customer:null}`; chip disappears.
+4. **PATCH-fail isolation:** (hard to force) if the customer PATCH 4xx's, the sale must NOT be sent — verify no quantity_sold change.
+5. **Composer create with customer:** new custom item (immediately sold) with a customer → verify the sale is attributed to that customer in Hisob-kitob §2 and the customer page.
+6. **Sotuv sanasi / Harakat sanasi:** back-date a sale and a stock movement; verify daily charts and the movement journal place them on the chosen day (Asia/Tashkent).
+7. **Filters:** `?customer=`, `?catalog_kind=`, `?florist=`, and name/phone search — confirm server results.
+
+### Verification
+- `tsc --noEmit` clean · 17/17 Vitest pass · no new console usage. Screenshots (dark+light) pending manual UI run. Changes uncommitted.

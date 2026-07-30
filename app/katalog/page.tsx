@@ -1,5 +1,5 @@
 "use client";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, User, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -62,9 +62,12 @@ export default function KatalogPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [arrType, setArrType] = useState("");
-  // florist filtri KLIENT tomonda — API'da ?florist= yo'q (jonli tekshirilgan)
+  // florist va katalog turi — SERVER filtrlari (?florist= va ?catalog_kind= mavjud)
   const [floristFilter, setFloristFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
   const [florists, setFlorists] = useState<FloristProfile[]>([]);
+  // MIJOZ filtri — URL ?customer=<id> orqali (mijoz sahifasidan / chipdan); tozalanadigan banner
+  const [customerFilter, setCustomerFilter] = useState<{ id: number; label: string } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search.trim()), 350);
@@ -78,13 +81,16 @@ export default function KatalogPage() {
         search: q || undefined,
         status: status || undefined,
         arrangement_type: arrType || undefined,
+        florist: floristFilter || undefined,
+        catalog_kind: kindFilter || undefined,
+        customer: customerFilter?.id || undefined,
       }));
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
     } finally {
       setLoading(false);
     }
-  }, [showToast, q, status, arrType]);
+  }, [showToast, q, status, arrType, floristFilter, kindFilter, customerFilter]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
@@ -92,8 +98,17 @@ export default function KatalogPage() {
   // florist ro'yxati — filtr uchun (bir marta)
   useEffect(() => { api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {}); }, []);
 
-  // KLIENT filtri: florist bo'yicha (API'da ?florist= yo'qligi uchun)
-  const shownItems = floristFilter ? items.filter((k) => String(k.florist ?? "") === floristFilter) : items;
+  // URL ?customer=<id> — mijoz nomini olib banner ko'rsatamiz (server filtri qo'llanadi)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const cid = Number(new URLSearchParams(window.location.search).get("customer"));
+    if (!cid) return;
+    api.customer(cid)
+      .then((c) => setCustomerFilter({ id: cid, label: `${c.name || "Mijoz"}${c.masked_phone ? ` · ${c.masked_phone}` : ""}` }))
+      .catch(() => setCustomerFilter({ id: cid, label: `#${cid}` }));
+  }, []);
+
+  const shownItems = items;
 
   // ?item=<id> — bildirishnomadan («Sizga yangi katalog ishi biriktirildi»)
   // to'g'ridan-to'g'ri katalog kartasini ochamiz (ro'yxatda bo'lmasa ham).
@@ -153,9 +168,10 @@ export default function KatalogPage() {
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <SearchInput value={search} onChange={setSearch} ariaLabel="Katalog qidirish" />
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Katalog qidirish" placeholder="Nomi, mijoz ismi yoki telefoni…" />
           <FilterSelect value={status} options={STATUS_OPTS} onChange={setStatus} label="Holat" />
           <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />
+          <FilterSelect value={kindFilter} onChange={setKindFilter} label="Katalog turi" options={[{ value: "", label: "Barcha turlar" }, { value: "standard", label: "Standart" }, { value: "custom", label: "Maxsus" }]} />
           {florists.length > 0 && (
             <FilterSelect
               value={floristFilter}
@@ -169,6 +185,15 @@ export default function KatalogPage() {
           <Plus size={18} strokeWidth={1.75} /> Katalogga qo&apos;shish
         </button>
       </div>
+
+      {customerFilter && (
+        <div className="mb-3 flex items-center gap-2 rounded-[12px] border px-3.5 py-2 text-[13px]" style={{ borderColor: "var(--primary)", background: "var(--primary-soft)" }}>
+          <User size={14} strokeWidth={2} style={{ color: "var(--primary)" }} />
+          <span className="font-semibold">Mijoz bo&apos;yicha filtr:</span>
+          <span className="truncate" style={{ color: "var(--text-2)" }}>{customerFilter.label}</span>
+          <button type="button" onClick={() => setCustomerFilter(null)} className="ml-auto shrink-0 rounded-full p-1 hover:bg-[color:var(--hover)]" title="Filtrni olib tashlash"><X size={15} /></button>
+        </div>
+      )}
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(275px,1fr))" }}>
         {shownItems.map((k) => {
@@ -247,6 +272,20 @@ export default function KatalogPage() {
                   </span>
                 ) : (
                   <span className="text-[12px] italic" style={{ color: "var(--muted)" }}>Florist ko&apos;rsatilmagan</span>
+                )}
+                {/* mijoz chipi (kim sotib oldi) — bosilsa shu mijoz bo'yicha filtr */}
+                {k.customer_detail && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setCustomerFilter({ id: k.customer_detail!.id, label: `${k.customer_detail!.name || "Mijoz"}${k.customer_detail!.masked_phone ? ` · ${k.customer_detail!.masked_phone}` : ""}` }); }}
+                    className="flex min-w-0 items-center gap-1.5 self-start rounded-full border px-2 py-0.5 text-[11.5px] font-bold transition-colors hover:border-[color:var(--primary)]"
+                    style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+                    title={`Mijoz: ${k.customer_detail.name}${k.customer_detail.masked_phone ? ` · ${k.customer_detail.masked_phone}` : ""} — bo'yicha filtrlash`}
+                  >
+                    <User size={11} strokeWidth={2.2} style={{ color: "var(--primary)" }} />
+                    <span className="truncate">{k.customer_detail.name || "Mijoz"}</span>
+                    {k.customer_detail.masked_phone && <span className="shrink-0 opacity-70">{k.customer_detail.masked_phone}</span>}
+                  </button>
                 )}
                 {/* ichki izoh — bir qatorli preview, to'liq matn tooltip'da */}
                 {k.note && (

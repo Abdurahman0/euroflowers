@@ -406,11 +406,12 @@ export default function HisobKitobPage() {
           </div>
         ) : (
           <div className="overflow-x-auto thin-scroll">
-            <table className="w-full min-w-[820px] border-collapse text-[13px]">
+            <table className="w-full min-w-[900px] border-collapse text-[13px]">
               <thead>
                 <tr className="text-left" style={{ color: "var(--muted)" }}>
                   <th className="px-2 py-2 font-semibold">Nomi</th>
                   <th className="px-2 py-2 font-semibold">Florist</th>
+                  <th className="px-2 py-2 font-semibold">Mijoz</th>
                   <th className="px-2 py-2 text-right font-semibold">Sotilgan</th>
                   <th className="px-2 py-2 text-right font-semibold">Sotuv</th>
                   <th className="px-2 py-2 text-right font-semibold">Tannarx</th>
@@ -426,6 +427,7 @@ export default function HisobKitobPage() {
                       <tr onClick={() => setOpenCat(openCat === sale.history_id ? null : sale.history_id)} className="cursor-pointer border-t transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--line2)" }}>
                         <td className="px-2 py-2.5"><div className="font-bold">{sale.catalog_name}</div><div className="text-[11px]" style={{ color: "var(--muted)" }}>{ARRANGEMENT_LABEL[sale.arrangement_type as keyof typeof ARRANGEMENT_LABEL] ?? sale.arrangement_type}{sale.volume ? ` · ${VOLUME_LABEL[sale.volume]}` : ""} · {KIND_LABEL[sale.catalog_kind]}</div></td>
                         <td className="px-2 py-2.5">{sale.florist_name || "—"}</td>
+                        <td className="px-2 py-2.5">{item?.customer_detail ? (<div><div className="font-semibold">{item.customer_detail.name || "Mijoz"}</div>{item.customer_detail.masked_phone && <div className="text-[11px]" style={{ color: "var(--muted)" }}>{item.customer_detail.masked_phone}</div>}</div>) : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{fmtDate(sale.sold_at)}<div className="text-[11px]" style={{ color: "var(--muted)" }}>{sale.quantity} ta</div></td>
                         <td className="px-2 py-2.5 text-right"><Money v={p.sale} /></td>
                         <td className="px-2 py-2.5 text-right" style={{ color: "var(--text-2)" }}><Money v={p.cost} /></td>
@@ -435,7 +437,7 @@ export default function HisobKitobPage() {
                       </tr>
                     }
                     detail={<CatalogDetail sale={sale} item={item} net={p.net} />}
-                    cols={8}
+                    cols={9}
                   />
                 ))}
               </tbody>

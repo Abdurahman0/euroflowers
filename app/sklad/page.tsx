@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { dateAfterParam, fmtTime, movementLeadId, rangeParams } from "@/lib/format";
+import { dateAfterParam, fmt, fmtTime, movementLeadId, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import BatchDrawer from "@/components/BatchDrawer";
 import StockBatchCard from "@/components/StockBatchCard";
@@ -106,6 +106,7 @@ export default function SkladPage() {
   const [kirimOpen, setKirimOpen] = useState(false);
   // dashboard alertidan chuqur havola: ?show=low (kam qolgan) | wilt (8+ kunlik)
   const [showFilter, setShowFilter] = useState<"" | "low" | "wilt">("");
+  const [showDepleted, setShowDepleted] = useState(false); // tugagan (remaining_stems=0) partiyalarni ko'rsatish
   const [selBatch, setSelBatch] = useState<StockBatch | null>(null);
   const [search, setSearch] = useState("");
   // server filtrlari
@@ -196,8 +197,11 @@ export default function SkladPage() {
     ? searched.filter((b) => b.is_active && b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2)
     : showFilter === "wilt"
       ? searched.filter((b) => b.is_active && b.remaining_stems > 0 && freshness(b.received_at).days >= 8)
-      : searched;
+      // TUGAGAN (remaining_stems=0) partiyalar sukut bo'yicha yashiriladi (tanlash/ko'rish uchun) — toggle bilan qaytariladi.
+      // Hisobotlar (Hisob-kitob/Analitika) accounting/harakatlar'ga tayanadi — bu filtr ularga TA'SIR QILMAYDI.
+      : searched.filter((b) => showDepleted || b.remaining_stems > 0);
   const fBatches = [...shown].sort((a, b) => stockRank(a) - stockRank(b));
+  const depletedCount = searched.filter((b) => b.remaining_stems === 0).length;
   const total = batches.reduce((a, b) => a + b.remaining_stems, 0);
   const lows = batches.filter((b) => b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2);
   const fMoves = moves;
@@ -379,7 +383,15 @@ export default function SkladPage() {
                     {v?.flower_detail?.name_uz} {v?.name_uz} — {formatStemsAndBunches(Math.abs(m.quantity_stems), m.batch_detail?.stems_per_bunch)}
                     {m.reason ? ` · ${m.reason}` : ""}
                   </div>
-                  <div className="mt-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>{who} · {fmtTime(m.created_at)}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>
+                    <span>{who} · {fmtTime(m.created_at)}</span>
+                    {(m.cost_value != null || m.sale_value != null) && (
+                      <span className="flex items-center gap-1.5 tabular-nums">
+                        {m.cost_value != null && +m.cost_value !== 0 && <span title="Tannarx qiymati">Tannarx <b style={{ color: "var(--text-2)" }}>{fmt(Math.abs(+m.cost_value))}</b></span>}
+                        {m.sale_value != null && +m.sale_value !== 0 && <span title="Sotuv qiymati">Sotuv <b style={{ color: "var(--acc)" }}>{fmt(Math.abs(+m.sale_value))}</b></span>}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {leadId != null && (
                   <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold" style={{ color: "var(--primary)" }}>Buyurtma #{leadId} ↗</span>
@@ -405,6 +417,16 @@ export default function SkladPage() {
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {depletedCount > 0 && !showFilter && (
+            <button
+              onClick={() => setShowDepleted((v) => !v)}
+              className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors hover:bg-[var(--hover)]"
+              style={{ borderColor: showDepleted ? "var(--primary)" : "var(--border)", color: showDepleted ? "var(--primary)" : "var(--text-2)" }}
+              title={showDepleted ? "Tugagan partiyalarni yashirish" : "Tugagan partiyalarni ko'rsatish"}
+            >
+              Tugagan partiyalar ({depletedCount}){showDepleted ? " ✕" : ""}
+            </button>
+          )}
           {showFilter && (
             <button
               onClick={() => setShowFilter("")}

@@ -428,7 +428,7 @@ export const api = {
   /** DIQQAT: javob shakli kafolatlanmagan (harakat obyekti qaytishi mumkin) —
       yangilangan partiya kerak bo'lsa api.stockBatch(id) bilan qayta o'qing.
       Body: {movement_type, quantity_stems | quantity_bunches (string), reason} */
-  batchMovement: (id: number, data: { movement_type: string; quantity_stems?: number; quantity_bunches?: string; reason?: string }) =>
+  batchMovement: (id: number, data: { movement_type: string; quantity_stems?: number; quantity_bunches?: string; reason?: string; created_at?: string }) =>
     request<unknown>(`/api/stock-batches/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
 
   stockMovements: (p?: Params) => list<StockMovement>("/api/stock-movements/", p),
@@ -487,7 +487,7 @@ export const api = {
   /** Katalogdan sotish. quantity berilmasa backend 1 ta deb oladi.
       Arzonroq sotilsa: sale_price (dona narxi) + discount_reason yuboriladi —
       backend chegirmani hisoblab history'ga yozadi. */
-  sellCatalogItem: (id: number, data?: { quantity?: number; sale_price?: string; discount_reason?: string; payment_type?: PaymentType }) =>
+  sellCatalogItem: (id: number, data?: { quantity?: number; sale_price?: string; discount_reason?: string; payment_type?: PaymentType; sold_at?: string }) =>
     request<CatalogItem>(`/api/catalog/${id}/sell/`, {
       method: "POST",
       body: JSON.stringify({
@@ -495,6 +495,7 @@ export const api = {
         ...(data?.sale_price ? { sale_price: data.sale_price } : {}),
         ...(data?.discount_reason ? { discount_reason: data.discount_reason } : {}),
         ...(data?.payment_type ? { payment_type: data.payment_type } : {}),
+        ...(data?.sold_at ? { sold_at: data.sold_at } : {}),
       }),
     }),
   catalogItem: (id: number) => request<CatalogItem>(`/api/catalog/${id}/`),

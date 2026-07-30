@@ -1,10 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Banknote, CreditCard, Minus, Plus, Tag } from "lucide-react";
+import { Banknote, CalendarClock, CreditCard, Minus, Plus, Tag } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
+import DatePicker from "./DatePicker";
+import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import { fmt } from "@/lib/format";
 import type { CatalogItem, PaymentType } from "@/lib/types";
 
@@ -20,6 +22,11 @@ const PAYMENTS: { value: PaymentType; label: string; icon: typeof Banknote }[] =
  *   {quantity, sale_price, discount_reason}      — arzonroq sotuv
  * `sale_price` DONA narxi. U katalog narxidan PAST bo'lsa `discount_reason`
  * MAJBURIY — backend chegirmani hisoblab sotuv tarixiga yozadi.
+ *
+ * MIJOZ: sell endpoint mijoz maydonlarini QABUL QILMAYDI (CatalogSellRequest'da yo'q),
+ * shuning uchun mijoz o'zgargan bo'lsa avval PATCH /api/catalog/{id}/ (customer /
+ * customer_name+customer_phone / null), so'ng sell. PATCH muvaffaqiyatsiz bo'lsa —
+ * sotuv umuman yuborilmaydi (yarim holat yo'q).
  */
 export default function KatalogSellModal({
   item,
@@ -44,6 +51,17 @@ export default function KatalogSellModal({
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
 
+  // MIJOZ — item'da biriktirilgan bo'lsa oldindan tanlanadi
+  const hadCustomer = !!(item.customer_detail || item.customer);
+  const [cust, setCust] = useState<CustomerPick>(
+    item.customer_detail
+      ? { mode: "existing", id: item.customer_detail.id, detail: item.customer_detail }
+      : { mode: "none" }
+  );
+  // SOTUV SANASI — ixtiyoriy; yoqilib o'zgartirilsagina yuboriladi (aks holda backend: hozir)
+  const [dateOn, setDateOn] = useState(false);
+  const [soldAt, setSoldAt] = useState("");
+
   const salePrice = discountOn ? Math.round(+price || 0) : listPrice;
   const calc = useMemo(() => {
     const unitDiscount = Math.max(listPrice - salePrice, 0);
@@ -64,16 +82,35 @@ export default function KatalogSellModal({
     if (Object.keys(next).length) return setErrs(next);
     setBusy(true);
     setErrs({});
+    // 1-QADAM: mijoz o'zgargan bo'lsa katalog itemni PATCH qilamiz (sell mijozni qabul qilmaydi).
+    //          Muvaffaqiyatsiz bo'lsa — sotuv YUBORILMAYDI.
+    const custBody = customerPayload(cust, hadCustomer);
+    let patched: CatalogItem | null = null;
+    if (custBody) {
+      try {
+        patched = await api.updateCatalogItem(item.id, custBody);
+      } catch (e) {
+        if (e instanceof ApiError && e.fieldErrors) setErrs(e.fieldErrors);
+        showToast(e instanceof ApiError ? e.message : "Mijozni biriktirib bo'lmadi");
+        setBusy(false);
+        return;
+      }
+    }
+    // 2-QADAM: sotuv
     try {
       const updated = await api.sellCatalogItem(item.id, {
         quantity: qty,
         payment_type: payment,
         ...(discountOn ? { sale_price: salePrice.toFixed(2), discount_reason: reason.trim() || undefined } : {}),
+        ...(dateOn && soldAt ? { sold_at: soldAt } : {}),
       });
+      // customer_detail — PATCH javobidan (backend mavjud mijozga ULAGAN bo'lsa ismi ko'rinsin)
+      const linked = updated.customer_detail || patched?.customer_detail;
+      const who = linked ? ` → ${linked.name}${linked.masked_phone ? ` (${linked.masked_phone})` : ""}` : "";
       showToast(
         calc.totalDiscount > 0
-          ? `✓ ${qty} ta sotildi · chegirma ${fmt(calc.totalDiscount)}`
-          : `✓ «${item.name_uz || item.name_ru}»: ${qty} ta sotildi`
+          ? `✓ ${qty} ta sotildi · chegirma ${fmt(calc.totalDiscount)}${who}`
+          : `✓ «${item.name_uz || item.name_ru}»: ${qty} ta sotildi${who}`
       );
       onSold(updated);
     } catch (e) {
@@ -172,6 +209,28 @@ export default function KatalogSellModal({
             />
             {errs.discount_reason && <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.discount_reason}</span>}
           </Field>
+        </div>
+      )}
+
+      {/* MIJOZ — ixtiyoriy (walk-in yoki mavjud) */}
+      <div className="mt-4">
+        <CustomerPicker value={cust} onChange={setCust} />
+      </div>
+
+      {/* SOTUV SANASI — ixtiyoriy; default hozir */}
+      <label className="mt-4 flex cursor-pointer items-center justify-between gap-3 rounded-[14px] border px-3.5 py-3" style={{ borderColor: dateOn ? "var(--primary)" : "var(--border)", background: dateOn ? "var(--primary-soft)" : undefined }}>
+        <span className="flex min-w-0 items-center gap-2">
+          <CalendarClock size={16} strokeWidth={2} style={{ color: dateOn ? "var(--primary)" : "var(--muted)" }} />
+          <span className="min-w-0">
+            <span className="block text-[13px] font-bold">Boshqa sotuv sanasi</span>
+            <span className="block text-[11.5px]" style={{ color: "var(--muted)" }}>Belgilanmasa — hozirgi vaqt</span>
+          </span>
+        </span>
+        <input type="checkbox" checked={dateOn} onChange={(e) => { setDateOn(e.target.checked); if (!e.target.checked) setSoldAt(""); }} className="h-4 w-4 shrink-0 accent-[var(--primary)]" />
+      </label>
+      {dateOn && (
+        <div className="mt-2.5">
+          <DatePicker value={soldAt} onChange={setSoldAt} withTime placeholder="Sotuv sanasi va vaqti" ariaLabel="Sotuv sanasi" />
         </div>
       )}
 

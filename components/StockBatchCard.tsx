@@ -25,7 +25,7 @@ export default function StockBatchCard({
   return (
     <article
       className="glass card-hover group flex cursor-pointer flex-col gap-3 !rounded-[18px] p-4 text-left"
-      style={{ opacity: batch.is_active ? 1 : 0.55 }}
+      style={{ opacity: !batch.is_active ? 0.55 : batch.remaining_stems === 0 ? 0.72 : 1 }}
       role="button"
       tabIndex={0}
       onClick={onView}
@@ -59,9 +59,9 @@ export default function StockBatchCard({
             )}
           </div>
         </div>
-        <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: `color-mix(in srgb, ${fr.hue} 15%, transparent)`, color: fr.hue }} title={`Kelgan sana bo'yicha yangilik`}>
-          {fr.label}
-        </span>
+        {batch.remaining_stems === 0
+          ? <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--surface-2)", color: "var(--muted)" }} title="Qoldiq tugagan">Tugagan</span>
+          : <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: `color-mix(in srgb, ${fr.hue} 15%, transparent)`, color: fr.hue }} title="Kelgan sana bo'yicha yangilik">{fr.label}</span>}
       </div>
 
       {/* stem gauge — hero */}

@@ -365,6 +365,11 @@ export type CatalogItem = {
   quantity_total?: number;
   quantity_sold?: number;
   quantity_stock_deducted?: number;
+  // MIJOZ biriktirish (walk-in) — backend telefon bo'yicha dedup qiladi; customer_detail read-only
+  customer?: number | null;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_detail?: { id: number; name: string; masked_phone?: string } | null;
   composition: CatalogComposition[];
   branch_detail?: Branch;
   social_post_detail: SocialPost | null;
@@ -661,6 +666,10 @@ export type Dashboard = {
   revenue_today: number | string;
   orders_today: number;
   revenue_7d: number | string;
+  // SAVDO uchun avtoritativ (accounting bilan mos) — catalog_sales_*; lead_revenue_* = lead-pipeline (kutilayotgan)
+  catalog_sales_revenue_today?: number | string; catalog_sales_revenue_7d?: number | string; period_catalog_sales_revenue?: number | string;
+  catalog_sales_orders_today?: number; catalog_sales_quantity_today?: number; period_catalog_sales_orders?: number; period_catalog_sales_quantity?: number;
+  lead_revenue_today?: number | string; lead_revenue_7d?: number | string; period_lead_revenue?: number | string;
   conversion_rate: number;
   active_leads: number;
   new_leads_today: number;
@@ -725,20 +734,29 @@ export type FloristProductionStat = {
 };
 
 /** Analitika sahifasi (GET /api/analytics/) */
-export type AnalyticsDaily = { date: string; leads: number; conversations: number; orders: number; revenue: string };
+// daily_stats: `revenue`/`orders` = lead+katalog JAMI; per-manba maydonlar alohida (backend gap-fill qiladi)
+export type AnalyticsDaily = { date: string; leads: number; conversations: number; orders: number; revenue: string;
+  catalog_revenue?: number | string; catalog_orders?: number; catalog_quantity?: number; lead_revenue?: number | string; lead_orders?: number };
 export type TopCatalogItem = {
   catalog_item_id: number;
   catalog_item__name_uz: string;
   catalog_item__name_ru: string;
   catalog_item__arrangement_type: string;
+  catalog_item__image_url?: string;
+  catalog_kind?: CatalogKind;
   quantity: number;
+  orders?: number;
   revenue: string;
+  last_sold_at?: string | null;
 };
 export type Analytics = {
   period: { from: string; to: string };
   summary: {
     leads: number; customers: number; conversations: number; orders: number;
     revenue: string; florist_revenue: string; flowers_sold_stems: number; conversion_rate: number;
+    // SAVDO uchun avtoritativ (accounting bilan mos): catalog_sales_*; `revenue`/`orders` = lead+katalog JAMI
+    catalog_sales_revenue?: number | string; catalog_sales_quantity?: number; catalog_sales_orders?: number;
+    lead_revenue?: number | string; lead_orders?: number;
     /** jonli API: sof foyda bloklari summary ICHIDA keladi (top-level emas) */
     net_profit?: number | string; catalog_revenue?: number | string;
     catalog_cost?: number | string; catalog_discount?: number | string;
@@ -756,7 +774,7 @@ export type Analytics = {
   lead_statuses: { status: string; count: number }[];
   arrangement_types: { arrangement_type: string; count: number }[];
   conversation_sources: { source: string; count: number }[];
-  revenue_by_source: { source: string; orders: number; revenue: string }[];
+  revenue_by_source: { source: string; source_label?: string; orders: number; revenue: string }[];
   /** YANGI bloklar (defensiv — mavjud bo'lsa) */
   net_profit?: number | string;
   catalog_revenue?: number | string;

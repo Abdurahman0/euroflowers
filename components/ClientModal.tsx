@@ -1,11 +1,12 @@
 "use client";
-import { MessageCircle, Pencil, Trash2 } from "lucide-react";
+import { MessageCircle, Pencil, Trash2, Flower2, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import Modal from "./Modal";
 import { SourceBadge, statusBadgeProps, statusName } from "./badges";
-import type { Conversation, Customer, Lead } from "@/lib/types";
+import type { CatalogItem, Conversation, Customer, Lead } from "@/lib/types";
 
 export default function ClientModal({
   client,
@@ -26,10 +27,13 @@ export default function ClientModal({
   /** «Chatga o'tish» — AI chatlar sahifasida shu mijoz suhbatini ochadi */
   onOpenChat?: (conversationId: number) => void;
 }) {
+  const router = useRouter();
   const name = client.name || "Ismsiz mijoz";
   const [leads, setLeads] = useState<Lead[] | null>(null);
   // mijozning suhbati bor-yo'qligi — «Chatga o'tish» tugmasi shunga qarab chiziladi
   const [conv, setConv] = useState<Conversation | null | undefined>(undefined);
+  // mijozga biriktirilgan katalog xaridlari (walk-in / bevosita sotuv)
+  const [purchases, setPurchases] = useState<CatalogItem[] | null>(null);
 
   useEffect(() => {
     // to'liq tarix — sahifadagi davr filtridan mustaqil
@@ -39,6 +43,9 @@ export default function ClientModal({
     api.conversations({ ordering: "-last_message_at" })
       .then((cs) => setConv(cs.find((c) => c.customer === client.id) ?? null))
       .catch(() => setConv(null));
+    api.catalog({ customer: client.id, ordering: "-sold_at" })
+      .then(setPurchases)
+      .catch(() => setPurchases([]));
   }, [client.id]);
 
   const Stat = ({ v, k }: { v: string; k: string }) => (
@@ -132,6 +139,43 @@ export default function ClientModal({
         ))}
         {leads?.length === 0 && <p className="text-[13px] text-[color:var(--muted)]">Hozircha buyurtma yo&apos;q.</p>}
       </div>
+
+      {/* KATALOG XARIDLARI — mijozga biriktirilgan bevosita/walk-in sotuvlar */}
+      {purchases != null && purchases.length > 0 && (
+        <>
+          <div className="mt-4 flex items-center justify-between gap-2">
+            <span className="text-sm font-bold">Katalog xaridlari</span>
+            <button type="button" onClick={() => { onClose(); router.push(`/katalog?customer=${client.id}`); }} className="flex items-center gap-0.5 text-[12.5px] font-bold" style={{ color: "var(--primary)" }}>
+              Katalogda ochish <ChevronRight size={14} strokeWidth={2.2} />
+            </button>
+          </div>
+          <div className="mt-2.5 flex flex-col gap-2">
+            {purchases.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => { onClose(); router.push(`/katalog?item=${c.id}`); }}
+                className="flex w-full items-center gap-3 rounded-[14px] border border-[color:var(--border)] px-3 py-2.5 text-left transition-colors duration-150 hover:border-[color:var(--acc)] hover:bg-[var(--hover)]"
+                title="Katalog kartasini ochish"
+              >
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[11px] border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                  {c.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.image_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center" style={{ color: "var(--muted)" }}><Flower2 size={16} strokeWidth={1.8} /></span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold" title={c.name_uz || c.name_ru}>{c.name_uz || c.name_ru}</div>
+                  <div className="mt-0.5 text-[12px]" style={{ color: "var(--muted)" }}>{c.sold_at ? fmtTime(c.sold_at) : "sotilmagan"}{(c.quantity_sold ?? 0) > 0 ? ` · ${c.quantity_sold} ta` : ""}</div>
+                </div>
+                <span className="whitespace-nowrap text-[13px] font-bold" style={{ color: "var(--acc)" }}>{fmt(c.price)}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </Modal>
   );
 }
