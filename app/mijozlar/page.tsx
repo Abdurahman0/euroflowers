@@ -45,6 +45,15 @@ export default function MijozlarPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // dashboard "Eng faol mijozlar"dan chuqur havola: ?customer=ID → detal modalini ochadi
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = Number(new URLSearchParams(window.location.search).get("customer"));
+    if (!id) return;
+    window.history.replaceState(null, "", "/mijozlar");
+    api.customer(id).then(setSelClient).catch(() => {});
+  }, []);
+
   const load = useCallback(async () => {
     try {
       setCustomers(await api.customers({

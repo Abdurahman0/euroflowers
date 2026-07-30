@@ -329,15 +329,34 @@ export function logout() {
 
 // ===== Endpoints =====
 
+/**
+ * DAVR SANA KONVENSIYASI — YAGONA (2026-07-30).
+ * Chaqiruvchi HAR DOIM inklyuziv `to` yuboradi = hisobga olinishi kerak bo'lgan
+ * OXIRGI kun (masalan bugungi sana). Off-by-one xatolarining oldini olish uchun
+ * eksklyuziv/inklyuziv farqini FAQAT shu qatlam hal qiladi — sahifalar hech
+ * qachon o'zi `+1 kun` qilmaydi:
+ *   • /dashboard/ va /analytics/ — backend `date_to`ni kun BOSHIga oladi
+ *     (eksklyuziv) → shu yerda +1 kun qo'shiladi.
+ *   • /accounting/ — backend `date_to`ni kun OXIRIga oladi (inklyuziv) →
+ *     o'zgarishsiz yuboriladi.
+ * Ko'rinishlar `{ from, to }` (ikkalasi inklyuziv YYYY-MM-DD) yuboradi, xolos.
+ */
+const nextDay = (ymd: string) => {
+  const dt = new Date(ymd + "T00:00:00");
+  dt.setDate(dt.getDate() + 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+};
+type Period = { from?: string; to?: string };
+
 export const api = {
   me: () => request<User>("/api/me/"),
-  /** davr statistikasi uchun ?from=YYYY-MM-DD&to=YYYY-MM-DD berish mumkin */
-  dashboard: (p?: { from?: string; to?: string; date_from?: string; date_to?: string }) => request<Dashboard>(`/api/dashboard/${qs(p)}`),
-  /** Analitika — dashboard bilan bir xil ko'rish ruxsati */
-  analytics: (p?: { from?: string; to?: string; date_from?: string; date_to?: string }) => request<Analytics>(`/api/analytics/${qs(p)}`),
+  /** davr statistikasi — `{ from, to }` (inklyuziv). date_to eksklyuziv → +1 (nextDay). */
+  dashboard: (p?: Period) => request<Dashboard>(`/api/dashboard/${qs({ from: p?.from, to: p?.to ? nextDay(p.to) : undefined, date_from: p?.from, date_to: p?.to ? nextDay(p.to) : undefined })}`),
+  /** Analitika — dashboard bilan bir xil ko'rish ruxsati; date_to eksklyuziv → +1. */
+  analytics: (p?: Period) => request<Analytics>(`/api/analytics/${qs({ from: p?.from, to: p?.to ? nextDay(p.to) : undefined, date_from: p?.from, date_to: p?.to ? nextDay(p.to) : undefined })}`),
 
-  /** Hisob-kitob — sotuv/foyda/chegirma xulosalari (davr bo'yicha) */
-  accounting: (p?: { date_from?: string; date_to?: string; from?: string; to?: string }) => request<Accounting>(`/api/accounting/${qs(p)}`),
+  /** Hisob-kitob — sotuv/foyda/chegirma xulosalari; date_to INKLYUZIV (o'zgarishsiz). */
+  accounting: (p?: Period) => request<Accounting>(`/api/accounting/${qs({ date_from: p?.from, date_to: p?.to, from: p?.from, to: p?.to })}`),
   /** Excel eksportlar — fayl (blob) sifatida yuklab olinadi */
   exportFlorist: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florist/", p, "florist-hisobot"),
   exportFlorists: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florists/", p, "floristlar-hisobot"),
@@ -417,6 +436,9 @@ export const api = {
 
   /* ===== YETKAZIB BERUVCHILAR ===== */
   suppliers: (p?: Params) => list<Supplier>("/api/suppliers/", p),
+  /** Yetkazib beruvchi to'lovlari — hali backendda YO'Q (feature-check: 404 → o'chirilgan).
+      Endpoint paydo bo'lsa Hisob-kitob "To'langan/Qarz" ustunlari avtomatik yonadi. */
+  supplierPayments: (p?: Params) => list<{ id: number; supplier: number; amount: string; paid_at: string; method?: string; note?: string }>("/api/supplier-payments/", p),
   supplier: (id: number) => request<Supplier>(`/api/suppliers/${id}/`),
   createSupplier: (data: SupplierInput) =>
     request<Supplier>("/api/suppliers/", { method: "POST", body: JSON.stringify(data) }),

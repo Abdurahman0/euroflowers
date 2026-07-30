@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Leaf, Search } from "lucide-react";
 import { api } from "@/lib/api";
+import { isTestRecord } from "@/lib/finance";
 import { freshness, formatStemsAndBunches, stems as fmtStems, bunches as fmtBunches } from "@/lib/inventory";
 import EmptyState from "./EmptyState";
 import type { BatchInventoryStat, StockBatch } from "@/lib/types";
@@ -60,7 +61,10 @@ function SkeletonRows() {
   );
 }
 
-export default function BatchSarfiPanel({ rows: stats }: { rows?: BatchInventoryStat[] }) {
+export default function BatchSarfiPanel({ rows: rawStats }: { rows?: BatchInventoryStat[] }) {
+  // GUARD: batch_inventory_stats backend'da soft-delete qilingan ZZZ_TEST_ partiyalarни
+  // ham qaytaradi (jonli tekshirilgan: 145 chiqit dona shulardan) — chiqarib tashlaymiz.
+  const stats = rawStats?.filter((s) => !isTestRecord(s.batch_number));
   const [batchMap, setBatchMap] = useState<Map<number, StockBatch> | null>(null);
   const [sort, setSort] = useState<Sort>("waste");
   const [expanded, setExpanded] = useState(false);

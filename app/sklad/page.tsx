@@ -19,7 +19,7 @@ import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
-import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, PACKAGING_LABEL } from "@/lib/inventory";
+import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL } from "@/lib/inventory";
 import type { MaterialMovement, PackagingType, StockBatch, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
@@ -104,6 +104,8 @@ export default function SkladPage() {
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [kirimOpen, setKirimOpen] = useState(false);
+  // dashboard alertidan chuqur havola: ?show=low (kam qolgan) | wilt (8+ kunlik)
+  const [showFilter, setShowFilter] = useState<"" | "low" | "wilt">("");
   const [selBatch, setSelBatch] = useState<StockBatch | null>(null);
   const [search, setSearch] = useState("");
   // server filtrlari
@@ -170,6 +172,8 @@ export default function SkladPage() {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
     if (p.get("tab") === "partiyalar") setTab("gul");
+    const show = p.get("show");
+    if (show === "low" || show === "wilt") { setTab("gul"); setShowFilter(show); }
     const bid = Number(p.get("batch"));
     if (bid) api.stockBatch(bid).then(setSelBatch).catch(() => {});
     const sid = Number(p.get("supplier"));
@@ -188,7 +192,12 @@ export default function SkladPage() {
   //   0 — kam qoldi (hali sotiladi, tugash arafasida), 1 — tugadi, 2 — normal
   const stockRank = (b: StockBatch) =>
     b.remaining_stems === 0 ? 1 : b.remaining_stems <= b.minimum_sale_stems * 2 ? 0 : 2;
-  const fBatches = [...searched].sort((a, b) => stockRank(a) - stockRank(b));
+  const shown = showFilter === "low"
+    ? searched.filter((b) => b.is_active && b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2)
+    : showFilter === "wilt"
+      ? searched.filter((b) => b.is_active && b.remaining_stems > 0 && freshness(b.received_at).days >= 8)
+      : searched;
+  const fBatches = [...shown].sort((a, b) => stockRank(a) - stockRank(b));
   const total = batches.reduce((a, b) => a + b.remaining_stems, 0);
   const lows = batches.filter((b) => b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2);
   const fMoves = moves;
@@ -396,10 +405,20 @@ export default function SkladPage() {
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {showFilter && (
+            <button
+              onClick={() => setShowFilter("")}
+              className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors hover:bg-[var(--hover)]"
+              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+              title="Filtrni tozalash"
+            >
+              {showFilter === "low" ? "Kam qolgan partiyalar" : "So'lish xavfi (8+ kun)"} ✕
+            </button>
+          )}
           <SearchInput value={search} onChange={setSearch} ariaLabel="Partiya qidirish" />
           <ClearFilters
-            show={!!search}
-            onClear={() => setSearch("")}
+            show={!!search || !!showFilter}
+            onClear={() => { setSearch(""); setShowFilter(""); }}
           />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Yangi partiya

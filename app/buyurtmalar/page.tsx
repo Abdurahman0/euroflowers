@@ -279,6 +279,8 @@ export default function BuyurtmalarPage() {
   const [arrType, setArrType] = useState("");
   // status (kanban ustuni) filtri — FAQAT jadval ko'rinishida ko'rsatiladi
   const [statusFilter, setStatusFilter] = useState("");
+  // dashboard "Bugungi yetkazishlar" alertidan chuqur havola (?delivery=today)
+  const [deliveryToday, setDeliveryToday] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search.trim()), 350);
@@ -422,6 +424,8 @@ export default function BuyurtmalarPage() {
   // sklad jurnali va mijoz tarixidan kelganda o'sha kanban kartasi ochiladi
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
+    // dashboard "Bugungi yetkazishlar" alertidan chuqur havola
+    if (p.get("delivery") === "today") { setDeliveryToday(true); window.history.replaceState(null, "", "/buyurtmalar"); }
     const id = Number(p.get("order") ?? p.get("lead"));
     if (!id) return;
     window.history.replaceState(null, "", "/buyurtmalar");
@@ -430,7 +434,9 @@ export default function BuyurtmalarPage() {
       .catch(() => showToast("Buyurtma topilmadi yoki o'chirilgan"));
   }, [showToast]);
 
-  const fLeads = leads;
+  // ?delivery=today — bugun yetkazilishi kerak bo'lgan buyurtmalar (desired_date)
+  const todayYmd = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+  const fLeads = deliveryToday ? leads.filter((l) => (l.desired_date ?? "").slice(0, 10) === todayYmd) : leads;
   // faol ustunlar (tartib bo'yicha); «Malakali» ustuni ko'rsatilmaydi —
   // qualified buyurtmalar «Yangi»da turadi (foydalanuvchi talabi)
   const cols = statuses.filter((s) => s.is_active && s.key !== "qualified").sort((a, b) => a.order - b.order);
@@ -584,6 +590,16 @@ export default function BuyurtmalarPage() {
           Buyurtmalar ({total != null && total > fLeads.length ? `${fLeads.length} / ${total}` : fLeads.length}) — sudrab statusni o&apos;zgartiring
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {deliveryToday && (
+            <button
+              onClick={() => setDeliveryToday(false)}
+              className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors hover:bg-[var(--hover)]"
+              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+              title="Filtrni tozalash"
+            >
+              Bugungi yetkazishlar ✕
+            </button>
+          )}
           <SearchInput value={search} onChange={setSearch} ariaLabel="Buyurtma qidirish" />
           <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />
           {view === "table" && (

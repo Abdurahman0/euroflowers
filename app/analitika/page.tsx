@@ -1,38 +1,39 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Download } from "lucide-react";
+import { Download, TrendingDown, TrendingUp } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { InstagramIcon, TelegramIcon, SmartPhone01Icon } from "@hugeicons/core-free-icons";
 import { api, ApiError } from "@/lib/api";
+import { accountingCached } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { dateAfterParam, dateBeforeParam, fmt } from "@/lib/format";
+import { VOLUME_LABEL } from "@/lib/inventory";
+import { excludeTest } from "@/lib/finance";
 import { exportAccountingByDay } from "@/lib/exports";
-import { statusName, ARRANGEMENT_LABEL } from "@/components/badges";
+import { ARRANGEMENT_LABEL } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
-import { DonutChart, HBars, RevenueBars } from "@/components/AnalyticsCharts";
-import { NetProfitCard, DiscountStatsCard, FloristProductionCards } from "@/components/AnalyticsExtra";
-import BatchSarfiPanel from "@/components/BatchSarfiPanel";
+import { HBars, RevenueBars } from "@/components/AnalyticsCharts";
 import FlowerLoader from "@/components/FlowerLoader";
-import type { Analytics, LeadStatusDef } from "@/lib/types";
+import type { Accounting, Analytics, StockMovement } from "@/lib/types";
 
 /**
  * Analitika — GET /api/analytics/ (dashboard ko'rish ruxsati bilan).
- * Minimal, zamonaviy: xulosa plitkalari → kunlik dinamika (soni + daromad
- * ALOHIDA grafiklarda: bitta o'q qoidasi) → reytinglar va taqsimotlar.
+ * VAQT bo'yicha TRENDLAR va TAQQOSLASHLAR: davr vs oldingi davr deltalari,
+ * kunlik savdo/konversiya/o'rtacha chek trendlari, mahsulot va kanal analitikasi,
+ * chiqit foizi trendi. Xom moliyaviy ro'yxatlar — Hisob-kitobda.
  */
 
 const fmtMoney = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const shiftYmd = (s: string, delta: number) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + delta); return ymd(d); };
+const daysInclusive = (a: string, b: string) => Math.max(1, Math.round((+new Date(b + "T00:00:00") - +new Date(a + "T00:00:00")) / 86400000) + 1);
 
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
-const rise = {
-  hidden: { opacity: 0, y: 18, filter: "blur(4px)" },
-  show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
-};
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
+const rise = { hidden: { opacity: 0, y: 18, filter: "blur(4px)" }, show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } } };
 
 const SOURCE_META: Record<string, { label: string; bg: string; icon: typeof InstagramIcon }> = {
   instagram: { label: "Instagram", bg: "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)", icon: InstagramIcon },
@@ -43,252 +44,229 @@ const SOURCE_META: Record<string, { label: string; bg: string; icon: typeof Inst
 function Card({ title, sub, children, className = "" }: { title: string; sub?: string; children: React.ReactNode; className?: string }) {
   return (
     <motion.section variants={rise} className={`glass-lite p-5 ${className}`}>
-      <div className="mb-3.5">
-        <h2 className="text-[15px] font-bold tracking-tight">{title}</h2>
-        {sub && <p className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--muted)" }}>{sub}</p>}
-      </div>
+      <div className="mb-3.5"><h2 className="text-[15px] font-bold tracking-tight">{title}</h2>{sub && <p className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--muted)" }}>{sub}</p>}</div>
       {children}
     </motion.section>
+  );
+}
+
+/** Davr-vs-davr delta belgisi. goodUp=false — kamayish yaxshi (masalan chiqit). */
+function Delta({ cur, prev, goodUp = true }: { cur: number; prev: number; goodUp?: boolean }) {
+  if (prev <= 0) {
+    if (cur <= 0) return <span className="text-[11px] font-semibold" style={{ color: "var(--muted)" }}>— oldingi davr yo&apos;q</span>;
+    // 0 dan o'sish: goodUp bo'lsa yaxshi (yashil), aks holda yomon (masalan chiqit — qizil)
+    return <span className="text-[11px] font-bold" style={{ color: goodUp ? "var(--success-ink)" : "var(--danger-ink)" }}>yangi</span>;
+  }
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  if (pct === 0) return <span className="text-[11px] font-semibold" style={{ color: "var(--muted)" }}>0% o&apos;zgarish</span>;
+  const up = pct > 0;
+  const good = goodUp ? up : !up;
+  const color = good ? "var(--success-ink)" : "var(--danger-ink)";
+  return (
+    <span className="flex items-center gap-1 text-[11.5px] font-bold" style={{ color }} title="oldingi teng davrga nisbatan">
+      {up ? <TrendingUp size={12} strokeWidth={2.4} /> : <TrendingDown size={12} strokeWidth={2.4} />}
+      {up ? "+" : ""}{pct}%
+    </span>
   );
 }
 
 export default function AnalitikaPage() {
   const { dateFilter, dateRange, showToast } = useStore();
   const [a, setA] = useState<Analytics | null>(null);
-  const [statuses, setStatuses] = useState<LeadStatusDef[]>([]);
+  const [prev, setPrev] = useState<Analytics | null>(null);
+  const [acc, setAcc] = useState<Accounting | null>(null);
+  const [wasteNow, setWasteNow] = useState<StockMovement[]>([]);
+  const [wastePrev, setWastePrev] = useState<StockMovement[]>([]);
   const [err, setErr] = useState("");
   const [exporting, setExporting] = useState(false);
 
   const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
   const to = dateRange ? dateRange.to : ymd(new Date());
+  // oldingi teng uzunlikdagi davr (deltalar uchun)
+  const len = daysInclusive(from, to);
+  const prevTo = shiftYmd(from, -1);
+  const prevFrom = shiftYmd(prevTo, -(len - 1));
 
-  // HISOB-KITOB eksporti (kunlar bo'yicha: savdo/naqd/karta/tannarx/chegirma/foyda)
   const doExport = async () => {
     setExporting(true);
     try {
-      // accounting date_to INKLYUZIV (jonli tekshirilgan) — xom `to` yuboriladi
-      const acc = await api.accounting({ date_from: from, date_to: to });
-      await exportAccountingByDay(acc, from, to);
+      const data = await accountingCached(from, to);
+      await exportAccountingByDay(data, from, to);
       showToast("✓ Excel yuklab olindi");
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Eksport qilib bo'lmadi");
-    } finally {
-      setExporting(false);
-    }
+    } finally { setExporting(false); }
   };
 
   const load = useCallback(() => {
-    // date_to EKSKLYUZIV — backend uni kun boshiga oladi, shu bois oxirgi kunni
-    // to'liq qamrash uchun keyingi kun yuboriladi (aks holda "bugun" tushib qoladi).
-    const toExcl = dateBeforeParam(to);
-    api.analytics({ from, to: toExcl, date_from: from, date_to: toExcl }).then(setA).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
-    api.leadStatuses().then((s) => s.length && setStatuses(s)).catch(() => {});
+    api.analytics({ from, to }).then(setA).catch((e) => setErr(e instanceof Error ? e.message : "Xatolik"));
+    api.analytics({ from: prevFrom, to: prevTo }).then(setPrev).catch(() => setPrev(null));
+    accountingCached(from, to).then(setAcc).catch(() => setAcc(null));
+    api.stockMovements({ movement_type: "waste", created_at_after: from, created_at_before: dateBeforeParam(to), page_size: 200 }).then(setWasteNow).catch(() => setWasteNow([]));
+    api.stockMovements({ movement_type: "waste", created_at_after: prevFrom, created_at_before: dateBeforeParam(prevTo), page_size: 200 }).then(setWastePrev).catch(() => setWastePrev([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
 
   useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
+  useAutoRefresh(load);
 
   if (err) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--danger-ink)" }}>{err}</p>;
   if (!a) return <FlowerLoader />;
 
   const s = a.summary;
-  const tiles: { label: string; num: number; money?: boolean; sub?: string }[] = [
-    { label: "Daromad", num: +s.revenue, money: true, sub: `so'm · ${s.orders} ta sotuv` },
-    { label: "So'rovlar", num: s.leads, sub: `konversiya ${s.conversion_rate}%` },
-    { label: "Suhbatlar", num: s.conversations },
-    { label: "Yangi mijozlar", num: s.customers },
-    { label: "Florist daromadi", num: +s.florist_revenue, money: true, sub: "so'm" },
-    { label: "Sotilgan gul", num: s.flowers_sold_stems, sub: "dona" },
+  const ps = prev?.summary;
+  const aov = (rev: number, ord: number) => (ord > 0 ? Math.round(rev / ord) : 0);
+  const aovNow = aov(+s.revenue, s.orders);
+  const aovPrev = aov(+(ps?.revenue ?? 0), ps?.orders ?? 0);
+
+  const tiles: { label: string; cur: number; prev: number; money?: boolean; suffix?: string; sub?: string }[] = [
+    { label: "Daromad", cur: +s.revenue, prev: +(ps?.revenue ?? 0), money: true, sub: `${s.orders} ta sotuv` },
+    { label: "Sotuvlar", cur: s.orders, prev: ps?.orders ?? 0, sub: "ta buyurtma" },
+    { label: "So'rovlar", cur: s.leads, prev: ps?.leads ?? 0, sub: "lead" },
+    { label: "Konversiya", cur: +s.conversion_rate, prev: +(ps?.conversion_rate ?? 0), suffix: "%", sub: "so'rovdan sotuvga" },
+    { label: "O'rtacha chek", cur: aovNow, prev: aovPrev, money: true, sub: "bitta sotuvga" },
+    { label: "Sotilgan gul", cur: s.flowers_sold_stems, prev: ps?.flowers_sold_stems ?? 0, sub: "dona" },
   ];
 
-  const statusRows = a.lead_statuses
-    .slice()
-    .sort((x, y) => y.count - x.count)
-    .map((r) => {
-      const det = statuses.find((st) => st.key === r.status);
-      return { label: statusName(r.status, det), value: r.count, color: det?.color };
-    });
+  // kunlik hosila seriyalari (o'rtacha chek, konversiya) + chiqit kunlik bucket
+  // GUARD: ZZZ_TEST_ partiyalardagi chiqitni chiqarib tashlaymiz (lib/finance)
+  const wN = excludeTest(wasteNow, (m) => m.batch_detail?.batch_number);
+  const wP = excludeTest(wastePrev, (m) => m.batch_detail?.batch_number);
+  const wasteByDate = new Map<string, number>();
+  for (const m of wN) { const d = (m.created_at ?? "").slice(0, 10); wasteByDate.set(d, (wasteByDate.get(d) ?? 0) + Math.abs(m.quantity_stems)); }
+  const daily = a.daily_stats.map((d) => ({
+    ...d,
+    aov: d.orders > 0 ? Math.round(Number(d.revenue) / d.orders) : 0,
+    conv: d.leads > 0 ? Math.round((d.orders / d.leads) * 100) : 0,
+    waste: wasteByDate.get(d.date) ?? 0,
+  }));
+
+  // chiqit foizi = chiqit / (chiqit + sotilgan gul) — davr vs oldingi davr
+  const wasteStemsNow = wN.reduce((t, m) => t + Math.abs(m.quantity_stems), 0);
+  const wasteStemsPrev = wP.reduce((t, m) => t + Math.abs(m.quantity_stems), 0);
+  const wasteValueNow = wN.reduce((t, m) => t + Math.abs(m.quantity_stems) * (+(m.batch_detail?.cost_per_stem ?? 0)), 0);
+  const soldNow = s.flowers_sold_stems || 0;
+  const soldPrev = ps?.flowers_sold_stems ?? 0;
+  const wasteRate = (w: number, sold: number) => (w + sold > 0 ? (w / (w + sold)) * 100 : 0);
+  const wasteRateNow = wasteRate(wasteStemsNow, soldNow);
+  const wasteRatePrev = wasteRate(wasteStemsPrev, soldPrev);
+
+  // hajm (kichik/o'rta/katta) bo'yicha taqsimot — accounting by_volume
+  const volMap = new Map<string, { sales: number; qty: number }>();
+  for (const r of acc?.by_volume ?? []) {
+    if (!r.volume) continue;
+    const e = volMap.get(r.volume) ?? { sales: 0, qty: 0 };
+    volMap.set(r.volume, { sales: e.sales + +r.sales, qty: e.qty + r.quantity });
+  }
+  const volRows = Array.from(volMap.entries()).map(([vol, v]) => ({ label: VOLUME_LABEL[vol as keyof typeof VOLUME_LABEL] ?? vol, value: v.sales, sub: `${v.qty} ta` })).sort((x, y) => y.value - x.value);
 
   const totalConvSrc = Math.max(a.conversation_sources.reduce((t, r) => t + r.count, 0), 1);
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="relative flex flex-col gap-4">
-      {/* sarlavha + davr */}
       <motion.div variants={rise} className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[15px] font-bold" style={{ color: "var(--text-2)" }}>Davr analitikasi</h2>
+        <div>
+          <h2 className="text-[15px] font-bold" style={{ color: "var(--text-2)" }}>Davr analitikasi — trendlar va taqqoslash</h2>
+          <p className="text-[12px] font-medium" style={{ color: "var(--muted)" }}>har bir raqam oldingi teng davr bilan solishtiriladi</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <DateChips />
-          <button
-            onClick={doExport}
-            disabled={exporting}
-            className="flex items-center gap-1.5 rounded-[13px] border-[1.5px] px-3.5 py-2 text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)] disabled:opacity-60"
-            style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}
-            title="Hisob-kitobni Excel'ga yuklab olish (kunlar bo'yicha)"
-          >
+          <button onClick={doExport} disabled={exporting} className="flex items-center gap-1.5 rounded-[13px] border-[1.5px] px-3.5 py-2 text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)] disabled:opacity-60" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }} title="Hisob-kitobni Excel'ga yuklab olish">
             <Download size={15} strokeWidth={2} /> {exporting ? "Yuklanmoqda…" : "Excel"}
           </button>
         </div>
       </motion.div>
 
-      {/* xulosa plitkalari */}
-      <motion.div variants={rise} className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))" }}>
+      {/* xulosa plitkalari + delta */}
+      <motion.div variants={rise} className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
         {tiles.map((t) => (
           <div key={t.label} className="glass-lite p-4">
             <div className="text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: "var(--muted)" }}>{t.label}</div>
             <div className="mt-1.5 whitespace-nowrap text-[22px] font-semibold tracking-tight">
-              <CountUp value={t.num} format={t.money ? fmtMoney : undefined} />
+              <CountUp value={t.cur} format={t.money ? fmtMoney : undefined} />{t.suffix}
             </div>
-            {t.sub && <div className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--text-2)" }}>{t.sub}</div>}
+            <div className="mt-1 flex items-center justify-between gap-2">
+              {t.sub && <span className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>{t.sub}</span>}
+              <Delta cur={t.cur} prev={t.prev} />
+            </div>
           </div>
         ))}
       </motion.div>
 
-      {/* YANGI: sof foyda + florist ishlab chiqarish.
-          Jonli API: pul maydonlari summary ICHIDA, statlar top-level. */}
-      {(s.net_profit != null || s.catalog_revenue != null || a.florist_production_stats?.length) && (
-        <motion.div variants={rise} className="grid items-start gap-4 lg:grid-cols-[minmax(260px,1fr)_2fr]">
-          <div className="flex flex-col gap-4">
-            <NetProfitCard netProfit={s.net_profit} revenue={s.catalog_revenue} cost={s.catalog_cost} discount={s.catalog_discount} />
-            {/* chegirmada sotilgan kataloglar — soni, donasi, summasi */}
-            <DiscountStatsCard
-              count={s.discounted_catalog_sales_count ?? a.discounted_catalog_sales_count}
-              quantity={s.discounted_catalog_quantity ?? a.discounted_catalog_quantity}
-              amount={s.discounted_catalog_amount ?? a.discounted_catalog_amount}
-            />
-          </div>
-          <FloristProductionCards rows={a.florist_production_stats} salaryTotal={s.florist_salary_total} />
-        </motion.div>
-      )}
-      <motion.div variants={rise}><BatchSarfiPanel rows={a.batch_inventory_stats} /></motion.div>
-
-      {/* kunlik dinamika: sonlar (3 seriya) va daromad — ALOHIDA grafiklar */}
+      {/* TRENDLAR */}
       <div className="grid items-start gap-4 xl:grid-cols-2">
+        <Card title="Kunlik daromad" sub="so'mda, sotuvlar bo'yicha"><RevenueBars data={a.daily_stats} /></Card>
         <Card title="Kunlik faollik" sub="so'rovlar, suhbatlar va sotuvlar soni">
-          <DailyChart
-            data={a.daily_stats}
-            series={[
-              { key: "leads", label: "So'rovlar", varName: "var(--chart-1)" },
-              { key: "conversations", label: "Suhbatlar", varName: "var(--chart-2)" },
-              { key: "orders", label: "Sotuvlar", varName: "var(--chart-3)" },
-            ]}
-          />
+          <DailyChart data={a.daily_stats} series={[
+            { key: "leads", label: "So'rovlar", varName: "var(--chart-1)" },
+            { key: "conversations", label: "Suhbatlar", varName: "var(--chart-2)" },
+            { key: "orders", label: "Sotuvlar", varName: "var(--chart-3)" },
+          ]} />
         </Card>
-        <Card title="Kunlik daromad" sub="so'mda, sotuvlar bo'yicha">
-          <RevenueBars data={a.daily_stats} />
+        <Card title="Konversiya trendi" sub="kunlik: sotuv / so'rov (%)">
+          <DailyChart data={daily} series={[{ key: "conv", label: "Konversiya %", varName: "var(--chart-1)" }]} />
+        </Card>
+        <Card title="O'rtacha chek trendi" sub="kunlik: daromad / sotuv (so'm)">
+          <DailyChart data={daily} series={[{ key: "aov", label: "O'rtacha chek", varName: "var(--chart-2)" }]} />
         </Card>
       </div>
 
+      {/* CHIQIT TRENDI */}
+      <motion.section variants={rise} className="glass-lite p-5">
+        <div className="mb-3.5 flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="text-[15px] font-bold tracking-tight">Chiqit foizi</h2><p className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--muted)" }}>chiqit / (chiqit + sotilgan gul) · kamayishi yaxshi</p></div>
+          <div className="text-right">
+            <div className="text-[22px] font-semibold tracking-tight" style={{ color: wasteRateNow > 8 ? "var(--danger-ink)" : "var(--text)" }}>{wasteRateNow.toFixed(1)}%</div>
+            <Delta cur={wasteRateNow} prev={wasteRatePrev} goodUp={false} />
+          </div>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-4 text-[13px]">
+          <span style={{ color: "var(--text-2)" }}>Chiqit: <b>{wasteStemsNow.toLocaleString("ru")}</b> dona</span>
+          <span style={{ color: "var(--text-2)" }}>Yo&apos;qotish: <b style={{ color: "var(--danger-ink)" }}>{fmt(wasteValueNow)}</b></span>
+          <span style={{ color: "var(--muted)" }}>Oldingi davr: {wasteStemsPrev.toLocaleString("ru")} dona</span>
+        </div>
+        <DailyChart data={daily} series={[{ key: "waste", label: "Chiqit (dona)", varName: "var(--chart-3)" }]} />
+      </motion.section>
+
+      {/* MAHSULOT ANALITIKASI */}
       <div className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {/* eng ko'p sotilgan gullar */}
         <Card title="Eng ko'p sotilgan gullar" sub="dona bo'yicha, tanlangan davr">
-          <HBars
-            rows={a.top_selling_flowers.map((f) => ({
-              label: `${f.name_uz}${f.color_uz ? ` — ${f.color_uz}` : ""}`,
-              value: f.stems,
-              sub: `${f.bunches} pochka`,
-            }))}
-            unit="dona"
-          />
+          <HBars rows={a.top_selling_flowers.map((f) => ({ label: `${f.name_uz}${f.color_uz ? ` — ${f.color_uz}` : ""}`, value: f.stems, sub: `${f.bunches} pochka` }))} unit="dona" />
         </Card>
-
-        {/* eng ko'p sotilgan katalog gullari */}
         <Card title="Top katalog gullari" sub="sotuv soni va daromadi">
-          <HBars
-            rows={a.top_catalog_items.map((c) => ({
-              label: c.catalog_item__name_uz || c.catalog_item__name_ru,
-              value: c.quantity,
-              sub: `${ARRANGEMENT_LABEL[c.catalog_item__arrangement_type] ?? c.catalog_item__arrangement_type} · ${fmt(c.revenue)}`,
-            }))}
-            unit="ta"
-            color="var(--chart-2)"
-          />
+          <HBars rows={a.top_catalog_items.map((c) => ({ label: c.catalog_item__name_uz || c.catalog_item__name_ru, value: c.quantity, sub: `${ARRANGEMENT_LABEL[c.catalog_item__arrangement_type] ?? c.catalog_item__arrangement_type} · ${fmt(c.revenue)}` }))} unit="ta" color="var(--chart-2)" />
         </Card>
-
-        {/* so'nggi kunlarda ko'p sotilgan katalog gullari (backend alohida beradi) */}
-        {(a.recent_top_catalog_items?.length ?? 0) > 0 && (
-          <Card title="So'nggi kunlar hiti" sub="oxirgi sotuvlar bo'yicha katalog gullari">
-            <HBars
-              rows={a.recent_top_catalog_items!.map((c) => ({
-                label: c.catalog_item__name_uz || c.catalog_item__name_ru,
-                value: c.quantity,
-                sub: `${ARRANGEMENT_LABEL[c.catalog_item__arrangement_type] ?? c.catalog_item__arrangement_type} · ${fmt(c.revenue)}`,
-              }))}
-              unit="ta"
-              color="var(--chart-1)"
-            />
-          </Card>
-        )}
-
-        {/* buyurtmalar holati — donut, har status o'z rangida */}
-        <Card title="Buyurtmalar holati" sub="statuslar bo'yicha taqsimot">
-          <DonutChart
-            slices={statusRows.map((r, i) => ({
-              label: r.label,
-              value: r.value,
-              color: r.color ?? ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--muted)"][i % 4],
-            }))}
-            centerSub="buyurtma"
-          />
-        </Card>
-
-        {/* buyurtma turlari */}
         <Card title="Buyurtma turlari" sub="buket / savat / donalab / katalog">
-          <HBars
-            rows={a.arrangement_types
-              .slice()
-              .sort((x, y) => y.count - x.count)
-              .map((r) => ({ label: ARRANGEMENT_LABEL[r.arrangement_type] ?? r.arrangement_type ?? "Boshqa", value: r.count }))}
-            unit="ta"
-            color="var(--chart-3)"
-          />
+          <HBars rows={a.arrangement_types.slice().sort((x, y) => y.count - x.count).map((r) => ({ label: ARRANGEMENT_LABEL[r.arrangement_type] ?? r.arrangement_type ?? "Boshqa", value: r.count }))} unit="ta" color="var(--chart-3)" />
+        </Card>
+        <Card title="Hajm bo'yicha sotuvlar" sub="kichik / o'rta / katta — savdo summasi">
+          {volRows.length ? <HBars rows={volRows} format={(v) => `${fmtMoney(v)} so'm`} color="var(--chart-1)" /> : <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Bu davrda sotuv yo&apos;q.</p>}
         </Card>
 
-        {/* suhbat manbalari — platforma brendida */}
+        {/* KANAL ANALITIKASI */}
         <Card title="Suhbat manbalari" sub="qaysi kanaldan kelmoqda">
           <div className="flex flex-col gap-3">
-            {a.conversation_sources
-              .slice()
-              .sort((x, y) => y.count - x.count)
-              .map((r) => {
-                const meta = SOURCE_META[r.source] ?? { label: r.source, bg: "var(--muted)", icon: SmartPhone01Icon };
-                const share = Math.round((r.count / totalConvSrc) * 100);
-                return (
-                  <div key={r.source}>
-                    <div className="mb-1 flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-2 text-[13px] font-semibold">
-                        <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full text-white" style={{ background: meta.bg }}>
-                          <HugeiconsIcon icon={meta.icon} size={12} strokeWidth={2} />
-                        </span>
-                        {meta.label}
-                      </span>
-                      <span className="text-[13px] font-bold tabular-nums">
-                        {r.count} <span className="font-medium" style={{ color: "var(--muted)" }}>· {share}%</span>
-                      </span>
-                    </div>
-                    <div className="h-[8px] overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
-                      <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${share}%`, background: meta.bg }} />
-                    </div>
+            {a.conversation_sources.slice().sort((x, y) => y.count - x.count).map((r) => {
+              const meta = SOURCE_META[r.source] ?? { label: r.source, bg: "var(--muted)", icon: SmartPhone01Icon };
+              const share = Math.round((r.count / totalConvSrc) * 100);
+              return (
+                <div key={r.source}>
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-[13px] font-semibold">
+                      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full text-white" style={{ background: meta.bg }}><HugeiconsIcon icon={meta.icon} size={12} strokeWidth={2} /></span>
+                      {meta.label}
+                    </span>
+                    <span className="text-[13px] font-bold tabular-nums">{r.count} <span className="font-medium" style={{ color: "var(--muted)" }}>· {share}%</span></span>
                   </div>
-                );
-              })}
+                  <div className="h-[8px] overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}><div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${share}%`, background: meta.bg }} /></div>
+                </div>
+              );
+            })}
             {a.conversation_sources.length === 0 && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Ma&apos;lumot yo&apos;q.</p>}
           </div>
         </Card>
-
-        {/* manbalar bo'yicha daromad */}
         <Card title="Manbalar bo'yicha daromad" sub="qaysi kanal qancha keltirdi">
-          <HBars
-            rows={a.revenue_by_source
-              .slice()
-              .sort((x, y) => +y.revenue - +x.revenue)
-              .map((r) => ({
-                label: SOURCE_META[r.source]?.label ?? r.source,
-                value: +r.revenue,
-                sub: `${r.orders} ta sotuv`,
-              }))}
-            format={(v) => `${fmtMoney(v)} so'm`}
-            color="var(--chart-2)"
-          />
+          <HBars rows={a.revenue_by_source.slice().sort((x, y) => +y.revenue - +x.revenue).map((r) => ({ label: SOURCE_META[r.source]?.label ?? r.source, value: +r.revenue, sub: `${r.orders} ta sotuv` }))} format={(v) => `${fmtMoney(v)} so'm`} color="var(--chart-2)" />
         </Card>
       </div>
     </motion.div>
