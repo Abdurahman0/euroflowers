@@ -5,6 +5,7 @@ import { Pencil, Phone, Plus, Trash2, Truck } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
+import { fmt } from "@/lib/format";
 import { stems } from "@/lib/inventory";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
@@ -53,14 +54,22 @@ export default function SuppliersPage() {
   const doDelete = async () => {
     if (!confirmDel) return;
     const victim = confirmDel;
+    // KLIENT GUARD: to'lovi bor postavshikni o'chirishga yo'l qo'ymaymiz. Backend bunday
+    // holatda XATO BERMAYDI — jimgina soft-deaktivatsiya qiladi (204, is_active=false) —
+    // shu bois owner tasodifan yo'qotmasligi uchun oldindan to'xtatamiz (jonli tekshirilgan).
+    if (+(victim.paid_total ?? 0) > 0 || !!victim.last_payment_at) {
+      setConfirmDel(null);
+      showToast("Bu yetkazib beruvchida to'lovlar bor — avval to'lovlarni o'chiring (Hisob-kitob → Yetkazib beruvchilar)");
+      return;
+    }
     setDeleting(true);
     try {
       await api.deleteSupplier(victim.id);
-      setRows((rs) => rs?.filter((r) => r.id !== victim.id) ?? null);
-      setDetail((d) => (d?.id === victim.id ? null : d));
       setConfirmDel(null);
       showToast("✓ Yetkazib beruvchi o'chirildi");
+      load(); // haqiqiy holatni aks ettirish uchun qayta yuklaymiz
     } catch (e) {
+      setConfirmDel(null);
       showToast(e instanceof Error ? e.message : "O'chirib bo'lmadi");
     } finally {
       setDeleting(false);
@@ -135,6 +144,12 @@ export default function SuppliersPage() {
               <div className="flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold text-tintink">{s.batches_count} partiya</span>
                 <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold text-tintink">{stems(s.total_received_stems)}</span>
+                {s.outstanding != null && +s.outstanding > 0 && (
+                  <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold" style={{ background: "color-mix(in srgb, var(--danger-ink) 13%, transparent)", color: "var(--danger-ink)" }} title="To'lanmagan qarz (Hisob-kitobda to'lov qo'shiladi)">Qarz {fmt(s.outstanding)}</span>
+                )}
+                {s.outstanding != null && +s.outstanding <= 0 && +(s.purchase_total ?? 0) > 0 && (
+                  <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold" style={{ background: "color-mix(in srgb, var(--success-ink) 13%, transparent)", color: "var(--success-ink)" }} title="Qarz yo'q">To&apos;langan</span>
+                )}
                 {!s.is_active && <span className="rounded-full bg-rose px-2.5 py-0.5 text-[12px] font-bold text-roseink">Nofaol</span>}
               </div>
             </article>

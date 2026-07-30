@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
  *   • legend har doim ko'rinadi; ekran o'quvchilar uchun yashirin jadval
  */
 
-export type DailyStat = { date: string; leads: number; conversations: number } & Record<string, number | string>;
+export type DailyStat = { date: string } & Record<string, number | string>;
 export type ChartSeries = { key: string; label: string; varName: string };
 
 const DEFAULT_SERIES: ChartSeries[] = [

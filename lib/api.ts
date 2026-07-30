@@ -4,7 +4,7 @@ import type {
   Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
-  SocialPost, StockBatch, StockMovement, Supplier, SupplierInput, UploadResponse, User, VolumeRateInput,
+  SocialPost, StockBatch, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
 
 /**
@@ -220,7 +220,7 @@ type Params = Record<string, string | number | boolean | undefined>;
  * yuklashni ishga tushiradi. Fayl nomi Content-Disposition'dan (bo'lsa) yoki
  * fallback + davr + .xlsx'dan yasaladi. Demo rejimda ishlamaydi (real backend).
  */
-async function downloadFile(path: string, params?: { date_from?: string; date_to?: string }, fallback = "hisobot"): Promise<void> {
+async function downloadFile(path: string, params?: { date_from?: string; date_to?: string; florist?: number }, fallback = "hisobot"): Promise<void> {
   if (DEMO_MODE) throw new ApiError(0, { detail: "Eksport demo rejimda ishlamaydi — real backendga kiring" });
   const t = getTokens();
   const res = await fetch(`${API_BASE}${path}${qs(params)}`, {
@@ -358,7 +358,7 @@ export const api = {
   /** Hisob-kitob — sotuv/foyda/chegirma xulosalari; date_to INKLYUZIV (o'zgarishsiz). */
   accounting: (p?: Period) => request<Accounting>(`/api/accounting/${qs({ date_from: p?.from, date_to: p?.to, from: p?.from, to: p?.to })}`),
   /** Excel eksportlar — fayl (blob) sifatida yuklab olinadi */
-  exportFlorist: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florist/", p, "florist-hisobot"),
+  exportFlorist: (p?: { date_from?: string; date_to?: string; florist?: number }) => downloadFile("/api/exports/florist/", p, "florist-hisobot"),
   exportFlorists: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florists/", p, "floristlar-hisobot"),
   exportProfit: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/profit/", p, "hisob-kitob"),
 
@@ -436,9 +436,13 @@ export const api = {
 
   /* ===== YETKAZIB BERUVCHILAR ===== */
   suppliers: (p?: Params) => list<Supplier>("/api/suppliers/", p),
-  /** Yetkazib beruvchi to'lovlari — hali backendda YO'Q (feature-check: 404 → o'chirilgan).
-      Endpoint paydo bo'lsa Hisob-kitob "To'langan/Qarz" ustunlari avtomatik yonadi. */
-  supplierPayments: (p?: Params) => list<{ id: number; supplier: number; amount: string; paid_at: string; method?: string; note?: string }>("/api/supplier-payments/", p),
+  /** Yetkazib beruvchi to'lovlari — CRUD (backend 0082). on_delete=PROTECT postavshikda. */
+  supplierPayments: (p?: Params) => list<SupplierPayment>("/api/supplier-payments/", p),
+  createSupplierPayment: (data: SupplierPaymentInput) =>
+    request<SupplierPayment>("/api/supplier-payments/", { method: "POST", body: JSON.stringify(data) }),
+  updateSupplierPayment: (id: number, data: Partial<SupplierPaymentInput>) =>
+    request<SupplierPayment>(`/api/supplier-payments/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteSupplierPayment: (id: number) => request<void>(`/api/supplier-payments/${id}/`, { method: "DELETE" }),
   supplier: (id: number) => request<Supplier>(`/api/suppliers/${id}/`),
   createSupplier: (data: SupplierInput) =>
     request<Supplier>("/api/suppliers/", { method: "POST", body: JSON.stringify(data) }),
@@ -454,6 +458,12 @@ export const api = {
   updateFlorist: (id: number, data: FloristInput) =>
     request<FloristProfile>(`/api/florists/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteFlorist: (id: number) => request<void>(`/api/florists/${id}/`, { method: "DELETE" }),
+  /** Florist statistikasi (admin/supervisor, perm=florists). date_from/date_to inklyuziv `to`. */
+  floristStats: (id: number, p?: { from?: string; to?: string }) =>
+    request<FloristStats>(`/api/florists/${id}/stats/${qs({ date_from: p?.from, date_to: p?.to })}`),
+  /** Floristning O'Z dashboardi (token'dan aniqlanadi). Bir xil struktura. */
+  floristMeDashboard: (p?: { from?: string; to?: string }) =>
+    request<FloristStats>(`/api/florists/me/dashboard/${qs({ date_from: p?.from, date_to: p?.to })}`),
 
   floristVolumeRates: (p?: Params) => list<FloristVolumeRate>("/api/florist-volume-rates/", p),
   createVolumeRate: (data: VolumeRateInput) =>

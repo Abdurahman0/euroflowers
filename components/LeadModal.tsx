@@ -220,9 +220,12 @@ export default function LeadModal({
     onStatus(st);
   };
 
-  const Row = ({ k, v, accent }: { k: string; v: string; accent?: boolean }) => (
+  const Row = ({ k, v, accent, hint }: { k: string; v: string; accent?: boolean; hint?: string }) => (
     <div className="flex justify-between gap-3.5 border-t border-[color:var(--border)] px-4 py-3 first:border-t-0">
-      <span className="text-[13px] text-[color:var(--text-2)]">{k}</span>
+      <span className="flex items-center gap-1 text-[13px] text-[color:var(--text-2)]">
+        {k}
+        {hint && <span title={hint} className="cursor-help text-[10px] font-bold" style={{ color: "var(--muted)" }}>ⓘ</span>}
+      </span>
       <span className={clsx("text-right text-[13px] font-semibold", accent && "font-extrabold")} style={accent ? { color: "var(--primary)" } : undefined}>{v}</span>
     </div>
   );
@@ -320,8 +323,8 @@ export default function LeadModal({
       </div>
 
       <div className="mt-3 rounded-2xl border border-[color:var(--border)]">
-        <Row k="Taxminiy narx" v={fmt(lead.estimated_price)} accent />
-        {lead.florist_fee != null && +lead.florist_fee > 0 && <Row k="Florist haqi" v={fmt(lead.florist_fee)} />}
+        <Row k="Taxminiy narx" v={fmt(lead.estimated_price)} accent hint="Gullar + florist haqi (to'liq summa). Mijoz chatda faqat gullar summasini ko'rgan." />
+        {lead.florist_fee != null && <Row k="Florist haqi" v={fmt(lead.florist_fee)} hint="Mijoz chatda faqat gullar summasini ko'rgan — florist haqi qo'shilmagan. Yakuniy narxni operator aytadi." />}
         <Row k="Turi" v={lead.arrangement_type ? ARRANGEMENT_LABEL[lead.arrangement_type] ?? lead.arrangement_type : "—"} />
         <Row k="Instagram" v={lead.customer_detail?.instagram_username ? `@${lead.customer_detail.instagram_username}` : "—"} />
         <Row k="Yetkazish vaqti" v={lead.delivery_at ? fmtTime(lead.delivery_at) : fmtDate(lead.desired_date)} accent={!!lead.delivery_at} />

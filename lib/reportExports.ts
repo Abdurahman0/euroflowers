@@ -6,7 +6,7 @@ import { exportWorkbook, exportName, type SheetCol, type SheetDef } from "./xlsx
  * bo'ysunadi (chaqiruvchi allaqachon filtrlangan qatorlarni beradi).
  */
 
-export type SupplierRow = { name: string; receivedStems: number; purchase: number; paid: number | null; debt: number | null; revenue: number; profit: number; margin: number; wasteStems: number; wasteValue: number };
+export type SupplierRow = { name: string; purchase: number; paid: number | null; debt: number | null; revenue: number; profit: number; margin: number; wasteStems: number; wasteValue: number };
 export type CatalogProfitRow = { name: string; kind: string; arrangement: string; volume: string; florist: string; soldAt: string; qty: number; sale: number; cost: number; discount: number; net: number; margin: number };
 export type VariantRow = { name: string; purchasedStems: number; purchaseSum: number; soldStems: number; wasteStems: number; wasteValue: number; revenue: number; profit: number; margin: number };
 export type FloristRow = { name: string; staffType: string; standard: number; custom: number; productionValue: number; salary: number; avgPerItem: number; totalProfit: number };
@@ -16,7 +16,6 @@ const sum = (rows: Record<string, unknown>[], key: string) => rows.reduce((t, r)
 
 const supplierCols: SheetCol[] = [
   { header: "Yetkazib beruvchi", key: "name", type: "text" },
-  { header: "Olingan (dona)", key: "receivedStems", type: "int" },
   { header: "Xarid summasi", key: "purchase", type: "money" },
   { header: "To'langan", key: "paid", type: "money" },
   { header: "Qarz", key: "debt", type: "money" },
@@ -28,7 +27,7 @@ const supplierCols: SheetCol[] = [
 ];
 export const supplierSheet = (rows: SupplierRow[]): SheetDef => ({
   name: "Yetkazib beruvchilar", cols: supplierCols, rows: rows as unknown as Record<string, unknown>[],
-  totals: { name: "JAMI", receivedStems: sum(rows, "receivedStems"), purchase: sum(rows, "purchase"), revenue: sum(rows, "revenue"), profit: sum(rows, "profit"), wasteValue: sum(rows, "wasteValue") },
+  totals: { name: "JAMI", purchase: sum(rows, "purchase"), paid: sum(rows, "paid"), debt: sum(rows, "debt"), revenue: sum(rows, "revenue"), profit: sum(rows, "profit"), wasteValue: sum(rows, "wasteValue") },
 });
 
 const catalogCols: SheetCol[] = [

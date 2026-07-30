@@ -2,19 +2,31 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown } from "lucide-react";
+import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { accountingCached, stockBatchesCached } from "@/lib/reportCache";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtDate, dateAfterParam, dateBeforeParam } from "@/lib/format";
-import { KIND_LABEL, VOLUME_LABEL, SALARY_SOURCE_LABEL, formatStemsAndBunches } from "@/lib/inventory";
+import { KIND_LABEL, VOLUME_LABEL, SALARY_SOURCE_LABEL } from "@/lib/inventory";
 import { ARRANGEMENT_LABEL } from "@/components/badges";
-import { num, saleProfit, profitTone, unitCostSplit, wasteValue, costBreakdown, saleLineAllocations, excludeTest } from "@/lib/finance";
+import { num, saleProfit, profitTone, wasteTotals, costBreakdown, saleLineAllocations, excludeTest } from "@/lib/finance";
 import * as X from "@/lib/reportExports";
 import DateChips from "@/components/DateChips";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
-import type { Accounting, Analytics, CatalogItem, FloristProfile, FloristSalaryEntry, StockBatch, StockMovement, Supplier } from "@/lib/types";
+import Drawer from "@/components/Drawer";
+import DatePicker from "@/components/DatePicker";
+import Select from "@/components/Select";
+import { Field } from "@/components/Modal";
+import { Plus, Pencil } from "lucide-react";
+import type { Accounting, Analytics, CatalogItem, FloristProfile, FloristSalaryEntry, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
+
+const METHOD_OPTS: { value: SupplierPaymentMethod; label: string }[] = [
+  { value: "cash", label: "Naqd" }, { value: "card", label: "Karta" }, { value: "transfer", label: "O'tkazma" },
+];
+/** qarz rangi: 0 → sage, qisman → amber, katta → rose */
+const debtTone = (outstanding: number, purchase: number) => outstanding <= 0 ? "var(--success-ink)" : (purchase > 0 && outstanding / purchase > 0.5) ? "var(--danger-ink)" : "var(--warning-ink)";
 
 /**
  * HISOB-KITOB — pulning YAGONA sahifasi (owner shu yerda "yashaydi").
@@ -70,10 +82,10 @@ export default function HisobKitobPage() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [payments, setPayments] = useState<SupplierPayment[]>([]);
   const [waste, setWaste] = useState<StockMovement[]>([]);
   const [prod, setProd] = useState<Analytics["florist_production_stats"]>([]);
   const [salary, setSalary] = useState<FloristSalaryEntry[]>([]);
-  const [payAvailable, setPayAvailable] = useState(false);
   const [err, setErr] = useState("");
 
   const [catSort, setCatSort] = useState<SortKey>("net");
@@ -83,6 +95,8 @@ export default function HisobKitobPage() {
   const [openFlo, setOpenFlo] = useState<number | null>(null);
   const [wasteOpen, setWasteOpen] = useState(false);
   const [includeTest, setIncludeTest] = useState(false); // dev-toggle: ZZZ_TEST_ yozuvlarni qo'shish
+  const [supSort, setSupSort] = useState<"outstanding" | "purchase" | "last">("outstanding");
+  const [payDrawer, setPayDrawer] = useState<{ supplierId: number; edit?: SupplierPayment } | null>(null);
 
   const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
   const to = dateRange ? dateRange.to : ymd(new Date());
@@ -93,11 +107,17 @@ export default function HisobKitobPage() {
     api.catalog().then(setCatalog).catch(() => setCatalog([]));
     stockBatchesCached().then(setBatches).catch(() => setBatches([]));
     api.suppliers().then(setSuppliers).catch(() => setSuppliers([]));
+    api.supplierPayments().then(setPayments).catch(() => setPayments([]));
     api.stockMovements({ movement_type: "waste", created_at_after: from, created_at_before: dateBeforeParam(to), page_size: 200 }).then(setWaste).catch(() => setWaste([]));
     api.analytics({ from, to }).then((a) => setProd(a.florist_production_stats ?? [])).catch(() => setProd([]));
     api.floristSalary().then(setSalary).catch(() => setSalary([]));
-    api.supplierPayments().then(() => setPayAvailable(true)).catch(() => setPayAvailable(false));
   }, [visible, from, to]);
+
+  // to'lov CRUD dan keyin — suppliers (rollup) va payments qayta yuklanadi
+  const refreshSuppliers = useCallback(() => {
+    api.suppliers().then(setSuppliers).catch(() => {});
+    api.supplierPayments().then(setPayments).catch(() => {});
+  }, []);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load);
@@ -130,24 +150,35 @@ export default function HisobKitobPage() {
   }, [catRows]);
 
   // ── Section 1: yetkazib beruvchilar ──────────────────────────────
+  const paymentsBySupplier = useMemo(() => {
+    const m = new Map<number, SupplierPayment[]>();
+    for (const p of payments) { const arr = m.get(p.supplier) ?? []; arr.push(p); m.set(p.supplier, arr); }
+    return m;
+  }, [payments]);
+
   const supplierData = useMemo(() => {
+    // TUSHUM/FOYDA/CHIQIT — klient atributsiyasi (cost-share); XARID/TO'LOV/QARZ — SERVER rollup
     const allocs = sales.flatMap((s) => saleLineAllocations(s, catalogById.get(s.catalog_id)));
-    const byBatchSupplier = new Map<number, number>(); // batchId → supplierId
-    for (const b of cleanBatches) if (b.supplier != null) byBatchSupplier.set(b.id, b.supplier);
-    type Agg = { revenue: number; cost: number; receivedStems: number; purchase: number; wasteStems: number; wasteValue: number; batches: StockBatch[] };
-    const agg = new Map<number, Agg>();
-    const ensure = (id: number): Agg => { let a = agg.get(id); if (!a) { a = { revenue: 0, cost: 0, receivedStems: 0, purchase: 0, wasteStems: 0, wasteValue: 0, batches: [] }; agg.set(id, a); } return a; };
-    for (const b of cleanBatches) if (b.supplier != null) { const a = ensure(b.supplier); a.receivedStems += b.received_stems; a.purchase += b.received_stems * num(b.cost_per_stem); a.batches.push(b); }
-    for (const l of allocs) if (l.supplierId != null) { const a = ensure(l.supplierId); a.revenue += l.revenue; a.cost += l.cost; }
-    for (const m of cleanWaste) { const sid = m.batch_detail?.supplier ?? null; if (sid != null) { const a = ensure(sid); const q = Math.abs(m.quantity_stems); a.wasteStems += q; a.wasteValue += q * num(m.batch_detail?.cost_per_stem); } }
-    const supById = new Map(suppliers.map((s) => [s.id, s]));
-    const rows = Array.from(agg.entries()).map(([id, a]) => {
+    type Attr = { revenue: number; cost: number; wasteStems: number; wasteCost: number };
+    const attr = new Map<number, Attr>();
+    const ens = (id: number): Attr => { let a = attr.get(id); if (!a) { a = { revenue: 0, cost: 0, wasteStems: 0, wasteCost: 0 }; attr.set(id, a); } return a; };
+    for (const l of allocs) if (l.supplierId != null) { const a = ens(l.supplierId); a.revenue += l.revenue; a.cost += l.cost; }
+    for (const m of cleanWaste) { const sid = m.batch_detail?.supplier ?? null; if (sid != null) { const a = ens(sid); a.wasteStems += Math.abs(m.quantity_stems); a.wasteCost += num(m.cost_value); } }
+    const rows = suppliers.map((s) => {
+      const a = attr.get(s.id) ?? { revenue: 0, cost: 0, wasteStems: 0, wasteCost: 0 };
       const profit = a.revenue - a.cost;
-      return { id, name: supById.get(id)?.name ?? `#${id}`, ...a, profit, margin: a.revenue ? (profit / a.revenue) * 100 : 0, wastePct: a.receivedStems ? (a.wasteStems / a.receivedStems) * 100 : 0 };
-    }).sort((x, y) => y.purchase - x.purchase);
-    const anySupplier = cleanBatches.some((b) => b.supplier != null);
-    return { rows, anySupplier };
-  }, [sales, catalogById, cleanBatches, cleanWaste, suppliers]);
+      return {
+        id: s.id, name: s.name,
+        purchase: num(s.purchase_total), paid: num(s.paid_total), outstanding: num(s.outstanding), lastPaymentAt: s.last_payment_at ?? null,
+        revenue: a.revenue, cost: a.cost, profit, margin: a.revenue ? (profit / a.revenue) * 100 : 0,
+        wasteStems: a.wasteStems, wasteCost: a.wasteCost,
+      };
+    });
+    rows.sort((x, y) => supSort === "purchase" ? y.purchase - x.purchase
+      : supSort === "last" ? (+new Date(y.lastPaymentAt ?? 0)) - (+new Date(x.lastPaymentAt ?? 0))
+      : y.outstanding - x.outstanding);
+    return { rows, anySupplier: suppliers.length > 0 };
+  }, [sales, catalogById, cleanWaste, suppliers, supSort]);
 
   // ── Section 3: gul turlari (variant) ─────────────────────────────
   const variantRows = useMemo(() => {
@@ -162,7 +193,7 @@ export default function HisobKitobPage() {
   }, [cleanBatches, sales, catalogById, cleanWaste]);
 
   // ── Section 4: xarajatlar taqsimoti ──────────────────────────────
-  const breakdown = useMemo(() => costBreakdown(sales, catalogById, cleanWaste, num(acc?.summary.discount_total)), [sales, catalogById, cleanWaste, acc]);
+  const breakdown = useMemo(() => costBreakdown(sales, cleanWaste, num(acc?.summary.discount_total)), [sales, cleanWaste, acc]);
 
   // ── Section 5: floristlar ────────────────────────────────────────
   const floristRows = useMemo(() => {
@@ -181,7 +212,7 @@ export default function HisobKitobPage() {
   const salaryByFlo = useMemo(() => { const m = new Map<number, FloristSalaryEntry[]>(); for (const e of salary) { const arr = m.get(e.florist) ?? []; arr.push(e); m.set(e.florist, arr); } return m; }, [salary]);
 
   // ── Excel eksport qatorlari ──────────────────────────────────────
-  const supplierExport = (): X.SupplierRow[] => supplierData.rows.map((r) => ({ name: r.name, receivedStems: r.receivedStems, purchase: r.purchase, paid: payAvailable ? 0 : null, debt: payAvailable ? r.purchase : null, revenue: r.revenue, profit: r.profit, margin: Math.round(r.margin), wasteStems: r.wasteStems, wasteValue: r.wasteValue }));
+  const supplierExport = (): X.SupplierRow[] => supplierData.rows.map((r) => ({ name: r.name, receivedStems: 0, purchase: r.purchase, paid: r.paid, debt: r.outstanding, revenue: r.revenue, profit: r.profit, margin: Math.round(r.margin), wasteStems: r.wasteStems, wasteValue: r.wasteCost }));
   const catalogExport = (): X.CatalogProfitRow[] => catRows.map(({ s, p }) => ({ name: s.catalog_name, kind: KIND_LABEL[s.catalog_kind] ?? s.catalog_kind, arrangement: ARRANGEMENT_LABEL[s.arrangement_type as keyof typeof ARRANGEMENT_LABEL] ?? s.arrangement_type, volume: s.volume ? VOLUME_LABEL[s.volume] : "—", florist: s.florist_name, soldAt: fmtDate(s.sold_at), qty: s.quantity, sale: p.sale, cost: p.cost, discount: p.discount, net: p.net, margin: Math.round(p.margin) }));
   const variantExport = (): X.VariantRow[] => variantRows.map((r) => ({ name: r.name, purchasedStems: r.purchasedStems, purchaseSum: r.purchaseSum, soldStems: r.soldStems, wasteStems: r.wasteStems, wasteValue: r.wasteValue, revenue: r.revenue, profit: r.profit, margin: Math.round(r.margin) }));
   const floristExport = (): X.FloristRow[] => floristRows.map((r) => ({ name: r.name, staffType: r.staffType, standard: r.standard, custom: r.custom, productionValue: r.productionValue, salary: r.salary, avgPerItem: Math.round(r.avgPerItem), totalProfit: r.totalProfit }));
@@ -198,6 +229,11 @@ export default function HisobKitobPage() {
   };
   const doExportAll = () => X.exportAll([X.supplierSheet(supplierExport()), X.catalogSheet(catalogExport()), X.variantSheet(variantExport()), X.breakdownSheet(breakdownExport()), X.floristSheet(floristExport())], from, to).then(() => showToast("✓ Barchasi yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
   const doExport = (label: string, sheet: () => import("@/lib/xlsx").SheetDef) => X.exportSection(label, sheet(), from, to).then(() => showToast("✓ Excel yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
+
+  const deletePayment = async (p: SupplierPayment) => {
+    try { await api.deleteSupplierPayment(p.id); showToast("✓ To'lov o'chirildi"); refreshSuppliers(); }
+    catch (e) { showToast(e instanceof ApiError ? e.message : "O'chirib bo'lmadi"); }
+  };
 
   if (!visible) return <div className="mt-10"><EmptyState title="Ruxsat yo'q" sub="Hisob-kitobni ko'rish uchun ruxsatingiz yo'q." /></div>;
   if (err) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--danger-ink)" }}>{err}</p>;
@@ -233,7 +269,7 @@ export default function HisobKitobPage() {
           { label: "Umumiy savdo", v: fmt(s.total_sales), sub: `${s.total_quantity} ta sotuv` },
           { label: "Sof foyda", v: fmt(s.net_profit), sub: `tannarx ${fmt(s.cost_total)}`, hue: profitTone(num(s.net_profit), num(s.total_sales) ? (num(s.net_profit) / num(s.total_sales)) * 100 : 0) },
           { label: "Chegirmalar", v: fmt(s.discount_total), sub: `${s.discounted_sales_count} ta sotuvda` },
-          { label: "Chiqit yo'qotishi", v: fmt(wasteValue(cleanWaste).value), sub: `${wasteValue(cleanWaste).stems} dona`, hue: "var(--danger-ink)" },
+          { label: "Chiqit yo'qotishi", v: fmt(wasteTotals(cleanWaste).cost), sub: `${wasteTotals(cleanWaste).stems} dona`, hue: "var(--danger-ink)" },
         ].map((k) => (
           <div key={k.label} className="glass !rounded-[16px] p-4">
             <div className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>{k.label}</div>
@@ -243,66 +279,97 @@ export default function HisobKitobPage() {
         ))}
       </div>
 
-      {/* ═══ SECTION 1 — YETKAZIB BERUVCHILAR ═══ */}
-      <SectionCard n={1} icon={<Package size={18} strokeWidth={2} />} title="Yetkazib beruvchilar" sub="xarid, tushum, foyda va chiqit — har biri partiyalariga ochiladi" onExport={supplierData.rows.length ? () => doExport("Yetkazib_beruvchilar", () => X.supplierSheet(supplierExport())) : undefined}>
+      {/* ═══ SECTION 1 — YETKAZIB BERUVCHILAR (to'lovlar bilan) ═══ */}
+      <SectionCard n={1} icon={<Package size={18} strokeWidth={2} />} title="Yetkazib beruvchilar" sub="qarz, to'lovlar, tushum va foyda — qatorni ochib to'lovlar tarixini ko'ring" onExport={supplierData.rows.length ? () => doExport("Yetkazib_beruvchilar", () => X.supplierSheet(supplierExport())) : undefined}>
         {!supplierData.anySupplier ? (
           <div className="rounded-[14px] border border-dashed p-6 text-center" style={{ borderColor: "var(--border)" }}>
-            <p className="text-[14px] font-bold">Partiyalarga yetkazib beruvchi biriktirilmagan</p>
-            <p className="mx-auto mt-1 max-w-md text-[13px]" style={{ color: "var(--muted)" }}>Xarid va tushumni yetkazib beruvchi bo&apos;yicha ko&apos;rish uchun sklad partiyalarига yetkazib beruvchini biriktiring.</p>
-            <Link href="/sklad?tab=partiyalar" className="mt-3 inline-block rounded-[11px] px-4 py-2 text-[13px] font-bold text-white" style={{ background: "var(--primary)" }}>Skladga o&apos;tish →</Link>
+            <p className="text-[14px] font-bold">Yetkazib beruvchi yo&apos;q</p>
+            <p className="mx-auto mt-1 max-w-md text-[13px]" style={{ color: "var(--muted)" }}>Xarid, qarz va to&apos;lovlarni ko&apos;rish uchun avval yetkazib beruvchi qo&apos;shing va sklad partiyalariga biriktiring.</p>
+            <Link href="/suppliers" className="mt-3 inline-block rounded-[11px] px-4 py-2 text-[13px] font-bold text-white" style={{ background: "var(--primary)" }}>Yetkazib beruvchilar →</Link>
           </div>
         ) : (
-          <div className="overflow-x-auto thin-scroll">
-            <table className="w-full min-w-[860px] border-collapse text-[13px]">
-              <thead>
-                <tr className="text-left" style={{ color: "var(--muted)" }}>
-                  <th className="px-2 py-2 font-semibold">Yetkazib beruvchi</th>
-                  <th className="px-2 py-2 text-right font-semibold">Olingan</th>
-                  <th className="px-2 py-2 text-right font-semibold">Xarid summasi</th>
-                  <th className="px-2 py-2 text-right font-semibold">To&apos;langan</th>
-                  <th className="px-2 py-2 text-right font-semibold">Qarz</th>
-                  <th className="px-2 py-2 text-right font-semibold">Tushum<Tip text="Sotuv summasi har bir gul qatoriga tannarx ulushi bo'yicha taqsimlanadi." /></th>
-                  <th className="px-2 py-2 text-right font-semibold">Foyda / Marja</th>
-                  <th className="px-2 py-2 text-right font-semibold">Chiqit</th>
-                  <th className="w-6" />
-                </tr>
-              </thead>
-              <tbody>
-                {supplierData.rows.map((r) => (
-                  <FragmentRows key={r.id} open={openSup === r.id}
-                    row={
-                      <tr onClick={() => setOpenSup(openSup === r.id ? null : r.id)} className="cursor-pointer border-t transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--line2)" }}>
-                        <td className="px-2 py-2.5 font-bold">{r.name}</td>
-                        <td className="px-2 py-2.5 text-right tabular-nums">{r.receivedStems.toLocaleString("ru")} dona</td>
-                        <td className="px-2 py-2.5 text-right"><Money v={r.purchase} /></td>
-                        <td className="px-2 py-2.5 text-right" style={{ color: "var(--muted)" }}>{payAvailable ? fmt(0) : "—"}</td>
-                        <td className="px-2 py-2.5 text-right" style={{ color: "var(--muted)" }}>{payAvailable ? <Money v={r.purchase} /> : <span className="text-[11px] font-semibold italic">Qarz hisobi tez orada</span>}</td>
-                        <td className="px-2 py-2.5 text-right"><Money v={r.revenue} /></td>
-                        <td className="px-2 py-2.5 text-right"><Money v={r.profit} tone={profitTone(r.profit, r.margin)} bold /> <span className="text-[11px]" style={{ color: "var(--muted)" }}>{Math.round(r.margin)}%</span></td>
-                        <td className="px-2 py-2.5 text-right" style={{ color: "var(--danger-ink)" }}>{r.wasteStems ? `${fmt(r.wasteValue)} · ${Math.round(r.wastePct)}%` : "—"}</td>
-                        <td className="px-2 text-right"><ChevronRight size={15} className={`transition-transform ${openSup === r.id ? "rotate-90" : ""}`} style={{ color: "var(--muted)" }} /></td>
-                      </tr>
-                    }
-                    detail={
-                      <div className="px-2 py-2">
-                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Partiyalar</div>
-                        <div className="flex flex-col gap-1">
-                          {r.batches.map((b) => (
-                            <div key={b.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5" style={{ background: "var(--surface-2)" }}>
-                              <span className="min-w-0 truncate">№{b.batch_number} · {b.variant_detail?.flower_detail?.name_uz} {b.variant_detail?.name_uz}</span>
-                              <span className="shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)} qoldiq · tannarx {fmt(b.cost_per_stem)}/dona</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    }
-                    cols={9}
-                  />
+          <>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1 rounded-[11px] p-1" style={{ background: "var(--surface-2)" }}>
+                {([["outstanding", "Qarz"], ["purchase", "Xarid"], ["last", "Oxirgi to'lov"]] as [typeof supSort, string][]).map(([k, lbl]) => (
+                  <button key={k} onClick={() => setSupSort(k)} className="rounded-[8px] px-2.5 py-1 text-[12px] font-bold transition-colors" style={{ background: supSort === k ? "var(--surface-solid)" : "transparent", color: supSort === k ? "var(--primary)" : "var(--muted)" }}>{lbl}</button>
                 ))}
-              </tbody>
-            </table>
-            {payAvailable ? null : <p className="mt-2 text-[11.5px]" style={{ color: "var(--muted)" }}>To&apos;langan / Qarz — backend <code>/supplier-payments/</code> qo&apos;shilgach avtomatik yonadi. Hozircha xarid summasi ko&apos;rsatilmoqda.</p>}
-          </div>
+              </div>
+              <button onClick={() => setPayDrawer({ supplierId: supplierData.rows[0]?.id ?? 0 })} className="flex items-center gap-1.5 rounded-[11px] px-3 py-1.5 text-[12.5px] font-bold text-white transition-opacity hover:opacity-90" style={{ background: "var(--primary)" }}>
+                <Plus size={15} strokeWidth={2.2} /> To&apos;lov qo&apos;shish
+              </button>
+            </div>
+            <div className="overflow-x-auto thin-scroll">
+              <table className="w-full min-w-[900px] border-collapse text-[13px]">
+                <thead>
+                  <tr className="text-left" style={{ color: "var(--muted)" }}>
+                    <th className="px-2 py-2 font-semibold">Yetkazib beruvchi</th>
+                    <th className="px-2 py-2 text-right font-semibold">Xarid summasi</th>
+                    <th className="px-2 py-2 text-right font-semibold">To&apos;langan</th>
+                    <th className="px-2 py-2 text-right font-semibold">QARZ</th>
+                    <th className="px-2 py-2 text-right font-semibold">Oxirgi to&apos;lov</th>
+                    <th className="px-2 py-2 text-right font-semibold">Tushum<Tip text="Sotuv summasi har bir gul qatoriga tannarx ulushi bo'yicha taqsimlanadi." /></th>
+                    <th className="px-2 py-2 text-right font-semibold">Foyda</th>
+                    <th className="px-2 py-2 text-right font-semibold">Chiqit</th>
+                    <th className="w-6" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {supplierData.rows.map((r) => {
+                    const pays = paymentsBySupplier.get(r.id) ?? [];
+                    return (
+                    <FragmentRows key={r.id} open={openSup === r.id}
+                      row={
+                        <tr onClick={() => setOpenSup(openSup === r.id ? null : r.id)} className="cursor-pointer border-t transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--line2)" }}>
+                          <td className="px-2 py-2.5 font-bold">{r.name}</td>
+                          <td className="px-2 py-2.5 text-right"><Money v={r.purchase} /></td>
+                          <td className="px-2 py-2.5 text-right" style={{ color: "var(--text-2)" }}><Money v={r.paid} /></td>
+                          <td className="px-2 py-2.5 text-right"><Money v={r.outstanding} tone={debtTone(r.outstanding, r.purchase)} bold /></td>
+                          <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{r.lastPaymentAt ? fmtDate(r.lastPaymentAt) : "—"}</td>
+                          <td className="px-2 py-2.5 text-right"><Money v={r.revenue} /></td>
+                          <td className="px-2 py-2.5 text-right"><Money v={r.profit} tone={profitTone(r.profit, r.margin)} bold /> <span className="text-[11px]" style={{ color: "var(--muted)" }}>{r.revenue ? `${Math.round(r.margin)}%` : ""}</span></td>
+                          <td className="px-2 py-2.5 text-right" style={{ color: r.wasteStems ? "var(--danger-ink)" : "var(--muted)" }}>{r.wasteStems ? fmt(r.wasteCost) : "—"}</td>
+                          <td className="px-2 text-right"><ChevronRight size={15} className={`transition-transform ${openSup === r.id ? "rotate-90" : ""}`} style={{ color: "var(--muted)" }} /></td>
+                        </tr>
+                      }
+                      detail={
+                        <div className="px-3 py-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>To&apos;lovlar tarixi</span>
+                            <button onClick={() => setPayDrawer({ supplierId: r.id })} className="flex items-center gap-1 rounded-[9px] border px-2 py-1 text-[11.5px] font-bold" style={{ borderColor: "var(--border-strong)", color: "var(--primary)" }}><Plus size={12} strokeWidth={2.4} /> To&apos;lov</button>
+                          </div>
+                          {pays.length === 0 ? <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>Hali to&apos;lov yo&apos;q.</p> : (
+                            <div className="flex flex-col gap-1">
+                              {pays.map((p) => (
+                                <div key={p.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span className="tabular-nums font-semibold">{fmtDate(p.paid_at)}</span>
+                                    <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: "var(--hover)", color: "var(--text-2)" }}>{p.method_label}</span>
+                                    {p.note && <span className="truncate" style={{ color: "var(--muted)" }}>{p.note}</span>}
+                                    {p.created_by_detail && <span className="shrink-0 text-[11px]" style={{ color: "var(--muted)" }}>· {[p.created_by_detail.first_name, p.created_by_detail.last_name].filter(Boolean).join(" ") || p.created_by_detail.username}</span>}
+                                  </span>
+                                  <span className="flex shrink-0 items-center gap-2">
+                                    <b className="tabular-nums">{fmt(p.amount)}</b>
+                                    <button onClick={() => setPayDrawer({ supplierId: r.id, edit: p })} className="opacity-60 hover:opacity-100" title="Tahrirlash"><Pencil size={13} /></button>
+                                    <button onClick={() => deletePayment(p)} className="opacity-60 hover:opacity-100" style={{ color: "var(--danger-ink)" }} title="O'chirish"><Trash2 size={13} /></button>
+                                  </span>
+                                </div>
+                              ))}
+                              <div className="mt-1 flex items-center justify-between px-2.5 text-[12.5px] font-bold">
+                                <span>Qoldiq (qarz)</span>
+                                <span className="tabular-nums" style={{ color: debtTone(r.outstanding, r.purchase) }}>{fmt(r.outstanding)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      }
+                      cols={9}
+                    />
+                  ); })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </SectionCard>
 
@@ -367,7 +434,7 @@ export default function HisobKitobPage() {
                         <td className="px-2 text-right"><ChevronRight size={15} className={`transition-transform ${openCat === sale.history_id ? "rotate-90" : ""}`} style={{ color: "var(--muted)" }} /></td>
                       </tr>
                     }
-                    detail={<CatalogDetail sale={sale} item={item} net={p.net} cost={p.cost} />}
+                    detail={<CatalogDetail sale={sale} item={item} net={p.net} />}
                     cols={8}
                   />
                 ))}
@@ -411,9 +478,9 @@ export default function HisobKitobPage() {
       <SectionCard n={4} icon={<TrendingDown size={18} strokeWidth={2} />} title="Xarajatlar taqsimoti" sub="pul qayerga ketdi — gullar, materiallar, florist haqi, chiqit, chegirmalar" onExport={() => doExport("Xarajatlar", () => X.breakdownSheet(breakdownExport()))}>
         {(() => {
           const items = [
-            { key: "flower", label: "Gullar tannarxi", v: breakdown.flower, tip: "Sotilgan buketlar kompozitsiyasi: Σ dona × cost_per_stem.", hue: "var(--chart-1)" },
-            { key: "material", label: "Materiallar tannarxi", v: breakdown.material, tip: "Σ material soni × cost_price.", hue: "var(--chart-2)" },
-            { key: "fee", label: "Florist haqi", v: breakdown.fee, tip: "Σ florist_fee × sotilgan soni.", hue: "var(--chart-3)" },
+            { key: "flower", label: "Gullar tannarxi", v: breakdown.flower, tip: "Server: sotuvlarning flower_cost yig'indisi (Σ dona × cost_per_stem).", hue: "var(--chart-1)" },
+            { key: "material", label: "Materiallar tannarxi", v: breakdown.material, tip: "Server: sotuvlarning material_cost yig'indisi.", hue: "var(--chart-2)" },
+            { key: "fee", label: "Florist haqi", v: breakdown.fee, tip: "Server: sotuvlarning florist_fee_cost yig'indisi.", hue: "var(--chart-3)" },
           ];
           const cogs = breakdown.flower + breakdown.material + breakdown.fee || 1;
           return (
@@ -422,7 +489,7 @@ export default function HisobKitobPage() {
               <div className="mb-1 flex h-4 overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
                 {items.map((it) => <div key={it.key} title={`${it.label}: ${fmt(it.v)}`} style={{ width: `${(it.v / cogs) * 100}%`, background: it.hue }} />)}
               </div>
-              <p className="mb-4 text-[11.5px]" style={{ color: "var(--muted)" }}>Tannarx tarkibi (COGS): {fmt(breakdown.cogsServer)} <Mismatch on={breakdown.diverged} label="COGS split" /></p>
+              <p className="mb-4 text-[11.5px]" style={{ color: "var(--muted)" }}>Tannarx tarkibi (COGS): {fmt(breakdown.cogsServer)}<Tip text="Backend flower_cost + material_cost + florist_fee_cost === cost_total ni aniq kafolatlaydi." /></p>
               <div className="flex flex-col gap-1.5">
                 {items.map((it) => (
                   <div key={it.key} className="flex items-center justify-between gap-3 rounded-[11px] px-3 py-2" style={{ background: "var(--surface-2)" }}>
@@ -433,8 +500,11 @@ export default function HisobKitobPage() {
                 {/* CHIQIT — alohida, ko'zga tashlangan (real xarajat drayveri) + kengaytiriladi */}
                 <div className="rounded-[11px] border-[1.5px] px-3 py-2" style={{ borderColor: "var(--danger-ink)", background: "color-mix(in srgb, var(--danger-ink) 7%, transparent)" }}>
                   <button onClick={() => setWasteOpen(!wasteOpen)} className="flex w-full items-center justify-between gap-3 text-left">
-                    <span className="flex items-center gap-2 text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}><TrendingDown size={15} strokeWidth={2.2} /> Chiqit yo&apos;qotishi<Tip text="Chiqit harakatlari: Σ dona × partiya cost_per_stem. Bu COGS'ga kirmaydi — alohida yo'qotish." /></span>
-                    <span className="flex items-center gap-2 text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}><Money v={breakdown.waste} tone="var(--danger-ink)" bold /> · {breakdown.wasteStems} dona <ChevronRight size={14} className={`transition-transform ${wasteOpen ? "rotate-90" : ""}`} /></span>
+                    <span className="flex items-center gap-2 text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}><TrendingDown size={15} strokeWidth={2.2} /> Chiqit yo&apos;qotishi<Tip text="Server cost_value yig'indisi (chiqit harakatlari). COGS'ga kirmaydi — alohida yo'qotish. ZZZ_TEST_ partiyalar chiqarilgan." /></span>
+                    <span className="flex flex-col items-end text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}>
+                      <span className="flex items-center gap-2"><Money v={breakdown.waste} tone="var(--danger-ink)" bold /> · {breakdown.wasteStems} dona <ChevronRight size={14} className={`transition-transform ${wasteOpen ? "rotate-90" : ""}`} /></span>
+                      {breakdown.wasteSale > 0 && <span className="text-[11px] font-semibold" style={{ color: "var(--danger-ink)", opacity: 0.8 }}>daromadda {fmt(breakdown.wasteSale)} yo&apos;qoldi</span>}
+                    </span>
                   </button>
                   {wasteOpen && (
                     <div className="mt-2 flex flex-col gap-1 border-t pt-2" style={{ borderColor: "color-mix(in srgb, var(--danger-ink) 20%, transparent)" }}>
@@ -442,7 +512,7 @@ export default function HisobKitobPage() {
                       {cleanWaste.map((m) => (
                         <div key={m.id} className="flex items-center justify-between gap-2 text-[12.5px]">
                           <span className="min-w-0 truncate">№{m.batch_detail?.batch_number} · {m.batch_detail?.variant_detail?.flower_detail?.name_uz} {m.batch_detail?.variant_detail?.name_uz}{m.reason ? ` — ${m.reason}` : ""}</span>
-                          <span className="shrink-0 tabular-nums" style={{ color: "var(--danger-ink)" }}>{Math.abs(m.quantity_stems)} dona · {fmt(Math.abs(m.quantity_stems) * num(m.batch_detail?.cost_per_stem))}</span>
+                          <span className="shrink-0 tabular-nums" style={{ color: "var(--danger-ink)" }}>{Math.abs(m.quantity_stems)} dona · {fmt(m.cost_value)}{num(m.sale_value) > 0 ? <span style={{ opacity: 0.7 }}> · sotuvda {fmt(m.sale_value)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
@@ -514,7 +584,85 @@ export default function HisobKitobPage() {
           </div>
         )}
       </SectionCard>
+
+      {payDrawer && (
+        <PaymentDrawer
+          init={payDrawer}
+          suppliers={suppliers}
+          onClose={() => setPayDrawer(null)}
+          onSaved={() => { setPayDrawer(null); refreshSuppliers(); }}
+          showToast={showToast}
+        />
+      )}
     </div>
+  );
+}
+
+/** To'lov qo'shish / tahrirlash — o'ng drawer. */
+function PaymentDrawer({ init, suppliers, onClose, onSaved, showToast }: {
+  init: { supplierId: number; edit?: SupplierPayment };
+  suppliers: Supplier[];
+  onClose: () => void;
+  onSaved: () => void;
+  showToast: (m: string) => void;
+}) {
+  const e = init.edit;
+  const [supplier, setSupplier] = useState<number>(e?.supplier ?? init.supplierId);
+  const [amount, setAmount] = useState<string>(e ? String(Math.round(num(e.amount))) : "");
+  const [paidAt, setPaidAt] = useState<string>(e?.paid_at ?? ymd(new Date()));
+  const [method, setMethod] = useState<SupplierPaymentMethod>(e?.method ?? "cash");
+  const [note, setNote] = useState<string>(e?.note ?? "");
+  const [busy, setBusy] = useState(false);
+  const [errs, setErrs] = useState<Record<string, string>>({});
+
+  const save = async () => {
+    if (!(+amount > 0)) { setErrs({ amount: "To'lov summasi noldan katta bo'lishi kerak." }); return; }
+    if (!supplier) { setErrs({ supplier: "Yetkazib beruvchini tanlang." }); return; }
+    setBusy(true); setErrs({});
+    try {
+      const body = { supplier, amount: String(+amount), paid_at: paidAt, method, note };
+      if (e) await api.updateSupplierPayment(e.id, body);
+      else await api.createSupplierPayment(body);
+      showToast(e ? "✓ To'lov yangilandi" : "✓ To'lov qo'shildi");
+      onSaved();
+    } catch (err) {
+      if (err instanceof ApiError && err.fieldErrors) setErrs(err.fieldErrors);
+      showToast(err instanceof ApiError ? err.message : "Saqlab bo'lmadi");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Drawer onClose={onClose} width={440} title={e ? "To'lovni tahrirlash" : "To'lov qo'shish"} sub="yetkazib beruvchiga to'lov">
+      <div className="flex flex-col gap-3.5">
+        <Field label="Yetkazib beruvchi">
+          <Select value={supplier} onChange={(v) => setSupplier(+v)} placeholder="Tanlang" searchable
+            options={suppliers.map((s) => ({ value: s.id, label: s.name, hint: s.outstanding && +s.outstanding > 0 ? `qarz ${fmt(s.outstanding)}` : undefined }))} />
+          {errs.supplier && <p className="mt-1 text-[12px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.supplier}</p>}
+        </Field>
+        <Field label="Summa (so'm)">
+          <input className="inp" inputMode="numeric" value={amount} onChange={(ev) => { setAmount(ev.target.value.replace(/\D/g, "")); setErrs((x) => ({ ...x, amount: "" })); }} placeholder="Masalan: 5000000" autoFocus />
+          {errs.amount && <p className="mt-1 text-[12px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.amount}</p>}
+        </Field>
+        <Field label="To'lov sanasi">
+          <DatePicker value={paidAt} onChange={setPaidAt} ariaLabel="To'lov sanasi" />
+        </Field>
+        <Field label="To'lov turi">
+          <div className="flex gap-1 rounded-[12px] p-1" style={{ background: "var(--surface-2)" }}>
+            {METHOD_OPTS.map((m) => (
+              <button key={m.value} type="button" onClick={() => setMethod(m.value)} className="flex-1 rounded-[9px] py-1.5 text-[13px] font-bold transition-colors" style={{ background: method === m.value ? "var(--surface-solid)" : "transparent", color: method === m.value ? "var(--primary)" : "var(--muted)" }}>{m.label}</button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Izoh">
+          <input className="inp" value={note} onChange={(ev) => setNote(ev.target.value)} placeholder="Ixtiyoriy" />
+        </Field>
+        <div className="mt-1 flex gap-2.5">
+          <button onClick={onClose} className="btn-ghost flex-1">Bekor</button>
+          <button onClick={save} disabled={busy} className={clsx("btn-primary flex-1", busy && "btn-loading")}>Saqlash</button>
+        </div>
+      </div>
+    </Drawer>
   );
 }
 
@@ -532,40 +680,40 @@ function FragmentRows({ row, detail, open, cols }: { row: React.ReactNode; detai
   );
 }
 
-/** Section 2 detal — kompozitsiya (gul/partiya/tannarx) + materiallar + haq + reconcile. */
-function CatalogDetail({ sale, item, net, cost }: { sale: import("@/lib/types").AccountingSale; item?: CatalogItem; net: number; cost: number }) {
-  if (!item) return <div className="px-3 py-3 text-[12.5px]" style={{ color: "var(--muted)" }}>Kompozitsiya mavjud emas (katalog yozuvi o&apos;chirilgan). Server tannarxi: {fmt(sale.cost_total)}.</div>;
-  const split = unitCostSplit(item);
+/** Section 2 detal — kompozitsiya (gul/partiya/tannarx, ma'lumot uchun) + SERVER
+    tannarx ajratmasi (flower_cost/material_cost/florist_fee_cost — sotuv bo'yicha). */
+function CatalogDetail({ sale, item, net }: { sale: import("@/lib/types").AccountingSale; item?: CatalogItem; net: number }) {
   const qty = sale.quantity;
-  const clientCost = split.total * qty;
-  const diverged = Math.abs(clientCost - cost) > 2;
   return (
     <div className="px-3 py-3">
-      <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Tarkib (1 dona × {qty})</div>
-      <div className="flex flex-col gap-1">
-        {item.composition.map((c) => (
-          <div key={c.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
-            <span className="min-w-0 truncate">{c.batch_detail?.variant_detail?.flower_detail?.name_uz} {c.batch_detail?.variant_detail?.name_uz} · №{c.batch_detail?.batch_number}</span>
-            <span className="shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{c.quantity_stems} dona × {fmt(c.batch_detail?.cost_per_stem)} = {fmt(c.quantity_stems * num(c.batch_detail?.cost_per_stem))}</span>
+      {item ? (
+        <>
+          <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Tarkib (1 dona)</div>
+          <div className="flex flex-col gap-1">
+            {item.composition.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
+                <span className="min-w-0 truncate">{c.batch_detail?.variant_detail?.flower_detail?.name_uz} {c.batch_detail?.variant_detail?.name_uz} · №{c.batch_detail?.batch_number}</span>
+                <span className="shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{c.quantity_stems} dona × {fmt(c.batch_detail?.cost_per_stem)}/dona</span>
+              </div>
+            ))}
+            {(item.materials ?? []).map((m) => (
+              <div key={m.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
+                <span className="min-w-0 truncate">Material: {m.packaging_detail?.name_uz}</span>
+                <span className="shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{m.quantity} × {fmt(m.packaging_detail?.cost_price)}</span>
+              </div>
+            ))}
           </div>
-        ))}
-        {(item.materials ?? []).map((m) => (
-          <div key={m.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
-            <span className="min-w-0 truncate">Material: {m.packaging_detail?.name_uz}</span>
-            <span className="shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{m.quantity} × {fmt(m.packaging_detail?.cost_price)} = {fmt(m.quantity * num(m.packaging_detail?.cost_price))}</span>
-          </div>
-        ))}
-        <div className="flex items-center justify-between gap-2 px-2.5 py-1 text-[12.5px]">
-          <span style={{ color: "var(--text-2)" }}>Florist haqi (1 dona)</span>
-          <span className="tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(split.fee)}</span>
-        </div>
-      </div>
+        </>
+      ) : (
+        <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>Kompozitsiya mavjud emas (katalog yozuvi o&apos;chirilgan) — tannarx ajratmasi serverdan.</p>
+      )}
+      {/* SERVER tannarx ajratmasi (butun sotuv bo'yicha, × {qty}). flower+material+fee === cost_total (kafolat). */}
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-[12.5px]" style={{ borderColor: "var(--line2)" }}>
-        <span>Gullar: <b>{fmt(split.flower * qty)}</b></span>
-        <span>Materiallar: <b>{fmt(split.material * qty)}</b></span>
-        <span>Haq: <b>{fmt(split.fee * qty)}</b></span>
-        <span>Tannarx (klient): <b>{fmt(clientCost)}</b>{diverged && <span title="Server cost_total bilan farq — server qiymati ishlatiladi" style={{ color: "var(--danger-ink)" }}> ≠ server {fmt(cost)}</span>}</span>
-        <span>Sof foyda: <b style={{ color: profitTone(net, sale.sale_total ? (net / num(sale.sale_total)) * 100 : 0) }}>{fmt(net)}</b></span>
+        <span>Gullar: <b>{fmt(sale.flower_cost)}</b></span>
+        <span>Materiallar: <b>{fmt(sale.material_cost)}</b></span>
+        <span>Florist haqi: <b>{fmt(sale.florist_fee_cost)}</b></span>
+        <span>Tannarx: <b>{fmt(sale.cost_total)}</b><Tip text="Server: flower_cost + material_cost + florist_fee_cost === cost_total (aniq)." /></span>
+        <span>Sof foyda: <b style={{ color: profitTone(net, num(sale.sale_total) ? (net / num(sale.sale_total)) * 100 : 0) }}>{fmt(net)}</b></span>
       </div>
     </div>
   );

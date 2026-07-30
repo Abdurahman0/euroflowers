@@ -5,13 +5,16 @@ import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { initials, fmt, dateAfterParam, dateBeforeParam } from "@/lib/format";
-import { exportAllFlorists, exportFloristOwn } from "@/lib/exports";
+import { initials, fmt, dateAfterParam } from "@/lib/format";
 import { STAFF_LABEL } from "@/lib/inventory";
 import SearchInput from "@/components/SearchInput";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import FloristModal from "@/components/FloristModal";
+import FloristStatsView from "@/components/FloristStats";
+import Drawer from "@/components/Drawer";
+import DateChips from "@/components/DateChips";
+import type { FloristStats } from "@/lib/types";
 import VolumeRateMatrix from "@/components/VolumeRateMatrix";
 import SalaryLedger from "@/components/SalaryLedger";
 import AttendanceLedger from "@/components/AttendanceLedger";
@@ -32,18 +35,9 @@ function SalaryExport({ control }: { control: boolean }) {
   const run = async (which: "me" | "all") => {
     setBusy(which);
     try {
-      if (which === "all") {
-        const [entries, florists] = await Promise.all([
-          api.floristSalary({ created_at_after: from, created_at_before: dateBeforeParam(to), ordering: "-work_date" }),
-          api.florists({ is_active: true }),
-        ]);
-        if (!entries.length) { showToast("Tanlangan davrda oylik yozuvi yo'q"); return; }
-        await exportAllFlorists(entries, florists, from, to);
-      } else {
-        const me = await api.floristMe(); // florist bo'lmasa 404
-        const entries = await api.floristSalary({ florist: me.id, created_at_after: from, created_at_before: dateBeforeParam(to), ordering: "-work_date" });
-        await exportFloristOwn(entries, [me.user_detail?.first_name, me.user_detail?.last_name].filter(Boolean).join(" ") || me.user_detail?.username || `#${me.id}`, from, to);
-      }
+      // SERVER-tomon eksport (6 varaqli xlsx) — Content-Disposition'dagi fayl nomi bilan
+      if (which === "all") await api.exportFlorists({ date_from: from, date_to: to });
+      else await api.exportFlorist({ date_from: from, date_to: to }); // florist param yo'q → o'z hisoboti
       showToast("✓ Excel yuklab olindi");
     } catch (e) {
       const msg = e instanceof ApiError ? (e.status === 404 ? "Siz florist emassiz — o'z hisoboti faqat floristlar uchun" : e.message) : "Eksport qilib bo'lmadi";
@@ -82,6 +76,7 @@ export default function FloristlarPage() {
   const [form, setForm] = useState<{ open: boolean; edit: FloristProfile | null }>({ open: false, edit: null });
   const [confirmOff, setConfirmOff] = useState<FloristProfile | null>(null);
   const [busy, setBusy] = useState(false);
+  const [statFor, setStatFor] = useState<FloristProfile | null>(null); // batafsil statistika drawer
 
   const load = useCallback(() => {
     api.florists({ ordering: "user" }).then(setRows).catch((e) => showToast(e instanceof Error ? e.message : "Yuklashda xatolik"));
@@ -155,7 +150,7 @@ export default function FloristlarPage() {
           {filtered.map((fp) => {
             const isApp = fp.staff_type === "apprentice";
             return (
-              <article key={fp.id} className="glass group flex flex-col gap-3 !rounded-[18px] p-4" style={{ opacity: fp.is_active ? 1 : 0.55 }}>
+              <article key={fp.id} onClick={() => setStatFor(fp)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") setStatFor(fp); }} title="Batafsil statistika" className="glass card-hover group flex cursor-pointer flex-col gap-3 !rounded-[18px] p-4" style={{ opacity: fp.is_active ? 1 : 0.55 }}>
                 <div className="flex items-center gap-3">
                   <span className="avatar-lead flex h-11 w-11 shrink-0 -rotate-3 items-center justify-center rounded-[13px] text-[14px] font-bold">{initials(name(fp))}</span>
                   <div className="min-w-0 flex-1">
@@ -185,8 +180,8 @@ export default function FloristlarPage() {
                   </div>
                   {control && (
                     <span className="ml-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
-                      <button onClick={() => setForm({ open: true, edit: fp })} className="icon-btn !h-8 !w-8" title="Tahrirlash" aria-label={`${name(fp)} — tahrirlash`}><Pencil size={14} strokeWidth={1.75} /></button>
-                      <button onClick={() => setConfirmOff(fp)} className="icon-btn icon-btn-danger !h-8 !w-8" title={fp.is_active ? "Nofaollashtirish" : "Faollashtirish"} aria-label="Holatni o'zgartirish"><Trash2 size={14} strokeWidth={1.75} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setForm({ open: true, edit: fp }); }} className="icon-btn !h-8 !w-8" title="Tahrirlash" aria-label={`${name(fp)} — tahrirlash`}><Pencil size={14} strokeWidth={1.75} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmOff(fp); }} className="icon-btn icon-btn-danger !h-8 !w-8" title={fp.is_active ? "Nofaollashtirish" : "Faollashtirish"} aria-label="Holatni o'zgartirish"><Trash2 size={14} strokeWidth={1.75} /></button>
                     </span>
                   )}
                 </div>
@@ -195,6 +190,8 @@ export default function FloristlarPage() {
           })}
         </div>
       )}
+
+      {statFor && <FloristDetailDrawer florist={statFor} onClose={() => setStatFor(null)} />}
 
       {form.open && (
         <FloristModal
@@ -218,5 +215,39 @@ export default function FloristlarPage() {
         />
       )}
     </>
+  );
+}
+
+/** Florist batafsil statistikasi — o'ng drawer. /florists/{id}/stats/ + server Excel eksport. */
+function FloristDetailDrawer({ florist, onClose }: { florist: FloristProfile; onClose: () => void }) {
+  const { showToast, dateFilter, dateRange } = useStore();
+  const [stats, setStats] = useState<FloristStats | null>(null);
+  const [err, setErr] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
+  const to = dateRange ? dateRange.to : ymd(new Date());
+  const nm = florist.user_detail ? [florist.user_detail.first_name, florist.user_detail.last_name].filter(Boolean).join(" ") || florist.user_detail.username : `Florist #${florist.id}`;
+  useEffect(() => {
+    setStats(null); setErr("");
+    api.floristStats(florist.id, { from, to }).then(setStats).catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
+  }, [florist.id, from, to]);
+  const doExport = async () => {
+    setExporting(true);
+    try { await api.exportFlorist({ florist: florist.id, date_from: from, date_to: to }); showToast("✓ Excel yuklab olindi"); }
+    catch (e) { showToast(e instanceof ApiError ? e.message : "Eksport qilib bo'lmadi"); }
+    finally { setExporting(false); }
+  };
+  return (
+    <Drawer onClose={onClose} width={720} title={nm} sub="florist statistikasi (server)">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <DateChips />
+        <button onClick={doExport} disabled={exporting} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3 py-1.5 text-[12.5px] font-bold transition-colors hover:bg-[var(--hover)] disabled:opacity-60" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
+          <Download size={14} strokeWidth={2} /> {exporting ? "Yuklanmoqda…" : "Excel (6 varaq)"}
+        </button>
+      </div>
+      {err ? <p className="py-6 text-center text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}>{err}</p>
+        : !stats ? <p className="py-6 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>
+        : <FloristStatsView stats={stats} />}
+    </Drawer>
   );
 }

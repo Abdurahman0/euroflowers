@@ -98,47 +98,37 @@ export function profitTone(net: number, margin: number): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// UNIT COST SPLIT — bitta katalog birligi tannarxi: gul / material / florist haqi
+// WASTE TOTALS — SERVER qiymatlarini yig'adi (klient cost_per_stem matematikasi YO'Q).
+// Har harakatda backend `cost_value` (tannarx) va `sale_value` (yo'qolgan daromad)
+// beradi (0082). Guard filtri qatorlarga oldindan qo'llaniladi (ZZZ_TEST_).
 // ─────────────────────────────────────────────────────────────────────────
-export type CostSplit = { flower: number; material: number; fee: number; total: number };
+export type WasteTotals = { stems: number; cost: number; sale: number };
 
-/** Kompozitsiya (dona × cost_per_stem) + materiallar (soni × cost_price) + florist_fee. */
-export function unitCostSplit(item: Pick<CatalogItem, "composition" | "materials" | "florist_fee">): CostSplit {
-  const flower = (item.composition ?? []).reduce((t, c) => t + c.quantity_stems * num(c.batch_detail?.cost_per_stem), 0);
-  const material = (item.materials ?? []).reduce((t, m) => t + m.quantity * num(m.packaging_detail?.cost_price), 0);
-  const fee = num(item.florist_fee);
-  return { flower, material, fee, total: flower + material + fee };
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// WASTE VALUE — chiqit qiymati (partiya cost_per_stem bo'yicha)
-// ─────────────────────────────────────────────────────────────────────────
-export type WasteValue = { stems: number; value: number };
-
-export function wasteValue(movements: Pick<StockMovement, "quantity_stems" | "batch_detail">[]): WasteValue {
-  let stems = 0, value = 0;
+export function wasteTotals(movements: Pick<StockMovement, "quantity_stems" | "cost_value" | "sale_value">[]): WasteTotals {
+  let stems = 0, cost = 0, sale = 0;
   for (const m of movements) {
-    const q = Math.abs(m.quantity_stems);
-    stems += q;
-    value += q * num(m.batch_detail?.cost_per_stem);
+    stems += Math.abs(m.quantity_stems);
+    cost += num(m.cost_value);
+    sale += num(m.sale_value);
   }
-  return { stems, value };
+  return { stems, cost, sale };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// PERIOD COST BREAKDOWN — pul qayerga ketdi (Section 4)
+// PERIOD COST BREAKDOWN — pul qayerga ketdi (Section 4). Tannarx ajratmasi
+// SERVER per-sotuv maydonlaridan (flower_cost/material_cost/florist_fee_cost);
+// backend flower+material+fee === cost_total ni KAFOLATLAYDI — klient tuzatmaydi.
+// Chiqit — SERVER cost_value/sale_value yig'indisi (guard-filtrlangan harakatlar).
 // ─────────────────────────────────────────────────────────────────────────
 export type CostBreakdown = {
-  flower: number; material: number; fee: number;
-  cogsServer: number; clientCogs: number; diverged: boolean;
-  waste: number; wasteStems: number; discounts: number;
+  flower: number; material: number; fee: number; cogsServer: number;
+  waste: number; wasteStems: number; wasteSale: number; discounts: number;
   salesTotal: number; netProfit: number;
 };
 
 export function costBreakdown(
   sales: AccountingSale[],
-  itemsById: Map<number, CatalogItem>,
-  wasteMovements: Pick<StockMovement, "quantity_stems" | "batch_detail">[],
+  wasteMovements: Pick<StockMovement, "quantity_stems" | "cost_value" | "sale_value">[],
   discountTotal: number,
 ): CostBreakdown {
   let flower = 0, material = 0, fee = 0, cogsServer = 0, salesTotal = 0, netProfit = 0;
@@ -146,18 +136,12 @@ export function costBreakdown(
     salesTotal += num(s.sale_total);
     cogsServer += num(s.cost_total);
     netProfit += num(s.net_profit);
-    const item = itemsById.get(s.catalog_id);
-    if (item) {
-      const u = unitCostSplit(item);
-      flower += u.flower * s.quantity;
-      material += u.material * s.quantity;
-      fee += u.fee * s.quantity;
-    }
+    flower += num(s.flower_cost);
+    material += num(s.material_cost);
+    fee += num(s.florist_fee_cost);
   }
-  const clientCogs = flower + material + fee;
-  const rec = reconcile(cogsServer, clientCogs, "period COGS split", 2);
-  const w = wasteValue(wasteMovements);
-  return { flower, material, fee, cogsServer, clientCogs, diverged: rec.diverged, waste: w.value, wasteStems: w.stems, discounts: discountTotal, salesTotal, netProfit };
+  const w = wasteTotals(wasteMovements);
+  return { flower, material, fee, cogsServer, waste: w.cost, wasteStems: w.stems, wasteSale: w.sale, discounts: discountTotal, salesTotal, netProfit };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

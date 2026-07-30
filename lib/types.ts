@@ -191,10 +191,62 @@ export type Supplier = {
   /** faqat o'qish uchun statistika */
   batches_count: number;
   total_received_stems: number;
+  // hisob-kitob rollup'lari (backend 0082, read-only, ?ordering= bilan saralanadi)
+  purchase_total?: string;   // Σ received_stems × cost_per_stem
+  paid_total?: string;       // Σ SupplierPayment.amount
+  outstanding?: string;      // purchase_total − paid_total (qarz)
+  last_payment_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };
 export type SupplierInput = Partial<Pick<Supplier, "name" | "phone" | "notes" | "is_active">>;
+
+/** Yetkazib beruvchiga to'lov (backend: /api/supplier-payments/, on_delete=PROTECT). */
+export type SupplierPaymentMethod = "cash" | "card" | "transfer";
+export type SupplierPayment = {
+  id: number;
+  supplier: number;
+  amount: string;
+  paid_at: string;
+  method: SupplierPaymentMethod;
+  method_label: string; // "Naqd" | "Karta" | "O'tkazma" — tayyor yorliq
+  note: string;
+  supplier_detail?: { id: number; name: string; phone?: string };
+  created_by_detail?: { id: number; username: string; first_name?: string; last_name?: string };
+  created_at: string;
+  updated_at: string;
+};
+export type SupplierPaymentInput = { supplier: number; amount: string; paid_at?: string; method?: SupplierPaymentMethod; note?: string };
+
+/** Florist statistikasi — /florists/{id}/stats/ va /florists/me/dashboard/ bir xil shakl. */
+export type FloristStatsSalarySource = "catalog" | "custom_catalog" | "daily" | "manual";
+export type FloristStats = {
+  florist: { id: number; name: string; username: string; staff_type: StaffType; staff_type_label: string; phone: string; daily_pay: string; is_active: boolean };
+  period: { date_from: string | null; date_to: string | null };
+  summary: {
+    salary_total: string; salary_entries_count: number;
+    catalog_salary_total: string; daily_salary_total: string; manual_salary_total: string;
+    catalog_count: number; bouquet_count: number; basket_count: number;
+    standard_count: number; custom_count: number;
+    sold_quantity: number; unsold_quantity: number;
+    sale_revenue: string; avg_fee_per_item: string; attendance_days: number;
+  };
+  by_source: { source: FloristStatsSalarySource; source_label: string; count: number; amount: string }[];
+  by_arrangement: { arrangement_type: string; arrangement_label: string; count: number; amount: string; sold_quantity: number; sale_revenue: string }[];
+  by_volume: { arrangement_type: string; arrangement_label: string; volume: string; count: number; amount: string; sold_quantity: number; sale_revenue: string }[];
+  by_day: { work_date: string; count: number; amount: string; bouquets: number; baskets: number; sold_quantity: number; sale_revenue: string }[];
+  salary_entries: FloristStatsSalaryEntry[];
+  attendance: { id: number; work_date: string; check_in_at: string | null; check_out_at: string | null; source: string; source_label: string; note: string }[];
+};
+export type FloristStatsSalaryEntry = {
+  id: number; work_date: string; created_at: string;
+  source: FloristStatsSalarySource; source_label: string;
+  amount: string; note: string; added_by: string;
+  catalog_item_id: number | null; catalog_name: string; catalog_kind: CatalogKind | null; catalog_kind_label: string;
+  arrangement_type: string; arrangement_label: string; volume: string;
+  quantity_total: number | null; quantity_sold: number | null; listed_price: string | null;
+  sold_quantity: number; sale_revenue: string; last_sold_at: string | null; is_sold: boolean;
+};
 
 export type StockBatch = {
   id: number;
@@ -251,6 +303,9 @@ export type StockMovement = {
   reason: string;
   batch: number;
   performed_by: number | null;
+  // backend (0082) — barcha harakat turlarida: |dona| × cost_per_stem / sale_price_per_stem
+  cost_value?: string;
+  sale_value?: string;
 };
 
 export type CatalogStatus = "draft" | "available" | "reserved" | "sold" | "archived";
@@ -367,6 +422,10 @@ export type AccountingSummary = {
   total_quantity: number; standard_quantity: number; custom_quantity: number;
   discount_total: string; discounted_sales_count: number; discounted_quantity: number;
   cost_total: string; net_profit: string;
+  // backend tannarxni ajratib beradi (0082/0083): flower+material+fee === cost_total (aniq)
+  flower_cost_total?: string; material_cost_total?: string; florist_fee_cost_total?: string;
+  // davr chiqiti backendda hisoblanadi (test partiyalarni ham qamrab olishi mumkin — guard klientda)
+  waste_cost_total?: string; waste_stems?: number;
 };
 export type AccountingByKind = { catalog_kind: CatalogKind; quantity: number; sales: string; discount: string };
 export type AccountingByPayment = { payment_type: string; label: string; quantity: number; sales: string };
@@ -379,6 +438,8 @@ export type AccountingSale = {
   florist_id: number | null; florist_name: string;
   listed_unit_price: string; sold_unit_price: string; listed_total: string;
   sale_total: string; cost_total: string; net_profit: string;
+  // per-sotuv tannarx ajratmasi (backend, 0082): flower+material+fee === cost_total
+  flower_cost?: string; material_cost?: string; florist_fee_cost?: string;
   payment_type: string; payment_label: string;
   discount_amount: string; discount_percent: string; discount_reason: string; sold_by: string;
 };

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-  num, allocateByCost, reconcile, saleProfit, profitTone, unitCostSplit,
-  wasteValue, costBreakdown, saleLineAllocations, isTestRecord, excludeTest,
+  num, allocateByCost, reconcile, saleProfit, profitTone,
+  wasteTotals, costBreakdown, saleLineAllocations, isTestRecord, excludeTest,
 } from "./finance";
 import type { AccountingSale, CatalogItem, StockMovement } from "./types";
 
@@ -16,6 +16,8 @@ const item49 = {
 const sale49 = {
   history_id: 25, catalog_id: 49, quantity: 1,
   sale_total: "1500000", cost_total: "885000", net_profit: "615000", discount_amount: "100000",
+  // server tannarx ajratmasi (0082): flower+material+fee === cost_total
+  flower_cost: "875000", material_cost: "0", florist_fee_cost: "10000",
 } as unknown as AccountingSale;
 
 describe("test-record guard", () => {
@@ -134,40 +136,30 @@ describe("profitTone", () => {
   });
 });
 
-describe("unitCostSplit", () => {
-  it("splits into flower + material + fee (matches live cost 885000/unit)", () => {
-    const s = unitCostSplit(item49);
-    expect(s.flower).toBe(875000);   // 25 × 35000
-    expect(s.material).toBe(0);
-    expect(s.fee).toBe(10000);
-    expect(s.total).toBe(885000);
-  });
-});
-
-describe("wasteValue", () => {
-  it("values waste at batch cost_per_stem using absolute stems", () => {
+describe("wasteTotals", () => {
+  it("sums the SERVER cost_value and sale_value (no client cost_per_stem math)", () => {
     const mv = [
-      { quantity_stems: -25, batch_detail: { cost_per_stem: "10000" } },
-      { quantity_stems: -10, batch_detail: { cost_per_stem: "5000" } },
+      { quantity_stems: -25, cost_value: "250000", sale_value: "375000" },
+      { quantity_stems: -10, cost_value: "100000", sale_value: "150000" },
     ] as unknown as StockMovement[];
-    const w = wasteValue(mv);
+    const w = wasteTotals(mv);
     expect(w.stems).toBe(35);
-    expect(w.value).toBe(25 * 10000 + 10 * 5000); // 300000
+    expect(w.cost).toBe(350000);
+    expect(w.sale).toBe(525000); // "qancha daromad yo'qoldi"
   });
 });
 
 describe("costBreakdown", () => {
-  it("aggregates COGS split, reconciles to server cost_total, adds waste + discounts", () => {
-    const items = new Map<number, CatalogItem>([[49, item49]]);
-    const waste = [{ quantity_stems: -25, batch_detail: { cost_per_stem: "10000" } }] as unknown as StockMovement[];
-    const b = costBreakdown([sale49], items, waste, 100000);
-    expect(b.flower).toBe(875000);
+  it("uses SERVER per-sale split (flower/material/fee) + server waste values", () => {
+    const waste = [{ quantity_stems: -25, cost_value: "250000", sale_value: "375000" }] as unknown as StockMovement[];
+    const b = costBreakdown([sale49], waste, 100000);
+    expect(b.flower).toBe(875000);   // server flower_cost
     expect(b.material).toBe(0);
     expect(b.fee).toBe(10000);
-    expect(b.clientCogs).toBe(885000);
+    expect(b.flower + b.material + b.fee).toBe(b.cogsServer); // backend guarantees === cost_total
     expect(b.cogsServer).toBe(885000);
-    expect(b.diverged).toBe(false);
     expect(b.waste).toBe(250000);
+    expect(b.wasteSale).toBe(375000);
     expect(b.discounts).toBe(100000);
     expect(b.salesTotal).toBe(1500000);
     expect(b.netProfit).toBe(615000);

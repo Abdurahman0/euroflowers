@@ -161,6 +161,26 @@ Cross-check: catalog `calculated_cost_price = 4 425 000` for `quantity_total = 5
 
 ---
 
+## Part G — GAPS CLOSED + client math removed (backend integration, 2026-07-30)
+
+Backend shipped `0082_supplier_payment` + `0083`. All three gaps **CLOSED** and verified live:
+
+**GAP-1 — Supplier payments → CLOSED (2026-07-30).** `/api/supplier-payments/` full CRUD live; suppliers now return `purchase_total`/`paid_total`/`outstanding`/`last_payment_at`. Section 1 rebuilt: server rollups (client purchase-total computation **removed**), QARZ column color-coded, default sort `-outstanding`, payment drawer (Naqd/Karta/O'tkazma), expandable payments ledger with edit/delete + running balance (uses `supplier_detail`/`created_by_detail` from the response — no per-row fetch; all payments loaded once and grouped). Outstanding chip also on the Suppliers page. **Reconciled live:** supplier "Gul Import" + batch 40 (150×35 000) + payments 500 000 cash + 200 000 transfer → `purchase_total 5 250 000`, `paid_total 700 000`, `outstanding 4 550 000`, `last_payment_at 2026-07-30` — all exact.
+
+**GAP-2 — cost split → CLOSED.** `accounting.summary.{flower_cost_total,material_cost_total,florist_fee_cost_total}` + per-`history[]` `{flower_cost,material_cost,florist_fee_cost}`. **Removed client `unitCostSplit()`** (and its test); Section 4 + Section 2 expand now use server fields. Backend guarantees `flower+material+fee === cost_total` (verified: 875 000+0+10 000=885 000) — client correction/`diverged` dot dropped.
+
+**GAP-3 — waste valuation → CLOSED.** Movements now carry `cost_value`/`sale_value`. **Removed client `wasteValue()`** (cost_per_stem math); added `wasteTotals()` that SUMS the server `cost_value`/`sale_value` over guard-filtered movements. Section 4 waste line now shows cost loss **and** `sale_value` ("daromadda … yo'qoldi" — from the bonus `sale_value` field). Analitika waste trend switched to server `cost_value` too.
+
+**lib/finance.ts** — KEPT (still client): `allocateByCost`/`saleLineAllocations` (per-supplier & per-variant cost-share attribution), `reconcile` (server-wins + dev mismatch dot on `net_profit`), `saleProfit`, `profitTone`, `num`, `isTestRecord`/`excludeTest` guard. **DELETED:** `unitCostSplit`, `wasteValue` (+ their tests). **ADDED tests:** `wasteTotals`, updated `costBreakdown` (server-field signature). 17 tests green.
+
+**Florist stats (NEW).** `GET /florists/{id}/stats/` + `/florists/me/dashboard/` → one shared `components/FloristStats.tsx` (summary cards incl. `sale_revenue` = real post-discount price, `by_day` chart reversed, `by_volume`/`by_arrangement`/`by_source` tables, `salary_entries` table handling empty catalog fields, attendance). Opened from a clickable Floristlar card (admin detail); same component ready for the florist self-dashboard. **Hisob-kitob Section 5** left on the backend `florist_production_stats` aggregate (authoritative; per-florist stats endpoint would be N calls for the all-florists overview) — the rich per-florist view lives on Floristlar.
+
+**Server Excel export (NEW).** Floristlar salary export **switched** from client SheetJS → `GET /api/exports/florist/` (own) & `/api/exports/florists/` (all), and the florist detail drawer downloads `/api/exports/florist/?florist=<id>&date_from&date_to` (6-sheet, Content-Disposition filename). **Kept client-side** (no server endpoint): Hisob-kitob suppliers / catalog-profit / variants / cost-breakdown sheets + the "Barchasi" workbook, and `exportAccountingByDay`.
+
+**AI pricing note.** Lead drawer (`LeadModal`) now shows `florist_fee` as its own line under `estimated_price`, both with an info tooltip explaining the customer only saw the flower total in chat.
+
+**⚠️ Spec-vs-live discrepancy (delete PROTECT).** The spec said deleting a supplier with payments returns an **error** (`on_delete=PROTECT`). Live it does **not** error — it returns **204 and silently soft-deactivates** (`is_active=false`; the row persists), while a supplier with **no** payments hard-deletes (404). So the promised friendly error never fires from the backend. **Mitigation:** the Suppliers page now **guards client-side** — if `paid_total>0` (or `last_payment_at`), it blocks the delete and shows "Bu yetkazib beruvchida to'lovlar bor — avval to'lovlarni o'chiring", so the owner can't accidentally lose a supplier with payment history. Worth telling backend the PROTECT error isn't actually raised.
+
 ## Part D-2 — RECONCILIATION of the new Hisob-kitob sections (live, 2026-07-30)
 
 All three hand-checked against live API responses; `lib/finance.ts` produces the same, and the page shows the server value (no divergence dot).
