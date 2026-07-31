@@ -8,6 +8,7 @@ import { ROLE_LABEL } from "./badges";
 import { fmtTime } from "@/lib/format";
 import { notifHref, notifMeta } from "@/lib/notifications";
 import { Icon } from "./icons";
+import BranchChip from "./BranchChip";
 import clsx from "clsx";
 import { Film, Image as ImageIcon, KeyRound } from "lucide-react";
 
@@ -119,7 +120,7 @@ export default function Header() {
           <Icon name="menu" size={16} />
         </button>
         <div className="min-w-0">
-          <h1 className="truncate text-[18px] tracking-tight sm:text-[24px]">{TITLES[pathname] ?? "EuroFlowers"}</h1>
+          <h1 className="flex items-center truncate text-[18px] tracking-tight sm:text-[24px]">{TITLES[pathname] ?? "EuroFlowers"}<BranchChip /></h1>
           <p className="hidden truncate text-[12px] font-medium sm:block" style={{ color: "var(--muted)" }}>{dateStr}</p>
         </div>
       </div>

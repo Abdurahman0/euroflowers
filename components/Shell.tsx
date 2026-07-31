@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { usePerm, useStore, useTheme } from "@/lib/store";
 import type { PermissionPage } from "@/lib/types";
+import { NAV, isBranchUser, screenAllowedForBranch } from "@/lib/branch";
 import { isLoggedIn } from "@/lib/api";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
@@ -52,8 +53,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const isLogin = pathname.startsWith("/login");
   const { canView } = usePerm();
   const permPage = ROUTE_PERM[pathname];
-  // foydalanuvchi yuklangach: ruxsatsiz sahifa ko'rsatilmaydi
-  const routeAllowed = !user || !permPage || canView(permPage);
+  // FILIAL QATLAMI: non-main foydalanuvchi FAQAT Dashboard·Hisob·Katalog. Route ham
+  // qo'riqlanadi (nav emas): bloklangan route'ga tushsa Dashboard'ga yo'naltiriladi.
+  const branchUser = isBranchUser(user?.profile.branch);
+  const navItem = NAV.find((n) => n.href === pathname || (n.href !== "/" && pathname.startsWith(n.href)));
+  const branchBlocked = !!user && !!navItem && !screenAllowedForBranch(navItem.id, branchUser);
+  // foydalanuvchi yuklangach: ruxsatsiz yoki filialga yopiq sahifa ko'rsatilmaydi
+  const routeAllowed = (!user || !permPage || canView(permPage)) && !branchBlocked;
+  useEffect(() => {
+    if (branchBlocked && !isLogin) router.replace("/");
+  }, [branchBlocked, isLogin, router]);
 
   // video rejimda element krossfeyd tugaguncha (400ms) DOM'da qoladi;
   // "rasm" bilan yangi ochilishda esa umuman mount bo'lmaydi (mp4 so'rovi yo'q)

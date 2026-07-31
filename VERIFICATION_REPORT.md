@@ -156,3 +156,136 @@ Spec file `FRONTEND_CATALOG_CUSTOMER_API.md` was **NOT in the repo** (third time
 
 ### Verification
 - `tsc --noEmit` clean · 17/17 Vitest pass · no new console usage. Screenshots (dark+light) pending manual UI run. Changes uncommitted.
+
+═══════════════════════════════════════════════════════════════════
+# BRANCH / PARKENT + FLORIST-STOCK + PER-FLORIST-RATES (Stages 1–4, 2026-07-31)
+═══════════════════════════════════════════════════════════════════
+
+Three backend features integrated in 4 staged passes. Specs (FRONTEND_BRANCH_PARKENT.md,
+FRONTEND_FLORIST_VOLUME_RATES.md, FRONTEND_FLORIST_STOCK_ISSUE.md) verified against the
+live OpenAPI + GET only — **zero writes to production**. All write paths implemented per
+contract and listed below for manual testing.
+
+## §0 VERDICTS (verified, not doc-trusted)
+- **BRANCH REVERSAL** — restored branch ONLY for: users (`profile.branch`, written top-level
+  via `UserWrite.branch`), catalog (`branch_name`/`source_price`), the transfer flow,
+  catalog-transfers, branch-report, and nav/route gating. **Deliberately stayed removed**:
+  sklad, florists, leads, customers, suppliers — the spec keeps those unified.
+- **VOLUME** — API uses `small`/`medium`/`large` (6 live catalog items). The doc's `S/M/L`
+  is illustrative only; the field is a free string. Stored value stays small/medium/large
+  everywhere (one `VOLUMES` const; a Vitest fails if a rename makes `"M"` match `"medium"`).
+- **florist_fee vs florist_salary_amount** — BOTH exist, distinct (5/6 live items differ).
+  `florist_fee` = floristika service charged to customer (price/profit). `florist_salary_amount`
+  = what the florist earns (salary, × quantity_total). The RATE's `florist_fee` fills the
+  CATALOG's `florist_salary_amount` (naming trap — one mapper, `rateToCatalogSalary`).
+- **TRANSFER IS IRREVERSIBLE** — OpenAPI: catalog-transfers is GET-only, `/transfer/` is
+  POST-only. **No cancel/return/reverse path exists.** Confirm text states "qaytarib bo'lmaydi".
+- **UserModal branch safety** — `updateUser` is PATCH; today UserModal omits `branch`, so
+  edits never touched it (safe). New `buildUserBranchPayload` sends `branch` ONLY when changed
+  (Vitested: new-with/without, edit-unchanged, main→branch, branch→main) — never silently
+  moves a Parkent user to main.
+- **§4 discount enforcement** — KatalogSellModal already enforces `discount_reason` when
+  sale_price < price (client pre-submit) AND renders the server 400. Applies to branch sells
+  (same dialog). No change needed.
+
+## §3 COST MATH AFTER A PARTIAL TRANSFER (audit)
+Composition/materials are copied to the branch copy and cost split proportionally.
+| Site | Derives | Correct after partial transfer? |
+|---|---|---|
+| Hisob-kitob money (net/cost/COGS) | server `net_profit`/`cost_total` per sale | ✅ server-authoritative, branch-scoped |
+| Hisob-kitob variant/supplier attribution | `saleLineAllocations` over MAIN sold items | ✅ for main sales — ⚠️ see hole below |
+| BatchSarfiPanel | server `batch_inventory_stats` | ✅ frontend (backend double-count = flag) |
+| Composer preview | recompute from composition | N/A — per-unit, create/edit only, not a report |
+| Branch report | server `branch-report` | ✅ transferred markup/sales live here |
+**⚠️ REPORTING HOLE (flagged, not patched):** a transferred item's stems were consumed from
+the MAIN warehouse at catalog-creation time, but its sale happens under Parkent's separate
+accounting scope. So on the MAIN branch those stems appear as warehouse consumption with **no
+corresponding sale attribution** — they vanish from main's variant/supplier "sold stems", and
+the markup earned in Parkent is invisible to main COGS (it lives in the branch report instead).
+Inherent to server-side branch isolation; needs a backend decision, not a client patch.
+
+## STOCK MATH (Stage 2A recap)
+No frontend double-count (each stem leaves the warehouse once, as a `florist_issue` OUT).
+`florist_issue` movements now carry a "Floristga chiqarildi" label. Florist-hand **waste is
+SHOWN separately, never summed** into warehouse chiqit ("Sklad chiqiti bilan qo'shilmagan" +
+TODO) — correct whether or not the backend also writes a warehouse waste movement.
+
+## SCREENSHOTS — ALL used MOCKED GET DATA unless noted
+The live API has 0 issued stock, 0 rates, 0 transfers, and only a main-branch admin account,
+so populated states were shot with in-browser GET mocks (read-only; no writes). **Mock-data
+screenshots (not yet seen with live data):** every Stage 2 shot; Stage 3 matrix filled/apprentice;
+Stage 4 branch report populated, transfer drawer, branch-user shell (mocked `profile.branch`).
+**Real-data shots:** Stage 1 composer split; Stage 3 matrix empty; Stage 4 branch report empty state.
+Grep confirms **no mock/fixture/intercept code in app/lib/components** — mocks live only in the
+puppeteer scratchpad; the mock payloads are typed fixtures under test.
+
+═══════════════════════════════════════════════════════════════════
+# CONSOLIDATED HANDOVER — LIST 1: MANUAL TEST CHECKLIST (all 4 stages)
+# Uzbek, numbered, sequenced so earlier steps create data later steps need.
+# READ-ONLY constraint was mine (build-time); these are YOUR writes to run.
+═══════════════════════════════════════════════════════════════════
+1.  TARIF: Floristlar → florist kartasi → drawer pastida «Hajm tariflari» → 6 katakni
+    to'ldiring (fee + dona) → Saqlash. ✅ Drawer'ni yopib qayta oching — qiymatlar turibdi
+    (matritsa har ochilganda yangi GET qiladi).
+2.  BITTA KATAK: bitta katakni bo'shatib Saqlash. ✅ O'sha hajm nofaol bo'ladi, qolganlari qoladi.
+3.  BO'SH GRID: barcha kataklarni bo'shatib Saqlash → «Barcha tariflar o'chiriladi» tasdiqi
+    chiqadi → Ha. ✅ Hammasi nofaol (ataylab tasdiq bilan himoyalangan).
+4.  NUSXALASH: «Boshqa floristdan» → manba floristni tanlang → Nusxalash → grid to'ladi (dirty)
+    → Saqlash. ✅ MANBA florist o'zgarmaydi; joriy florist tariflari to'ldi.
+5.  CHIQARISH: Floristlarga chiqarilgan → Florist + Partiya (skladdan) + 30 dona → Chiqarish.
+    ✅ Sklad partiyasi −30; balansda +30; sklad jurnalida «Floristga chiqarildi» chipi.
+6.  KATALOG (florist qo'lidan): Katalog → +Katalog → shu florist + Hajm (salary «Tarifdan
+    olindi» bilan to'ladi) + gul BALANSDAN («mavjud: N dona») + narx → Qo'shish.
+    ✅ Florist balansi kamaydi; SKLAD qoldig'i O'ZGARMADI.
+    ✅ Salaryни qo'lda o'zgartiring → tarif bosib o'tmaydi; «Tarifdan qayta olish» → qayta oladi.
+7.  BALANSSIZ FLORIST: gul chiqarilmagan floristni tanlang → «Bu floristga hali gul
+    chiqarilmagan» + «Floristga gul chiqarish» yorlig'i. ✅ Yorliq to'g'ri floristga olib boradi.
+8.  QAYTARISH: Floristlarga chiqarilgan → balans qatori → Qaytarish → 10 dona. ✅ Balans −10;
+    SKLAD partiyasi +10 tiklandi (OCHIQ SAVOL a).
+9.  CHIQIT: balans → Chiqit → 2 dona → tasdiq → Ha. ✅ Balans −2; SKLAD partiyasi O'ZGARMADI;
+    «Florist qo'lidagi chiqit» bloki (Hisob-kitob + Sklad jurnal xulosasi) 2 dona ko'rsatadi;
+    sklad «Chiqit» JAMIGA qo'shilmagan (OCHIQ SAVOL b).
+10. TAHRIRLASH: 6-qadamdagi katalogni tahrirlang, gul sonini balansdan OSHIRING → Saqlash.
+    ✅ Server 400 beradimi (balansga qayta tekshiradimi)? (OCHIQ SAVOL c). Bizning inline
+    ogohlantirish oldindan ko'rsatadi.
+11. O'CHIRISH: shu katalogni o'chiring → tasdiqda «gullar floristning qo'liga qaytadi» yozuvi.
+    ✅ Gullar SKLADGA emas, FLORIST balansiga qaytdi.
+12. MIJOZ: Katalog → item → Sotish → Mavjud/Yangi mijoz → soting. ✅ Mijoz chipi kartada/detalda.
+13. YUBORISH: Katalog → asosiy item → «Filialga yuborish» → Filial + Soni (maks = sotilmagan) +
+    narx (bo'sh = asl) → «5 tadan 2 tasi ketadi, 3 qoladi» + ustama ko'rinadi → yuboring.
+    ✅ «Qaytarib bo'lmaydi» ogohlantirishi ko'rinadi; asosiy filialda soni kamaydi; agar
+    ko'p so'rasangiz «Yuborish uchun atigi N dona bor» 400 chiqadi.
+14. FILIAL HISOBOTI: Filial hisoboti → davr tanlang. ✅ Har filial qatori (yuborilgan/sotilgan/
+    ustama), «ustama vs asl» stacked bar, «Yuborilganlar tarixi» (target — oddiy matn, link EMAS),
+    Excel eksport. Bo'sh davr → chiroyli empty state.
+15. XODIM FILIALI: Xodimlar → yangi/tahrir → «Filial» select. ✅ Parkent tanlab saqlang →
+    o'sha user faqat Dashboard·Hisob·Katalog ko'radi. Mavjud Parkent userni tahrirlab filialга
+    TEGMASDAN saqlang → filiali O'ZGARMAYDI (asosiyга ko'chib ketmaydi).
+16. (Parkent akkaunt bo'lsa) Parkent user: menyu faqat 3 ta; /sklad'ga URL → Dashboard'ga
+    yo'naltiriladi; +Katalog tugmasi YO'Q; item'da «asl narx» muted; chegirma bilan sotuvda
+    discount_reason MAJBURIY.
+
+═══════════════════════════════════════════════════════════════════
+# CONSOLIDATED HANDOVER — LIST 2: OPEN QUESTIONS FOR BACKEND
+═══════════════════════════════════════════════════════════════════
+a. FLORIST RETURN → warehouse restore: does `return` write a warehouse IN StockMovement, and
+   with what `reference_type`? (Frontend has a defensive `florist_return` label.) SETTLE:
+   run checklist #8, watch the sklad journal for a new entry.
+b. FLORIST WASTE → warehouse totals: does florist `waste` write a warehouse `waste`
+   StockMovement? If YES, our separate block must NOT be summed (already isn't); if NO, our
+   separate block is the only place the loss shows. Either way we're correct, but you need to
+   KNOW so loss numbers are trusted. SETTLE: run #9, check whether sklad «Chiqit» total moves.
+c. PATCH re-validation: does `PATCH /catalog/{id}/` re-validate composition against the
+   florist's balance? UI is conservative (client-side re-check + warns server may reject).
+   SETTLE: run #10 with an over-balance edit.
+d. APPRENTICE reactivation: after apprentice→florist, do the old rates reactivate or stay
+   `is_active:false`? UI is honest ("tariflari nofaol — qayta saqlang"). SETTLE: set a florist
+   apprentice, revert, open the matrix.
+e. TRANSFER reversibility: CONFIRMED no cancel/return path exists (OpenAPI). If operators need
+   to undo a mis-transfer, backend must add one; today it's irreversible from the UI.
+f. TRANSFERRED-STEM ATTRIBUTION HOLE: stems consumed on the main branch but sold in Parkent
+   vanish from main's variant/supplier sale attribution (see §3). Decide whether to expose
+   cross-branch attribution or accept it as intended isolation.
+g. isBranchUser assumption: main-branch users must have `profile.branch = null` (verified for
+   admin/developer). Confirm no main user is assigned `branch = <main id>` — that would wrongly
+   restrict them. SETTLE: check a main user's `profile.branch`.

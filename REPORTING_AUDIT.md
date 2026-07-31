@@ -240,3 +240,19 @@ Verified live: a lead's `customer_detail` exposes `leads_count` (all-time) and `
 3. **Testing**: no test runner exists — I'll add **Vitest** solely for `lib/finance.ts` (profit math). OK?
 
 *No feature code has been written. Awaiting your go-ahead on Phase 2 + the three decisions above.*
+
+## BRANCH / FLORIST-STOCK REPORTING IMPACT (2026-07-31) — see VERIFICATION_REPORT.md for full detail
+- **Stock leaves the warehouse at ISSUE time now** (florist flow): a `florist_issue` OUT
+  StockMovement is written when gul is issued to a florist; florist-based catalog creation
+  makes NO second warehouse movement. **No frontend double-count** (each stem departs once).
+  `florist_issue` is labeled "Floristga chiqarildi"; it is lumped into the sklad journal's
+  movement_type="out" ("Ishlab chiqarishga") bucket — correct as a departure, imprecise as a label.
+- **Florist-hand waste is SHOWN, not SUMMED** into warehouse chiqit (Hisob-kitob waste section +
+  sklad journal summary), noted "Sklad chiqiti bilan qo'shilmagan". Open question: does the
+  backend also write a warehouse waste movement for it? (LIST 2, item b.)
+- **Partial branch transfer → attribution hole (flagged, not patched):** transferred items'
+  stems were consumed from the main warehouse but sold under Parkent's separate accounting
+  scope, so they vanish from main's variant/supplier sale attribution; the Parkent markup lives
+  in the branch report, not main COGS. (VERIFICATION_REPORT §3; LIST 2, item f.)
+- **Money stays server-authoritative** everywhere (net_profit/cost_total); client only does
+  attribution (saleLineAllocations) and separate not-summed loss displays.

@@ -1,5 +1,5 @@
 "use client";
-import { Pencil, Plus, Trash2, User, X } from "lucide-react";
+import { Pencil, Plus, Send, Trash2, User, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -14,7 +14,9 @@ import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
 import KatalogViewModal from "@/components/KatalogViewModal";
 import KatalogSellModal from "@/components/KatalogSellModal";
+import CatalogTransferDrawer from "@/components/CatalogTransferDrawer";
 import { usePerm } from "@/lib/store";
+import { isBranchUser } from "@/lib/branch";
 import type { CatalogItem, FloristProfile } from "@/lib/types";
 
 /** Florist ismi (user_detail'dan) — bo'lmasa bo'sh */
@@ -48,6 +50,11 @@ export default function KatalogPage() {
   const { showToast, loadNotifs } = useStore();
   const { canControl } = usePerm();
   const control = canControl("catalog");
+  // filial foydalanuvchisi: katalog YARATOLMAYDI (+Katalog yashiriladi) va yuborolmaydi;
+  // asosiy filial admini (mainUser) — filialga yuborishi mumkin.
+  const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
+  const mainUser = !branchUser;
+  const [transferItem, setTransferItem] = useState<CatalogItem | null>(null);
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -181,9 +188,12 @@ export default function KatalogPage() {
             />
           )}
         </div>
-        <button onClick={() => setFormOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
-          <Plus size={18} strokeWidth={1.75} /> Katalogga qo&apos;shish
-        </button>
+        {/* filialda katalog YARATIB BO'LMAYDI (backend 400) — tugmani ko'rsatmaymiz */}
+        {mainUser && (
+          <button onClick={() => setFormOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
+            <Plus size={18} strokeWidth={1.75} /> Katalogga qo&apos;shish
+          </button>
+        )}
       </div>
 
       {customerFilter && (
@@ -215,9 +225,15 @@ export default function KatalogPage() {
                 title="Batafsil ko'rish"
               >
                 {k.image_url && <img src={k.image_url} alt={k.name_uz} className="h-full w-full object-cover" />}
-                {/* tahrirlash / o'chirish — rasm ustida, hover'da */}
+                {/* tahrirlash / o'chirish / filialga yuborish — rasm ustida, hover'da */}
                 {control && (
                   <span className="absolute bottom-2.5 right-2.5 flex items-center gap-1 rounded-[11px] p-1 opacity-0 backdrop-blur-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" style={{ background: "color-mix(in srgb, var(--surface-solid) 82%, transparent)" }}>
+                    {/* Filialga yuborish — FAQAT asosiy filial admini, sotilmagan qismi bor bo'lsa */}
+                    {mainUser && ((k.quantity_total ?? 1) - (k.quantity_sold ?? 0)) > 0 && (
+                      <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setTransferItem(k); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setTransferItem(k); } }} title="Filialga yuborish" aria-label={`${k.name_uz || k.name_ru} — filialga yuborish`} className="icon-btn !h-7 !w-7">
+                        <Send size={13} strokeWidth={1.9} />
+                      </span>
+                    )}
                     <span
                       role="button"
                       tabIndex={0}
@@ -357,6 +373,10 @@ export default function KatalogPage() {
         />
       )}
 
+      {transferItem && (
+        <CatalogTransferDrawer item={transferItem} onClose={() => setTransferItem(null)} onDone={() => { load(); }} />
+      )}
+
       {formOpen && <KatalogModal onClose={() => setFormOpen(false)} onSaved={load} />}
       {editItem && (
         <KatalogModal
@@ -371,6 +391,7 @@ export default function KatalogPage() {
           onClose={() => setViewItem(null)}
           onEdit={control ? () => { setEditItem(viewItem); setViewItem(null); } : undefined}
           onDelete={control ? () => setConfirmDel(viewItem) : undefined}
+          onTransfer={mainUser && control && ((viewItem.quantity_total ?? 1) - (viewItem.quantity_sold ?? 0)) > 0 ? () => { setTransferItem(viewItem); setViewItem(null); } : undefined}
         />
       )}
 

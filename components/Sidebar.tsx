@@ -5,41 +5,22 @@ import clsx from "clsx";
 import { motion } from "framer-motion";
 import { usePerm, useStore } from "@/lib/store";
 import { Icon } from "./icons";
-import type { PermissionPage, ScreenId } from "@/lib/types";
+import { NAV, isBranchUser, screenAllowedForBranch } from "@/lib/branch";
 
 /** NAV sahifalari backend ruxsat sahifalariga bog'langan (kontrakt: can_view).
     `pages` — bir nechtasidan BIRORTASI yetarli (backend florists/suppliers/
     attendance ruxsatlarini alohida ajratdi, eski matritsalarda ular yo'q). */
 // Eng ko'p ishlatiladigan 6 sahifa TEPADA (top:true) — keyin ajratgich, so'ng qolganlari
 // JORIY NISBIY tartibda. Ruxsat gating o'zgarmaydi (yashirilgan element render bo'lmaydi).
-const NAV: { id: ScreenId; href: string; label: string; pages: PermissionPage[]; top?: boolean }[] = [
-  { id: "dashboard", href: "/", label: "Dashboard", pages: ["dashboard"], top: true },
-  { id: "sklad", href: "/sklad", label: "Sklad", pages: ["inventory"], top: true },
-  { id: "katalog", href: "/katalog", label: "Katalog", pages: ["catalog"], top: true },
-  { id: "floristlar", href: "/floristlar", label: "Floristlar", pages: ["florists", "attendance", "settings"], top: true },
-  { id: "floristStock", href: "/floristlarga-chiqarilgan", label: "Floristlarga chiqarilgan", pages: ["inventory"], top: true },
-  { id: "gullar", href: "/gullar", label: "Gullar", pages: ["inventory"], top: true },
-  { id: "chat", href: "/chat", label: "AI chatlar", pages: ["conversations"], top: true },
-  // qolganlari — joriy nisbiy tartibda
-  { id: "analitika", href: "/analitika", label: "Analitika", pages: ["dashboard"] },
-  { id: "hisob", href: "/hisob-kitob", label: "Hisob-kitob", pages: ["dashboard"] },
-  { id: "ai", href: "/ai", label: "AI yordamchi", pages: ["ai_settings"] },
-  { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", pages: ["crm"] },
-  { id: "mijozlar", href: "/mijozlar", label: "Mijozlar", pages: ["customers"] },
-  { id: "suppliers", href: "/suppliers", label: "Yetkazib beruvchilar", pages: ["suppliers", "inventory"] },
-  { id: "postlar", href: "/postlar", label: "Postlar", pages: ["social_posts"] },
-  { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", pages: ["notifications"] },
-  { id: "xodimlar", href: "/xodimlar", label: "Xodimlar", pages: ["users"] },
-  { id: "integratsiyalar", href: "/integratsiyalar", label: "Integratsiyalar", pages: ["integrations"] },
-  { id: "audit", href: "/audit", label: "Audit jurnali", pages: ["audit"] },
-  { id: "sozlamalar", href: "/sozlamalar", label: "Sozlamalar", pages: ["settings"] },
-];
+// NAV endi lib/branch.ts'da — Sidebar, route guard va testlar YAGONA manbadan.
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { sideOpen, toggleSide, notifs } = useStore();
   const { canView } = usePerm();
+  // filial (non-main) foydalanuvchisi FAQAT Dashboard·Hisob·Katalog — ruxsat ustiga qatlam
+  const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
   const yangiLead = notifs.filter((n) => !n.is_read && n.notification_type === "lead").length;
 
   // tor ekranlarda avtomatik yig'iladi — kontent doim ustuvor
@@ -85,7 +66,7 @@ export default function Sidebar() {
 
       {/* nav */}
       <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
-        {NAV.filter((n) => canView(...n.pages)).map((n, i, arr) => {
+        {NAV.filter((n) => canView(...n.pages) && screenAllowedForBranch(n.id, branchUser)).map((n, i, arr) => {
           const active = pathname === n.href;
           // tepa 6lik va qolganlari orasida yumshoq ajratgich (label yo'q — faqat bo'shliq)
           const divider = i > 0 && arr[i - 1].top && !n.top;

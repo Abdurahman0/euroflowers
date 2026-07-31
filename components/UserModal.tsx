@@ -1,12 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import { Icon } from "./icons";
 import { ROLE_LABEL } from "./badges";
-import type { Language, PagePermission, PermissionPage, Role, User } from "@/lib/types";
+import { buildUserBranchPayload } from "@/lib/branch";
+import type { Branch, Language, PagePermission, PermissionPage, Role, User } from "@/lib/types";
 
 /**
  * Xodim yaratish/tahrirlash — kontrakt bo'yicha nested payload:
@@ -65,6 +66,12 @@ export default function UserModal({
   const [lastName, setLastName] = useState(editUser?.last_name ?? "");
   const [role, setRole] = useState<Role>(editUser?.profile.role ?? "operator");
   const [language, setLanguage] = useState<Language>(editUser?.profile.language ?? "uz");
+  // FILIAL — boshlang'ich profile.branch'dan (null = asosiy filial → select'da 0).
+  // ⚠️ "o'zgarmagan" → payload'da yubormaymiz (odamni jimgina asosiy filialga ko'chirmaslik).
+  const initialBranch = editUser?.profile.branch ?? null;
+  const [branchSel, setBranchSel] = useState<number>(initialBranch ?? 0); // 0 = asosiy filial
+  const [branches, setBranches] = useState<Branch[]>([]);
+  useEffect(() => { api.branches({ is_active: true }).then(setBranches).catch(() => {}); }, []);
   const [perms, setPerms] = useState<PermState>(permsFromUser(editUser));
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -121,6 +128,8 @@ export default function UserModal({
       last_name: lastName.trim(),
       profile: { role, language },
       permissions,
+      // branch TOP-LEVEL (UserWrite kontrakti) — FAQAT o'zgargan bo'lsa (aks holda omit)
+      ...buildUserBranchPayload(initialBranch, branchSel === 0 ? null : branchSel, editUser != null),
     };
     if (password) payload.password = password;
 
@@ -176,6 +185,15 @@ export default function UserModal({
         </Field>
         <Field label="Til">
           <Select value={language} options={[{ value: "uz", label: "O'zbek" }, { value: "ru", label: "Русский" }]} onChange={(v) => setLanguage(String(v) as Language)} />
+        </Field>
+        {/* FILIAL — bo'sh = asosiy filial. Filial foydalanuvchisi faqat Dashboard·Hisob·Katalog ko'radi. */}
+        <Field label="Filial" span>
+          <Select
+            value={branchSel}
+            onChange={(v) => setBranchSel(+v)}
+            options={[{ value: 0, label: "Asosiy filial" }, ...branches.filter((b) => !b.is_main).map((b) => ({ value: b.id, label: b.name }))]}
+          />
+          {branchSel !== 0 && <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>Bu foydalanuvchi faqat Dashboard · Hisob-kitob · Katalog ko&apos;radi.</span>}
         </Field>
       </div>
 

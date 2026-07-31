@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles } from "lucide-react";
+import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send } from "lucide-react";
 import Modal from "./Modal";
 import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
 import { KIND_LABEL } from "@/lib/inventory";
@@ -35,11 +35,14 @@ export default function KatalogViewModal({
   onClose,
   onEdit,
   onDelete,
+  onTransfer,
 }: {
   item: CatalogItem;
   onClose: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  /** asosiy filial admini uchun — filialga yuborish (sotilmagan qismi bor bo'lsa) */
+  onTransfer?: () => void;
 }) {
   // ro'yxat javobida `history` bo'lmasligi mumkin — batafsil ochilganda o'qiymiz
   const [full, setFull] = useState<CatalogItem>(item);
@@ -99,7 +102,13 @@ export default function KatalogViewModal({
 
         <div className="mt-3.5 flex items-baseline justify-between gap-3">
           <h2 className="min-w-0 text-[18px] font-bold tracking-tight">{full.name_uz || full.name_ru}</h2>
-          <span className="whitespace-nowrap text-[16px] font-bold" style={{ color: "var(--acc)" }}>{fmt(full.price)}</span>
+          <span className="whitespace-nowrap text-right">
+            <span className="block text-[16px] font-bold" style={{ color: "var(--acc)" }}>{fmt(full.price)}</span>
+            {/* asl narx — FILIALGA yuborilgan nusxada saqlanadi (muted "asl narx") */}
+            {full.source_price != null && +full.source_price > 0 && +full.source_price !== +full.price && (
+              <span className="block text-[11.5px]" style={{ color: "var(--muted)" }}>asl narx {fmt(full.source_price)}</span>
+            )}
+          </span>
         </div>
         {(full.description_uz || full.description_ru) && (
           <p className="mt-1 text-[13px] leading-relaxed" style={{ color: "var(--muted)" }}>{full.description_uz || full.description_ru}</p>
@@ -248,8 +257,18 @@ export default function KatalogViewModal({
         </a>
       )}
 
-      {(onEdit || onDelete) && (
+      {(onEdit || onDelete || onTransfer) && (
         <div className="mt-4 flex gap-2 border-t border-[color:var(--border)] pt-4">
+          {onTransfer && (
+            <button
+              type="button"
+              onClick={onTransfer}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--primary)]"
+              style={{ color: "var(--primary)" }}
+            >
+              <Send size={14} strokeWidth={1.9} /> Filialga yuborish
+            </button>
+          )}
           {onEdit && (
             <button
               type="button"

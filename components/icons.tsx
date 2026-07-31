@@ -56,6 +56,7 @@ const ICONS: Record<string, typeof FlowerIcon> = {
   suppliers: DeliveryTruck01Icon,
   floristlar: Scissor01Icon,
   floristStock: PackageAddIcon,
+  branchReport: DeliveryTruck01Icon,
   katalog: FlowerIcon,
   gullar: FlowerPotIcon,
   bildirishnomalar: Notification03Icon,
