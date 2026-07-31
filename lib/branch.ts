@@ -30,9 +30,13 @@ export const NAV: NavItem[] = [
 /** Filial (non-main) foydalanuvchisi FAQAT shu ekranlarni ko'radi (spec §3). */
 export const BRANCH_SCREENS: ScreenId[] = ["dashboard", "hisob", "katalog"];
 
-/** Filial foydalanuvchisimi — kontrakt: asosiy filial `profile.branch = null`,
-    filial (Parkent kabi) `profile.branch = <id>`. Ya'ni null EMAS → cheklangan. */
-export const isBranchUser = (branch: number | null | undefined): boolean => branch != null;
+/** Filial foydalanuvchisimi. Jonli kontrakt (tekshirilgan): asosiy filial
+    `profile.branch = null` (integer, nullable, MAJBURIY EMAS); filial `= <id>`.
+    ⚠️ XAVFSIZ YO'NALISH: `null` VA `undefined` (kalit yo'q) → asosiy (cheklanmagan) —
+    bu real asosiy foydalanuvchilar uchun to'g'ri. HAR QANDAY non-null qiymat (son, "2"
+    satr, hatto 0) → cheklangan filial. Ya'ni noaniqlikda OSHIQCHA cheklaymiz, kam emas.
+    Kalit umuman yo'q bo'lsa (schema uni majburiy demaydi) — loadMe'da ogohlantiriladi. */
+export const isBranchUser = (branch: number | null | undefined): boolean => branch !== null && branch !== undefined;
 
 /** Ekran filial foydalanuvchisiga OCHIQmi (ruxsatdan ALOHIDA, ustiga qatlam). */
 export const screenAllowedForBranch = (id: ScreenId, branchUser: boolean): boolean =>

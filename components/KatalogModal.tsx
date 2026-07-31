@@ -117,7 +117,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const batchOf = (id: number) => batches.find((b) => b.id === id);
   const balanceOf = (id: number) => balances.find((b) => b.batch === id);
   const matOf = (id: number) => materials.find((m) => m.id === id);
-  const spbOf = (id: number) => batchOf(id)?.stems_per_bunch || balanceOf(id)?.batch_detail.stems_per_bunch || 1;
+  const spbOf = (id: number) => batchOf(id)?.stems_per_bunch || balanceOf(id)?.batch_detail?.stems_per_bunch || 1;
   // MAVJUD miqdor: florist rejimida balansdan, aks holda sklad qoldig'idan
   const availOf = (id: number) => (floristMode ? balanceRemaining(balances, id) : batchOf(id)?.remaining_stems ?? 0);
   const stemsOfRow = (r: CompRow) => {
@@ -141,11 +141,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const compOptions = useMemo(() => {
     if (floristMode) {
       return [...balances]
-        .sort((a, b) => `${a.batch_detail.flower ?? ""}`.localeCompare(`${b.batch_detail.flower ?? ""}`))
+        .sort((a, b) => `${a.batch_detail?.flower ?? ""}`.localeCompare(`${b.batch_detail?.flower ?? ""}`))
         .map((bl) => ({
           value: bl.batch,
-          label: `${bl.batch_detail.flower ?? ""} ${bl.batch_detail.variant ?? ""}${bl.batch_detail.color ? ` · ${bl.batch_detail.color}` : ""}`.trim(),
-          sub: `№${bl.batch_detail.batch_number} · mavjud: ${formatStemsAndBunches(bl.remaining_stems, bl.batch_detail.stems_per_bunch)}`,
+          label: `${bl.batch_detail?.flower ?? ""} ${bl.batch_detail?.variant ?? ""}${bl.batch_detail?.color ? ` · ${bl.batch_detail.color}` : ""}`.trim() || `Partiya #${bl.batch}`,
+          sub: `№${bl.batch_detail?.batch_number ?? bl.batch} · mavjud: ${formatStemsAndBunches(bl.remaining_stems, bl.batch_detail?.stems_per_bunch)}`,
         }));
     }
     return usableBatches.map((bb) => ({

@@ -118,7 +118,7 @@ export default function FloristStockIssuePage() {
     const rows = (scopedBalances ?? []).filter((b) => b.remaining_stems > 0);
     const florSet = new Set(rows.map((b) => b.florist));
     const stems = rows.reduce((s, b) => s + b.remaining_stems, 0);
-    const value = rows.reduce((s, b) => s + b.remaining_stems * (+b.batch_detail.cost_per_stem || 0), 0);
+    const value = rows.reduce((s, b) => s + b.remaining_stems * (+(b.batch_detail?.cost_per_stem ?? 0) || 0), 0);
     return { florists: florSet.size, stems, value };
   }, [scopedBalances]);
 
@@ -236,8 +236,8 @@ export default function FloristStockIssuePage() {
                 <div className="flex flex-col gap-2">
                   {g.rows.map((b) => {
                     const bd = b.batch_detail;
-                    const spbb = bd.stems_per_bunch || 1;
-                    const val = b.remaining_stems * (+bd.cost_per_stem || 0);
+                    const spbb = bd?.stems_per_bunch || 1;
+                    const val = b.remaining_stems * (+(bd?.cost_per_stem ?? 0) || 0);
                     return (
                       <div key={b.id} className="flex flex-wrap items-center gap-3 rounded-[13px] border p-2.5" style={{ borderColor: "var(--border)", opacity: b.remaining_stems === 0 ? 0.6 : 1 }}>
                         <div className="min-w-[200px] flex-1">

@@ -96,6 +96,12 @@ export const useStore = create<State>((set, get) => ({
     set({ userLoading: true });
     try {
       const user = await api.me();
+      // ⚠️ FILIAL GATING FAIL-OPEN himoyasi: /api/me/ profile'da `branch` kaliti bo'lmasa
+      // (schema uni majburiy demaydi) — biz ASOSIY deb olamiz, bu filial userni CHEKLAMAY
+      // butun CRM'ni ochib qo'yishi mumkin. Shu holatni baland ovoz bilan ogohlantiramiz.
+      if (user?.profile && !("branch" in user.profile)) {
+        console.warn("[branch] /api/me/ profile has no `branch` key — treating as MAIN (unrestricted). If this is a branch user, nav/route gating FAILS OPEN.");
+      }
       set({ user, permissions: user.permission_matrix ?? user.permissions ?? [], userLoading: false });
     } catch {
       set({ user: null, permissions: [], userLoading: false });

@@ -37,7 +37,7 @@ export default function FloristStockReturnDrawer({
   const [busy, setBusy] = useState(false);
 
   const bd = balance.batch_detail;
-  const spb = bd.stems_per_bunch || 1;
+  const spb = bd?.stems_per_bunch || 1;
   const remaining = balance.remaining_stems;
   const stems = mode === "bunches" ? Math.round((parseFloat(qty) || 0) * spb) : Math.round(parseFloat(qty) || 0);
   const after = remaining - stems;

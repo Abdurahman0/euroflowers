@@ -15,10 +15,11 @@ export type StockLineData = {
   batchNumber?: string;
 };
 
-/** Florist balansi/tarixidagi flat batch_detail → StockLineData. */
-export const lineFromBatchDetail = (b: FloristStockBatchDetail): StockLineData => ({
-  image: b.image_url, flower: b.flower, variant: b.variant, color: b.color, height: b.height_label, batchNumber: b.batch_number,
-});
+/** Florist balansi/tarixidagi flat batch_detail → StockLineData. Himoyalangan:
+    batch_detail yo'q bo'lsa ham QATOR portlamaydi — bo'sh grammatika qaytadi
+    (StockLine "Gul" fallback + rasm o'rniga ikonka ko'rsatadi). */
+export const lineFromBatchDetail = (b: FloristStockBatchDetail | null | undefined): StockLineData =>
+  b ? { image: b.image_url, flower: b.flower, variant: b.variant, color: b.color, height: b.height_label, batchNumber: b.batch_number } : {};
 /** Sklad partiyasi (nested variant_detail) → StockLineData. */
 export const lineFromStockBatch = (b: StockBatch): StockLineData => ({
   image: b.image_url || b.variant_detail?.image_url,

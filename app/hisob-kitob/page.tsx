@@ -142,7 +142,7 @@ export default function HisobKitobPage() {
   // FLORIST QO'LIDAGI CHIQIT jami — ALOHIDA ko'rsatiladi, sklad chiqitiga QO'SHILMAYDI
   const floristWasteTotal = useMemo(() => ({
     stems: floristWaste.reduce((s, w) => s + w.quantity_stems, 0),
-    value: floristWaste.reduce((s, w) => s + w.quantity_stems * (+w.batch_detail.cost_per_stem || 0), 0),
+    value: floristWaste.reduce((s, w) => s + w.quantity_stems * (+(w.batch_detail?.cost_per_stem ?? 0) || 0), 0),
   }), [floristWaste]);
 
   // ── Section 2: katalog foydasi (har sotuv) ───────────────────────

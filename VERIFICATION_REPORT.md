@@ -289,3 +289,34 @@ f. TRANSFERRED-STEM ATTRIBUTION HOLE: stems consumed on the main branch but sold
 g. isBranchUser assumption: main-branch users must have `profile.branch = null` (verified for
    admin/developer). Confirm no main user is assigned `branch = <main id>` — that would wrongly
    restrict them. SETTLE: check a main user's `profile.branch`.
+
+═══════════════════════════════════════════════════════════════════
+# PRE-FLIGHT: RISK-ANNOTATED RUN SHEET (supersedes LIST 1 ordering)
+# Reordered so destructive steps come LAST within dependency limits.
+# Risk: READ (no change) · REV (reversible) · IRREV (permanent — data lost).
+═══════════════════════════════════════════════════════════════════
+| # | Step | Risk | Min-damage / note |
+|---|---|---|---|
+| 1 | Rate save: florist → «Hajm tariflari» → fill 6 → Saqlash | REV | re-editable; needed for step 6 salary autofill |
+| 2 | Rate: empty ONE cell → Saqlash (that size deactivates) | REV | just re-add the cell + save |
+| 3 | Copy-from-florist → Nusxalash (source untouched) | READ src / REV target | discard by closing without save |
+| 4 | Balanceless florist → composer empty state + shortcut | READ | do this BEFORE any issue |
+| 5 | Branch report → date range → table/bar/history/Excel | READ | — |
+| 6 | ISSUE: florist + batch + N → Chiqarish | REV (via return) | **old, cheap, near-depleted batch; issue ~8** (enough for steps 7/10/13) |
+| 7 | Catalog from florist balance (salary «Tarifdan olindi») | REV (via delete) | **1 dona**, low-value; this is your throwaway test item |
+| 8 | User branch: Xodimlar → assign a user to Parkent | REV | pick a NON-critical user; revert to Asosiy after |
+| 9 | User branch: edit that user WITHOUT touching Filial → save | READ-ish | proves branch not silently reset (the §0.1 risk) |
+| 10 | Customer on sale: sell the step-7 item, 1 dona, Mavjud/Yangi | IRREV (records a sale) | **1 dona**; revenue + inventory move is permanent |
+| 11 | RETURN: return part of what you issued | REV (restores warehouse) | return e.g. 2 — reverses step 6 partially |
+| 12 | TRANSFER: main catalog item → Filialga yuborish | **IRREV — no reverse path exists** | **1 dona to Parkent, cheapest item**; can't undo from UI (open q e) |
+| 13 | DELETE the step-7 florist catalog | IRREV (record + its history gone) | flowers return to florist; the catalog record does NOT |
+| 14 | WASTE: florist balance → Chiqit | **IRREV — stems gone for good** | **1 dona**; smallest that proves it |
+| 15 | Branch-user experience (needs a Parkent login) | READ | nav=3, /sklad→redirect, no +Katalog, discount_reason mandatory |
+
+### SKIP-UNLESS-YOU-WANT-THE-DAMAGE (open-question-only steps)
+- **All-empty rate save** (was LIST 1 #3): deactivates a florist's ENTIRE grid — pointless right
+  after you hand-entered rates. Only run to SEE the «Barcha tariflar o'chiriladi» confirm guard;
+  if you do, re-enter + save immediately. Otherwise skip — the guard is unit-tested.
+- **Edit catalog composition over-balance** (was LIST 1 #10, open q c): its ONLY purpose is to
+  learn whether PATCH re-validates against the florist's balance. **Recommend asking the backend
+  dev instead of damaging a real item** — the UI is already conservative either way.
