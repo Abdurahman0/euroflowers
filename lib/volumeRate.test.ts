@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { volumeArrangementMatch, rateSalaryForCatalog, rateToCatalogSalary, VOLUMES } from "./inventory";
+import { volumeArrangementMatch, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, VOLUMES } from "./inventory";
 import type { FloristVolumeRate } from "./types";
 
 const rate = (o: Partial<FloristVolumeRate>): FloristVolumeRate => ({
@@ -48,6 +48,23 @@ describe("rateSalaryForCatalog — per-florist lookup", () => {
 describe("rateToCatalogSalary — the naming-trap mapper", () => {
   it("maps rate.florist_fee → catalog salary value", () => {
     expect(rateToCatalogSalary(rate({ florist_fee: "60000.00" }))).toBe("60000");
+  });
+});
+
+describe("catalogSalaryPayload — zero is a value, empty is omission (override rule)", () => {
+  it("empty string → key omitted (backend auto-fills from rate)", () => {
+    expect(catalogSalaryPayload("")).toEqual({});
+  });
+  it("null/undefined → key omitted", () => {
+    expect(catalogSalaryPayload(null)).toEqual({});
+    expect(catalogSalaryPayload(undefined)).toEqual({});
+  });
+  it('operator-typed "0" → sent as "0" (never treated as empty)', () => {
+    expect(catalogSalaryPayload("0")).toEqual({ florist_salary_amount: "0" });
+  });
+  it("rate-resolved / operator-edited value → sent", () => {
+    expect(catalogSalaryPayload("60000")).toEqual({ florist_salary_amount: "60000" });
+    expect(catalogSalaryPayload("60000.00")).toEqual({ florist_salary_amount: "60000" });
   });
 });
 

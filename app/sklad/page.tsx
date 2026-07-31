@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { dateAfterParam, fmt, fmtTime, movementLeadId, rangeParams } from "@/lib/format";
+import { dateAfterParam, fmt, fmtTime, movementLeadId, movementRefLabel, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import BatchDrawer from "@/components/BatchDrawer";
 import StockBatchCard from "@/components/StockBatchCard";
@@ -20,7 +20,7 @@ import MaterialSklad from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
 import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL } from "@/lib/inventory";
-import type { MaterialMovement, PackagingType, StockBatch, StockMovement, Supplier } from "@/lib/types";
+import type { FloristStockIssue, MaterialMovement, PackagingType, StockBatch, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "KIRIM", out: "CHIQIM", adjustment: "TUZATISH", waste: "CHIQIT", transfer_out: "O'TKAZMA →", transfer_in: "→ O'TKAZMA",
@@ -28,7 +28,7 @@ const MOVE_LABEL: Record<string, string> = {
 const MOVE_IN = new Set(["in", "transfer_in", "adjustment"]);
 
 /** Jurnal xulosasi — joriy filtr bo'yicha Kirim / Ishlab chiqarishga / Chiqit jami. */
-function MovesSummary({ moves }: { moves: StockMovement[] }) {
+function MovesSummary({ moves, floristWaste = [] }: { moves: StockMovement[]; floristWaste?: FloristStockIssue[] }) {
   const bunchSum = (pred: (m: StockMovement) => boolean) =>
     moves.reduce((a, m) => (pred(m) ? a + (parseFloat(m.quantity_bunches ?? "") || 0) : a), 0);
   const stemSum = (pred: (m: StockMovement) => boolean) =>
@@ -39,6 +39,8 @@ function MovesSummary({ moves }: { moves: StockMovement[] }) {
     { key: "prod", label: "Ishlab chiqarishga", hue: MOVEMENT_HUE.out, is: (m: StockMovement) => m.movement_type === "out" || m.movement_type === "transfer_out" },
     { key: "chiqit", label: "Chiqit", hue: MOVEMENT_HUE.waste, is: (m: StockMovement) => m.movement_type === "waste" },
   ] as const;
+  // florist qo'lidagi chiqit — ALOHIDA karta, sklad "Chiqit"iga QO'SHILMAYDI
+  const fwStems = floristWaste.reduce((a, w) => a + w.quantity_stems, 0);
 
   return (
     <div className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
@@ -61,6 +63,17 @@ function MovesSummary({ moves }: { moves: StockMovement[] }) {
           </div>
         );
       })}
+      {/* FLORIST QO'LIDAGI CHIQIT — sklad chiqiti bilan JAMLANMAGAN (ataylab) */}
+      {fwStems > 0 && (
+        <div className="glass !rounded-[16px] p-3.5" style={{ borderLeft: `3px solid ${MOVEMENT_HUE.waste}` }}>
+          <div className="flex items-center gap-1.5 text-[12px] font-bold" style={{ color: MOVEMENT_HUE.waste }}>
+            <span className="h-2 w-2 rounded-full" style={{ background: MOVEMENT_HUE.waste }} />
+            Florist qo&apos;lidagi chiqit
+          </div>
+          <div className="mt-1 text-[18px] font-extrabold tabular-nums" style={{ color: "var(--text)" }}>{fmtStems(fwStems)}</div>
+          <div className="text-[11.5px]" style={{ color: "var(--mut)" }}>Sklad chiqiti bilan qo&apos;shilmagan</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -102,6 +115,7 @@ export default function SkladPage() {
   const [tab, setTab] = useState<"gul" | "material" | "jurnal">("gul");
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [moves, setMoves] = useState<StockMovement[]>([]);
+  const [floristWaste, setFloristWaste] = useState<FloristStockIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [kirimOpen, setKirimOpen] = useState(false);
   // dashboard alertidan chuqur havola: ?show=low (kam qolgan) | wilt (8+ kunlik)
@@ -134,6 +148,8 @@ export default function SkladPage() {
       ]);
       setBatches(bs);
       setMoves(ms);
+      // florist qo'lidagi chiqit — alohida ko'rsatiladi (jamlanmaydi)
+      api.floristStockIssues({ kind: "waste", ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }), page_size: 200 }).then(setFloristWaste).catch(() => setFloristWaste([]));
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
     } finally {
@@ -302,7 +318,7 @@ export default function SkladPage() {
         </div>
 
         {/* xulosa — manba bo'yicha (gul: dona+pochka, material: dona) */}
-        {isGul ? <MovesSummary moves={fMoves} /> : <MatSummary moves={fMatMoves} />}
+        {isGul ? <MovesSummary moves={fMoves} floristWaste={floristWaste} /> : <MatSummary moves={fMatMoves} />}
 
         {/* MATERIAL harakatlari — timeline */}
         {!isGul && (
@@ -385,6 +401,9 @@ export default function SkladPage() {
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>
                     <span>{who} · {fmtTime(m.created_at)}</span>
+                    {m.reference_type?.startsWith("florist") && movementRefLabel(m.reference_type) && (
+                      <span className="rounded-full px-1.5 py-px text-[10.5px] font-bold" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>{movementRefLabel(m.reference_type)}</span>
+                    )}
                     {(m.cost_value != null || m.sale_value != null) && (
                       <span className="flex items-center gap-1.5 tabular-nums">
                         {m.cost_value != null && +m.cost_value !== 0 && <span title="Tannarx qiymati">Tannarx <b style={{ color: "var(--text-2)" }}>{fmt(Math.abs(+m.cost_value))}</b></span>}

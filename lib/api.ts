@@ -468,13 +468,20 @@ export const api = {
   // Per-florist hajm tariflari. Matritsa TO'LIQ ALMASHTIRISH orqali saqlanadi —
   // `PATCH /florists/{id}/` ga barcha 6 qatorni `volume_rates` sifatida yuboring
   // (ro'yxatda bo'lmagan qator is_active:false bo'ladi). CRUD ham mavjud.
+  // GET — o'qish uchun (composer FAOL tariflarni ?florist=&is_active=true bilan oladi).
   floristVolumeRates: (p?: Params) => list<FloristVolumeRate>("/api/florist-volume-rates/", p),
+  // ⚠️ DEPRECATED — TARIFLARNI TO'G'RIDAN-TO'G'RI YOZMANG. Yagona yozuv yo'li —
+  // saveFloristVolumeRates (to'liq almashtirish PATCH /florists/{id}/), shunda unique-key
+  // (florist+arrangement+volume) dublikati va nofaol qatorni qayta faollashtirish muammosi
+  // umuman yuzaga kelmaydi. Quyidagi 3 metod FAQAT eski VolumeRateMatrix uchun qoldi —
+  // Bosqich 3'da matritsa qayta qurilganda ULAR HAM O'CHIRILADI. Yangi kodda ISHLATMANG.
   createVolumeRate: (data: VolumeRateInput) =>
     request<FloristVolumeRate>("/api/florist-volume-rates/", { method: "POST", body: JSON.stringify(data) }),
   updateVolumeRate: (id: number, data: VolumeRateInput) =>
     request<FloristVolumeRate>(`/api/florist-volume-rates/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteVolumeRate: (id: number) => request<void>(`/api/florist-volume-rates/${id}/`, { method: "DELETE" }),
-  /** Florist tariflarini birdaniga saqlash (to'liq almashtirish). */
+  /** Florist tariflarini birdaniga saqlash — YAGONA yozuv yo'li (to'liq almashtirish:
+      ro'yxatda bo'lmagan hajm is_active:false bo'ladi). */
   saveFloristVolumeRates: (floristId: number, volume_rates: VolumeRateInput[]) =>
     request<FloristProfile>(`/api/florists/${floristId}/`, { method: "PATCH", body: JSON.stringify({ volume_rates }) }),
 

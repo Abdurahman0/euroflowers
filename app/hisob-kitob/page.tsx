@@ -20,7 +20,7 @@ import DatePicker from "@/components/DatePicker";
 import Select from "@/components/Select";
 import { Field } from "@/components/Modal";
 import { Plus, Pencil } from "lucide-react";
-import type { Accounting, Analytics, CatalogItem, FloristProfile, FloristSalaryEntry, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
+import type { Accounting, Analytics, CatalogItem, FloristProfile, FloristSalaryEntry, FloristStockIssue, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
 
 const METHOD_OPTS: { value: SupplierPaymentMethod; label: string }[] = [
   { value: "cash", label: "Naqd" }, { value: "card", label: "Karta" }, { value: "transfer", label: "O'tkazma" },
@@ -84,6 +84,11 @@ export default function HisobKitobPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [payments, setPayments] = useState<SupplierPayment[]>([]);
   const [waste, setWaste] = useState<StockMovement[]>([]);
+  // FLORIST QO'LIDAGI CHIQIT — sklad chiqiti bilan ALOHIDA ko'rsatiladi, JAMLANMAYDI.
+  // TODO(branch-parkent §2b): backend florist waste uchun warehouse waste movement
+  //   yozadimi — READ-ONLY tekshirib bo'lmadi (0 yozuv). Qo'lda tasdiqlangach, agar
+  //   yozmasa BU YERDA jamlash mumkin; yozsa — ikki marta sanamaslik uchun ayirish kerak.
+  const [floristWaste, setFloristWaste] = useState<FloristStockIssue[]>([]);
   const [prod, setProd] = useState<Analytics["florist_production_stats"]>([]);
   const [salary, setSalary] = useState<FloristSalaryEntry[]>([]);
   const [err, setErr] = useState("");
@@ -109,6 +114,7 @@ export default function HisobKitobPage() {
     api.suppliers().then(setSuppliers).catch(() => setSuppliers([]));
     api.supplierPayments().then(setPayments).catch(() => setPayments([]));
     api.stockMovements({ movement_type: "waste", created_at_after: from, created_at_before: dateBeforeParam(to), page_size: 200 }).then(setWaste).catch(() => setWaste([]));
+    api.floristStockIssues({ kind: "waste", created_at_after: from, created_at_before: dateBeforeParam(to), page_size: 200 }).then(setFloristWaste).catch(() => setFloristWaste([]));
     api.analytics({ from, to }).then((a) => setProd(a.florist_production_stats ?? [])).catch(() => setProd([]));
     api.floristSalary().then(setSalary).catch(() => setSalary([]));
   }, [visible, from, to]);
@@ -133,6 +139,11 @@ export default function HisobKitobPage() {
   const sales = useMemo(() => excludeTest(acc?.history ?? [], (s) => s.catalog_name, includeTest), [acc, includeTest]);
   const cleanBatches = useMemo(() => excludeTest(batches, (b) => b.batch_number, includeTest), [batches, includeTest]);
   const cleanWaste = useMemo(() => excludeTest(waste, (m) => m.batch_detail?.batch_number, includeTest), [waste, includeTest]);
+  // FLORIST QO'LIDAGI CHIQIT jami — ALOHIDA ko'rsatiladi, sklad chiqitiga QO'SHILMAYDI
+  const floristWasteTotal = useMemo(() => ({
+    stems: floristWaste.reduce((s, w) => s + w.quantity_stems, 0),
+    value: floristWaste.reduce((s, w) => s + w.quantity_stems * (+w.batch_detail.cost_per_stem || 0), 0),
+  }), [floristWaste]);
 
   // ── Section 2: katalog foydasi (har sotuv) ───────────────────────
   const catRows = useMemo(() => sales.map((s) => {
@@ -519,6 +530,14 @@ export default function HisobKitobPage() {
                       ))}
                     </div>
                   )}
+                </div>
+                {/* FLORIST QO'LIDAGI CHIQIT — sklad chiqiti bilan JAMLANMAGAN (ataylab) */}
+                <div className="rounded-[12px] border px-3 py-2.5" style={{ borderColor: "color-mix(in srgb, var(--danger-ink) 25%, var(--border))" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}><Trash2 size={14} strokeWidth={2.2} /> Florist qo&apos;lidagi chiqit<Tip text="Floristga chiqarilgan, keyin uning qo'lida yo'qolgan gullar. Sklad chiqitidan alohida hisoblanadi." /></span>
+                    <span className="text-[13px] font-bold tabular-nums" style={{ color: "var(--danger-ink)" }}>{fmt(floristWasteTotal.value)} · {floristWasteTotal.stems} dona</span>
+                  </div>
+                  <p className="mt-1 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>Sklad chiqiti bilan qo&apos;shilmagan</p>
                 </div>
                 {/* chegirma + sof foyda */}
                 <div className="flex items-center justify-between gap-3 rounded-[11px] px-3 py-2" style={{ background: "var(--surface-2)" }}>

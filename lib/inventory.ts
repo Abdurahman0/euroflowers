@@ -145,6 +145,16 @@ export function rateSalaryForCatalog(
     tarifning `florist_fee` (florist ISH HAQI) → katalogning `florist_salary_amount`.
     Katalogning O'ZINING `florist_fee` (mijozdan xizmat haqi) bilan ARALASHTIRMANG. */
 export const rateToCatalogSalary = (rate: FloristVolumeRate): string => String(Math.round(+rate.florist_fee));
+
+/** Katalog `florist_salary_amount` payload — ⚠️ ZERO qiymat, BO'SH EMAS.
+    - "" / null  → kalit TUSHIRILADI (backend tarifdan avto-to'ldiradi, spec §4)
+    - "0"        → "0" YUBORILADI (operator ataylab nol qildi — backend avto-to'ldirmasin)
+    - boshqa     → son sifatida yuboriladi
+    Falsy tekshiruv (`if (v)`) ISHLATILMAYDI — u ataylab "0" ni bo'shdek talqin qilardi. */
+export function catalogSalaryPayload(value: string | null | undefined): { florist_salary_amount: string } | Record<string, never> {
+  if (value === "" || value == null) return {};
+  return { florist_salary_amount: String(+value) };
+}
 export const KIND_LABEL: Record<CatalogKind, string> = { standard: "Standart", custom: "Maxsus" };
 export const SALARY_SOURCE_LABEL: Record<SalarySource, string> = {
   catalog: "Katalog",

@@ -246,6 +246,8 @@ const ROLE_FALLBACK: Record<Role, PermissionPage[]> = {
   admin: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "users", "audit"],
   operator: ["dashboard", "crm", "customers", "conversations", "catalog", "social_posts", "notifications"],
   florist: ["dashboard", "inventory", "catalog", "notifications", "attendance"],
+  apprentice: ["dashboard", "inventory", "catalog", "notifications", "attendance"],
+  supervisor: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "suppliers", "florists", "attendance", "notifications"],
   warehouse: ["dashboard", "inventory", "catalog", "notifications", "suppliers"],
   content: ["dashboard", "catalog", "social_posts", "notifications"],
 };

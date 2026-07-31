@@ -387,6 +387,12 @@ export default function KatalogPage() {
                 ⚠ Bu yozuvdan {confirmDel.quantity_sold} ta sotilgan — sotuv tarixi ham yo&apos;qolishi mumkin.
               </p>
             )}
+            {/* florist tanlangan katalog o'chirilsa — gul SKLADGA EMAS, FLORIST qo'liga qaytadi */}
+            {confirmDel.florist ? (
+              <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+                ↩ Gullar <b>skladga emas, {confirmDel.florist_detail ? floristName(confirmDel.florist_detail) : "floristning"} qo&apos;liga</b> qaytadi.
+              </p>
+            ) : null}
             <div className="mt-5 flex gap-2.5">
               <button onClick={() => setConfirmDel(null)} className="btn-ghost flex-1">Bekor qilish</button>
               <button onClick={doDelete} disabled={deleting} className={`btn-danger flex-1 ${deleting ? "btn-loading" : ""}`}>O&apos;chirish</button>

@@ -10,7 +10,7 @@ import { Field } from "./Modal";
 import { BatchMovementModal } from "./BatchMovementModal";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
-import { fmt, fmtDate, fmtTime } from "@/lib/format";
+import { fmt, fmtDate, fmtTime, movementRefLabel } from "@/lib/format";
 import { formatStemsAndBunches } from "@/lib/inventory";
 import type { StockBatch, StockMovement, Supplier } from "@/lib/types";
 
@@ -249,7 +249,12 @@ export default function BatchDrawer({
                     {MOVE_LABEL[m.movement_type] ?? m.movement_type} · {m.quantity_stems} dona
                     {m.reason ? <span className="font-normal text-[color:var(--text-2)]"> — {m.reason}</span> : null}
                   </div>
-                  <div className="text-[12px] text-[color:var(--muted)]">{who} · {fmtTime(m.created_at)}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-[color:var(--muted)]">
+                    <span>{who} · {fmtTime(m.created_at)}</span>
+                    {m.reference_type?.startsWith("florist") && movementRefLabel(m.reference_type) && (
+                      <span className="rounded-full px-1.5 py-px text-[10.5px] font-bold" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>{movementRefLabel(m.reference_type)}</span>
+                    )}
+                  </div>
                 </li>
               );
             })}

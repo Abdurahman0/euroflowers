@@ -17,6 +17,7 @@ const NAV: { id: ScreenId; href: string; label: string; pages: PermissionPage[];
   { id: "sklad", href: "/sklad", label: "Sklad", pages: ["inventory"], top: true },
   { id: "katalog", href: "/katalog", label: "Katalog", pages: ["catalog"], top: true },
   { id: "floristlar", href: "/floristlar", label: "Floristlar", pages: ["florists", "attendance", "settings"], top: true },
+  { id: "floristStock", href: "/floristlarga-chiqarilgan", label: "Floristlarga chiqarilgan", pages: ["inventory"], top: true },
   { id: "gullar", href: "/gullar", label: "Gullar", pages: ["inventory"], top: true },
   { id: "chat", href: "/chat", label: "AI chatlar", pages: ["conversations"], top: true },
   // qolganlari — joriy nisbiy tartibda

@@ -78,6 +78,19 @@ export const movementLeadId = (m: { reference_type?: string; reference_id?: numb
   return hit ? +hit[1] : null;
 };
 
+/** Sklad harakatining MANBA yorlig'i (reference_type). `florist_issue` endi alohida —
+    skladdan floristga chiqarish (katalog/sotuv chiqimidan farqli). Noma'lum turlar
+    uchun null (xom satr KO'RSATILMAYDI). */
+export const MOVEMENT_REF_LABEL: Record<string, string> = {
+  florist_issue: "Floristga chiqarildi",
+  florist_return: "Floristdan qaytdi",
+  florist_waste: "Florist qo'lida chiqit",
+  catalog_item: "Katalog",
+  lead: "Buyurtma",
+};
+export const movementRefLabel = (referenceType?: string | null): string | null =>
+  referenceType ? MOVEMENT_REF_LABEL[referenceType] ?? null : null;
+
 /** created_at date filtri: bugun / 7 kun / 30 kun. */
 export const inDateFilter = (iso: string, filter: "bugun" | "hafta" | "oy"): boolean => {
   const d = new Date(iso);
