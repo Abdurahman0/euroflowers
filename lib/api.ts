@@ -6,6 +6,7 @@ import type {
   LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   SocialPost, StockBatch, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
+import { dashboardDateTo, accountingDateTo } from "./format";
 
 /**
  * API asosi:
@@ -341,23 +342,17 @@ export function logout() {
  *     o'zgarishsiz yuboriladi.
  * Ko'rinishlar `{ from, to }` (ikkalasi inklyuziv YYYY-MM-DD) yuboradi, xolos.
  */
-const nextDay = (ymd: string) => {
-  const dt = new Date(ymd + "T00:00:00");
-  dt.setDate(dt.getDate() + 1);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-};
 type Period = { from?: string; to?: string };
 
 export const api = {
   me: () => request<User>("/api/me/"),
-  /** davr statistikasi — `{ from, to }` (inklyuziv). date_to eksklyuziv → +1 (nextDay). */
-  dashboard: (p?: Period) => request<Dashboard>(`/api/dashboard/${qs({ from: p?.from, to: p?.to ? nextDay(p.to) : undefined, date_from: p?.from, date_to: p?.to ? nextDay(p.to) : undefined })}`),
-  /** Analitika — dashboard bilan bir xil ko'rish ruxsati; date_to eksklyuziv → +1. */
-  analytics: (p?: Period) => request<Analytics>(`/api/analytics/${qs({ from: p?.from, to: p?.to ? nextDay(p.to) : undefined, date_from: p?.from, date_to: p?.to ? nextDay(p.to) : undefined })}`),
+  // ⚠️ date_to ASIMMETRIYASI (lib/format): dashboard/analytics EKSKLYUZIV → +1
+  // (dashboardDateTo); accounting INKLYUZIV → xom (accountingDateTo). YAGONA manba.
+  dashboard: (p?: Period) => request<Dashboard>(`/api/dashboard/${qs({ from: p?.from, to: dashboardDateTo(p?.to), date_from: p?.from, date_to: dashboardDateTo(p?.to) })}`),
+  analytics: (p?: Period) => request<Analytics>(`/api/analytics/${qs({ from: p?.from, to: dashboardDateTo(p?.to), date_from: p?.from, date_to: dashboardDateTo(p?.to) })}`),
 
-  /** Hisob-kitob — sotuv/foyda/chegirma xulosalari; date_to INKLYUZIV (o'zgarishsiz). */
-  // branch: "all" | "main" | "<id>" — sukut (yubormasak) backend "all" beradi.
-  accounting: (p?: Period & { branch?: string }) => request<Accounting>(`/api/accounting/${qs({ date_from: p?.from, date_to: p?.to, from: p?.from, to: p?.to, branch: p?.branch })}`),
+  /** Hisob-kitob — date_to INKLYUZIV (o'zgarishsiz). branch: "all"|"main"|"<id>". */
+  accounting: (p?: Period & { branch?: string }) => request<Accounting>(`/api/accounting/${qs({ date_from: p?.from, date_to: accountingDateTo(p?.to), from: p?.from, to: accountingDateTo(p?.to), branch: p?.branch })}`),
   /** Excel eksportlar — fayl (blob) sifatida yuklab olinadi */
   exportFlorist: (p?: { date_from?: string; date_to?: string; florist?: number }) => downloadFile("/api/exports/florist/", p, "florist-hisobot"),
   exportFlorists: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florists/", p, "floristlar-hisobot"),

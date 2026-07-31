@@ -61,6 +61,16 @@ export const dateBeforeParam = (ymdStr: string): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+/** ⚠️ ENDPOINT `date_to` ASIMMETRIYASI (backend HUJJATLASHTIRMAGAN — LIST 2 savoli):
+ *  • /api/dashboard/ va /api/analytics/ `date_to` ni EKSKLYUZIV (kun BOSHI) deb oladi →
+ *    foydalanuvchi tanlagan OXIRGI kun qamralishi uchun +1 kun yuboriladi.
+ *  • /api/accounting/ `date_to` ni INKLYUZIV oladi → XOM (o'zgarishsiz) yuboriladi.
+ *  Ikkalasi ham AYNAN bir foydalanuvchi oralig'ini qamraydi. Agar kimdir keyin bu +1 ni
+ *  "tozalasa", dashboard oxirgi kun tushumini JIMGINA yo'qotadi (eski trailing-+1 bug oilasi)
+ *  va hech narsa xato bermaydi — shuning uchun bu YAGONA joyda va Vitest bilan qulflangan. */
+export const dashboardDateTo = (to?: string): string | undefined => (to ? dateBeforeParam(to) : undefined);
+export const accountingDateTo = (to?: string): string | undefined => to;
+
 /** ISO datetime → lokal "YYYY-MM-DDTHH:mm" (DatePicker withTime qiymati). */
 export const toLocalInput = (iso: string | null | undefined): string => {
   if (!iso) return "";
