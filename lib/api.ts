@@ -5,7 +5,7 @@ import type {
   Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
-  SocialPost, StockBatch, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
+  SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
 import { dashboardDateTo, accountingDateTo } from "./format";
 
@@ -414,6 +414,19 @@ export const api = {
   deleteFlowerVariant: (id: number) => request<void>(`/api/flower-variants/${id}/`, { method: "DELETE" }),
 
   stockBatches: (p?: Params) => list<StockBatch>("/api/stock-batches/", p),
+
+  /* ===== YUK (stock-delivery) — partiyalarni guruhlaydi ===== */
+  stockDeliveries: (p?: Params) => list<StockDelivery>("/api/stock-deliveries/", p),
+  stockDelivery: (id: number) => request<StockDelivery>(`/api/stock-deliveries/${id}/`),
+  /** yuk ichidagi partiyalar (gullar) */
+  deliveryBatches: (id: number, p?: Params) => list<StockBatch>(`/api/stock-deliveries/${id}/batches/`, p),
+  createStockDelivery: (data: StockDeliveryInput) =>
+    request<StockDelivery>("/api/stock-deliveries/", { method: "POST", body: JSON.stringify(data) }),
+  updateStockDelivery: (id: number, data: Partial<StockDeliveryInput>) =>
+    request<StockDelivery>(`/api/stock-deliveries/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  /** ⚠️ ichida gul bo'lsa server ARXIVLAYDI (is_active=false), o'chirmaydi */
+  deleteStockDelivery: (id: number) =>
+    request<void>(`/api/stock-deliveries/${id}/`, { method: "DELETE" }),
   stockBatch: (id: number) => request<StockBatch>(`/api/stock-batches/${id}/`),
   createStockBatch: (data: Partial<StockBatch>) =>
     request<StockBatch>("/api/stock-batches/", { method: "POST", body: JSON.stringify(data) }),

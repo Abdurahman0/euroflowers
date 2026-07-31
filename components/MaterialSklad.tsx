@@ -10,6 +10,7 @@ import FlowerLoader from "./FlowerLoader";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import { api, ApiError } from "@/lib/api";
+import { notifyReportDataChanged } from "@/lib/reportCache";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { useRouter } from "next/navigation";
@@ -391,6 +392,7 @@ export default function MaterialSklad() {
             setFormM({ open: false, edit: null });
             if (formM.edit) patch(m);
             else load();
+            notifyReportDataChanged(); // material tannarxi/qoldig'i → hisobot
           }}
         />
       )}
@@ -398,7 +400,7 @@ export default function MaterialSklad() {
         <MoveModal
           material={moveM}
           onClose={() => setMoveM(null)}
-          onDone={() => { setMoveM(null); load(); }}
+          onDone={() => { setMoveM(null); notifyReportDataChanged(); load(); }}
         />
       )}
     </>

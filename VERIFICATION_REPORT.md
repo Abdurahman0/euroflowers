@@ -607,3 +607,116 @@ formatChange), 17 new Vitest cases (88 total, all green). tsc clean.
   Live probe confirmed the endpoint + top-level shape ({florist, florist_name, direction, batches:[],
   total_florist_stems, blocked_count}) and the request contract (FloristLeftoverRequest: florist req,
   batch nullable, direction enum default to_catalog, quantity_stems min 1).
+
+═══════════════════════════════════════════════════════════════════
+# YUK (delivery) + POCHKA→DONA NARX (rounding) — BUILD + AUDIT (2026-08-01)
+═══════════════════════════════════════════════════════════════════
+
+## §0 — CACHE-INVALIDATION TRACE (closed out)
+`invalidateReportCache` was added in `fe6d280` (finance module) with a doc-comment promising it'd be
+called on `ef:stock-changed` — but NO call site ever existed until my adjust commit `51e6f76`. So
+every report-mutating action except adjust left numbers STALE for up to the 30s TTL. Fix: a
+centralized `notifyReportDataChanged()` (invalidate + dispatch `ef:stock-changed`) — both are needed:
+invalidate covers a report page opened LATER (unmounted at mutation time), the event reloads a
+MOUNTED one. Wired into every handler below; the two listeners (sklad, hisob-kitob) also invalidate
+on the event so the WebSocket `supplier_stock` push is covered.
+
+| Action | Before | After |
+|---|---|---|
+| Sell (incl. discounted) | stale | ✅ notify |
+| Catalog create / edit | dispatched event but never cleared cache → stale | ✅ notify (in KatalogModal) |
+| Catalog delete / deduct-stock | stale | ✅ notify |
+| Catalog transfer to branch | stale | ✅ notify |
+| Florist issue / return / waste | stale | ✅ notify |
+| Florist adjust | ✅ (already) | ✅ |
+| Batch create | stale | ✅ notify |
+| Batch edit / delete / waste / movement (BatchDrawer) | stale | ✅ notify |
+| Material create/edit / movement | stale | ✅ notify |
+| Supplier payment create/edit/delete | stale | ✅ invalidate (on-page refreshSuppliers kept) |
+| WebSocket supplier_stock push | dispatched, no invalidate | ✅ listeners invalidate |
+
+## §1 — AUDITS (live data)
+- **a) Terminology:** batch stays "Partiya" (backend error strings say it). Delivery = **"Yuk"**
+  (user-approved) — native Uzbek, and the spec's own note says "Chorshanba yuki". Labels centralized
+  in `lib/inventory.ts` `DELIVERY` (never scattered literals): Yuklar / Yangi yuk / "Yuk 7 · 01.08.2026".
+- **b) Rounding cliff (GET /stock-batches/):** only 2 batches; lowest cost_per_stem = **3000**, other
+  **5333**. ZERO under 150, ZERO under 50 — the round-to-0 cliff isn't hit by today's data, but the
+  form warns anyway (screenshot: bunch 1000 ÷ 25 = 40 → "0 ga yaxlitlanadi, aniq hisob 40"). LIST 2.
+- **c) Parity:** one helper `perStemFromBunch = round(bunch/stems/100)*100` — divides THEN rounds,
+  half-up. Vitest passes EVERY spec row (998→1000, 996→1000, 1004→1000, 1052→1100, 1060→1100) + exact
+  halves (1050→1100, 950→1000, 50→100) + sub-50 (49→0). **What we send:** per-stem is preview-only —
+  default payload sends the BUNCH value only; a "qo'lda kiritish" override sends both knowingly.
+- **d) Migration state (GET /stock-deliveries/):** 1 delivery (id 1, number "01:00", note
+  "Avtomatik ko'chirildi") groups BOTH existing batches; every batch carries a delivery (2/2). No
+  repeated numbers yet. The auto-number "01:00" is quirky (time-derived) — usable on day one.
+
+## §3 — WHAT THE BATCH FORM SENT TODAY (before the rework)
+`StockBatchModal` posted ALL THREE fields the spec wants gone: `batch_number` (auto `EF-…`),
+`supplier` (when set), `received_at` (when set) — plus BOTH `sale_price_per_stem` AND
+`sale_price_per_bunch` (the "never send both" violation). After: delivery-bound payloads omit the
+three fields (shown read-only) and send the bunch price only unless overridden — `buildBatchPayload`,
+Vitest-covered (bunch-only / stem-only / override / delivery-bound omitting the three).
+
+## §5 — REPORTING IMPACT (audit, not patched)
+Which client derivations read `cost_per_stem` and are moved by the round-to-100 rule:
+
+| Site | Reads | Affected by rounding? |
+|---|---|---|
+| `lib/finance.ts` allocateByCost / saleLineAllocations | composition `batch_detail.cost_per_stem` | YES (weights use the rounded per-stem) |
+| `app/hisob-kitob` supplier + variant profit tables | revenue − cost (via saleLineAllocations) | YES |
+| florist balance value-at-cost (`floristlarga-chiqarilgan` chips.value, BatchDrawer) | `remaining_stems × cost_per_stem` | YES |
+| adjust preview (server) | catalog composition cost | YES (server computes from the rounded basis; we display) |
+| StockBatchCard / BatchDrawer cost display | `cost_per_stem`, now also `cost_per_bunch` | shows the rounded per-stem verbatim |
+| server `net_profit` / `cost_total` / `stock_value` | server fields | move on server recompute (not our math) |
+
+**Mixed basis (reported, NOT normalized):** a NEW batch created via `cost_per_bunch` stores a
+`cost_per_stem` that is a multiple of 100. OLD batches entered per-stem directly are NOT — LIVE
+EXAMPLE: batch #61 `cost_per_stem=5333` (79995/15, not a multiple of 100) sits next to #62 `=3000`.
+Any report summing both mixes a rounded-to-100 basis with an exact one. Left as-is per instructions.
+
+## Built
+- `lib/inventory.ts`: `DELIVERY` copy, `roundToHundred`/`perStemFromBunch`/`exactPerStem`/
+  `roundingNote`, `buildBatchPayload`, `batchDeliveryTag`.
+- `lib/types.ts`: `StockDelivery`/`StockDeliveryInput`/`DeliveryBrief`; `cost_per_bunch` + `delivery`
+  + `delivery_detail` on `StockBatch`. `lib/api.ts`: stockDeliveries/stockDelivery/deliveryBatches/
+  create/update/delete.
+- Components: `DeliveryModal` (create/edit), `DeliveryDrawer` (header text + batches + «Gul qo'shish»
+  + archive/edit), reworked `StockBatchModal` (delivery-bound: drops the 3 fields, pochka pricing
+  with rounded per-stem preview + "(yaxlitlandi, aniq hisob N)" + loud 0-warning + "qo'lda kiritish"
+  override). Sklad page: new "Yuklar" tab (columns number·date·supplier·batch_count·total_stems·
+  remaining·total_cost, server-computed; row key = id, number shown with date since number REPEATS).
+- §4 pickers keep working; delivery context added to composer (warehouse) + issue-modal option subs
+  ("Yuk 7 · 01.08"); adjust/waste operate on already-selected batches (unchanged). cost_per_bunch
+  shown alongside per-stem on StockBatchCard + BatchDrawer.
+- 17 new Vitest cases (delivery.test.ts): rounding table + payload rules. 105 total, green.
+
+## Untested write paths (added — READ-ONLY, none fired)
+- POST /api/stock-deliveries/ — create a Yuk (DeliveryModal).
+- PATCH /api/stock-deliveries/{id}/ — edit a Yuk.
+- DELETE /api/stock-deliveries/{id}/ — ⚠️ if it contains flowers the server ARCHIVES (is_active=false),
+  does not delete; the confirm text says exactly that.
+- POST /api/stock-batches/ with `delivery` + `cost_per_bunch` (delivery-bound, no batch_number/
+  received_at/supplier) — new create path. Live GETs only (deliveries, one /batches/, batch list)
+  were called; the deliveries UI is otherwise MOCK-verified in screenshots (only 1 real delivery).
+
+## LIST 1 — DELIVERY (YUK) BLOCK (append after everything; risk-annotated)
+D1. Yangi yuk: Sklad → Yuklar → «Yangi yuk» → raqam (masalan 7) + sana + postavshik + izoh → ochish.
+    REV (yuk bo'sh — o'chirsa bo'ladi). IRREV EMAS.
+D2. Ichiga 2 gul: yuk detali → «Gul qo'shish» ×2 (har xil nav). Har birida Pochka tannarxi kiriting;
+    «→ dona tannarxi» YAXLITLANGANini + "(yaxlitlandi, aniq hisob N)" izohini ko'ring. IRREV
+    (StockBatch yoziladi) — arzon, tashlab yuboriladigan gul.
+D3. Totallar: yuk qatorida Xil gul=2, Kelgan/Qolgan/Tannarx server hisobidan chiqqanini tasdiqlang.
+    READ.
+D4. Yukdan olindi: qo'shilgan partiyani BatchDrawer'da oching — batch_number/sana/postavshik YUKKA
+    mos (siz formada kiritmadingiz); «Yuk» meta ko'rinadi. Saqlangan dona tannarxi = formadagi
+    preview bilan AYNAN teng (rounding parity). READ.
+D5. Arxiv: gulli yukni «Arxivlash» → tasdiq matni "ARXIVLANADI (is_active=false)" deydi. REV-ish
+    (arxiv, o'chmaydi). Ehtiyot: keyin ro'yxatdan yo'qoladi.
+
+## LIST 2 — ROUNDING QUESTION (append)
+n. Pochka→dona yaxlitlash 100 ga — arzon gullar uchun to'g'rimi? cost_per_stem = cost_per_bunch ÷
+   stems_per_bunch, nearest 100. Har qanday <50/dona → 0 (tannarx asosi yo'qoladi → cheksiz foyda),
+   50–149 → 100. Bugungi ma'lumotda eng arzoni 3000/dona (xavf yo'q), lekin qoida o'zi arzon gulni
+   buzadi. Mayda gul uchun finaroq (masalan 10 ga) yaxlitlash kerakmi? SETTLE: backend policy.
+   Bog'liq: mixed basis — eski #61 cost_per_stem=5333 (100 ning karrasi EMAS) yangi yaxlitlangan
+   partiyalar bilan bitta hisobotda aralashadi.

@@ -8,19 +8,22 @@ import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
-import { dateAfterParam, fmt, fmtTime, movementLeadId, movementRefLabel, rangeParams } from "@/lib/format";
+import { dateAfterParam, fmt, fmtDate, fmtTime, movementLeadId, movementRefLabel, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import BatchDrawer from "@/components/BatchDrawer";
 import StockBatchCard from "@/components/StockBatchCard";
 import StockBatchModal from "@/components/StockBatchModal";
+import DeliveryModal from "@/components/DeliveryModal";
+import DeliveryDrawer from "@/components/DeliveryDrawer";
 import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
-import { MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL } from "@/lib/inventory";
-import type { FloristStockIssue, MaterialMovement, PackagingType, StockBatch, StockMovement, Supplier } from "@/lib/types";
+import { DELIVERY, MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL } from "@/lib/inventory";
+import type { FloristStockIssue, MaterialMovement, PackagingType, StockBatch, StockDelivery, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "KIRIM", out: "CHIQIM", adjustment: "TUZATISH", waste: "CHIQIT", transfer_out: "O'TKAZMA →", transfer_in: "→ O'TKAZMA",
@@ -111,8 +114,11 @@ const MAT_TYPES: PackagingType[] = ["wrap", "basket", "box", "other"];
 export default function SkladPage() {
   const router = useRouter();
   const { showToast, dateFilter, dateRange, setDateFilter } = useStore();
-  // uch bo'lim: gul sklad (partiyalar), material sklad va kirim-chiqim jurnali
-  const [tab, setTab] = useState<"gul" | "material" | "jurnal">("gul");
+  // bo'limlar: yuklar, gul sklad (partiyalar), material sklad va kirim-chiqim jurnali
+  const [tab, setTab] = useState<"gul" | "yuklar" | "material" | "jurnal">("gul");
+  const [deliveries, setDeliveries] = useState<StockDelivery[] | null>(null);
+  const [selDelivery, setSelDelivery] = useState<StockDelivery | null>(null);
+  const [newDeliveryOpen, setNewDeliveryOpen] = useState(false);
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [floristWaste, setFloristWaste] = useState<FloristStockIssue[]>([]);
@@ -174,12 +180,19 @@ export default function SkladPage() {
   }, [dateFilter, dateRange, moveType]);
   useEffect(() => { if (tab === "jurnal" && jSource === "material") loadMat(); }, [tab, jSource, loadMat]);
 
+  // YUKLAR — faqat shu tab ochilganda (server ordering: eng yangi birinchi)
+  const loadDeliveries = useCallback(() => {
+    api.stockDeliveries({ is_active: true, ordering: "-received_at" }).then(setDeliveries).catch(() => setDeliveries([]));
+  }, []);
+  useEffect(() => { if (tab === "yuklar") loadDeliveries(); }, [tab, loadDeliveries]);
+
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
-  // WS: supplier_stock (yangi partiya keldi) → sklad darhol yangilanadi
+  // WS: supplier_stock (yangi partiya keldi) → sklad darhol yangilanadi.
+  // Kesh ham tozalanadi (WS push invalidate qilmaydi) — mount holatida stale qolmasin.
   useEffect(() => {
-    const onStock = () => load();
+    const onStock = () => { invalidateReportCache(); load(); };
     window.addEventListener("ef:stock-changed", onStock);
     return () => window.removeEventListener("ef:stock-changed", onStock);
   }, [load]);
@@ -228,10 +241,10 @@ export default function SkladPage() {
 
   if (loading) return <FlowerLoader />;
 
-  const TAB_LABEL = { gul: "Partiyalar", material: "Material sklad", jurnal: "Kirim-chiqim jurnali" } as const;
+  const TAB_LABEL = { gul: "Partiyalar", yuklar: DELIVERY.many, material: "Material sklad", jurnal: "Kirim-chiqim jurnali" } as const;
   const tabBar = (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      {(["gul", "material", "jurnal"] as const).map((t) => (
+      {(["gul", "yuklar", "material", "jurnal"] as const).map((t) => (
         <button
           key={t}
           onClick={() => setTab(t)}
@@ -244,6 +257,61 @@ export default function SkladPage() {
       ))}
     </div>
   );
+
+  if (tab === "yuklar") {
+    return (
+      <>
+        {tabBar}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
+            Yuk = bir kelishda kelgan gullar guruhi. Avval yuk ochiladi, keyin ichiga partiyalar qo&apos;shiladi.
+          </p>
+          <button onClick={() => setNewDeliveryOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px] ml-auto">
+            <Plus size={18} strokeWidth={1.75} /> {DELIVERY.neu}
+          </button>
+        </div>
+        {deliveries === null ? <FlowerLoader /> : deliveries.length === 0 ? (
+          <EmptyState title="Hali yuk yo'q" sub="«Yangi yuk» orqali birinchi yukni oching, so'ng ichiga gullarni kiriting." />
+        ) : (
+          <section className="glass !rounded-[20px] p-2 sm:p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-[13px]" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ color: "var(--muted)" }}>
+                    <th className="px-3 py-2 text-left font-semibold">{DELIVERY.colNumber}</th>
+                    <th className="px-3 py-2 text-left font-semibold">Sana</th>
+                    <th className="px-3 py-2 text-left font-semibold">{DELIVERY.supplierWord}</th>
+                    <th className="px-3 py-2 text-right font-semibold">Xil gul</th>
+                    <th className="px-3 py-2 text-right font-semibold">Kelgan</th>
+                    <th className="px-3 py-2 text-right font-semibold">Qolgan</th>
+                    <th className="px-3 py-2 text-right font-semibold">Tannarx</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* ⚠️ key = id (number TAKRORLANADI) */}
+                  {deliveries.map((dv) => (
+                    <tr key={dv.id} onClick={() => setSelDelivery(dv)} tabIndex={0} role="button"
+                      onKeyDown={(e) => e.key === "Enter" && setSelDelivery(dv)}
+                      className="cursor-pointer border-t transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--line2)" }}>
+                      <td className="px-3 py-2.5 font-bold">{dv.number}</td>
+                      <td className="px-3 py-2.5 tabular-nums" style={{ color: "var(--text-2)" }}>{fmtDate(dv.received_at)}</td>
+                      <td className="px-3 py-2.5">{dv.supplier_detail?.name ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{dv.batch_count}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{fmtStems(dv.total_stems)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{fmtStems(dv.remaining_stems)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{fmt(dv.total_cost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+        {newDeliveryOpen && <DeliveryModal onClose={() => setNewDeliveryOpen(false)} onSaved={(dv) => { setNewDeliveryOpen(false); loadDeliveries(); setSelDelivery(dv); }} />}
+        {selDelivery && <DeliveryDrawer delivery={selDelivery} onClose={() => setSelDelivery(null)} onChanged={loadDeliveries} />}
+      </>
+    );
+  }
 
   if (tab === "material") {
     return (
@@ -487,13 +555,14 @@ export default function SkladPage() {
         )}
       </div>
 
-      {kirimOpen && <StockBatchModal onClose={() => setKirimOpen(false)} onSaved={load} />}
+      {kirimOpen && <StockBatchModal onClose={() => setKirimOpen(false)} onSaved={() => { notifyReportDataChanged(); load(); }} />}
       {selBatch && (
         <BatchDrawer
           batch={selBatch}
           onClose={() => setSelBatch(null)}
           onChanged={(upd) => {
             if (upd) setBatches((bs) => bs.map((x) => (x.id === upd.id ? upd : x)));
+            notifyReportDataChanged(); // partiya tahriri/o'chirish/chiqit/harakat → hisobot
             load();
           }}
         />

@@ -7,7 +7,7 @@ import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
 import Select from "./Select";
 import DualQtyInput, { type QtyMode } from "./DualQtyInput";
 import StockLine, { lineFromStockBatch } from "./StockLine";
-import { formatStemsAndBunches } from "@/lib/inventory";
+import { formatStemsAndBunches, batchDeliveryTag } from "@/lib/inventory";
 import type { FloristProfile, StockBatch } from "@/lib/types";
 
 const floristName = (fp?: FloristProfile | null): string =>
@@ -52,7 +52,7 @@ export default function FloristStockIssueModal({
     .map((b) => ({
       value: b.id,
       label: `${b.variant_detail?.flower_detail?.name_uz ?? ""} ${b.variant_detail?.name_uz ?? ""}${b.variant_detail?.color_uz ? ` · ${b.variant_detail.color_uz}` : ""}${b.height_label ? ` · ${b.height_label}` : ""}`,
-      sub: `№${b.batch_number} · ${formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)}`,
+      sub: `№${b.batch_number} · ${formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)}${batchDeliveryTag(b.delivery_detail) ? ` · ${batchDeliveryTag(b.delivery_detail)}` : ""}`,
     })), [batches]);
 
   const submit = async () => {

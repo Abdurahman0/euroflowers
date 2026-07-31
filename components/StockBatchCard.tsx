@@ -73,7 +73,10 @@ export default function StockBatchCard({
         <span>→ Sotuv <b style={{ color: "var(--acc)" }}>{fmt(batch.sale_price_per_stem)}</b>/dona</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        <span className="rounded-full bg-sfc px-2 py-0.5 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>{fmt(batch.sale_price_per_bunch)} / {bunches(1)}</span>
+        {batch.cost_per_bunch && +batch.cost_per_bunch > 0 && (
+          <span className="rounded-full bg-sfc px-2 py-0.5 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>Tannarx {fmt(batch.cost_per_bunch)} / {bunches(1)}</span>
+        )}
+        <span className="rounded-full bg-sfc px-2 py-0.5 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>Sotuv {fmt(batch.sale_price_per_bunch)} / {bunches(1)}</span>
         <span className="rounded-full bg-sfc px-2 py-0.5 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>pochkada {stems(batch.stems_per_bunch)}</span>
         <span className="rounded-full bg-sfc px-2 py-0.5 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>min. {stems(batch.minimum_sale_stems)}</span>
         {batch.height_label && <span className="rounded-full bg-sfc px-2 py-0.5 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>{batch.height_label}</span>}

@@ -7,6 +7,7 @@ import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtTime, initials } from "@/lib/format";
@@ -142,6 +143,7 @@ export default function KatalogPage() {
     try {
       patchItem(await api.deductCatalogStock(k.id));
       showToast(`✓ Sklad kamaytirildi: ${k.name_uz}`);
+      notifyReportDataChanged(); // sklad kamaydi → hisobot raqamlari
       loadNotifs();
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Kamaytirib bo'lmadi");
@@ -162,6 +164,7 @@ export default function KatalogPage() {
       setEditItem((v) => (v?.id === victim.id ? null : v));
       setConfirmDel(null);
       showToast("✓ Katalog yozuvi o'chirildi");
+      notifyReportDataChanged(); // katalog o'chdi (gullar floristga/skladga qaytdi) → hisobot
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "O'chirib bo'lmadi");
     } finally {
@@ -369,12 +372,12 @@ export default function KatalogPage() {
         <KatalogSellModal
           item={sellItem}
           onClose={() => setSellItem(null)}
-          onSold={(upd) => { patchItem(upd); setSellItem(null); loadNotifs(); load(); }}
+          onSold={(upd) => { patchItem(upd); setSellItem(null); notifyReportDataChanged(); loadNotifs(); load(); }}
         />
       )}
 
       {transferItem && (
-        <CatalogTransferDrawer item={transferItem} onClose={() => setTransferItem(null)} onDone={() => { load(); }} />
+        <CatalogTransferDrawer item={transferItem} onClose={() => setTransferItem(null)} onDone={() => { notifyReportDataChanged(); load(); }} />
       )}
 
       {formOpen && <KatalogModal onClose={() => setFormOpen(false)} onSaved={load} />}

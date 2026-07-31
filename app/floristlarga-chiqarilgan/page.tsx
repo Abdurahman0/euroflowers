@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { HandHelping, PackagePlus, Plus, RotateCcw, Scale, Trash2, Users } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
-import { invalidateReportCache } from "@/lib/reportCache";
+import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore, usePerm } from "@/lib/store";
 import FlowerLoader from "@/components/FlowerLoader";
 import EmptyState from "@/components/EmptyState";
@@ -90,9 +90,15 @@ export default function FloristStockIssuePage() {
   //   2) ef:stock-changed — MOUNT bo'lgan hisobot sahifalari (Hisob-kitob, Sklad) qayta yuklaydi
   //   3) loadBalances/loadIssues — SHU sahifa (florist-stock-balances + issues)
   //   Katalog ro'yxati (api.catalog) — Hisob-kitob event orqali, boshqa sahifalar keyingi mount'da.
+  //   (1)+(2) markazlashgan notifyReportDataChanged() ichida; (3) shu sahifa refetch'i.
   const onAdjustDone = useCallback(() => {
-    invalidateReportCache();
-    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ef:stock-changed"));
+    notifyReportDataChanged();
+    loadBalances();
+    loadIssues();
+  }, [loadBalances, loadIssues]);
+  // florist chiqarish/qaytarish/chiqit ham sklad qoldig'i + qiymatini o'zgartiradi → hisobot
+  const onStockChange = useCallback(() => {
+    notifyReportDataChanged();
     loadBalances();
     loadIssues();
   }, [loadBalances, loadIssues]);
@@ -285,11 +291,11 @@ export default function FloristStockIssuePage() {
           batches={batches}
           florists={florists}
           onClose={() => setIssueOpen(false)}
-          onDone={() => { loadBalances(); loadIssues(); }}
+          onDone={onStockChange}
         />
       )}
       {returnTarget && (
-        <FloristStockReturnDrawer balance={returnTarget.balance} initialKind={returnTarget.kind} onClose={() => setReturnTarget(null)} onDone={() => { loadBalances(); loadIssues(); }} />
+        <FloristStockReturnDrawer balance={returnTarget.balance} initialKind={returnTarget.kind} onClose={() => setReturnTarget(null)} onDone={onStockChange} />
       )}
       {adjust && (
         <FloristStockAdjustModal

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
-import { accountingCached, stockBatchesCached } from "@/lib/reportCache";
+import { accountingCached, stockBatchesCached, invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtDate, dateAfterParam, dateBeforeParam } from "@/lib/format";
@@ -166,7 +166,7 @@ export default function HisobKitobPage() {
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load);
   useEffect(() => {
-    const h = () => load();
+    const h = () => { invalidateReportCache(); load(); }; // event kelganda kesh ham tozalanadi (WS push himoyasi)
     window.addEventListener("ef:stock-changed", h);
     return () => window.removeEventListener("ef:stock-changed", h);
   }, [load]);
@@ -294,7 +294,7 @@ export default function HisobKitobPage() {
   const doExport = (label: string, sheet: () => import("@/lib/xlsx").SheetDef) => X.exportSection(label, sheet(), from, to).then(() => showToast("✓ Excel yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
 
   const deletePayment = async (p: SupplierPayment) => {
-    try { await api.deleteSupplierPayment(p.id); showToast("✓ To'lov o'chirildi"); refreshSuppliers(); }
+    try { await api.deleteSupplierPayment(p.id); showToast("✓ To'lov o'chirildi"); invalidateReportCache(); refreshSuppliers(); }
     catch (e) { showToast(e instanceof ApiError ? e.message : "O'chirib bo'lmadi"); }
   };
 
@@ -750,7 +750,7 @@ export default function HisobKitobPage() {
           init={payDrawer}
           suppliers={suppliers}
           onClose={() => setPayDrawer(null)}
-          onSaved={() => { setPayDrawer(null); refreshSuppliers(); }}
+          onSaved={() => { setPayDrawer(null); invalidateReportCache(); refreshSuppliers(); }}
           showToast={showToast}
         />
       )}

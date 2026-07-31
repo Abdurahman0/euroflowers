@@ -216,8 +216,10 @@ export default function BatchDrawer({
             <Meta label="Dona narxi" value={fmt(b.sale_price_per_stem)} />
             <Meta label="Pochka narxi" value={fmt(b.sale_price_per_bunch)} />
             <Meta label="Tannarx (dona)" value={fmt(b.cost_per_stem)} />
+            {b.cost_per_bunch && +b.cost_per_bunch > 0 && <Meta label="Tannarx (pochka)" value={fmt(b.cost_per_bunch)} />}
             <Meta label="Sklad qiymati" value={fmt(b.stock_value)} />
             <Meta label="Keldi" value={fmtDate(b.received_at)} />
+            {b.delivery_detail && <Meta label="Yuk" value={`${b.delivery_detail.number} · ${fmtDate(b.delivery_detail.received_at)}`} />}
             <Meta label="Minimal sotuv" value={`${b.minimum_sale_stems} dona`} />
           </div>
           {b.notes && (

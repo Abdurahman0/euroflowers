@@ -3,6 +3,7 @@ import { AlertTriangle, Info, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
+import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
 import Modal, { ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
@@ -11,7 +12,7 @@ import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
-import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload } from "@/lib/inventory";
+import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, batchDeliveryTag } from "@/lib/inventory";
 import { balanceRemaining, batchHeldByFlorist, stemsForBatch, type CompStemRow } from "@/lib/floristStock";
 import type { ArrangementType, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristStockBalance, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
 
@@ -148,11 +149,14 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           sub: `№${bl.batch_detail?.batch_number ?? bl.batch} · mavjud: ${formatStemsAndBunches(bl.remaining_stems, bl.batch_detail?.stems_per_bunch)}`,
         }));
     }
-    return usableBatches.map((bb) => ({
-      value: bb.id,
-      label: `${bb.variant_detail?.flower_detail?.name_uz ?? ""} ${bb.variant_detail?.name_uz ?? ""}`.trim(),
-      sub: `${formatStemsAndBunches(bb.remaining_stems, bb.stems_per_bunch)} · ${fmt(bb.sale_price_per_stem)}/dona`,
-    }));
+    return usableBatches.map((bb) => {
+      const dtag = batchDeliveryTag(bb.delivery_detail); // ikki o'xshash partiyani ajratish
+      return {
+        value: bb.id,
+        label: `${bb.variant_detail?.flower_detail?.name_uz ?? ""} ${bb.variant_detail?.name_uz ?? ""}`.trim(),
+        sub: `${formatStemsAndBunches(bb.remaining_stems, bb.stems_per_bunch)} · ${fmt(bb.sale_price_per_stem)}/dona${dtag ? ` · ${dtag}` : ""}`,
+      };
+    });
   }, [floristMode, balances, usableBatches]);
   const anyInvalidRow = floristMode && comp.some((r) => rowInvalidFlorist(r.stock_batch));
 
@@ -331,7 +335,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       // — preview matematikasi endi backend bilan aynan mos (fee ham qo'shilgan).
       const disc = price.discount;
       showToast(item ? "✓ Katalog yozuvi yangilandi" : `✓ Katalogga qo'shildi${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`);
-      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ef:stock-changed"));
+      notifyReportDataChanged(); // katalog tannarxi/tarkibi o'zgardi → hisobot keshi + mount sahifalar
       onSaved();
       onClose();
     } catch (e) {

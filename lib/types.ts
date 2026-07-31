@@ -278,6 +278,9 @@ export type StockBatch = {
   received_bunches?: string;
   remaining_stems: number;
   cost_per_stem: string;
+  /** pochka tannarxi — yuborilsa cost_per_stem = cost_per_bunch ÷ stems_per_bunch,
+      100 ga yaxlitlanadi (server hisoblaydi). Ikkalasi yuborilsa server hech narsa hisoblamaydi. */
+  cost_per_bunch?: string;
   sale_price_per_stem: string;
   sale_price_per_bunch: string;
   minimum_sale_stems: number;
@@ -287,7 +290,44 @@ export type StockBatch = {
   branch?: number;
   variant: number;
   supplier?: number | null;
+  /** partiya qaysi YUK (delivery) ichida — yozishda ixtiyoriy, o'qishda delivery_detail keladi */
+  delivery?: number | null;
+  delivery_detail?: DeliveryBrief | null;
 };
+
+/** stock-batch javobidagi qisqa yuk ma'lumoti (supplier bu yerda NOM — string). */
+export type DeliveryBrief = {
+  id: number;
+  number: string;
+  received_at: string;
+  supplier?: string;
+  note?: string;
+};
+
+/**
+ * YUK (delivery) — partiyalarni (StockBatch) guruhlaydigan yozuv: raqam + sana + postavshik.
+ * ⚠️ `number` TAKRORLANADI (turli sanadagi yuklar bir xil raqamli bo'lishi normal) — HECH QACHON
+ * React key / lookup / noyoblik tekshiruvi sifatida ishlatilmaydi, DOIM `id`. Sanani raqam yonida ko'rsat.
+ */
+export type StockDelivery = {
+  id: number;
+  number: string;
+  received_at: string;
+  supplier?: number | null;
+  supplier_detail?: Supplier | null;
+  note?: string;
+  is_active: boolean;
+  created_by?: number | null;
+  created_by_detail?: User | null;
+  created_at: string;
+  updated_at: string;
+  /** server hisoblab beradi — ro'yxat kartochkasi uchun */
+  batch_count: number;
+  total_stems: number;
+  remaining_stems: number;
+  total_cost: string;
+};
+export type StockDeliveryInput = { number: string; received_at?: string; supplier?: number | null; note?: string };
 
 export type MovementType = "in" | "out" | "adjustment" | "waste" | "transfer_out" | "transfer_in";
 

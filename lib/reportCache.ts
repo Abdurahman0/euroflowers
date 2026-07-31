@@ -32,3 +32,21 @@ export const accountingCached = (from?: string, to?: string, branch?: string): P
 
 /** Ma'lumot o'zgargach keshni tozalash (sotuv, chiqit, partiya tahriri). */
 export const invalidateReportCache = () => cache.clear();
+
+/**
+ * Hisobot raqamlarini o'zgartiradigan HAR QANDAY mutatsiyadan keyin chaqiriladi
+ * (sotuv, chegirmali sotuv, chiqit, sklad/material harakati, katalog CRUD, transfer,
+ * florist chiqarish/qaytarish/chiqit/to'g'rilash, partiya/yuk CRUD).
+ *
+ * IKKALASINI ham bajaradi — chunki bittasi yetmaydi:
+ *   1) invalidateReportCache() — keshni tozalaydi. MOUNT bo'lmagan hisobot sahifasi
+ *      keyin ochilganda ham STALE (30s TTL) qiymat o'qimaydi. FAQAT event yuborish
+ *      buni qoplamaydi: tinglovchining load()'i tozalanmagan keshni qaytaradi.
+ *   2) ef:stock-changed — MOUNT bo'lgan hisobot sahifalari (Sklad, Hisob-kitob)
+ *      darhol qayta yuklaydi. Kesh event YUBORILISHIDAN OLDIN tozalangani uchun
+ *      tinglovchi yangi ma'lumot oladi.
+ */
+export const notifyReportDataChanged = () => {
+  invalidateReportCache();
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ef:stock-changed"));
+};

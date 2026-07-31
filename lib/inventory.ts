@@ -37,6 +37,101 @@ export const formatStemsAndBunches = (
   return `${stems(v)} · ${bunches(v / stemsPerBunch)}`;
 };
 
+/* ===== YUK (delivery) — MARKAZLASHGAN o'zbekcha yorliqlar =====
+   ⚠️ "Partiya" = StockBatch (backend xatolari ham shunday ataydi) — o'zgarmaydi.
+   Yuk = partiyalarni guruhlaydigan yozuv. Yorliqlar SHU YERDA, literal sifatida sochilmaydi.
+   ⚠️ Yuk `number` TAKRORLANADI — yorliqda DOIM sana bilan birga ko'rsatiladi (ikki "7" ni ajratish). */
+export const DELIVERY = {
+  one: "Yuk",
+  many: "Yuklar",
+  neu: "Yangi yuk",
+  addFlower: "Gul qo'shish",
+  colNumber: "Yuk",
+  supplierWord: "Postavshik",
+  /** "Yuk 7 · 01.08.2026" */
+  label: (number: string, dateLabel: string) => `Yuk ${number} · ${dateLabel}`,
+  /** "Yuk 7 · 01.08.2026 · Golland Flowers" (detalь/read-only satr) */
+  labelFull: (number: string, dateLabel: string, supplier?: string | null) =>
+    `Yuk ${number} · ${dateLabel}${supplier ? ` · ${supplier}` : ""}`,
+} as const;
+
+/** Partiya optioniga QISQA yuk konteksti — "Yuk 7 · 01.08" (ikki o'xshash partiyani ajratish).
+    delivery_detail.received_at "2026-08-01" → "01.08". Yuk bo'lmasa bo'sh string. */
+export const batchDeliveryTag = (dd?: { number: string; received_at: string } | null): string => {
+  if (!dd) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dd.received_at || "");
+  const date = m ? `${m[3]}.${m[2]}` : "";
+  return `${DELIVERY.one} ${dd.number}${date ? ` · ${date}` : ""}`;
+};
+
+/* ===== POCHKA → DONA NARXI (yaxlitlash) — server bilan AYNAN bir xil bo'lishi shart =====
+   Qoida (spec): dona narxi = round(pochka narxi / pochkadagi dona / 100) * 100.
+   AVVAL bo'lamiz (pochka/dona), KEYIN 100 ga yaxlitlaymiz (round-then-divide EMAS).
+   Yarmi va undan yuqorisi tepaga (Math.round musbatlarda half-up). 50 dan past → 0. */
+export const exactPerStem = (bunchPrice: number, stemsPerBunch: number): number =>
+  !stemsPerBunch || stemsPerBunch <= 0 ? 0 : bunchPrice / stemsPerBunch;
+
+export const roundToHundred = (n: number): number => Math.round(n / 100) * 100;
+
+/** Pochka narxidan yaxlitlangan dona narxi (server saqlaydigan qiymat). */
+export const perStemFromBunch = (bunchPrice: number, stemsPerBunch: number): number =>
+  roundToHundred(exactPerStem(bunchPrice, stemsPerBunch));
+
+/** Yaxlitlash dona narxni O'ZGARTIRDIMI — formada "(yaxlitlandi, aniq hisob 998)" izohi uchun.
+    exact butun bo'lmasa ham (masalan 998.4) taqqoslash aniq: exactRounded ≠ rounded. */
+export const roundingNote = (bunchPrice: number, stemsPerBunch: number): { rounded: number; exact: number; changed: boolean; zeroed: boolean } => {
+  const exact = exactPerStem(bunchPrice, stemsPerBunch);
+  const rounded = roundToHundred(exact);
+  return { rounded, exact, changed: Math.round(exact) !== rounded, zeroed: bunchPrice > 0 && rounded === 0 };
+};
+
+/* ===== PARTIYA (StockBatch) PAYLOAD — yuk-bog'langan holat + pochka/dona narx qoidasi =====
+   ⚠️ NARX: pochka qiymati ASOSIY; dona qiymati FAQAT operator qo'lda kiritganda yuboriladi.
+   Ikkalasi ham yuborilsa server hech narsa hisoblamaydi (ataylab override). Standart: pochka only.
+   ⚠️ YUK-bog'langanda batch_number/received_at/supplier YUBORILMAYDI — ular yukdan olinadi. */
+export type BatchPayloadInput = {
+  variant: number;
+  heightCm: number;
+  stemsPerBunch: number;
+  /** yuk (delivery) id — berilsa batch_number/received_at/supplier TASHLANADI */
+  deliveryId?: number | null;
+  /** faqat yuk-bog'lanmagan holatda */
+  supplier?: number | null;
+  batchNumber?: string;
+  receivedAt?: string;
+  /** miqdor — faqat BITTASI (pochka yoki dona) */
+  receivedBunches?: number | null;
+  receivedStems?: number | null;
+  /** narx — pochka asosiy; dona faqat override bo'lganda */
+  costPerBunch?: string | null;
+  costPerStem?: string | null; // qo'lda override
+  salePerBunch?: string | null;
+  salePerStem?: string | null; // qo'lda override
+  minimumSaleStems?: number | null;
+  imageUrl?: string | null;
+};
+export function buildBatchPayload(v: BatchPayloadInput): Record<string, unknown> {
+  const p: Record<string, unknown> = { variant: v.variant, height_cm: v.heightCm, stems_per_bunch: v.stemsPerBunch };
+  if (v.deliveryId) {
+    p.delivery = v.deliveryId;
+    // batch_number / received_at / supplier ATAYLAB yuborilmaydi — yukdan olinadi
+  } else {
+    if (v.batchNumber) p.batch_number = v.batchNumber;
+    if (v.receivedAt) p.received_at = v.receivedAt.slice(0, 10);
+    if (v.supplier) p.supplier = v.supplier;
+  }
+  if (v.receivedBunches != null) p.received_bunches = v.receivedBunches.toFixed(2);
+  else if (v.receivedStems != null) p.received_stems = v.receivedStems;
+  // narx: yuborilganini qo'yamiz — ikkalasi bo'lsa (override) ikkalasi ketadi, aks holda pochka only
+  if (v.costPerBunch) p.cost_per_bunch = v.costPerBunch;
+  if (v.costPerStem) p.cost_per_stem = v.costPerStem;
+  if (v.salePerBunch) p.sale_price_per_bunch = v.salePerBunch;
+  if (v.salePerStem) p.sale_price_per_stem = v.salePerStem;
+  if (v.minimumSaleStems) p.minimum_sale_stems = v.minimumSaleStems;
+  if (v.imageUrl) p.image_url = v.imageUrl;
+  return p;
+}
+
 /* ===== yuborishdan oldin NORMALLASHTIRISH (katalog / social post) =====
    Bitta buket/savat = BITTA CatalogItem, ichida ko'p qatorli composition.
    Bir xil stock_batch (yoki packaging) qatorlari BITTAGA birlashtiriladi
