@@ -45,6 +45,9 @@ export default function FloristRateMatrix({ florist, onSaved }: { florist: Flori
   const [confirmClear, setConfirmClear] = useState(false);
   const [florists, setFlorists] = useState<FloristProfile[]>([]);
   const [copyFrom, setCopyFrom] = useState<number>(0);
+  const [copyOpen, setCopyOpen] = useState(false); // nusxalash paneli — faqat bosilganda ochiladi
+  // KIMNING tariflari — sarlavhada aniq ko'rsatiladi (chalkashlik bo'lmasin)
+  const whoseName = [florist.user_detail?.first_name, florist.user_detail?.last_name].filter(Boolean).join(" ") || florist.user_detail?.username || `Florist #${florist.id}`;
   // FAOL tarif yo'q, lekin NOFAOL tarif bor (masalan shogird→florist qaytarilgan) —
   // ⚠️ OCHIQ SAVOL: qaytarilganda eski tariflar avtomatik faollashadimi (spec/OpenAPI
   // aytmaydi, read-only aniqlab bo'lmadi). Shu bois UI HALOL: "qayta saqlang".
@@ -100,6 +103,7 @@ export default function FloristRateMatrix({ florist, onSaved }: { florist: Flori
       if (!rates.length) { showToast("Bu floristda tarif yo'q"); return; }
       setGrid(gridFromRates(rates));
       setActivated(new Set(rates.map((r) => KEY(r.arrangement_type, r.volume))));
+      setCopyOpen(false); setCopyFrom(0);
       showToast("Nusxalandi — tekshiring va saqlang");
     }).catch(() => showToast("Nusxalab bo'lmadi"));
   };
@@ -116,18 +120,30 @@ export default function FloristRateMatrix({ florist, onSaved }: { florist: Flori
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      {/* SARLAVHA — KIMNING tariflari ekani aniq (florist ismi bilan). Bu yerda florist
+          TANLAGICH YO'Q: tariflar shu florist uchun, id drawer kontekstidan keladi. */}
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <div className="text-[14px] font-bold">Hajm tariflari</div>
+          <div className="text-[14px] font-bold">Hajm tariflari — <span style={{ color: "var(--primary)" }}>{whoseName}</span></div>
           <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>Barcha hajmlar birga saqlanadi</div>
         </div>
-        {florists.length > 0 && (
-          <div className="flex items-center gap-2">
-            <div className="w-[160px]"><Select value={copyFrom} onChange={(v) => setCopyFrom(+v)} placeholder="Boshqa floristdan…" searchable options={[{ value: 0, label: "Boshqa floristdan…" }, ...florists.map((f) => ({ value: f.id, label: [f.user_detail?.first_name, f.user_detail?.last_name].filter(Boolean).join(" ") || f.user_detail?.username || `#${f.id}` }))]} /></div>
-            <button type="button" onClick={copyFromFlorist} disabled={!copyFrom} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold disabled:opacity-40" style={{ borderColor: "var(--border)", color: "var(--text-2)" }} title="Nusxalash (manbaga yozilmaydi)"><Copy size={13} strokeWidth={2.2} /> Nusxalash</button>
-          </div>
+        {/* NUSXALASH — ikkilamchi amal; florist tanlovi FAQAT bosilgach chiqadi (tariflar
+            "kimga tegishli" bilan adashmasligi uchun). Manbaga hech narsa yozilmaydi. */}
+        {florists.length > 0 && !copyOpen && (
+          <button type="button" onClick={() => setCopyOpen(true)} className="flex items-center gap-1.5 text-[12px] font-bold" style={{ color: "var(--muted)" }} title="Boshqa floristning qiymatlarini shu gridga nusxalash (saqlanmagan)">
+            <Copy size={13} strokeWidth={2.2} /> Boshqa floristdan nusxalash
+          </button>
         )}
       </div>
+
+      {copyOpen && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[12px] border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>Kimdan nusxalash:</span>
+          <div className="min-w-[160px] flex-1"><Select value={copyFrom} onChange={(v) => setCopyFrom(+v)} placeholder="Floristni tanlang" searchable options={florists.map((f) => ({ value: f.id, label: [f.user_detail?.first_name, f.user_detail?.last_name].filter(Boolean).join(" ") || f.user_detail?.username || `#${f.id}` }))} /></div>
+          <button type="button" onClick={copyFromFlorist} disabled={!copyFrom} className="rounded-[11px] px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-40" style={{ background: "var(--primary)" }}>Nusxalash</button>
+          <button type="button" onClick={() => { setCopyOpen(false); setCopyFrom(0); }} className="rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>Yopish</button>
+        </div>
+      )}
 
       {hasInactiveOnly && (
         <div className="mb-2 rounded-[11px] px-3 py-2 text-[12px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--warning-ink)" }}>

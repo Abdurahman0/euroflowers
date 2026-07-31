@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import { motion } from "framer-motion";
@@ -68,10 +68,13 @@ export default function Sidebar() {
       <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
         {NAV.filter((n) => canView(...n.pages) && screenAllowedForBranch(n.id, branchUser)).map((n, i, arr) => {
           const active = pathname === n.href;
-          // tepa 6lik va qolganlari orasida yumshoq ajratgich (label yo'q — faqat bo'shliq)
+          // tepa 6lik va qolganlari orasida yumshoq ajratgich — ALOHIDA element sifatida
+          // (item wrapper'iga BIRIKTIRILMAYDI), shunda HAR bir tugma bir xil to'g'ridan-to'g'ri
+          // flex bola bo'ladi (Analitika ilgari yagona `border-t` wrapper ichida edi).
           const divider = i > 0 && arr[i - 1].top && !n.top;
           return (
-            <div key={n.id} className={divider ? (sideOpen ? "mt-2 border-t border-white/[0.08] pt-2" : "mt-2 border-t border-white/[0.08] pt-2") : "contents"}>
+            <Fragment key={n.id}>
+            {divider && <div className="mt-2 border-t border-white/[0.08] pt-2" aria-hidden />}
             <button
               onClick={() => {
                 router.push(n.href);
@@ -112,7 +115,7 @@ export default function Sidebar() {
                 </span>
               )}
             </button>
-            </div>
+            </Fragment>
           );
         })}
       </nav>
