@@ -11,7 +11,7 @@ import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
-import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials } from "@/lib/inventory";
+import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary } from "@/lib/inventory";
 import type { ArrangementType, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; mode: "stems" | "bunches"; qty: string };
@@ -34,7 +34,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [kind, setKind] = useState<CatalogKind>(item?.catalog_kind ?? "standard");
   const [volume, setVolume] = useState<CatalogVolume | "">(item?.volume ?? "");
   const [florist, setFlorist] = useState<number>(item?.florist ?? 0);
-  const [feeFromRate, setFeeFromRate] = useState(false);
+  const [salaryFromRate, setSalaryFromRate] = useState(false);
   const [stemsFromRate, setStemsFromRate] = useState(false);
   const [f, setF] = useState({
     ...EMPTY,
@@ -141,11 +141,10 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     setMats([...mats, { packaging: next?.id ?? 0, qty: "1" }]);
   };
 
-  // hajm+turi uchun Floristlar > "Hajm tariflari" dan mos tarifni topadi (bouquet/basket)
+  // TANLANGAN FLORISTNING hajm+turi uchun tarifini topadi (per-florist model).
+  // Florist tanlanmasa tarif qidirilmaydi. Moslik faqat lib/inventory'da.
   const rateFor = (vol: CatalogVolume | "", arr: ArrangementType) =>
-    vol && (arr === "bouquet" || arr === "basket")
-      ? rates.find((r) => r.volume === vol && r.arrangement_type === arr)
-      : undefined;
+    rateSalaryForCatalog(rates, florist || null, vol, arr);
 
   // tarifning "standart dona"sini kompozitsiyaga bir marta yozadi — FAQAT bitta
   // gul qatori dona rejimida bo'lsa. force=false → faqat bo'sh bo'lsa; force=true
@@ -158,26 +157,29 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     setStemsFromRate(true);
   };
 
-  // AVTO-TUZATISH: foydalanuvchi hajm/turini tanlaganda florist haqi VA standart
-  // dona darhol shu tarifga tenglashadi (tanlov aniq signal).
+  // AVTO-TUZATISH: hajm/turini tanlaganda florist ISH HAQI (salary) va standart dona
+  // darhol shu tarifga tenglashadi. ⚠️ Tarifning florist_fee → katalog salary
+  // (rateToCatalogSalary), katalogning florist_fee'ga EMAS.
   const applyRate = (vol: CatalogVolume | "", arr: ArrangementType) => {
     const rate = rateFor(vol, arr);
     if (!rate) return;
-    setF((p) => ({ ...p, florist_fee: String(Math.round(+rate.florist_fee)) }));
-    setFeeFromRate(true);
+    setF((p) => ({ ...p, florist_salary_amount: rateToCatalogSalary(rate) }));
+    setSalaryFromRate(true);
     writeStems(rate.default_stems, true);
   };
 
-  // tariflar KEYIN yuklansa yoki bo'sh qiymatda — birinchi to'ldirish (mavjudni bosib o'tmaydi)
+  // tariflar KEYIN yuklansa yoki bo'sh qiymatda — birinchi to'ldirish (mavjudni bosib o'tmaydi).
+  // ⚠️ OVERRIDE QOIDASI: salary faqat BO'SH bo'lsa to'ldiriladi; hech qachon "0"/"" bilan
+  // to'ldirmaymiz — aks holda serverning o'z avto-to'ldirishini jimgina o'chirib qo'yardik.
   useEffect(() => {
     const rate = rateFor(volume, f.arrangement_type);
     if (!rate) return;
-    if (!f.florist_fee) {
-      setF((p) => ({ ...p, florist_fee: String(Math.round(+rate.florist_fee)) }));
-      setFeeFromRate(true);
+    if (f.florist_salary_amount === "") {
+      setF((p) => ({ ...p, florist_salary_amount: rateToCatalogSalary(rate) }));
+      setSalaryFromRate(true);
     }
     writeStems(rate.default_stems, false);
-  }, [volume, f.arrangement_type, rates]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [volume, f.arrangement_type, florist, rates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // JONLI NARX (klient preview — server calculated_* bilan solishtiriladi)
   const price = useMemo(() => {
@@ -195,10 +197,9 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     const componentPrice = perUnitComponent * qtyTotal;
     const cost = perUnitCost * qtyTotal;
     const sale = (+f.price || 0) * qtyTotal;
-    // OYLIK: standart katalogda florist_fee × soni floristga yoziladi.
-    // MAXSUS katalogda backend endi fee'ni oylikka QO'SHMAYDI — alohida
-    // `florist_salary_amount` yoziladi (kontrakt: 82e8106).
-    const salary = kind === "custom" ? +f.florist_salary_amount || 0 : fee * qtyTotal;
+    // OYLIK: HAR IKKI kind uchun `florist_salary_amount` × soni floristga yoziladi.
+    // Katalogning florist_fee (mijozdan xizmat) OYLIKKA kirmaydi — bu alohida tushuncha.
+    const salary = (+f.florist_salary_amount || 0) * qtyTotal;
     return { componentPrice, cost, sale, fee: fee * qtyTotal, salary, discount: Math.max(0, componentPrice - sale), profit: sale - cost, qty: qtyTotal };
   }, [comp, mats, f.price, f.florist_fee, f.florist_salary_amount, f.quantity_total, kind, qtyTotal, batches, materials]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -238,8 +239,10 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       height_cm: +f.height_cm || null,
       price: String(+f.price),
       florist_fee: f.florist_fee ? String(+f.florist_fee) : undefined,
-      // maxsus katalogda oylik summasi ALOHIDA yuboriladi (fee'dan ajratilgan)
-      ...(kind === "custom" && f.florist_salary_amount ? { florist_salary_amount: String(+f.florist_salary_amount) } : {}),
+      // ⚠️ OVERRIDE QOIDASI (spec §4): florist_salary_amount FAQAT biz tarifdan hal
+      // qilganda YOKI operator yozganda yuboriladi (ya'ni bo'sh EMAS). Aks holda kalit
+      // butunlay TUSHIRIB QOLDIRILADI — shunda backend o'z tarifidan avto-to'ldiradi.
+      ...(f.florist_salary_amount !== "" ? { florist_salary_amount: String(+f.florist_salary_amount) } : {}),
       ...(f.discount_reason.trim() ? { discount_reason: f.discount_reason.trim() } : {}),
       ...(f.note.trim() ? { note: f.note.trim() } : {}),
       quantity_total: Math.max(+f.quantity_total || 1, 1),
@@ -530,49 +533,34 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       <Section>Narx va tavsif</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Sotuv narxi (so'm)"><input className="inp" type="number" value={f.price} onChange={set("price")} placeholder="Masalan: 850000" /><Err k="price" /></Field>
-        <Field label={kind === "custom" ? "Floristika xizmati (mijozdan)" : "Florist haqi (so'm)"}>
-          <input className="inp" type="number" value={f.florist_fee} onChange={(e) => { setFeeFromRate(false); setF({ ...f, florist_fee: e.target.value }); }} placeholder="Masalan: 50000" />
-          {feeFromRate && <span className="mt-0.5 block text-[11px] font-semibold" style={{ color: "var(--primary)" }}>Tarifdan olindi</span>}
-          {kind === "custom" ? (
-            <span className="mt-0.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>
-              Mijozdan olinadi — foydaga kiradi, oylikka QO&apos;SHILMAYDI
-            </span>
-          ) : (
-            /* JONLI OYLIK ta'siri — standart katalogda: salary = florist_fee × quantity_total */
-            +f.florist_fee > 0 && (
-              florist ? (
-                <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
-                  Oylikka: {qtyTotal > 1 ? `${(+f.florist_fee).toLocaleString("ru")} × ${qtyTotal} dona = ` : ""}
-                  <b style={{ color: "var(--acc)" }}>{fmt(+f.florist_fee * qtyTotal)}</b>
-                </span>
-              ) : (
-                <span className="mt-0.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>Florist tanlanmagan — oylik yozilmaydi</span>
-              )
-            )
-          )}
+        {/* MIJOZDAN olinadigan floristika XIZMATI — narx/foydaga kiradi, OYLIK EMAS */}
+        <Field label="Floristika xizmati (mijozdan)">
+          <input className="inp" type="number" value={f.florist_fee} onChange={(e) => setF({ ...f, florist_fee: e.target.value })} placeholder="Masalan: 50000" />
+          <span className="mt-0.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>
+            Mijozdan olinadi — foydaga kiradi, oylikka QO&apos;SHILMAYDI
+          </span>
           <Err k="florist_fee" />
         </Field>
 
-        {/* MAXSUS katalog: oylikka yoziladigan summa fee'dan AJRATILGAN */}
-        {kind === "custom" && (
-          <Field label="Floristga yoziladigan ish haqi (so'm)" span>
-            <input
-              className="inp"
-              type="number"
-              value={f.florist_salary_amount}
-              onChange={set("florist_salary_amount")}
-              placeholder="Masalan: 125000"
-            />
-            <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: florist ? "var(--text-2)" : "var(--muted)" }}>
-              {florist
-                ? +f.florist_salary_amount > 0
-                  ? <>Florist oyligiga qo&apos;shiladi: <b style={{ color: "var(--acc)" }}>{fmt(+f.florist_salary_amount)}</b></>
-                  : "Bo'sh qoldirilsa oylikka yozuv qo'shilmaydi"
-                : "Florist tanlanmagan — oylik yozilmaydi"}
-            </span>
-            <Err k="florist_salary_amount" />
-          </Field>
-        )}
+        {/* Floristning ISH HAQI (oylikka yoziladi) — tarifdan yoki qo'lda. Alohida tushuncha. */}
+        <Field label="Florist ish haqi (oylikka)">
+          <input
+            className="inp"
+            type="number"
+            value={f.florist_salary_amount}
+            onChange={(e) => { setSalaryFromRate(false); setF({ ...f, florist_salary_amount: e.target.value }); }}
+            placeholder="Masalan: 60000"
+          />
+          {salaryFromRate && <span className="mt-0.5 block text-[11px] font-semibold" style={{ color: "var(--primary)" }}>Tarifdan olindi</span>}
+          <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: florist ? "var(--text-2)" : "var(--muted)" }}>
+            {!florist
+              ? "Florist tanlanmagan — oylik yozilmaydi"
+              : f.florist_salary_amount === ""
+                ? "Bo'sh — tarif topilsa avtomatik, aks holda oylik yozilmaydi"
+                : <>Florist oyligiga: {qtyTotal > 1 ? `${(+f.florist_salary_amount).toLocaleString("ru")} × ${qtyTotal} dona = ` : ""}<b style={{ color: "var(--acc)" }}>{fmt(+f.florist_salary_amount * qtyTotal)}</b></>}
+          </span>
+          <Err k="florist_salary_amount" />
+        </Field>
 
         {/* CHEGIRMA SABABI — komponent narxidan arzon sotilganda majburiy */}
         {(kind === "custom" || f.discount_reason) && (

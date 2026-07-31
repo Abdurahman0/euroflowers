@@ -27,8 +27,8 @@ const IMG = {
 // ===== Filiallar =====
 
 const branches: Branch[] = [
-  { id: 1, created_at: ago(400), updated_at: ago(10), name: "Chilonzor", code: "CHZ", address: "Chilonzor 12-kvartal, Bunyodkor 45", phone: "+998 71 200 11 22", is_active: true },
-  { id: 2, created_at: ago(300), updated_at: ago(8), name: "Yunusobod", code: "YUN", address: "Yunusobod 4-mavze, Amir Temur 108", phone: "+998 71 200 33 44", is_active: true },
+  { id: 1, created_at: ago(400), updated_at: ago(10), name: "Asosiy filial", is_main: true, is_active: true },
+  { id: 2, created_at: ago(300), updated_at: ago(8), name: "Parkent filiali", is_main: false, is_active: true },
 ];
 
 // ===== Lead statuslari (dinamik) =====

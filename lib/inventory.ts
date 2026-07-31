@@ -1,4 +1,4 @@
-import type { CatalogKind, CatalogVolume, MovementType, PackagingType, SalarySource, StaffType, StockBatch } from "./types";
+import type { ArrangementType, CatalogKind, CatalogVolume, FloristVolumeRate, MovementType, PackagingType, SalarySource, StaffType, StockBatch } from "./types";
 
 /**
  * Sklad/florist bo'limlari uchun MARKAZLASHGAN o'zbekcha yorliqlar,
@@ -105,7 +105,46 @@ export const PACKAGING_LABEL: Record<PackagingType, string> = {
 };
 
 export const STAFF_LABEL: Record<StaffType, string> = { florist: "Florist", apprentice: "Shogird" };
+
+/** HAJM — YAGONA manba. API qiymati DOIM shu (small/medium/large); UI faqat Uzbek
+    yorliq ko'rsatadi. Matritsa/filtr/composer HAMMASI shundan kelib chiqadi —
+    hech qayerda erkin "S"/"M"/"L" satr YOZILMAYDI (auto-to'ldirish jimgina buziladi). */
+export const VOLUMES = ["small", "medium", "large"] as const;
+export const ARRANGEMENTS = ["bouquet", "basket"] as const;
 export const VOLUME_LABEL: Record<CatalogVolume, string> = { small: "Kichik", medium: "O'rta", large: "Katta" };
+/** Qisqa yorliq (matritsa ustuni) — API qiymati emas, faqat ko'rsatish uchun. */
+export const VOLUME_SHORT: Record<CatalogVolume, string> = { small: "S", medium: "M", large: "L" };
+export const ARRANGEMENT_UZ: Record<(typeof ARRANGEMENTS)[number], string> = { bouquet: "Buket", basket: "Savat" };
+
+/** Tarif ↔ katalog MOSLIGI — aynan satr-tenglik (volume + arrangement_type).
+    Backend auto-to'ldirishi ham SHU tenglikni ishlatadi. `small !== "S"` — shuning
+    uchun matritsa doim small/medium/large saqlaydi. Faol bo'lmagan tarif hisobga
+    olinmaydi. */
+export function volumeArrangementMatch(
+  rate: Pick<FloristVolumeRate, "volume" | "arrangement_type" | "is_active">,
+  volume: CatalogVolume | "" | null | undefined,
+  arrangement: ArrangementType | "" | null | undefined,
+): boolean {
+  if (!volume || !arrangement) return false;
+  return rate.is_active !== false && rate.volume === volume && rate.arrangement_type === arrangement;
+}
+
+/** Katalog uchun mos tarifni topadi (florist + hajm + turi). `florist` berilsa,
+    faqat o'sha floristning tarifi olinadi (per-florist model). */
+export function rateSalaryForCatalog(
+  rates: FloristVolumeRate[] | null | undefined,
+  florist: number | null | undefined,
+  volume: CatalogVolume | "" | null | undefined,
+  arrangement: ArrangementType | "" | null | undefined,
+): FloristVolumeRate | undefined {
+  if (!rates || !florist) return undefined;
+  return rates.find((r) => r.florist === florist && volumeArrangementMatch(r, volume, arrangement));
+}
+
+/** ⚠️ NOM TUZOG'I xaritasi — YAGONA joy:
+    tarifning `florist_fee` (florist ISH HAQI) → katalogning `florist_salary_amount`.
+    Katalogning O'ZINING `florist_fee` (mijozdan xizmat haqi) bilan ARALASHTIRMANG. */
+export const rateToCatalogSalary = (rate: FloristVolumeRate): string => String(Math.round(+rate.florist_fee));
 export const KIND_LABEL: Record<CatalogKind, string> = { standard: "Standart", custom: "Maxsus" };
 export const SALARY_SOURCE_LABEL: Record<SalarySource, string> = {
   catalog: "Katalog",

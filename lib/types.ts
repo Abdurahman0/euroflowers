@@ -19,21 +19,23 @@ export type PagePermission = {
 };
 export type Language = "uz" | "ru";
 
+/** Filial (backend: /api/branches/). Asosiy filial `is_main:true`;
+    boshqalari — Parkent kabi. Sklad/florist/lead BO'LINMAYDI, faqat katalog. */
 export type Branch = {
   id: number;
+  name: string;
+  is_main: boolean;
+  is_active: boolean;
+  note?: string;
   created_at: string;
   updated_at: string;
-  name: string;
-  code: string;
-  address: string;
-  phone: string;
-  is_active: boolean;
 };
 
-/** Single-branch mode: profile'da endi branches yo'q */
+/** `branch` — foydalanuvchi filiali (null = asosiy filial). */
 export type UserProfile = {
   role: Role;
   language: Language;
+  branch?: number | null;
 };
 
 export type User = {
@@ -413,6 +415,10 @@ export type CatalogItem = {
   sold_at: string | null;
   stock_deducted_at: string | null;
   branch?: number;
+  /** filial nomi (RO) — katalog javobiga qo'shildi (asosiy/Parkent) */
+  branch_name?: string;
+  /** asosiy filial narxi — FILIALGA yuborilgan nusxada saqlanadi (null = yuborilmagan) */
+  source_price?: string | null;
   social_post: number | null;
   created_by: number | null;
 };
@@ -815,17 +821,121 @@ export type FloristProfile = {
 };
 export type FloristInput = Partial<Omit<FloristProfile, "id" | "user_detail" | "salary_total" | "catalog_count" | "created_at" | "updated_at">>;
 
-/** Florist hajm tarifi (backend: /api/florist-volume-rates/). Single-branch —
-    filial (branch) OLIB TASHLANDI: matritsa faqat hajm × turi. */
+/** Florist hajm tarifi (backend: /api/florist-volume-rates/). PER-FLORIST —
+    umumiy tarif OLIB TASHLANDI, `florist` endi MAJBURIY.
+    ⚠️ NOM TUZOG'I: bu yerdagi `florist_fee` — floristning ISH HAQI (u oladigan pul),
+    va u KATALOGning `florist_salary_amount` maydonini to'ldiradi (katalogning
+    `florist_fee` — bu MIJOZDAN olinadigan xizmat haqi, boshqa narsa). Xaritalash
+    faqat lib/inventory.ts `rateSalaryForCatalog`/`rateToCatalogSalary` da. */
 export type FloristVolumeRate = {
   id: number;
+  florist?: number;
+  florist_name?: string;
   arrangement_type: "bouquet" | "basket";
+  /** DIQQAT: doim "small"|"medium"|"large" saqlanadi (aynan katalog volume bilan
+      mos kelishi shart — moslik satr-tenglik). API'da erkin satr, lekin biz S/M/L
+      YOZMAYMIZ — auto-to'ldirish jimgina ishlamay qolardi. */
   volume: CatalogVolume;
   default_stems: number;
   florist_fee: string;
   is_active: boolean;
 };
-export type VolumeRateInput = Partial<Omit<FloristVolumeRate, "id">>;
+export type VolumeRateInput = Partial<Omit<FloristVolumeRate, "id" | "florist_name">>;
+
+/* ===== FILIAL: katalog transfer / hisobot (backend 2026-07-31) ===== */
+/** Katalog nusxasini filialga yuborish yozuvi (GET /api/catalog-transfers/). */
+export type CatalogTransfer = {
+  id: number;
+  branch: number;
+  branch_name: string;
+  catalog_name: string;
+  quantity: number;
+  source_price: string;
+  target_price: string;
+  note?: string;
+  source_item?: number | null;
+  /** filial nusxasi id — ASOSIY FILIALDAN OCHIB BO'LMAYDI (GET → 404). Link QILINMAYDI. */
+  target_item?: number | null;
+  created_by?: number | null;
+  created_by_detail?: User | null;
+  created_at: string;
+  updated_at: string;
+};
+export type CatalogTransferInput = { branch: number; quantity: number; price?: string; note?: string };
+
+/** Filial hisoboti bitta filial qatori (GET /api/branch-report/). Pul = STRING. */
+export type BranchReportRow = {
+  branch_id: number;
+  branch_name: string;
+  received_transfers: number;
+  received_quantity: number;
+  catalog_items: number;
+  available_quantity: number;
+  sold_quantity: number;
+  sold_revenue: string;
+  source_value: string;
+  markup_total: string;
+  discounted_sales_count: number;
+  discounted_quantity: number;
+  discount_total: string;
+};
+export type BranchReport = {
+  period: { date_from: string | null; date_to: string | null };
+  branches: BranchReportRow[];
+  totals: {
+    received_quantity: number;
+    sold_quantity: number;
+    sold_revenue: string;
+    discounted_quantity: number;
+    discount_total: string;
+  };
+};
+
+/* ===== FLORISTGA GUL CHIQARISH (backend 2026-07-31) ===== */
+export type FloristStockIssueKind = "issue" | "return" | "waste";
+/** issue/balance javoblaridagi qisqa partiya ma'lumoti (batches endpoint'idan farqli). */
+export type FloristStockBatchDetail = {
+  id: number;
+  batch_number: string;
+  flower: string;
+  variant: string;
+  color: string;
+  height_label?: string;
+  image_url?: string;
+  cost_per_stem: string;
+  /** balansda bor; ISSUE javobida bo'lmasligi mumkin — balansdan o'qing */
+  stems_per_bunch?: number;
+};
+/** Floristda hozir qancha gul bor (GET /api/florist-stock-balances/). */
+export type FloristStockBalance = {
+  id: number;
+  florist: number;
+  florist_name: string;
+  batch: number;
+  remaining_stems: number;
+  batch_detail: FloristStockBatchDetail;
+  created_at: string;
+  updated_at: string;
+};
+/** Chiqarish / qaytarish / chiqit tarixi (GET /api/florist-stock-issues/). */
+export type FloristStockIssue = {
+  id: number;
+  florist: number;
+  florist_name: string;
+  batch: number;
+  batch_detail: FloristStockBatchDetail;
+  kind: FloristStockIssueKind;
+  kind_label: string;
+  quantity_stems: number;
+  reason?: string;
+  performed_by?: number | null;
+  performed_by_detail?: User | null;
+  created_at: string;
+  updated_at: string;
+};
+export type FloristStockIssueInput = { florist: number; batch: number; quantity_stems: number; reason?: string };
+/** ⚠️ `kind` DOIM aniq yuboriladi — destruktiv `waste` uchun default'ga tayanmang. */
+export type FloristStockReturnInput = { florist: number; batch: number; quantity_stems: number; kind: "return" | "waste"; reason?: string };
 
 /** Florist oylik yozuvi (backend: /api/florist-salary/) */
 export type SalarySource = "catalog" | "custom_catalog" | "daily" | "manual";

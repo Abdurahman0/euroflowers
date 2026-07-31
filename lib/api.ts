@@ -1,7 +1,7 @@
 "use client";
 import type {
-  Accounting, AISettings, Analytics, AuditLog, BusinessSettings, CatalogItem, Conversation, Customer, Dashboard,
-  Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristVolumeRate, FlowerVariant,
+  Accounting, AISettings, Analytics, AuditLog, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard,
+  Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   SocialPost, StockBatch, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
@@ -465,12 +465,40 @@ export const api = {
   floristMeDashboard: (p?: { from?: string; to?: string }) =>
     request<FloristStats>(`/api/florists/me/dashboard/${qs({ date_from: p?.from, date_to: p?.to })}`),
 
+  // Per-florist hajm tariflari. Matritsa TO'LIQ ALMASHTIRISH orqali saqlanadi —
+  // `PATCH /florists/{id}/` ga barcha 6 qatorni `volume_rates` sifatida yuboring
+  // (ro'yxatda bo'lmagan qator is_active:false bo'ladi). CRUD ham mavjud.
   floristVolumeRates: (p?: Params) => list<FloristVolumeRate>("/api/florist-volume-rates/", p),
   createVolumeRate: (data: VolumeRateInput) =>
     request<FloristVolumeRate>("/api/florist-volume-rates/", { method: "POST", body: JSON.stringify(data) }),
   updateVolumeRate: (id: number, data: VolumeRateInput) =>
     request<FloristVolumeRate>(`/api/florist-volume-rates/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteVolumeRate: (id: number) => request<void>(`/api/florist-volume-rates/${id}/`, { method: "DELETE" }),
+  /** Florist tariflarini birdaniga saqlash (to'liq almashtirish). */
+  saveFloristVolumeRates: (floristId: number, volume_rates: VolumeRateInput[]) =>
+    request<FloristProfile>(`/api/florists/${floristId}/`, { method: "PATCH", body: JSON.stringify({ volume_rates }) }),
+
+  /* ===== FILIALLAR (branch) ===== */
+  branches: (p?: Params) => list<Branch>("/api/branches/", p),
+  /** Katalog nusxasini filialga yuborish (asosiy filial → Parkent). */
+  transferCatalog: (id: number, data: CatalogTransferInput) =>
+    request<CatalogTransfer>(`/api/catalog/${id}/transfer/`, { method: "POST", body: JSON.stringify(data) }),
+  catalogTransfers: (p?: Params) => list<CatalogTransfer>("/api/catalog-transfers/", p),
+  /** Admin filial hisoboti. date_from/date_to INKLYUZIV (accounting kabi). */
+  branchReport: (p?: { branch?: number; from?: string; to?: string }) =>
+    request<BranchReport>(`/api/branch-report/${qs({ branch: p?.branch, date_from: p?.from, date_to: p?.to })}`),
+
+  /* ===== FLORISTGA GUL CHIQARISH ===== */
+  /** Sklad → florist. Skladdan minus, florist balansiga plus. */
+  floristStockIssue: (data: FloristStockIssueInput) =>
+    request<FloristStockIssue>("/api/florist-stock-issues/issue/", { method: "POST", body: JSON.stringify(data) }),
+  /** Floristdan qaytarish (skladga tiklanadi) yoki chiqit (skladga qaytmaydi).
+      `kind` DOIM yuboriladi — waste destruktiv, default'ga tayanmaymiz. */
+  floristStockReturn: (data: FloristStockReturnInput) =>
+    request<FloristStockIssue>("/api/florist-stock-issues/return/", { method: "POST", body: JSON.stringify(data) }),
+  floristStockIssues: (p?: Params) => list<FloristStockIssue>("/api/florist-stock-issues/", p),
+  /** Kimda qancha gul bor. Sukut: faqat remaining>0; hammasi uchun only_available=false. */
+  floristStockBalances: (p?: Params) => list<FloristStockBalance>("/api/florist-stock-balances/", p),
 
   /** Joriy foydalanuvchining florist profili (o'z hisoboti uchun). Florist bo'lmasa 404. */
   floristMe: () => request<FloristProfile>("/api/florists/me/"),
