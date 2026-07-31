@@ -2,9 +2,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Building2, Download, TrendingUp } from "lucide-react";
+import clsx from "clsx";
 import { api } from "@/lib/api";
 import { useStore, usePerm } from "@/lib/store";
 import DateChips from "@/components/DateChips";
+import FilterSelect from "@/components/FilterSelect";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { fmt } from "@/lib/format";
@@ -13,6 +15,9 @@ import type { BranchReport, CatalogTransfer } from "@/lib/types";
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const dateAfter = (f: string) => { const d = new Date(); if (f === "hafta") d.setDate(d.getDate() - 7); else if (f === "oy") d.setDate(d.getDate() - 30); return ymd(d); };
+// ikki bo'lim — chip-almashtirish (florist stock sahifasi bilan bir xil pattern; u app/floristlar'dan)
+const TAB_LABEL = { hisobot: "Hisobot", tarix: "Yuborilganlar tarixi" } as const;
+type Tab = keyof typeof TAB_LABEL;
 
 export default function BranchReportPage() {
   const { showToast, dateFilter, dateRange } = useStore();
@@ -22,23 +27,42 @@ export default function BranchReportPage() {
   const [transfers, setTransfers] = useState<CatalogTransfer[] | null>(null);
   const [err, setErr] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [tab, setTab] = useState<Tab>("hisobot");
+  const [tBranch, setTBranch] = useState(""); // tarix tabi filiali (nom bo'yicha)
 
   const from = dateRange ? dateRange.from : dateAfter(dateFilter);
   const to = dateRange ? dateRange.to : ymd(new Date());
 
+  // ?tab= o'qish/yozish (refresh/ulashilgan link o'sha ko'rinishga tushadi)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && t in TAB_LABEL) setTab(t as Tab);
+  }, []);
+  const switchTab = (t: Tab) => {
+    setTab(t);
+    if (typeof window !== "undefined") { const u = new URL(window.location.href); u.searchParams.set("tab", t); window.history.replaceState(null, "", u); }
+  };
+
   const load = useCallback(() => {
     if (!allowed) return;
     api.branchReport({ from, to }).then((d) => { setRep(d); setErr(""); }).catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
-    api.catalogTransfers({ ordering: "-created_at", page_size: 100 }).then(setTransfers).catch(() => setTransfers([]));
+    // ⚠️ catalog-transfers SANA filtrini QABUL QILMAYDI (OpenAPI: branch/ordering/search/…
+    // faqat) — tarix BUTUN davrni ko'rsatadi. Bu tabda muted izoh bilan aytiladi.
+    api.catalogTransfers({ ordering: "-created_at", page_size: 200 }).then(setTransfers).catch(() => setTransfers([]));
   }, [allowed, from, to]);
   useEffect(() => { load(); }, [load]);
 
   const maxRevenue = useMemo(() => Math.max(1, ...(rep?.branches ?? []).map((b) => +b.sold_revenue || 0)), [rep]);
+  const transferBranchNames = useMemo(() => Array.from(new Set((transfers ?? []).map((t) => t.branch_name).filter(Boolean))), [transfers]);
+  const shownTransfers = useMemo(() => (transfers ?? []).filter((t) => !tBranch || t.branch_name === tBranch), [transfers, tBranch]);
 
   const doExport = async () => {
     if (!rep) return;
     setExporting(true);
     try {
+      // EKSPORT: filial HISOBOTINI (branches + JAMI) qamraydi, sana oralig'i bo'yicha.
+      // «Yuborilganlar tarixi» (transfers) bu faylga KIRMAYDI.
       await exportWorkbook(exportName("Filial_hisoboti", from, to), [{
         name: "Filiallar",
         cols: [
@@ -67,30 +91,43 @@ export default function BranchReportPage() {
   if (!rep && !err) return <FlowerLoader />;
 
   const branches = rep?.branches ?? [];
-  const empty = branches.length === 0 || branches.every((b) => +b.sold_revenue === 0 && b.received_quantity === 0);
+  const reportEmpty = branches.length === 0 || branches.every((b) => +b.sold_revenue === 0 && b.received_quantity === 0);
 
   return (
     <div className="flex flex-col gap-5">
+      {/* SARLAVHA — har ikki tab uchun umumiy */}
       <div className="flex items-center gap-2.5">
         <span className="flex h-9 w-9 items-center justify-center rounded-[11px]" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}><Building2 size={18} strokeWidth={2} /></span>
         <div>
           <h1 className="text-[18px] font-extrabold tracking-tight">Filial hisoboti</h1>
-          {/* §1c: bu sahifa boshqa savolga javob beradi — pul oqimi Hisob-kitobda */}
           <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>Nechta katalog yuborildi · nechtasi sotildi · <b style={{ color: "var(--text-2)" }}>ustama</b>. Pul oqimi (filiallar kesimida) → <Link href="/hisob-kitob" className="font-bold" style={{ color: "var(--primary)" }}>Hisob-kitob</Link></p>
         </div>
       </div>
 
+      {/* DAVR + EKSPORT — BUTUN sahifani tavsiflaydi (tab ustida) */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <DateChips />
-        <button onClick={doExport} disabled={exporting || empty} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3 py-1.5 text-[12.5px] font-bold transition-colors hover:bg-[var(--hover)] disabled:opacity-50" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
+        <button onClick={doExport} disabled={exporting || reportEmpty} title="Filial hisobotini (davr bo'yicha) Excelga — tarix kirmaydi" className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3 py-1.5 text-[12.5px] font-bold transition-colors hover:bg-[var(--hover)] disabled:opacity-50" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
           <Download size={14} strokeWidth={2} /> {exporting ? "Yuklanmoqda…" : "Excel"}
         </button>
       </div>
 
-      {err ? <EmptyState title="Yuklab bo'lmadi" sub={err} />
-        : empty ? <EmptyState title="Hozircha ma'lumot yo'q" sub="Filialga katalog yuborilib sotilganda shu yerda ko'rinadi. Katalogdan «Filialga yuborish» orqali boshlang." />
-        : (
-        <>
+      {/* CHIPLAR — bir vaqtda bittasi */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+          <button key={t} onClick={() => switchTab(t)} aria-pressed={tab === t}
+            className={clsx("rounded-full border-[1.5px] px-5 py-2 text-[13px] font-bold", tab === t ? "text-white" : "bg-sfc")}
+            style={tab === t ? { background: "var(--acc)", borderColor: "var(--acc)" } : { borderColor: "var(--line)", color: "var(--mut)" }}>
+            {TAB_LABEL[t]}
+          </button>
+        ))}
+      </div>
+
+      {/* TAB 1 — HISOBOT (davr bo'yicha) */}
+      {tab === "hisobot" && (
+        err ? <EmptyState title="Yuklab bo'lmadi" sub={err} />
+        : reportEmpty ? <EmptyState title="Bu davrda filial sotuvi yo'q" sub="Filialga katalog yuborilib, o'sha yerda sotilganda — yuborilgan soni, sotilgani va ustama shu yerda ko'rinadi. Katalogdan «Filialga yuborish» orqali boshlang, keyin filialda soting." />
+        : (<>
           {/* ustama vs asl qiymat — stacked bar */}
           <section className="glass !rounded-[18px] p-5">
             <h2 className="mb-3 flex items-center gap-2 text-[15px] font-bold"><TrendingUp size={16} strokeWidth={2.2} style={{ color: "var(--acc)" }} /> Ustama vs asl qiymat</h2>
@@ -161,36 +198,46 @@ export default function BranchReportPage() {
               </table>
             </div>
           </section>
-        </>
+        </>)
       )}
 
-      {/* YUBORILGANLAR TARIXI — target item PLAIN TEXT (asosiy admin uni ocholmaydi: 404) */}
-      <section className="glass !rounded-[18px] p-5">
-        <h2 className="mb-3 text-[15px] font-bold">Yuborilganlar tarixi</h2>
-        {transfers === null ? <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>
-          : transfers.length === 0 ? <EmptyState title="Yuborilgan yo'q" sub="Katalogdan «Filialga yuborish» orqali boshlang." />
-          : (
-          <div className="overflow-x-auto thin-scroll">
-            <table className="w-full min-w-[640px] border-collapse text-[13px]">
-              <thead><tr className="text-left" style={{ color: "var(--muted)" }}>
-                <th className="px-2 py-2 font-semibold">Mahsulot</th><th className="px-2 py-2 font-semibold">Filial</th>
-                <th className="px-2 py-2 text-right font-semibold">Soni</th><th className="px-2 py-2 text-right font-semibold">Asl → Filial narxi</th><th className="px-2 py-2 text-right font-semibold">Sana</th>
-              </tr></thead>
-              <tbody>
-                {transfers.map((t) => (
-                  <tr key={t.id} className="border-t" style={{ borderColor: "var(--line2)" }}>
-                    <td className="px-2 py-2.5 font-semibold">{t.catalog_name}<div className="text-[11px]" style={{ color: "var(--muted)" }}>filial yozuvi #{t.target_item ?? "—"}</div></td>
-                    <td className="px-2 py-2.5">{t.branch_name}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">{t.quantity}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">{fmt(t.source_price)} → <b>{fmt(t.target_price)}</b></td>
-                    <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{(t.created_at || "").slice(0, 10)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* TAB 2 — YUBORILGANLAR TARIXI (BUTUN davr — sana filtri qo'llanmaydi) */}
+      {tab === "tarix" && (
+        <section className="glass !rounded-[18px] p-5">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[15px] font-bold">Yuborilganlar tarixi</h2>
+            {transferBranchNames.length > 1 && (
+              <FilterSelect value={tBranch} onChange={setTBranch} label="Filial" options={[{ value: "", label: "Barcha filiallar" }, ...transferBranchNames.map((nm) => ({ value: nm, label: nm }))]} />
+            )}
           </div>
-        )}
-      </section>
+          {/* ⚠️ sana filtri bu tabga QO'LLANMAYDI — davr ustidagi picker faqat «Hisobot» tabi uchun */}
+          <p className="mb-3 text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>Butun davr — sana filtri qo&apos;llanmaydi</p>
+          {transfers === null ? <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>
+            : shownTransfers.length === 0 ? <EmptyState title="Hozircha yuborilgan yo'q" sub="Asosiy filial katalogidagi mahsulotdan «Filialga yuborish» tugmasi orqali filialga yuboriladi — o'shanda bu yerda paydo bo'ladi." />
+            : (
+            <div className="overflow-x-auto thin-scroll">
+              <table className="w-full min-w-[640px] border-collapse text-[13px]">
+                <thead><tr className="text-left" style={{ color: "var(--muted)" }}>
+                  <th className="px-2 py-2 font-semibold">Mahsulot</th><th className="px-2 py-2 font-semibold">Filial</th>
+                  <th className="px-2 py-2 text-right font-semibold">Soni</th><th className="px-2 py-2 text-right font-semibold">Asl → Filial narxi</th><th className="px-2 py-2 text-right font-semibold">Sana</th>
+                </tr></thead>
+                <tbody>
+                  {shownTransfers.map((t) => (
+                    <tr key={t.id} className="border-t" style={{ borderColor: "var(--line2)" }}>
+                      {/* target — ODDIY MATN, LINK EMAS (asosiy admin filial itemni ocholmaydi: 404) */}
+                      <td className="px-2 py-2.5 font-semibold">{t.catalog_name}<div className="text-[11px]" style={{ color: "var(--muted)" }}>filial yozuvi #{t.target_item ?? "—"}</div></td>
+                      <td className="px-2 py-2.5">{t.branch_name}</td>
+                      <td className="px-2 py-2.5 text-right tabular-nums">{t.quantity}</td>
+                      <td className="px-2 py-2.5 text-right tabular-nums">{fmt(t.source_price)} → <b>{fmt(t.target_price)}</b></td>
+                      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{(t.created_at || "").slice(0, 10)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

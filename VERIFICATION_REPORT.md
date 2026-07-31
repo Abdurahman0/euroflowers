@@ -433,7 +433,14 @@ go-live:
 2.  Empty ONE rate cell → Saqlash (o'sha hajm nofaol). REV — katakni qaytaring.
 3.  Copy-from-florist → Nusxalash (manba tegilmaydi). READ src / REV target.
 4.  Balanceless florist → composer empty state + shortcut. READ. (issue'dan OLDIN)
-5.  Branch report → davr → table/bar/history/Excel. READ.
+5.  Branch report → davr tanlang. IKKI CHIP (florist-stock sahifasidagi bilan bir xil): «Hisobot»
+    (default) va «Yuborilganlar tarixi». `?tab=` da saqlanadi; chipni almashtiring — filtrlar
+    aralashmaydi. «Hisobot» = filial jadvali (Ustama ustuni ajratilgan) + JAMI satri + ustama-vs-asl
+    stacked bar. «Yuborilganlar tarixi» = transfer ro'yxati, filial filtri, target PLAIN TEXT
+    («filial yozuvi #N» — link EMAS, admin filial itemida 404). Sarlavha + sana + Excel HAMISHA
+    chiplardan yuqorida. Excel = HISOBOT (filiallar + JAMI); transfer tarixi faylga KIRMAYDI.
+    Transfer tabida «Butun davr — sana filtri qo'llanmaydi» satri (backend date filtri yo'q — LIST 2 j).
+    Ikkala tab ham hozir bo'sh (0 transfer, 0 filial sotuvi) — har biri nimadan to'lishini tushuntiradi. READ.
 6.  ISSUE florist + batch + ~8 → Chiqarish. REV (return orqali). Eski, arzon, tugab-qolgan partiya.
 7.  Catalog from florist balance (salary «Tarifdan olindi»), 1 dona. REV (delete orqali). Throwaway item.
 8.  User branch: Xodimlar → NON-kritik userni Parkentga biriktiring. REV — keyin Asosiyga qaytaring.
@@ -455,11 +462,14 @@ Parkent=0 today, so `all`==`main` and every split screen was mocked. After step 
     Bu IRREV (real sotuv), 1 dona. Sotgach:
 17. Hisob-kitob → Hammasi: ✅ `summary.total_sales` `?branch=main`dan OShDI; pul kartochkalari
     ostida ajratma satri paydo bo'ldi; `by_branch` Parkent qatori NOLDAN CHIQDI; §2 «Filial»
-    ustuni paydo bo'ldi; by_branch yig'indisi summary'ga teng.
+    ustuni paydo bo'ldi; by_branch yig'indisi summary'ga teng. Filial hisoboti «Hisobot» tabida
+    ham shu Parkent qatori JAMI bilan chiqishini kesib-tekshiring (bar + jadval NOLDAN chiqadi).
 18. Parkent rejimi: ✅ chiqit bo'sh holati («Filiallarda gul saqlanmaydi»), ajratma satri yo'q,
-    sarlavha «Parkent filiali».
+    sarlavha «Parkent filiali». Filial hisoboti «Yuborilganlar tarixi» tabi endi bo'sh emas —
+    transfer qatori chiqadi (target PLAIN TEXT, link emas); filial filtri bitta filialda ko'rinmaydi.
 19. Dashboard(o'z filiali) == Hisob-kitob `?branch=main`, AYNIY oralig'da — hali ham teng ekanini
-    tasdiqlang (parity qoidasi). Excel: joriy filial + davr fayl nomida.
+    tasdiqlang (parity qoidasi). Excel: joriy filial + davr fayl nomida. Filial hisoboti Excel tugmasi
+    esa (chiplardan yuqorida) HISOBOT tabini eksport qiladi — «Yuborilganlar tarixi» faylga KIRMAYDI.
 
 ## LIST 2 — OPEN BACKEND QUESTIONS (paste-ready)
 a. Florist RETURN — does it write a warehouse IN StockMovement, and with what reference_type?
@@ -482,3 +492,8 @@ h. date_to asymmetry — /api/dashboard/ + /api/analytics/ treat date_to EXCLUSI
    "fixes" the +1 and silently drops a day of dashboard revenue.
 i. Test data — the whole live catalog (#59–#64) is dev data without the ZZZ_TEST_ prefix, skewing
    real reports (esp. the 61% discount). Purge before go-live? SETTLE: your call.
+j. GET /api/catalog-transfers/ has NO date filter — OpenAPI params are only branch, ordering, page,
+   page_size, search, source_item, target_item (verified in /api/schema/). So the branch-report
+   «Yuborilganlar tarixi» tab is ALL-TIME regardless of the page's date range (UI says so:
+   «Butun davr — sana filtri qo'llanmaydi»). Add `created_at_after`/`created_at_before` (or
+   date_from/date_to) so the transfers tab can honour the same range as «Hisobot»? SETTLE: backend.
