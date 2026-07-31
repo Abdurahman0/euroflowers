@@ -21,7 +21,7 @@ import type { User } from "@/lib/types";
  * faqat joyi ko'chdi. Ruxsat: users.
  */
 
-const ROLE_OPTIONS = ["", "developer", "admin", "operator", "florist", "warehouse", "content"] as const;
+const ROLE_OPTIONS = ["", "developer", "admin", "operator", "supervisor", "florist", "apprentice", "warehouse", "content"] as const;
 
 export default function XodimlarPage() {
   const { user, showToast } = useStore();

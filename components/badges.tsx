@@ -131,6 +131,8 @@ export const ROLE_LABEL: Record<string, string> = {
   admin: "Administrator",
   operator: "Operator",
   florist: "Florist",
+  apprentice: "Shogird",
+  supervisor: "Nazoratchi",
   warehouse: "Skladchi",
   content: "Kontent",
 };

@@ -1,4 +1,4 @@
-import type { ArrangementType, CatalogKind, CatalogVolume, FloristVolumeRate, MovementType, PackagingType, SalarySource, StaffType, StockBatch } from "./types";
+import type { ArrangementType, CatalogKind, CatalogVolume, FloristVolumeRate, MovementType, PackagingType, SalarySource, StaffType, StockBatch, VolumeRateInput } from "./types";
 
 /**
  * Sklad/florist bo'limlari uchun MARKAZLASHGAN o'zbekcha yorliqlar,
@@ -145,6 +145,22 @@ export function rateSalaryForCatalog(
     tarifning `florist_fee` (florist ISH HAQI) → katalogning `florist_salary_amount`.
     Katalogning O'ZINING `florist_fee` (mijozdan xizmat haqi) bilan ARALASHTIRMANG. */
 export const rateToCatalogSalary = (rate: FloristVolumeRate): string => String(Math.round(+rate.florist_fee));
+
+/** Matritsa katagi (tahrirlanadigan holat). `fee` = florist ish haqi (rate.florist_fee). */
+export type RateCell = { arrangement_type: (typeof ARRANGEMENTS)[number]; volume: CatalogVolume; fee: string; stems: string };
+/** TO'LIQ ALMASHTIRISH payload — FAQAT to'ldirilgan kataklar (fee bor) yuboriladi.
+    ⚠️ Yuborilmagan katak backend'da is_active:false bo'ladi (ataylab). Bo'sh grid → []
+    (hammasi o'chadi — UI'da alohida tasdiq bilan himoyalanadi). Vitest bilan qamralgan. */
+export function buildVolumeRatesPayload(cells: RateCell[]): VolumeRateInput[] {
+  return cells
+    .filter((c) => c.fee.trim() !== "")
+    .map((c) => ({
+      arrangement_type: c.arrangement_type,
+      volume: c.volume,
+      florist_fee: String(+c.fee),
+      ...(c.stems.trim() !== "" ? { default_stems: +c.stems } : {}),
+    }));
+}
 
 /** Katalog `florist_salary_amount` payload — ⚠️ ZERO qiymat, BO'SH EMAS.
     - "" / null  → kalit TUSHIRILADI (backend tarifdan avto-to'ldiradi, spec §4)

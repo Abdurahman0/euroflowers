@@ -12,6 +12,7 @@ import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
 import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload } from "@/lib/inventory";
+import { balanceRemaining, batchHeldByFlorist, stemsForBatch, type CompStemRow } from "@/lib/floristStock";
 import type { ArrangementType, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristStockBalance, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; mode: "stems" | "bunches"; qty: string };
@@ -38,6 +39,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [volume, setVolume] = useState<CatalogVolume | "">(item?.volume ?? "");
   const [florist, setFlorist] = useState<number>(item?.florist ?? 0);
   const [salaryFromRate, setSalaryFromRate] = useState(false);
+  // operator ish haqini QO'LDA tahrirladimi — true bo'lsa tarif uni bosib o'tmaydi
+  const [salaryTouched, setSalaryTouched] = useState(false);
   const [stemsFromRate, setStemsFromRate] = useState(false);
   const [f, setF] = useState({
     ...EMPTY,
@@ -116,16 +119,17 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const matOf = (id: number) => materials.find((m) => m.id === id);
   const spbOf = (id: number) => batchOf(id)?.stems_per_bunch || balanceOf(id)?.batch_detail.stems_per_bunch || 1;
   // MAVJUD miqdor: florist rejimida balansdan, aks holda sklad qoldig'idan
-  const availOf = (id: number) => (floristMode ? balanceOf(id)?.remaining_stems ?? 0 : batchOf(id)?.remaining_stems ?? 0);
+  const availOf = (id: number) => (floristMode ? balanceRemaining(balances, id) : batchOf(id)?.remaining_stems ?? 0);
   const stemsOfRow = (r: CompRow) => {
     const n = parseFloat(r.qty) || 0;
     return r.mode === "bunches" ? Math.round(n * spbOf(r.stock_batch)) : Math.round(n);
   };
-  // bitta partiyaga tegishli BARCHA qatorlar yig'indisi (ikki qator bir partiyani
-  // birga oshirib yubormasligi uchun — validatsiya yig'indi bo'yicha)
-  const stemsForBatch = (batchId: number) => comp.reduce((s, r) => s + (r.stock_batch === batchId ? stemsOfRow(r) : 0), 0);
+  // bitta partiyaga tegishli BARCHA qatorlar yig'indisi — validatsiya yig'indi bo'yicha
+  // (lib/floristStock — Vitest bilan qamrab olingan, YAGONA manba)
+  const compStemRows = (): CompStemRow[] => comp.map((r) => ({ stock_batch: r.stock_batch, stems: stemsOfRow(r) }));
+  const stemsForBatchNow = (batchId: number) => stemsForBatch(compStemRows(), batchId);
   // florist bu partiyani TUTMAYDI (florist o'zgarganda yoki noto'g'ri tanlovda)
-  const rowInvalidFlorist = (batchId: number) => floristMode && !balancesLoading && batchId > 0 && !balanceOf(batchId);
+  const rowInvalidFlorist = (batchId: number) => floristMode && !balancesLoading && batchId > 0 && !batchHeldByFlorist(balances, batchId);
 
   // WAREHOUSE-rejim tanlagichi — faqat qoldig'i bor (yoki allaqachon tanlangan) partiyalar
   const usableBatches = useMemo(() => {
@@ -214,24 +218,29 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     setStemsFromRate(true);
   };
 
-  // AVTO-TUZATISH: hajm/turini tanlaganda florist ISH HAQI (salary) va standart dona
-  // darhol shu tarifga tenglashadi. ⚠️ Tarifning florist_fee → katalog salary
-  // (rateToCatalogSalary), katalogning florist_fee'ga EMAS.
+  // AVTO-TUZATISH: hajm/turini tanlaganda florist ISH HAQI (salary) tarifdan olinadi.
+  // ⚠️ Operator QO'LDA yozgan qiymat HECH QACHON bosib o'tilmaydi (salaryTouched).
+  // Tarifning florist_fee → katalog salary (rateToCatalogSalary), katalog florist_fee'ga EMAS.
   const applyRate = (vol: CatalogVolume | "", arr: ArrangementType) => {
     const rate = rateFor(vol, arr);
     if (!rate) return;
+    if (!salaryTouched) { setF((p) => ({ ...p, florist_salary_amount: rateToCatalogSalary(rate) })); setSalaryFromRate(true); }
+    writeStems(rate.default_stems, true); // default_stems — TAVSIYA; mavjud qatorni clobber qilmaydi (writeStems ichida himoya)
+  };
+  // "tarifdan qayta olish" — operator qo'lda yozib, keyin tarif qiymatini xohlasa
+  const reapplyRate = () => {
+    const rate = rateFor(volume, f.arrangement_type);
+    if (!rate) return;
     setF((p) => ({ ...p, florist_salary_amount: rateToCatalogSalary(rate) }));
-    setSalaryFromRate(true);
-    writeStems(rate.default_stems, true);
+    setSalaryFromRate(true); setSalaryTouched(false);
   };
 
-  // tariflar KEYIN yuklansa yoki bo'sh qiymatda — birinchi to'ldirish (mavjudni bosib o'tmaydi).
-  // ⚠️ OVERRIDE QOIDASI: salary faqat BO'SH bo'lsa to'ldiriladi; hech qachon "0"/"" bilan
-  // to'ldirmaymiz — aks holda serverning o'z avto-to'ldirishini jimgina o'chirib qo'yardik.
+  // tariflar KEYIN yuklansa yoki bo'sh qiymatda — birinchi to'ldirish. FAQAT operator
+  // tegmagan VA maydon bo'sh bo'lsa (override qoidasi: "0"/"" bilan hech qachon).
   useEffect(() => {
     const rate = rateFor(volume, f.arrangement_type);
     if (!rate) return;
-    if (f.florist_salary_amount === "") {
+    if (!salaryTouched && f.florist_salary_amount === "") {
       setF((p) => ({ ...p, florist_salary_amount: rateToCatalogSalary(rate) }));
       setSalaryFromRate(true);
     }
@@ -532,7 +541,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             const avail = availOf(r.stock_batch);
             const invalid = rowInvalidFlorist(r.stock_batch);
             // validatsiya SHU partiyaga tegishli BARCHA qatorlar yig'indisi bo'yicha
-            const over = !invalid && r.stock_batch > 0 ? stemsForBatch(r.stock_batch) > avail : false;
+            const over = !invalid && r.stock_batch > 0 ? stemsForBatchNow(r.stock_batch) > avail : false;
             const under = !floristMode && b ? st > 0 && st < b.minimum_sale_stems : false;
             const sub = b ? Math.round(+b.sale_price_per_stem) * st : 0;
             const spb = spbOf(r.stock_batch);
@@ -648,17 +657,23 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             className="inp"
             type="number"
             value={f.florist_salary_amount}
-            onChange={(e) => { setSalaryFromRate(false); setF({ ...f, florist_salary_amount: e.target.value }); }}
+            onChange={(e) => { setSalaryFromRate(false); setSalaryTouched(true); setF({ ...f, florist_salary_amount: e.target.value }); }}
             placeholder="Masalan: 60000"
           />
-          {salaryFromRate && <span className="mt-0.5 block text-[11px] font-semibold" style={{ color: "var(--primary)" }}>Tarifdan olindi</span>}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            {salaryFromRate && <span className="text-[11px] font-semibold" style={{ color: "var(--primary)" }}>Tarifdan olindi</span>}
+            {/* operator qo'lda yozgan, lekin tarif mavjud → istasa qайta olsin */}
+            {!salaryFromRate && !!rateFor(volume, f.arrangement_type) && (
+              <button type="button" onClick={reapplyRate} className="text-[11px] font-bold underline-offset-2 hover:underline" style={{ color: "var(--primary)" }}>Tarifdan qayta olish</button>
+            )}
+          </div>
           <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: florist ? "var(--text-2)" : "var(--muted)" }}>
             {!florist
               ? "Florist tanlanmagan — oylik yozilmaydi"
               : f.florist_salary_amount !== ""
                 ? <>Florist oyligiga: {qtyTotal > 1 ? `${(+f.florist_salary_amount).toLocaleString("ru")} × ${qtyTotal} dona = ` : ""}<b style={{ color: "var(--acc)" }}>{fmt(+f.florist_salary_amount * qtyTotal)}</b></>
                 : rateMissing
-                  ? "Bu florist uchun tarif yo'q — qo'lda kiriting"
+                  ? <>Bu florist uchun tarif yo&apos;q — qo&apos;lda kiriting · <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.assign(`/floristlar?rateFor=${florist}`); }} className="font-bold underline-offset-2 hover:underline" style={{ color: "var(--primary)" }}>Tarif qo&apos;shish</button></>
                   : "Bo'sh — tarif topilsa avtomatik, aks holda oylik yozilmaydi"}
           </span>
           <Err k="florist_salary_amount" />

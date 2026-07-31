@@ -12,16 +12,18 @@ import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import FloristModal from "@/components/FloristModal";
 import FloristStatsView from "@/components/FloristStats";
+import FloristRateMatrix from "@/components/FloristRateMatrix";
 import Drawer from "@/components/Drawer";
 import DateChips from "@/components/DateChips";
 import type { FloristStats } from "@/lib/types";
-import VolumeRateMatrix from "@/components/VolumeRateMatrix";
 import SalaryLedger from "@/components/SalaryLedger";
 import AttendanceLedger from "@/components/AttendanceLedger";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import type { FloristProfile } from "@/lib/types";
 
-const TAB_LABEL = { profillar: "Profillar", tariflar: "Hajm tariflari", oyliklar: "Oyliklar", davomat: "Keldi-ketdi" } as const;
+// «Hajm tariflari» tabi OLIB TASHLANDI — tariflar endi PER-FLORIST, har floristning
+// batafsil drawer'ida (FloristDetailDrawer → FloristRateMatrix). Umumiy tarif yo'q.
+const TAB_LABEL = { profillar: "Profillar", oyliklar: "Oyliklar", davomat: "Keldi-ketdi" } as const;
 type Tab = keyof typeof TAB_LABEL;
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -82,6 +84,14 @@ export default function FloristlarPage() {
     api.florists({ ordering: "user" }).then(setRows).catch((e) => showToast(e instanceof Error ? e.message : "Yuklashda xatolik"));
   }, [showToast]);
   useEffect(() => { load(); }, [load]);
+  // ?rateFor=<id> — composer «Tarif qo'shish» yorlig'idan: o'sha floristning drawer'ini
+  // ochamiz (tarif matritsasi shu yerda). Ro'yxat yuklangach bir marta.
+  useEffect(() => {
+    if (typeof window === "undefined" || !rows) return;
+    const id = Number(new URLSearchParams(window.location.search).get("rateFor"));
+    if (id) { const fp = rows.find((r) => r.id === id); if (fp) setStatFor(fp); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
   useAutoRefresh(load);
 
   const name = (fp: FloristProfile) => {
@@ -124,7 +134,6 @@ export default function FloristlarPage() {
 
   if (rows === null && tab === "profillar") return <FlowerLoader />;
 
-  if (tab === "tariflar") return <>{tabBar}<VolumeRateMatrix /></>;
   if (tab === "oyliklar") return <>{tabBar}<SalaryExport control={control} /><SalaryLedger /></>;
   if (tab === "davomat") return <>{tabBar}<AttendanceLedger /></>;
 
@@ -200,6 +209,9 @@ export default function FloristlarPage() {
           onSaved={(fp) => {
             setForm({ open: false, edit: null });
             setRows((rs) => { const list = rs ?? []; const i = list.findIndex((x) => x.id === fp.id); return i >= 0 ? list.map((x) => (x.id === fp.id ? fp : x)) : [fp, ...list]; });
+            // ochiq drawer'ni ham yangilaymiz — staff_type o'zgarsa matritsa darhol to'g'ri
+            // holatga o'tadi (matritsa florist.id o'zgarganda tariflarni qayta yuklaydi)
+            setStatFor((cur) => (cur && cur.id === fp.id ? fp : cur));
           }}
         />
       )}
@@ -248,6 +260,11 @@ function FloristDetailDrawer({ florist, onClose }: { florist: FloristProfile; on
       {err ? <p className="py-6 text-center text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}>{err}</p>
         : !stats ? <p className="py-6 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>
         : <FloristStatsView stats={stats} />}
+
+      {/* PER-FLORIST hajm tariflari — shu floristning drawer'ida (umumiy tarif yo'q) */}
+      <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+        <FloristRateMatrix florist={florist} />
+      </div>
     </Drawer>
   );
 }

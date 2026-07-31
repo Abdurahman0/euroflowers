@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { volumeArrangementMatch, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, VOLUMES } from "./inventory";
+import { volumeArrangementMatch, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, buildVolumeRatesPayload, VOLUMES, type RateCell } from "./inventory";
 import type { FloristVolumeRate } from "./types";
 
 const rate = (o: Partial<FloristVolumeRate>): FloristVolumeRate => ({
@@ -65,6 +65,32 @@ describe("catalogSalaryPayload — zero is a value, empty is omission (override 
   it("rate-resolved / operator-edited value → sent", () => {
     expect(catalogSalaryPayload("60000")).toEqual({ florist_salary_amount: "60000" });
     expect(catalogSalaryPayload("60000.00")).toEqual({ florist_salary_amount: "60000" });
+  });
+});
+
+describe("buildVolumeRatesPayload — full-replace safety (only filled cells sent)", () => {
+  const cell = (o: Partial<RateCell>): RateCell => ({ arrangement_type: "bouquet", volume: "medium", fee: "", stems: "", ...o });
+  it("includes filled cells (fee present), with default_stems when given", () => {
+    const out = buildVolumeRatesPayload([cell({ fee: "60000", stems: "25" })]);
+    expect(out).toEqual([{ arrangement_type: "bouquet", volume: "medium", florist_fee: "60000", default_stems: 25 }]);
+  });
+  it("omits empty cells entirely (they deactivate server-side)", () => {
+    const out = buildVolumeRatesPayload([cell({ fee: "60000" }), cell({ volume: "large", fee: "" })]);
+    expect(out).toHaveLength(1);
+    expect(out[0].volume).toBe("medium");
+  });
+  it("a cell with stems but no fee is treated as empty (fee is what defines a rate)", () => {
+    expect(buildVolumeRatesPayload([cell({ fee: "", stems: "40" })])).toEqual([]);
+  });
+  it("filled cell without stems omits default_stems", () => {
+    expect(buildVolumeRatesPayload([cell({ fee: "50000" })])).toEqual([{ arrangement_type: "bouquet", volume: "medium", florist_fee: "50000" }]);
+  });
+  it("all-empty grid → [] (the dangerous case the UI guards with a confirm)", () => {
+    expect(buildVolumeRatesPayload([cell({}), cell({ volume: "small" }), cell({ arrangement_type: "basket" })])).toEqual([]);
+  });
+  it("partial grid → only the filled subset", () => {
+    const cells = [cell({ volume: "small", fee: "40000", stems: "15" }), cell({ volume: "medium" }), cell({ volume: "large", fee: "85000" })];
+    expect(buildVolumeRatesPayload(cells).map((r) => r.volume)).toEqual(["small", "large"]);
   });
 });
 

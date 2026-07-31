@@ -31,7 +31,7 @@ const PAGES: { page: PermissionPage; label: string }[] = [
   { page: "mini_app", label: "Mini app" },
 ];
 
-const ROLES: Role[] = ["admin", "operator", "florist", "warehouse", "content", "developer"];
+const ROLES: Role[] = ["admin", "operator", "supervisor", "florist", "apprentice", "warehouse", "content", "developer"];
 
 type PermState = Record<PermissionPage, { can_view: boolean; can_control: boolean }>;
 
