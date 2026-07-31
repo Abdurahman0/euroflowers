@@ -353,14 +353,28 @@ by_branch + history), so revenue no longer vanishes. The *flower-level attributi
 sales still can't be derived client-side (no branch warehouse/composition) — unchanged, and
 now labelled rather than silent.
 
-## §1b — DASHBOARD ↔ HISOB-KITOB PARITY (revised rule)
-- Dashboard `period_catalog_sales_revenue` = **5 900 000** (own-branch).
-- Hisob-kitob default (all) `total_sales` = **7 700 000**.
-- The 1.8M gap is NOT the branch split (Parkent=0 → all==main). It is a **metric difference**
-  (`total_sales` ⊇ `catalog_sales_revenue`) that predates this spec — flag for backend.
-- **REVISED ACCEPTANCE RULE** (replaces "Dashboard = Analitika = Hisob-kitob exactly"):
-  parity is asserted against **`?branch=main`** only; any all-branch figure on Hisob-kitob is
-  labelled "Barcha filiallar" so it is never compared to an own-branch Dashboard number.
+## §1b — DASHBOARD ↔ HISOB-KITOB PARITY (CORRECTED — the rule was RIGHT)
+⚠️ My first pass wrongly called this a "metric difference" and changed the rule. That was an
+AUDIT ERROR, not a real discrepancy. Reconciled precisely:
+- The 1.8M gap = **one sale, history #54 "standart", sold_at 2026-07-31, 1 800 000**.
+- Dashboard treats `date_to` as **exclusive** (start-of-day); accounting treats it as
+  **inclusive**. Comparing the same raw `date_to=2026-07-31` misaligned the ranges by one day
+  (the old trailing-+1 territory) — dashboard dropped Jul 31, accounting kept it.
+- **Like-with-like** (dashboard `date_to=2026-08-01` vs accounting main `date_to=2026-07-31`):
+  Dashboard `period_catalog_sales_revenue` = **7 700 000** == accounting main `total_sales`
+  = **7 700 000**. **They match EXACTLY.** (`7 700 000 − 1 800 000 = 5 900 000` = the misaligned
+  dashboard figure.)
+- **Verdict: (i) NOT a metric difference, NOT a regression, NOT a backend change** — an
+  audit-time date misalignment. `period_catalog_sales_revenue` IS the field matching
+  `total_sales`; the three-way acceptance test still holds. The app itself sends aligned ranges
+  (api.dashboard adds +1, api.accounting inclusive), so Dashboard == Hisob-kitob(main) in the UI.
+- **ACCEPTANCE RULE STANDS** (not revised): Dashboard `period_catalog_sales_revenue` ==
+  Analitika `catalog_sales_revenue` == Hisob-kitob **`?branch=main`** `total_sales`, EXACTLY,
+  for aligned ranges. The only branch-split addition: Hisob-kitob's DEFAULT is `all`, which is
+  ≥ Dashboard's own-branch figure once branches have sales — that all-branch figure is labelled
+  "Barcha filiallar" and is NOT the parity anchor; `?branch=main` is.
+  (Note: dashboard's `catalog_revenue` = 5 750 000 at the misaligned range is the older
+  quantity_sold-based field — BUG-1 — not the parity field; ignore it for parity.)
 
 ## §1c — BRANCH-REPORT vs ACCOUNTING (they answer different questions)
 Same range: branch-report Parkent `sold_revenue` = **0** == accounting by_branch Parkent
@@ -369,10 +383,23 @@ catalogs were sent to a branch and the markup; `/accounting/` by_branch = the mo
 Made the distinction visible with a one-line subtitle + cross-link on BOTH pages. Not
 reconciled client-side.
 
-## §1d — DISCOUNT SANITY
-Live main: `discount_total` **4 700 000** on `total_sales` **7 700 000** = **61%**. It really
-is that large (dev/test data has heavily-discounted sales). Not softened, but NOT made a
-headline — Skidka is a normal card, not a hero.
+## §1d — DISCOUNT SANITY (it's ONE outlier, base is correct)
+`discount_total` 4 700 000 comes from only **3 discounted sales** (of 9). **ONE dominates:**
+- `#47 "huhu"`: listed_total **7 600 000**, sold **3 000 000**, discount **4 600 000** (61% off,
+  reason "opamga") — **98% of the whole discount total**.
+- `#53` and `#41`: 50 000 each (25% off).
+**Base is correct:** `listed_total − sale_total == discount_amount` for all three — measured
+against the catalog/listed price, NOT `source_price` or a wrong base. So the headline "61%" is
+not across-the-board; it's one heavy personal/test discount on a 7.6M item. Real data, correct
+math — Skidka stays a normal card (not a hero); nothing adjusted.
+
+## §4 — ⚠️ SPLIT NEVER OBSERVED WITH NON-ZERO BRANCH DATA
+Parkent currently has **0 sales**, so live `?branch=all` == `?branch=main` (7 700 000) and
+`by_branch` Parkent is all zeros. **Every branch-split screen (split lines, by_branch Parkent
+row, history Filial column/filter, branch-mode waste empty state) was screenshotted on MOCKED
+accounting responses — the split has NEVER been seen with real non-zero branch data.** First
+thing to re-verify after your first real transfer + branch sale: that `summary.total_sales`
+jumps above `?branch=main`, the split lines render, and by_branch sums equal summary.
 
 ## Built
 Branch selector (server-driven, hidden for branch users, combines with date range, doesn't
