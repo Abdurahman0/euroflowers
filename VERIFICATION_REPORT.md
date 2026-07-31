@@ -414,3 +414,71 @@ Totals NEVER recomputed client-side — server values shown, share_percent displ
 
 ## Untested write paths
 None new — this spec is read-only reporting. (All prior write paths still stand.)
+
+═══════════════════════════════════════════════════════════════════
+# FINAL TEST PACK (2026-08-01) — supersedes earlier LIST 1 / LIST 2
+═══════════════════════════════════════════════════════════════════
+
+## TEST DATA IN PRODUCTION (found during discount audit)
+The ENTIRE live catalog is dev/test data (nonsense names, no ZZZ_TEST_ prefix so the guard
+misses them). All current sales history derives from these. Decide whether to purge before
+go-live:
+- catalog #64 "standart" (200k) · #62 "huhu" (3M, custom) · #61 "gdrgdr" (400k) ·
+  #60 "xxxxx" (1M, custom) · #59 "Mix" (200k)
+- The 61% discount driver: sale #47, catalog_id 62 ("huhu"), sold_at 2026-07-30,
+  listed 7.6M → sold 3.0M, discount 4.6M, reason "opamga".
+
+## LIST 1 — MANUAL CHECKLIST (risk: READ / REV / IRREV; run in order)
+1.  Rate save: florist → «Hajm tariflari» → 6 katak → Saqlash. REV.
+2.  Empty ONE rate cell → Saqlash (o'sha hajm nofaol). REV — katakni qaytaring.
+3.  Copy-from-florist → Nusxalash (manba tegilmaydi). READ src / REV target.
+4.  Balanceless florist → composer empty state + shortcut. READ. (issue'dan OLDIN)
+5.  Branch report → davr → table/bar/history/Excel. READ.
+6.  ISSUE florist + batch + ~8 → Chiqarish. REV (return orqali). Eski, arzon, tugab-qolgan partiya.
+7.  Catalog from florist balance (salary «Tarifdan olindi»), 1 dona. REV (delete orqali). Throwaway item.
+8.  User branch: Xodimlar → NON-kritik userni Parkentga biriktiring. REV — keyin Asosiyga qaytaring.
+9.  User branch: o'sha userni Filialga TEGMASDAN saqlang. READ-ish — filiali o'zgarmasligini tekshiring.
+10. Customer on sale: 7-qadam item, 1 dona, Mavjud/Yangi mijoz. IRREV (sotuv yoziladi).
+11. RETURN: issue'ning bir qismini qaytaring. REV — sklad tiklanadi.
+12. TRANSFER: asosiy katalog item → Filialga yuborish, 1 dona, eng arzon. IRREV — QAYTARIB BO'LMAYDI.
+13. DELETE 7-qadam floristli katalog. IRREV — gullar floristga qaytadi, YOZUV o'chadi.
+14. WASTE: florist balansi → Chiqit, 1 dona. IRREV — gul butunlay yo'qoladi.
+15. Branch-user tajribasi (Parkent login kerak). READ — menyu 3 ta, /sklad→redirect, +Katalog yo'q,
+    chegirmada discount_reason majburiy.
+### SKIP (faqat ochiq savolni tekshiradi — zarar arziydimi o'zingiz hal qiling)
+- All-empty rate save (butun grid o'chadi) — guard unit-tested, backend dev'ga aytish yetarli.
+- Katalog kompozitsiyasini balansdan oshirib tahrirlash — faqat ochiq savol (c); backend dev'ga bering.
+
+### ⚠️ ACCOUNTING BRANCH SPLIT — NEVER OBSERVED WITH REAL DATA (run LAST)
+Parkent=0 today, so `all`==`main` and every split screen was mocked. After step 12 (transfer):
+16. Parkent nusxasini Parkent user sifatida SOTING (admin Parkent itemni ocholmaydi — 404).
+    Bu IRREV (real sotuv), 1 dona. Sotgach:
+17. Hisob-kitob → Hammasi: ✅ `summary.total_sales` `?branch=main`dan OShDI; pul kartochkalari
+    ostida ajratma satri paydo bo'ldi; `by_branch` Parkent qatori NOLDAN CHIQDI; §2 «Filial»
+    ustuni paydo bo'ldi; by_branch yig'indisi summary'ga teng.
+18. Parkent rejimi: ✅ chiqit bo'sh holati («Filiallarda gul saqlanmaydi»), ajratma satri yo'q,
+    sarlavha «Parkent filiali».
+19. Dashboard(o'z filiali) == Hisob-kitob `?branch=main`, AYNIY oralig'da — hali ham teng ekanini
+    tasdiqlang (parity qoidasi). Excel: joriy filial + davr fayl nomida.
+
+## LIST 2 — OPEN BACKEND QUESTIONS (paste-ready)
+a. Florist RETURN — does it write a warehouse IN StockMovement, and with what reference_type?
+   SETTLE: run #11, watch the sklad journal for a new entry.
+b. Florist WASTE — does it write a warehouse `waste` StockMovement (would our separate block
+   then double-show)? SETTLE: run #14, check if the sklad «Chiqit» total moves.
+c. PATCH /catalog/{id}/ — does it re-validate composition against the florist's balance?
+   SETTLE: run the skipped over-balance edit.
+d. Apprentice→florist — do the old rates reactivate or stay is_active:false?
+   SETTLE: set a florist apprentice, revert, open the matrix.
+e. Transfer reversibility — CONFIRMED no cancel/return path exists; do operators need one?
+   SETTLE: your call — today a mis-transfer is irreversible from the UI.
+f. Transferred-stem attribution — stems consumed on main but sold in Parkent vanish from main's
+   variant/supplier attribution; expose cross-branch attribution or accept as isolation?
+   SETTLE: backend decision.
+g. isBranchUser — main users must have profile.branch = null (verified for admin/developer);
+   confirm no main user is assigned branch=<main id>. SETTLE: check one main user's profile.branch.
+h. date_to asymmetry — /api/dashboard/ + /api/analytics/ treat date_to EXCLUSIVE, /api/accounting/
+   treats it INCLUSIVE. Intentional? Documented anywhere? SETTLE: confirm and document, so nobody
+   "fixes" the +1 and silently drops a day of dashboard revenue.
+i. Test data — the whole live catalog (#59–#64) is dev data without the ZZZ_TEST_ prefix, skewing
+   real reports (esp. the 61% discount). Purge before go-live? SETTLE: your call.
