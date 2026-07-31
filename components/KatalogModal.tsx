@@ -69,7 +69,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
   // yetarli qoldiq yo'q — backend `detail` (ko'p qatorli) alohida holatda ko'rsatiladi
-  const [stockError, setStockError] = useState<{ lines: string[]; batchId: number | null; florist?: boolean } | null>(null);
+  const [stockError, setStockError] = useState<{ lines: string[]; batchId: number | null; florist?: boolean; shortage?: boolean } | null>(null);
   // dublikat qator birlashganda qisqa yorug'lik (flash) beriladi
   const [flashBatch, setFlashBatch] = useState<number | null>(null);
   const [flashMat, setFlashMat] = useState<number | null>(null);
@@ -335,26 +335,29 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       onSaved();
       onClose();
     } catch (e) {
-      // backend `detail` MASSIV bo'lishi mumkin (["...\n..."]) — bittalab qatorga yig'amiz
+      // backend `detail` MASSIV yoki KO'P QATORLI string bo'lishi mumkin — bitta matnga yig'amiz.
+      // Yangi florist-balans xatosi ko'p qatorli labelled blok:
+      //   "Katalogni saqlash uchun floristdagi gul yetarli emas. Gul Abror qo'lida.
+      //    Gul: … / Partiya: … / Kerak: … / Bor: … / Yetmayapti: …"
       const rawDetail = e instanceof ApiError && e.body && typeof e.body === "object" && "detail" in e.body ? (e.body as { detail: unknown }).detail : null;
       const detail = Array.isArray(rawDetail) ? rawDetail.join("\n") : rawDetail != null ? String(rawDetail) : null;
-      // yig'ilgan xato matnida sklad-yetishmovchilik belgilari bormi?
-      // sklad-yetishmovchilik VA florist-balans yetishmovchilik ("Abror qo'lida yetarli
-      // gul yo'q: EF-… (5 dona bor, 20 kerak)") — ikkalasini ham ushlaymiz
+      // Yetishmovchilik belgilari — FAQAT sarlavha va affordance (yo'l-yo'riq) uchun.
+      // ⚠️ O'qiladigan blokni HECH QACHON shu mos kelishga bog'lamaymiz: backend matni
+      // yana o'zgarsa ham server `detail` AYNAN, jim qolmasdan ko'rsatiladi.
       const stockText = [detail, e instanceof ApiError ? e.message : null, ...(e instanceof ApiError && e.fieldErrors ? Object.values(e.fieldErrors) : [])]
-        .find((s) => s && /(yetarli qoldiq|yetarli gul|yetmayapti|qoldiq yo|qo'lida|dona bor|kerak)/i.test(s)) || null;
-      const floristShortage = !!stockText && /(qo'lida|yetarli gul)/i.test(stockText);
-      if (stockText) {
-        // "Gul: / Partiya: / Kerak: / Bor: / Yetmayapti:" qatorlari — sarlavha
-        // takrorlanmasin uchun umumiy kirish satrini (ikki nuqtasiz) tashlaymiz
-        const all = stockText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        .find((s) => s && /(yetarli qoldiq|yetarli gul|yetarli emas|yetmayapti|qoldiq yo|qo'lida|floristda|dona bor|kerak)/i.test(s)) || null;
+      const floristShortage = !!stockText && /(qo'lida|floristda|yetarli gul)/i.test(stockText);
+      if (detail) {
+        // ko'p qatorli labelled blokni o'qiladigan qilib ajratamiz (qator tuzilishi saqlanadi);
+        // labelli qatorlar bo'lsa o'shalarni, bo'lmasa butun matnni ko'rsatamiz — hech biri yo'qolmaydi
+        const all = detail.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
         const labeled = all.filter((l) => l.includes(":"));
         const lines = labeled.length ? labeled : all;
-        // aybdor partiyani topamiz — matnda partiya raqami yoki gul nomi bo'lsa
-        const off = comp.find((r) => { const b = batchOf(r.stock_batch); return b?.batch_number && stockText.includes(b.batch_number); })
-          ?? comp.find((r) => { const nm = batchOf(r.stock_batch)?.variant_detail?.flower_detail?.name_uz; return nm && stockText.includes(nm); });
-        setStockError({ lines, batchId: off?.stock_batch ?? null, florist: floristShortage });
-        showToast(floristShortage ? "Florist qo'lida yetarli gul yo'q" : "Skladda yetarli qoldiq yo'q");
+        // aybdor partiyani topamiz — matnda partiya raqami yoki gul nomi bo'lsa (best-effort)
+        const off = comp.find((r) => { const b = batchOf(r.stock_batch); return b?.batch_number && detail.includes(b.batch_number); })
+          ?? comp.find((r) => { const nm = batchOf(r.stock_batch)?.variant_detail?.flower_detail?.name_uz; return nm && detail.includes(nm); });
+        setStockError({ lines, batchId: off?.stock_batch ?? null, florist: floristShortage, shortage: !!stockText });
+        showToast(floristShortage ? "Florist qo'lida yetarli gul yo'q" : stockText ? "Skladda yetarli qoldiq yo'q" : (e instanceof ApiError ? e.message : "Saqlab bo'lmadi"));
       } else if (e instanceof ApiError && e.fieldErrors) {
         setErrs(e.fieldErrors);
         showToast(e.message);
@@ -480,7 +483,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           <div className="flex items-start gap-2">
             <AlertTriangle size={16} strokeWidth={2} className="mt-0.5 shrink-0" style={{ color: "var(--danger-ink)" }} />
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}>{stockError.florist ? "Florist qo'lida yetarli gul yo'q" : "Skladda yetarli qoldiq yo'q"}</div>
+              <div className="text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}>{stockError.florist ? "Florist qo'lida yetarli gul yo'q" : stockError.shortage ? "Skladda yetarli qoldiq yo'q" : "Saqlab bo'lmadi"}</div>
               <div className="mt-1.5 flex flex-col gap-0.5 text-[12.5px]" style={{ color: "var(--text-2)" }}>
                 {stockError.lines.map((ln, i) => {
                   const ci = ln.indexOf(":");
@@ -500,7 +503,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                 >
                   Floristga gul chiqarish
                 </button>
-              ) : stockError.batchId != null && (
+              ) : stockError.shortage && stockError.batchId != null && (
                 <button
                   type="button"
                   onClick={() => { if (typeof window !== "undefined") window.location.assign(`/sklad?tab=partiyalar&batch=${stockError.batchId}`); }}

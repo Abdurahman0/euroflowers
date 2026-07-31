@@ -471,13 +471,39 @@ Parkent=0 today, so `all`==`main` and every split screen was mocked. After step 
     tasdiqlang (parity qoidasi). Excel: joriy filial + davr fayl nomida. Filial hisoboti Excel tugmasi
     esa (chiplardan yuqorida) HISOBOT tabini eksport qiladi — «Yuborilganlar tarixi» faylga KIRMAYDI.
 
+### ⚠️⚠️ ADJUST — GUL HISOBINI TO'G'RILASH (ENG OXIRIDA — DESTRUKTIV, TARIXIY TANNARXNI QAYTA YOZADI)
+Bu amal SOTILGAN kataloglar tarkibi va tannarxini ham qayta yozadi → hisob-kitobdagi sof foyda
+(shu jumladan o'tgan sotuvlarniki) siljiydi. QAYTARIB BO'LMAYDI (LIST 2 l). Shuning uchun HAMMA
+narsadan keyin, va faqat atayin. Kirish: Floristlarga chiqarilgan → «Kimda qancha gul bor».
+Kirish nuqtalari `inventory` BOSHQARISH huquqiga bog'langan (faqat ko'rish — tugmalar chiqmaydi).
+20. PREVIEW (READ — bazaga tegmaydi, erkin): florist qatorida «To'g'rilash» → modal. Yo'nalish
+    «Florist ko'proq ishlatgan» (to_catalog) da preview jadvali chiqadi: Katalog · Dona ·
+    hozir→keyin · O'zgarish (per-item VA total ALOHIDA — 2 dona da +8/dona = +16 jami). Yo'nalishni
+    almashtiring/son kiriting → preview DEBOUNCE bilan qayta chaqiriladi. «Floristda qoladi: N»
+    preview'dan. Majburiy OGOHLANTIRISH ("Sotilgan buketlar tannarxi ham o'zgaradi") ko'rinadi.
+21. PER-FLORIST guruh sarlavhasidagi «Hisobni to'g'rilash» → batch YUBORILMAYDI, faqat to_catalog
+    (to_florist o'chirilgan, sabab ko'rsatiladi). Agar preview biror partiyani `blocked` desa —
+    Tasdiqlash O'CHADI (all-or-nothing), qaysi partiya + sabab ko'rsatiladi, bloklanmaganini
+    bittalab bajarish chipi taklif etiladi. `unplaced_stems > 0` bo'lsa alohida sarg'ish ogoh.
+22. BAJARISH (IRREV — READ-ONLY audit'da BOSILMADI): Tasdiqlash → POST /adjust/. Muvaffaqiyatda
+    natija (moved_stems, unplaced_stems, stems_before→after) ko'rinadi; balanslar + katalog +
+    hisob-kitob/dashboard/analitika keshi (accounting:*, stock-batches:active) invalidate qilinadi.
+    IKKI MARTA bosishdan himoyalangan (busy + result guard). Bajarilgach: Hisob-kitob §1/§2 sof
+    foyda VA gul-nav/yetkazib-beruvchi (client-recompute) raqamlari siljiganini kesib-tekshiring;
+    to'g'rilangan buket katalogining «Tarkib»idagi dona/tannarx yangilanganini ko'ring.
+
 ## LIST 2 — OPEN BACKEND QUESTIONS (paste-ready)
 a. Florist RETURN — does it write a warehouse IN StockMovement, and with what reference_type?
    SETTLE: run #11, watch the sklad journal for a new entry.
 b. Florist WASTE — does it write a warehouse `waste` StockMovement (would our separate block
    then double-show)? SETTLE: run #14, check if the sklad «Chiqit» total moves.
 c. PATCH /catalog/{id}/ — does it re-validate composition against the florist's balance?
-   SETTLE: run the skipped over-balance edit.
+   ✅ RESOLVED by the adjust spec's side-fix: when a florist is selected, the backend now checks
+   the FLORIST'S BALANCE (not the warehouse), and its 400 is the new multi-line block
+   ("Katalogni saqlash uchun floristdagi gul yetarli emas. Gul … / Kerak / Bor / Yetmayapti").
+   Our composer already validates client-side against `balanceRemaining` (florist mode) — the two
+   now AGREE, no duplication/contradiction. Florist-unselected catalogs still check the warehouse.
+   Composer hardened so the readable server block renders on ANY 400 (never gated on a phrase match).
 d. Apprentice→florist — do the old rates reactivate or stay is_active:false?
    SETTLE: set a florist apprentice, revert, open the matrix.
 e. Transfer reversibility — CONFIRMED no cancel/return path exists; do operators need one?
@@ -497,3 +523,87 @@ j. GET /api/catalog-transfers/ has NO date filter — OpenAPI params are only br
    «Yuborilganlar tarixi» tab is ALL-TIME regardless of the page's date range (UI says so:
    «Butun davr — sana filtri qo'llanmaydi»). Add `created_at_after`/`created_at_before` (or
    date_from/date_to) so the transfers tab can honour the same range as «Hisobot»? SETTLE: backend.
+k. ADJUST — does POST /api/florist-stock-balances/adjust/ write any StockMovement (warehouse or
+   florist), or is it a PURE reallocation of catalog composition + cost with no journal entry?
+   Matters because our sklad journal / waste blocks must not double-count it. SETTLE: run the adjust
+   E2E (spec confirms it rewrote a SOLD buket's tannarx 300k→390k) and watch the sklad movement log.
+l. ADJUST undo — is there any reverse? Running the OPPOSITE direction (to_florist after to_catalog)
+   does NOT obviously restore the exact prior composition (rounding 8/8/9 is not symmetric with an
+   arbitrary return quantity). Is to_catalog effectively ONE-WAY? A second identical run 400s
+   ("bo'linadigan qoldiq yo'q"), but that's not a restore. SETTLE: backend — document reversibility.
+m. ADJUST vs closed periods — adjust rewrites cost on ALREADY-SOLD catalogs, so `net_profit`/
+   `cost_total` for past sales move. Does it touch already-CLOSED accounting periods / historical
+   reports (i.e. can a finalized month's profit shift retroactively)? SETTLE: backend policy.
+
+═══════════════════════════════════════════════════════════════════
+# FLORIST GUL HISOBINI TO'G'RILASH (adjust) — BUILD + AUDIT (2026-08-01)
+═══════════════════════════════════════════════════════════════════
+
+## §0a — THE 400 MESSAGE SHAPE CHANGED (audit + fix)
+Only ONE place in the app coupled to the old shortage wording: `components/KatalogModal.tsx` save
+`catch`. `lib/api.ts` (statusMessage/flattenErrors) and `FloristStockIssueModal` only render `detail`
+verbatim — no phrase coupling. The old matcher used `/(qo'lida|yetarli gul)/i`; the NEW multi-line
+message ("… floristdagi gul yetarli emas. Gul Abror qo'lida. / Gul: / Partiya: / Kerak: / Bor: /
+Yetmayapti:") still contains "qo'lida", so it did NOT no-op TODAY — but the readable block was GATED
+on that match, the exact fragility to remove. FIX: the readable block now renders on ANY 400 with a
+`detail` (multi-line preserved, labelled lines shown), independent of the phrase match; the phrase
+match only drives the title + affordance (florist-shortcut / partiya). If wording drifts again, the
+server text still shows verbatim instead of a silent toast. Title falls back to "Saqlab bo'lmadi"
+when unclassified. `extractFieldErrors` already handles field-keyed bodies ({"batch":[…]},
+{"quantity_stems":[…]}) — verified, no change needed. (Live note: the adjust endpoint actually
+returns these as top-level `detail`, not field-keyed — both paths render.)
+
+## §0b — CLIENT VALIDATION vs BACKEND SIDE-FIX
+Composer florist-mode validation uses `balanceRemaining` (the florist's hand), which is exactly what
+the backend now checks. They AGREE; no duplication/contradiction. Closes LIST 2 (c) — see there.
+
+## §5 — REPORTING IMPACT (audit, not patched) — what shifts after an adjust
+Adjust rewrites catalog composition + per-item cost on SOLD items. Client sites that would change:
+
+| Site | Derives | Reads comp/cost | Affected |
+|---|---|---|---|
+| `lib/finance.ts` `saleLineAllocations` (159-172) | per-line stems, cost, cost-weighted revenue split | comp + `batch_detail.cost_per_stem` | YES |
+| `lib/finance.ts` `allocateByCost` (64-77) | distributes sale_total by line cost | line costs | YES |
+| `app/hisob-kitob` supplier rollup (216-238) | revenue−cost **profit** (client arithmetic) | via saleLineAllocations | YES |
+| `app/hisob-kitob` variant rollup (241-250) | revenue−cost **profit** (client arithmetic) | via saleLineAllocations | YES |
+| `app/hisob-kitob` CatalogDetail «Tarkib» (853-857) | per-stem line qty×cost (informational) | comp + cost | YES |
+| `components/BatchSarfiPanel.tsx` | batch consumption bars (stems only) | NO (batch_inventory_stats) | NO |
+| `app/hisob-kitob` KPI «Sof foyda» / per-sale / §4 breakdown | server `net_profit`/`cost_total`/`flower_cost` | NO (server fields) | value moves (server recompute), not our math |
+| waste/purchase values (191/246/248, analitika 149) | Σ stems×`batch_detail.cost_per_stem` (StockBatch/Movement) | BATCH cost, not catalog | NO |
+
+`net_profit` is SERVER-COMPUTED (a field on AccountingSale/AccountingFigures), not our arithmetic:
+`saleProfit` reads `num(s.net_profit)`; `sale − cost` is computed only for a `reconcile()` console
+cross-check, never displayed. So the KPI/per-sale/breakdown profit just MOVES when the server
+recomputes — we can't disagree there. The ONLY client-recomputed money that shifts are the supplier
++ variant profit tables (revenue−cost from `saleLineAllocations`); those read the SAME composition
+the server does, so they stay consistent with it after an adjust.
+
+## §4 — REFETCH after a successful adjust (implemented, not tested — read-only)
+`onAdjustDone` (florist-stock page): `invalidateReportCache()` → clears keys `accounting:<from>:<to>:
+<branch>` (Hisob-kitob §1/§2/§4 + Analitika) and `stock-batches:active` (Dashboard alerts +
+Analitika BatchSarfiPanel); then dispatches `ef:stock-changed` (mounted Hisob-kitob/Sklad reload,
+Hisob-kitob also re-fetches `api.catalog()`); then `loadBalances()` + `loadIssues()` (this page's
+florist-stock-balances + issues). ⚠️ Found latent gap: `invalidateReportCache()` was defined but
+NEVER called anywhere — so the pre-existing `ef:stock-changed → load()` path read STALE cached
+accounting for up to 30s. This flow invalidates BEFORE dispatching, so mounted listeners re-fetch
+fresh. Double-submit guarded client-side (busy + result), not relying on the server's 400.
+
+## Built
+`FloristStockAdjustModal` (reuses Modal/GlassCard/StockLine/formatStemsAndBunches); two entry points
+on the balances tab gated on `canControl("inventory")` (MANAGE, not view): per-florist header
+«Hisobni to'g'rilash» (to_catalog only, all batches) and per-row «To'g'rilash» (both directions).
+Preview-driven (debounced adjust-preview GET on open + on direction/qty change); grouped preview
+table showing change_per_item AND change_total separately; increase=sage / decrease=rose tints
+(existing tokens, none invented); unplaced_stems + blocked (confirm disabled, all-or-nothing,
+per-batch fallback) surfaced; mandatory bordered sold-cost warning; footer «Floristda qoladi/
+qaytadi» from preview; success result view. Pure logic in `lib/floristStock.ts`
+(buildAdjustRequest / previewBlocked / blockedBatches / totalUnplaced / floristRemainsAfter /
+formatChange), 17 new Vitest cases (88 total, all green). tsc clean.
+
+## Untested write paths (added)
+- POST /api/florist-stock-balances/adjust/ — DESTRUCTIVE (rewrites composition + cost incl. sold).
+  Wired to the modal's Tasdiqlash; NEVER fired in this audit (read-only). adjust-preview (GET) was
+  called live: 0 florists hold stock today (balances count=0), so the modal is MOCK-VERIFIED only.
+  Live probe confirmed the endpoint + top-level shape ({florist, florist_name, direction, batches:[],
+  total_florist_stems, blocked_count}) and the request contract (FloristLeftoverRequest: florist req,
+  batch nullable, direction enum default to_catalog, quantity_stems min 1).

@@ -1,6 +1,7 @@
 "use client";
 import type {
-  Accounting, AISettings, Analytics, AuditLog, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard,
+  Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult,
+  AISettings, Analytics, AuditLog, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard,
   Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
@@ -496,6 +497,15 @@ export const api = {
   floristStockIssues: (p?: Params) => list<FloristStockIssue>("/api/florist-stock-issues/", p),
   /** Kimda qancha gul bor. Sukut: faqat remaining>0; hammasi uchun only_available=false. */
   floristStockBalances: (p?: Params) => list<FloristStockBalance>("/api/florist-stock-balances/", p),
+
+  /** Florist hisobini to'g'rilash — OLDINDAN KO'RISH. GET, bazaga TEGMAYDI: erkin chaqirsa bo'ladi.
+      to_catalog: batch ixtiyoriy (berilmasa hamma qoldiq). to_florist: batch+quantity_stems MAJBURIY. */
+  floristStockAdjustPreview: (p: { florist: number; direction?: AdjustDirection; batch?: number; quantity_stems?: number }) =>
+    request<AdjustPreview>(`/api/florist-stock-balances/adjust-preview/${qs({ florist: p.florist, direction: p.direction, batch: p.batch, quantity_stems: p.quantity_stems })}`),
+  /** ⚠️ BAJARISH — POST, DESTRUKTIV: katalog tarkibi va tannarxini (SOTILGANLARNIKI ham)
+      qayta yozadi → hisob-kitobdagi sof foyda siljiydi. Faqat foydalanuvchi tasdig'idan keyin. */
+  floristStockAdjust: (data: AdjustInput) =>
+    request<AdjustResult>("/api/florist-stock-balances/adjust/", { method: "POST", body: JSON.stringify(data) }),
 
   /** Joriy foydalanuvchining florist profili (o'z hisoboti uchun). Florist bo'lmasa 404. */
   floristMe: () => request<FloristProfile>("/api/florists/me/"),

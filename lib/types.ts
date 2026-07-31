@@ -961,6 +961,71 @@ export type FloristStockIssueInput = { florist: number; batch: number; quantity_
 /** ⚠️ `kind` DOIM aniq yuboriladi — destruktiv `waste` uchun default'ga tayanmang. */
 export type FloristStockReturnInput = { florist: number; batch: number; quantity_stems: number; kind: "return" | "waste"; reason?: string };
 
+/* ===== FLORIST GUL HISOBINI TO'G'RILASH (adjust) =====
+   Standart hajm bilan haqiqat farqi: florist standartdan ko'p/kam ishlatgan bo'lsa,
+   farqni katalog tarkibiga bo'lish (to_catalog) yoki floristga qaytarish (to_florist). */
+export type AdjustDirection = "to_catalog" | "to_florist";
+/** ⚠️ change_per_item ≠ change_total qachonki quantity_total > 1 (2 dona → +1/dona = 2 gul).
+    to_florist da IKKALASI ham MANFIY. */
+export type AdjustPreviewItem = {
+  catalog_item: number;
+  catalog_name: string;
+  quantity_total: number;
+  stems_per_item_now: number;
+  change_per_item: number;
+  change_total: number;
+  stems_per_item_after: number;
+};
+export type AdjustPreviewBatch = {
+  batch_id: number;
+  batch_number: string;
+  flower: string;
+  florist_stems_now: number;
+  requested_stems: number;
+  /** joylanmagan (hech qaysi katalogga tushmagan) gullar — 0 dan katta bo'lsa ko'rsatiladi */
+  unplaced_stems: number;
+  /** true bo'lsa BUTUN amal to'xtaydi (all-or-nothing) — `reason` sababni beradi */
+  blocked: boolean;
+  reason: string;
+  items: AdjustPreviewItem[];
+};
+export type AdjustPreview = {
+  florist: number;
+  florist_name: string;
+  direction: AdjustDirection;
+  total_florist_stems: number;
+  blocked_count: number;
+  batches: AdjustPreviewBatch[];
+};
+/** adjust javobidagi bir katalog: stems_before → stems_after. */
+export type AdjustResultItem = {
+  catalog_item: number;
+  catalog_name: string;
+  quantity_total: number;
+  stems_before: number;
+  stems_after: number;
+  change_total: number;
+};
+export type AdjustResultBatch = {
+  batch_id: number;
+  batch_number: string;
+  flower: string;
+  moved_stems: number;
+  florist_stems_after: number;
+  items: AdjustResultItem[];
+};
+export type AdjustResult = {
+  /** ⚠️ bu YERDA `florist` = ism (string), preview'dagi id emas */
+  florist: string;
+  direction: AdjustDirection;
+  moved_stems: number;
+  unplaced_stems: number;
+  batches: AdjustResultBatch[];
+};
+/** batch — to_catalog da ixtiyoriy (berilmasa hamma qoldiq), to_florist da MAJBURIY.
+    quantity_stems — faqat to_florist uchun, u yerda MAJBURIY. */
+export type AdjustInput = { florist: number; direction: AdjustDirection; batch?: number; quantity_stems?: number };
+
 /** Florist oylik yozuvi (backend: /api/florist-salary/) */
 export type SalarySource = "catalog" | "custom_catalog" | "daily" | "manual";
 export type FloristSalaryEntry = {

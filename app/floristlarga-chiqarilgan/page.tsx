@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HandHelping, PackagePlus, Plus, RotateCcw, Trash2, Users } from "lucide-react";
+import { HandHelping, PackagePlus, Plus, RotateCcw, Scale, Trash2, Users } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
+import { invalidateReportCache } from "@/lib/reportCache";
 import { useStore, usePerm } from "@/lib/store";
 import FlowerLoader from "@/components/FlowerLoader";
 import EmptyState from "@/components/EmptyState";
@@ -10,6 +11,7 @@ import FilterSelect from "@/components/FilterSelect";
 import StockLine, { lineFromBatchDetail } from "@/components/StockLine";
 import FloristStockReturnDrawer from "@/components/FloristStockReturnDrawer";
 import FloristStockIssueModal from "@/components/FloristStockIssueModal";
+import FloristStockAdjustModal from "@/components/FloristStockAdjustModal";
 import { fmt, fmtDate, fmtTime } from "@/lib/format";
 import { formatStemsAndBunches, stems as stemsFmt } from "@/lib/inventory";
 import type { FloristProfile, FloristStockBalance, FloristStockIssue, StockBatch } from "@/lib/types";
@@ -25,8 +27,11 @@ type Tab = keyof typeof TAB_LABEL;
 
 export default function FloristStockIssuePage() {
   const { showToast, user } = useStore();
-  const { canView } = usePerm();
+  const { canView, canControl } = usePerm();
   const allowed = canView("inventory");
+  // ADJUST (hisobni to'g'rilash) — BOSHQARISH huquqi kerak (nafaqat ko'rish).
+  // View-only foydalanuvchi balanslarni ko'radi, lekin tugmalar chiqmaydi.
+  const canManage = canControl("inventory");
   const role = user?.profile.role;
   const isFlorist = role === "florist" || role === "apprentice";
 
@@ -46,6 +51,9 @@ export default function FloristStockIssuePage() {
   const [hFlorist, setHFlorist] = useState("");
   const [hKind, setHKind] = useState("");
   const [returnTarget, setReturnTarget] = useState<{ balance: FloristStockBalance; kind: "return" | "waste" } | null>(null);
+  // HISOBNI TO'G'RILASH modali — scoped=balance (per-row, ikkala yo'nalish) yoki
+  // scoped=null (per-florist, faqat to_catalog, hamma partiya)
+  const [adjust, setAdjust] = useState<{ florist: number; name: string; scoped: FloristStockBalance | null; total: number } | null>(null);
 
   // URL o'qish: ?tab= va ?florist= (deep link modalni prefill bilan OCHADI)
   useEffect(() => {
@@ -74,6 +82,20 @@ export default function FloristStockIssuePage() {
   }, [hFlorist]);
   useEffect(() => { loadBalances(); }, [loadBalances]);
   useEffect(() => { loadIssues(); }, [loadIssues]);
+
+  // ADJUST muvaffaqiyatidan keyin — katalog tannarxi (SOTILGANLARNIKI ham) o'zgardi:
+  //   1) invalidateReportCache() — hisobot keshi kalitlarini tozalaydi:
+  //        • accounting:<from>:<to>:<branch>  (Hisob-kitob §1/§2/§4 + Analitika eksport)
+  //        • stock-batches:active             (Dashboard alertlari, Analitika BatchSarfiPanel)
+  //   2) ef:stock-changed — MOUNT bo'lgan hisobot sahifalari (Hisob-kitob, Sklad) qayta yuklaydi
+  //   3) loadBalances/loadIssues — SHU sahifa (florist-stock-balances + issues)
+  //   Katalog ro'yxati (api.catalog) — Hisob-kitob event orqali, boshqa sahifalar keyingi mount'da.
+  const onAdjustDone = useCallback(() => {
+    invalidateReportCache();
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ef:stock-changed"));
+    loadBalances();
+    loadIssues();
+  }, [loadBalances, loadIssues]);
   useEffect(() => {
     if (isFlorist) return; // florist chiqarish forma/ro'yxatini ko'rmaydi
     api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
@@ -163,9 +185,22 @@ export default function FloristStockIssuePage() {
             <EmptyState title="Hozircha gul chiqarilmagan" sub={isFlorist ? "Sizga gul chiqarilganda shu yerda ko'rinadi." : "«Skladdan chiqarish» tugmasi orqali floristga gul chiqaring."} />
           ) : (
             <div className="flex flex-col gap-4">
-              {groupedBalances.map(([fid, g]) => (
+              {groupedBalances.map(([fid, g]) => {
+                const groupTotal = g.rows.reduce((s, b) => s + b.remaining_stems, 0);
+                return (
                 <div key={fid}>
-                  {!isFlorist && <div className="mb-2 text-[13px] font-bold" style={{ color: "var(--primary)" }}>{g.name}</div>}
+                  {!isFlorist && (
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="text-[13px] font-bold" style={{ color: "var(--primary)" }}>{g.name}</div>
+                      {/* PER-FLORIST: hamma partiya qoldig'i katalogga bo'linadi (faqat to_catalog) */}
+                      {canManage && groupTotal > 0 && (
+                        <button onClick={() => setAdjust({ florist: fid, name: g.name, scoped: null, total: groupTotal })}
+                          className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
+                          <Scale size={13} strokeWidth={2.2} /> Hisobni to&apos;g&apos;rilash
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div className="flex flex-col gap-2">
                     {g.rows.map((b) => {
                       const bd = b.batch_detail;
@@ -177,7 +212,11 @@ export default function FloristStockIssuePage() {
                             <StockLine data={lineFromBatchDetail(bd)} right={<div><div className="text-[13px] font-bold tabular-nums">{formatStemsAndBunches(b.remaining_stems, spbb)}</div><div className="text-[11px]" style={{ color: "var(--muted)" }}>{fmt(val)}</div></div>} />
                           </div>
                           {!isFlorist && b.remaining_stems > 0 && (
-                            <div className="flex shrink-0 gap-2">
+                            <div className="flex shrink-0 flex-wrap gap-2">
+                              {/* PER-BATCH: shu partiya — ikkala yo'nalish ochiq */}
+                              {canManage && (
+                                <button onClick={() => setAdjust({ florist: b.florist, name: b.florist_name, scoped: b, total: b.remaining_stems })} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}><Scale size={13} strokeWidth={2.2} /> To&apos;g&apos;rilash</button>
+                              )}
                               <button onClick={() => setReturnTarget({ balance: b, kind: "return" })} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--success-ink, #3d8a5f)" }}><RotateCcw size={13} strokeWidth={2.2} /> Qaytarish</button>
                               <button onClick={() => setReturnTarget({ balance: b, kind: "waste" })} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--danger-ink)" }}><Trash2 size={13} strokeWidth={2.2} /> Chiqit</button>
                             </div>
@@ -187,7 +226,8 @@ export default function FloristStockIssuePage() {
                     })}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -250,6 +290,16 @@ export default function FloristStockIssuePage() {
       )}
       {returnTarget && (
         <FloristStockReturnDrawer balance={returnTarget.balance} initialKind={returnTarget.kind} onClose={() => setReturnTarget(null)} onDone={() => { loadBalances(); loadIssues(); }} />
+      )}
+      {adjust && (
+        <FloristStockAdjustModal
+          florist={adjust.florist}
+          floristName={adjust.name}
+          scoped={adjust.scoped}
+          totalRemaining={adjust.total}
+          onClose={() => setAdjust(null)}
+          onDone={onAdjustDone}
+        />
       )}
     </div>
   );
