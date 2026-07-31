@@ -26,9 +26,9 @@ function cached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
 export const stockBatchesCached = (): Promise<StockBatch[]> =>
   cached("stock-batches:active", () => api.stockBatches({ is_active: true, page_size: 100 }));
 
-/** Davr hisob-kitobi (inklyuziv `to`) — kalit sanalar bo'yicha. */
-export const accountingCached = (from?: string, to?: string): Promise<Accounting> =>
-  cached(`accounting:${from ?? ""}:${to ?? ""}`, () => api.accounting({ from, to }));
+/** Davr hisob-kitobi (inklyuziv `to`) — kalit sana + FILIAL bo'yicha (branch keshga kiradi). */
+export const accountingCached = (from?: string, to?: string, branch?: string): Promise<Accounting> =>
+  cached(`accounting:${from ?? ""}:${to ?? ""}:${branch ?? "all"}`, () => api.accounting({ from, to, branch }));
 
 /** Ma'lumot o'zgargach keshni tozalash (sotuv, chiqit, partiya tahriri). */
 export const invalidateReportCache = () => cache.clear();

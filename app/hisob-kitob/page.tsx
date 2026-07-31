@@ -11,6 +11,7 @@ import { fmt, fmtDate, dateAfterParam, dateBeforeParam } from "@/lib/format";
 import { KIND_LABEL, VOLUME_LABEL, SALARY_SOURCE_LABEL } from "@/lib/inventory";
 import { ARRANGEMENT_LABEL } from "@/components/badges";
 import { num, saleProfit, profitTone, wasteTotals, costBreakdown, saleLineAllocations, excludeTest } from "@/lib/finance";
+import { isBranchUser, accountingBranchParam, accountingRowView, branchSplitLine, type BranchSelection } from "@/lib/branch";
 import * as X from "@/lib/reportExports";
 import DateChips from "@/components/DateChips";
 import EmptyState from "@/components/EmptyState";
@@ -20,7 +21,7 @@ import DatePicker from "@/components/DatePicker";
 import Select from "@/components/Select";
 import { Field } from "@/components/Modal";
 import { Plus, Pencil } from "lucide-react";
-import type { Accounting, Analytics, CatalogItem, FloristProfile, FloristSalaryEntry, FloristStockIssue, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
+import type { Accounting, AccountingByBranch, AccountingFigures, Analytics, Branch, CatalogItem, FloristProfile, FloristSalaryEntry, FloristStockIssue, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
 
 const METHOD_OPTS: { value: SupplierPaymentMethod; label: string }[] = [
   { value: "cash", label: "Naqd" }, { value: "card", label: "Karta" }, { value: "transfer", label: "O'tkazma" },
@@ -42,6 +43,12 @@ const floristName = (f?: FloristProfile) => f ? [f.user_detail?.first_name, f.us
 
 /** Izohli ⓘ — hosila raqam QANDAY hisoblangani (owner metodni ko'ra oladi). */
 const Tip = ({ text }: { text: string }) => <span title={text} className="ml-1 cursor-help align-middle text-[10px] font-bold" style={{ color: "var(--muted)" }}>ⓘ</span>;
+/** §1a: atributsiya (gul-nav/yetkazib-beruvchi) faqat asosiy filial sotuvlari bo'yicha. */
+const AttrNote = () => (
+  <div className="mb-3 rounded-[11px] px-3 py-2 text-[12px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>
+    Bu ajratma <b style={{ color: "var(--text-2)" }}>faqat asosiy filial</b> sotuvlari bo&apos;yicha — filiallarda sklad yo&apos;q, filial sotuvining guli asosiy skladdan katalog yaratilganda yechilgan.
+  </div>
+);
 /** Dev-only nomuvofiqlik nuqtasi — server/klient farq qilsa ko'zga tashlanadi. */
 const Mismatch = ({ on, label }: { on: boolean; label: string }) => (DEV && on ? <span title={`Server/klient nomuvofiqligi: ${label} (server qiymati ko'rsatilmoqda)`} className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: "var(--danger-ink)" }} /> : null);
 
@@ -70,6 +77,29 @@ function SectionCard({ n, icon, title, sub, onExport, children }: { n: number; i
 const Money = ({ v, tone, bold }: { v: number; tone?: string; bold?: boolean }) => (
   <span className={`tabular-nums ${bold ? "font-bold" : "font-semibold"}`} style={{ color: tone }}>{fmt(v)}</span>
 );
+
+/** by_branch qatori VA summary (Jami) — YAGONA renderer (accountingRowView). Tannarx
+    ostida gul/material/xizmat ajratmasi tooltip'da. ⚠️ florist_fee_cost = MIJOZDAN
+    olinadigan floristika XIZMATI (tannarx qismi), florist OYLIGI emas. */
+function BranchRow({ fig, footer }: { fig: AccountingFigures; footer?: boolean }) {
+  const v = accountingRowView(fig);
+  const tannarxTip = `Gul ${fmt(v.flowerCost)} · Material ${fmt(v.materialCost)} · Floristika xizmati ${fmt(v.feeCost)}`;
+  return (
+    <tr className={footer ? "border-t-2 font-bold" : "border-t"} style={{ borderColor: footer ? "var(--border-strong)" : "var(--line2)" }}>
+      <td className="max-w-[220px] truncate px-2 py-2.5 font-bold" title={v.name}>{footer ? "Jami" : v.name}</td>
+      <td className="px-2 py-2.5 text-right tabular-nums">{v.salesCount}</td>
+      <td className="px-2 py-2.5 text-right tabular-nums">{v.buket}</td>
+      <td className="px-2 py-2.5 text-right tabular-nums">{v.stems.toLocaleString("ru")}</td>
+      <td className="px-2 py-2.5 text-right"><Money v={v.sales} bold /></td>
+      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(v.cash)}</td>
+      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(v.card)}</td>
+      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: v.discount > 0 ? "var(--warning-ink)" : "var(--muted)" }}>{v.discount > 0 ? fmt(v.discount) : "—"}</td>
+      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--text-2)" }} title={tannarxTip}><span className="cursor-help underline decoration-dotted underline-offset-2">{fmt(v.cost)}</span></td>
+      <td className="px-2 py-2.5 text-right"><Money v={v.net} tone={profitTone(v.net, v.sales ? (v.net / v.sales) * 100 : 0)} bold /></td>
+      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{v.share}%</td>
+    </tr>
+  );
+}
 
 type SortKey = "net" | "margin" | "date";
 
@@ -102,13 +132,21 @@ export default function HisobKitobPage() {
   const [includeTest, setIncludeTest] = useState(false); // dev-toggle: ZZZ_TEST_ yozuvlarni qo'shish
   const [supSort, setSupSort] = useState<"outstanding" | "purchase" | "last">("outstanding");
   const [payDrawer, setPayDrawer] = useState<{ supplierId: number; edit?: SupplierPayment } | null>(null);
+  // FILIAL AJRATMASI — segmentli tanlov (Hammasi/Toshkent/<filial>). Filial foydalanuvchisiga
+  // KO'RSATILMAYDI (server o'zi cheklaydi). Sarlavha branch_filter'dan (klient state'dan emas).
+  const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
+  const [branchSel, setBranchSel] = useState<BranchSelection>("all");
+  const [histBranch, setHistBranch] = useState(""); // §2 sotuvlar jadvali filiali (nom bo'yicha)
+  const [branches, setBranches] = useState<Branch[]>([]);
+  useEffect(() => { api.branches({ is_active: true }).then(setBranches).catch(() => {}); }, []);
+  const branchParam = accountingBranchParam(branchSel);
 
   const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
   const to = dateRange ? dateRange.to : ymd(new Date());
 
   const load = useCallback(() => {
     if (!visible) return;
-    accountingCached(from, to).then((d) => { setAcc(d); setErr(""); }).catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
+    accountingCached(from, to, branchParam).then((d) => { setAcc(d); setErr(""); }).catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
     api.catalog().then(setCatalog).catch(() => setCatalog([]));
     stockBatchesCached().then(setBatches).catch(() => setBatches([]));
     api.suppliers().then(setSuppliers).catch(() => setSuppliers([]));
@@ -117,7 +155,7 @@ export default function HisobKitobPage() {
     api.floristStockIssues({ kind: "waste", created_at_after: from, created_at_before: dateBeforeParam(to), page_size: 200 }).then(setFloristWaste).catch(() => setFloristWaste([]));
     api.analytics({ from, to }).then((a) => setProd(a.florist_production_stats ?? [])).catch(() => setProd([]));
     api.floristSalary().then(setSalary).catch(() => setSalary([]));
-  }, [visible, from, to]);
+  }, [visible, from, to, branchParam]);
 
   // to'lov CRUD dan keyin — suppliers (rollup) va payments qayta yuklanadi
   const refreshSuppliers = useCallback(() => {
@@ -137,6 +175,14 @@ export default function HisobKitobPage() {
   // GUARD: ZZZ_TEST_ yozuvlar hisobotdan chiqariladi (dev-toggle bilan qaytariladi).
   // Backend test partiyalari/harakatlarini o'chira olmaydi (soft-delete/405) — shu filtr himoya.
   const sales = useMemo(() => excludeTest(acc?.history ?? [], (s) => s.catalog_name, includeTest), [acc, includeTest]);
+  // ⚠️ ATRIBUTSIYA (gul-nav/yetkazib-beruvchi) FAQAT asosiy filial sotuvlari bo'yicha:
+  // filiallarda sklad yo'q, filial sotuvining guli ASOSIY skladdan katalog yaratilganda
+  // yechilgan. saleLineAllocations filial sotuvi uchun bo'sh qaytaradi (item topilmaydi) —
+  // shu bois ikki marta sanalmaydi; biz buni ATAYLAB qilamiz va panelni belgilaymiz.
+  const mainSales = useMemo(() => sales.filter((s) => s.is_main_branch !== false), [sales]);
+  // "all" rejimda filial sotuvi bormi (atributsiya panellariga izoh kerakmi)
+  const hasBranchSales = useMemo(() => sales.some((s) => s.is_main_branch === false), [sales]);
+  const branchMode = acc?.branch_filter?.mode ?? "all";
   const cleanBatches = useMemo(() => excludeTest(batches, (b) => b.batch_number, includeTest), [batches, includeTest]);
   const cleanWaste = useMemo(() => excludeTest(waste, (m) => m.batch_detail?.batch_number, includeTest), [waste, includeTest]);
   // FLORIST QO'LIDAGI CHIQIT jami — ALOHIDA ko'rsatiladi, sklad chiqitiga QO'SHILMAYDI
@@ -169,7 +215,7 @@ export default function HisobKitobPage() {
 
   const supplierData = useMemo(() => {
     // TUSHUM/FOYDA/CHIQIT — klient atributsiyasi (cost-share); XARID/TO'LOV/QARZ — SERVER rollup
-    const allocs = sales.flatMap((s) => saleLineAllocations(s, catalogById.get(s.catalog_id)));
+    const allocs = mainSales.flatMap((s) => saleLineAllocations(s, catalogById.get(s.catalog_id)));
     type Attr = { revenue: number; cost: number; wasteStems: number; wasteCost: number };
     const attr = new Map<number, Attr>();
     const ens = (id: number): Attr => { let a = attr.get(id); if (!a) { a = { revenue: 0, cost: 0, wasteStems: 0, wasteCost: 0 }; attr.set(id, a); } return a; };
@@ -189,7 +235,7 @@ export default function HisobKitobPage() {
       : supSort === "last" ? (+new Date(y.lastPaymentAt ?? 0)) - (+new Date(x.lastPaymentAt ?? 0))
       : y.outstanding - x.outstanding);
     return { rows, anySupplier: suppliers.length > 0 };
-  }, [sales, catalogById, cleanWaste, suppliers, supSort]);
+  }, [mainSales, catalogById, cleanWaste, suppliers, supSort]);
 
   // ── Section 3: gul turlari (variant) ─────────────────────────────
   const variantRows = useMemo(() => {
@@ -198,10 +244,10 @@ export default function HisobKitobPage() {
     const label = (b?: StockBatch) => b ? `${b.variant_detail?.flower_detail?.name_uz ?? ""} ${b.variant_detail?.name_uz ?? ""}${b.variant_detail?.color_uz ? ` (${b.variant_detail.color_uz})` : ""}`.trim() : "—";
     const ensure = (id: number, nm: string): Agg => { let a = agg.get(id); if (!a) { a = { name: nm, purchasedStems: 0, purchaseSum: 0, soldStems: 0, revenue: 0, cost: 0, wasteStems: 0, wasteValue: 0 }; agg.set(id, a); } return a; };
     for (const b of cleanBatches) { const a = ensure(b.variant, label(b)); a.purchasedStems += b.received_stems; a.purchaseSum += b.received_stems * num(b.cost_per_stem); }
-    for (const s of sales) for (const l of saleLineAllocations(s, catalogById.get(s.catalog_id))) if (l.variantId != null) { const a = ensure(l.variantId, agg.get(l.variantId)?.name ?? "—"); a.soldStems += l.stems; a.revenue += l.revenue; a.cost += l.cost; }
+    for (const s of mainSales) for (const l of saleLineAllocations(s, catalogById.get(s.catalog_id))) if (l.variantId != null) { const a = ensure(l.variantId, agg.get(l.variantId)?.name ?? "—"); a.soldStems += l.stems; a.revenue += l.revenue; a.cost += l.cost; }
     for (const m of cleanWaste) { const vid = m.batch_detail?.variant; if (vid != null) { const a = ensure(vid, label(m.batch_detail)); const q = Math.abs(m.quantity_stems); a.wasteStems += q; a.wasteValue += q * num(m.batch_detail?.cost_per_stem); } }
     return Array.from(agg.values()).map((a) => ({ ...a, profit: a.revenue - a.cost, margin: a.revenue ? ((a.revenue - a.cost) / a.revenue) * 100 : 0 })).sort((x, y) => y.profit - x.profit);
-  }, [cleanBatches, sales, catalogById, cleanWaste]);
+  }, [cleanBatches, mainSales, catalogById, cleanWaste]);
 
   // ── Section 4: xarajatlar taqsimoti ──────────────────────────────
   const breakdown = useMemo(() => costBreakdown(sales, cleanWaste, num(acc?.summary.discount_total)), [sales, cleanWaste, acc]);
@@ -238,7 +284,13 @@ export default function HisobKitobPage() {
       { label: "Sof foyda", amount: breakdown.netProfit, pct: Math.round((breakdown.netProfit / base) * 100) },
     ];
   };
-  const doExportAll = () => X.exportAll([X.supplierSheet(supplierExport()), X.catalogSheet(catalogExport()), X.variantSheet(variantExport()), X.breakdownSheet(breakdownExport()), X.floristSheet(floristExport())], from, to).then(() => showToast("✓ Barchasi yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
+  const doExportAll = () => {
+    // FILIALLAR varag'i (by_branch bo'lsa) + fayl nomiga joriy filial rejimi
+    const bb = acc?.by_branch ?? [];
+    const branchSheets = bb.length ? [X.branchSheet(bb, acc!.summary)] : [];
+    const branchLabel = acc?.branch_filter?.mode === "branch" ? (acc.branch_filter.branch_name ?? "Filial") : acc?.branch_filter?.mode === "main" ? "Toshkent" : "Hammasi";
+    return X.exportAll([...branchSheets, X.supplierSheet(supplierExport()), X.catalogSheet(catalogExport()), X.variantSheet(variantExport()), X.breakdownSheet(breakdownExport()), X.floristSheet(floristExport())], from, to, branchLabel).then(() => showToast("✓ Barchasi yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
+  };
   const doExport = (label: string, sheet: () => import("@/lib/xlsx").SheetDef) => X.exportSection(label, sheet(), from, to).then(() => showToast("✓ Excel yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
 
   const deletePayment = async (p: SupplierPayment) => {
@@ -251,13 +303,24 @@ export default function HisobKitobPage() {
   if (!acc) return <FlowerLoader />;
 
   const s = acc.summary;
+  const byBranch = acc.by_branch ?? [];
+  // ⚠️ SARLAVHA branch_filter'dan (klient state'dan EMAS) — yorliq server qaytargan bilan mos.
+  const bf = acc.branch_filter;
+  const branchTitle = bf?.mode === "branch" ? (bf.branch_name ?? "Filial") : bf?.mode === "main" ? "Toshkent (asosiy filial)" : "Barcha filiallar";
+  // §5: Filial ustuni FAQAT "all" rejimda VA filial sotuvi bo'lsa (bir xil qiymatli ustun clutter)
+  const showBranchCol = branchMode === "all" && hasBranchSales;
+  const histBranchNames = Array.from(new Set(sales.map((x) => x.branch_name).filter(Boolean))) as string[];
+  const shownCatRows = histBranch ? catRows.filter((r) => r.s.branch_name === histBranch) : catRows;
 
   return (
     <div className="relative flex flex-col gap-5">
       {/* sarlavha + davr + Barchasi eksport */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-[15px] font-bold" style={{ color: "var(--text-2)" }}>Hisob-kitob — pul qayerda</h2>
+          <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-bold" style={{ color: "var(--text-2)" }}>
+            Hisob-kitob — pul qayerda
+            <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>{branchTitle}</span>
+          </h2>
           <p className="text-[12px] font-medium" style={{ color: "var(--muted)" }}>server avtoritativ · klient hisoblari tekshirilgan (lib/finance)</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -267,31 +330,87 @@ export default function HisobKitobPage() {
               Test yozuvlar
             </label>
           )}
+          {/* FILIAL TANLASH — segmentli. Filial foydalanuvchisiga KO'RSATILMAYDI. */}
+          {!branchUser && branches.length > 0 && (
+            <div className="flex items-center gap-1 rounded-[12px] p-1" style={{ background: "var(--surface-2)" }}>
+              {([{ k: "all" as BranchSelection, label: "Hammasi" }, { k: "main" as BranchSelection, label: "Toshkent" }, ...branches.filter((b) => !b.is_main).map((b) => ({ k: b.id as BranchSelection, label: b.name.replace(" filiali", "") }))]).map((o) => (
+                <button key={String(o.k)} type="button" onClick={() => setBranchSel(o.k)} className="rounded-[9px] px-3 py-1.5 text-[12.5px] font-bold transition-colors" style={{ background: branchSel === o.k ? "var(--surface-solid)" : "transparent", color: branchSel === o.k ? "var(--primary)" : "var(--muted)" }}>{o.label}</button>
+              ))}
+            </div>
+          )}
           <DateChips />
-          <button onClick={doExportAll} className="flex items-center gap-1.5 rounded-[13px] px-3.5 py-2 text-[13px] font-bold text-white transition-opacity hover:opacity-90" style={{ background: "var(--primary)" }} title="Barcha bo'limlar — bitta Excel kitobi">
+          <button onClick={doExportAll} className="flex items-center gap-1.5 rounded-[13px] px-3.5 py-2 text-[13px] font-bold text-white transition-opacity hover:opacity-90" style={{ background: "var(--primary)" }} title="Barcha bo'limlar — bitta Excel kitobi (joriy filial + davr)">
             <Download size={15} strokeWidth={2} /> Barchasi
           </button>
         </div>
       </div>
 
-      {/* KPI qatori */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))" }}>
-        {[
-          { label: "Umumiy savdo", v: fmt(s.total_sales), sub: `${s.total_quantity} ta sotuv` },
-          { label: "Sof foyda", v: fmt(s.net_profit), sub: `tannarx ${fmt(s.cost_total)}`, hue: profitTone(num(s.net_profit), num(s.total_sales) ? (num(s.net_profit) / num(s.total_sales)) * 100 : 0) },
-          { label: "Chegirmalar", v: fmt(s.discount_total), sub: `${s.discounted_sales_count} ta sotuvda` },
-          { label: "Chiqit yo'qotishi", v: fmt(wasteTotals(cleanWaste).cost), sub: `${wasteTotals(cleanWaste).stems} dona`, hue: "var(--danger-ink)" },
-        ].map((k) => (
-          <div key={k.label} className="glass !rounded-[16px] p-4">
-            <div className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>{k.label}</div>
-            <div className="mt-1.5 whitespace-nowrap text-[20px] font-extrabold tracking-tight" style={{ color: k.hue ?? "var(--text)" }}>{k.v}</div>
-            <div className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--text-2)" }}>{k.sub}</div>
+      {/* KPI qatori — sarlavha filial rejimi bilan; pul kartochkalari ostida ajratma (faqat Hammasi) */}
+      {(() => {
+        const showSplit = branchMode === "all" && byBranch.length > 1;
+        const moneyShort = (v: number) => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+        const split = (field: keyof AccountingFigures) => (showSplit ? branchSplitLine(byBranch, field, moneyShort) : null);
+        const cards: { label: string; v: string; sub: string; hue?: string; splitField?: keyof AccountingFigures }[] = [
+          { label: "Umumiy savdo", v: fmt(s.total_sales), sub: `${s.sales_count ?? s.total_quantity} sotuv · ${s.total_quantity} buket`, splitField: "total_sales" },
+          { label: "Sotuvlar soni", v: String(s.sales_count ?? s.total_quantity), sub: "marta sotildi" },
+          { label: "Sotilgan buket", v: String(s.total_quantity), sub: `${s.standard_quantity} std · ${s.custom_quantity} maxsus` },
+          { label: "Sotilgan gul donasi", v: `${(s.flower_stems ?? 0).toLocaleString("ru")} dona`, sub: "gul sarfi" },
+          { label: "Naqd", v: fmt(s.cash_total), sub: `${s.cash_count ?? 0} sotuv`, splitField: "cash_total" },
+          { label: "Karta", v: fmt(s.card_total), sub: `${s.card_count ?? 0} sotuv`, splitField: "card_total" },
+          { label: "Skidka", v: fmt(s.discount_total), sub: `${s.discounted_sales_count} sotuvda`, splitField: "discount_total" },
+          { label: "Sof foyda", v: fmt(s.net_profit), sub: `tannarx ${fmt(s.cost_total)}`, hue: profitTone(num(s.net_profit), num(s.total_sales) ? (num(s.net_profit) / num(s.total_sales)) * 100 : 0), splitField: "net_profit" },
+        ];
+        return (
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
+            {cards.map((k) => {
+              const sp = k.splitField ? split(k.splitField) : null;
+              return (
+                <div key={k.label} className="glass flex flex-col !rounded-[16px] p-4">
+                  <div className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>{k.label}</div>
+                  <div className="mt-1.5 whitespace-nowrap text-[20px] font-extrabold tracking-tight" style={{ color: k.hue ?? "var(--text)" }}>{k.v}</div>
+                  <div className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--text-2)" }}>{k.sub}</div>
+                  {sp && <div className="mt-1 truncate border-t pt-1 text-[11px] font-semibold" style={{ borderColor: "var(--line2)", color: "var(--muted)" }} title={sp}>{sp}</div>}
+                </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
+        );
+      })()}
+
+      {/* ═══ FILIALLAR JADVALI — by_branch (bitta row-renderer, summary = Jami) ═══ */}
+      {byBranch.length > 0 && (
+        <section className="glass !rounded-[18px] p-5">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-[15px] font-bold tracking-tight">Filiallar bo&apos;yicha</h3>
+            <Link href="/filial-hisoboti" className="text-[12px] font-bold" style={{ color: "var(--primary)" }}>Filial hisoboti (yuborilgan · ustama) →</Link>
+          </div>
+          <div className="overflow-x-auto thin-scroll">
+            <table className="w-full min-w-[900px] border-collapse text-[13px]">
+              <thead><tr className="text-left" style={{ color: "var(--muted)" }}>
+                <th className="px-2 py-2 font-semibold">Filial</th>
+                <th className="px-2 py-2 text-right font-semibold">Sotuv</th>
+                <th className="px-2 py-2 text-right font-semibold">Buket</th>
+                <th className="px-2 py-2 text-right font-semibold">Gul donasi</th>
+                <th className="px-2 py-2 text-right font-semibold">Savdo</th>
+                <th className="px-2 py-2 text-right font-semibold">Naqd</th>
+                <th className="px-2 py-2 text-right font-semibold">Karta</th>
+                <th className="px-2 py-2 text-right font-semibold">Skidka</th>
+                <th className="px-2 py-2 text-right font-semibold">Tannarx</th>
+                <th className="px-2 py-2 text-right font-semibold">Sof foyda</th>
+                <th className="px-2 py-2 text-right font-semibold">Ulush</th>
+              </tr></thead>
+              <tbody>
+                {byBranch.map((b, i) => <BranchRow key={b.branch_id ?? `m${i}`} fig={b} />)}
+              </tbody>
+              <tfoot><BranchRow fig={s} footer /></tfoot>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* ═══ SECTION 1 — YETKAZIB BERUVCHILAR (to'lovlar bilan) ═══ */}
       <SectionCard n={1} icon={<Package size={18} strokeWidth={2} />} title="Yetkazib beruvchilar" sub="qarz, to'lovlar, tushum va foyda — qatorni ochib to'lovlar tarixini ko'ring" onExport={supplierData.rows.length ? () => doExport("Yetkazib_beruvchilar", () => X.supplierSheet(supplierExport())) : undefined}>
+        {hasBranchSales && <AttrNote />}
         {!supplierData.anySupplier ? (
           <div className="rounded-[14px] border border-dashed p-6 text-center" style={{ borderColor: "var(--border)" }}>
             <p className="text-[14px] font-bold">Yetkazib beruvchi yo&apos;q</p>
@@ -396,6 +515,15 @@ export default function HisobKitobPage() {
             <button onClick={() => setCatGrouped(false)} className="rounded-[8px] px-2.5 py-1 text-[12px] font-bold" style={{ background: !catGrouped ? "var(--surface-solid)" : "transparent", color: !catGrouped ? "var(--primary)" : "var(--muted)" }}>Sotuvlar</button>
             <button onClick={() => setCatGrouped(true)} className="rounded-[8px] px-2.5 py-1 text-[12px] font-bold" style={{ background: catGrouped ? "var(--surface-solid)" : "transparent", color: catGrouped ? "var(--primary)" : "var(--muted)" }}>Mahsulot bo&apos;yicha</button>
           </div>
+          {/* §5: filial bo'yicha filtr — faqat "all" rejimda va filial sotuvi bo'lsa */}
+          {showBranchCol && !catGrouped && histBranchNames.length > 1 && (
+            <div className="flex items-center gap-1 rounded-[11px] p-1" style={{ background: "var(--surface-2)" }}>
+              <button onClick={() => setHistBranch("")} className="rounded-[8px] px-2.5 py-1 text-[12px] font-bold" style={{ background: !histBranch ? "var(--surface-solid)" : "transparent", color: !histBranch ? "var(--primary)" : "var(--muted)" }}>Barchasi</button>
+              {histBranchNames.map((nm) => (
+                <button key={nm} onClick={() => setHistBranch(nm)} className="rounded-[8px] px-2.5 py-1 text-[12px] font-bold" style={{ background: histBranch === nm ? "var(--surface-solid)" : "transparent", color: histBranch === nm ? "var(--primary)" : "var(--muted)" }} title={nm}>{nm.replace(" filiali", "").replace(" (asosiy filial)", "")}</button>
+              ))}
+            </div>
+          )}
         </div>
 
         {catRows.length === 0 ? <EmptyState title="Bu davrda sotuv yo'q" sub="Boshqa davrni tanlang." /> : catGrouped ? (
@@ -421,6 +549,7 @@ export default function HisobKitobPage() {
               <thead>
                 <tr className="text-left" style={{ color: "var(--muted)" }}>
                   <th className="px-2 py-2 font-semibold">Nomi</th>
+                  {showBranchCol && <th className="px-2 py-2 font-semibold">Filial</th>}
                   <th className="px-2 py-2 font-semibold">Florist</th>
                   <th className="px-2 py-2 font-semibold">Mijoz</th>
                   <th className="px-2 py-2 text-right font-semibold">Sotilgan</th>
@@ -432,14 +561,15 @@ export default function HisobKitobPage() {
                 </tr>
               </thead>
               <tbody>
-                {catRows.map(({ s: sale, p, item }) => (
+                {shownCatRows.map(({ s: sale, p, item }) => (
                   <FragmentRows key={sale.history_id} open={openCat === sale.history_id}
                     row={
                       <tr onClick={() => setOpenCat(openCat === sale.history_id ? null : sale.history_id)} className="cursor-pointer border-t transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--line2)" }}>
                         <td className="px-2 py-2.5"><div className="font-bold">{sale.catalog_name}</div><div className="text-[11px]" style={{ color: "var(--muted)" }}>{ARRANGEMENT_LABEL[sale.arrangement_type as keyof typeof ARRANGEMENT_LABEL] ?? sale.arrangement_type}{sale.volume ? ` · ${VOLUME_LABEL[sale.volume]}` : ""} · {KIND_LABEL[sale.catalog_kind]}</div></td>
+                        {showBranchCol && <td className="px-2 py-2.5"><span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: sale.is_main_branch === false ? "color-mix(in srgb, var(--acc) 14%, transparent)" : "var(--surface-2)", color: sale.is_main_branch === false ? "var(--acc)" : "var(--text-2)" }}>{sale.branch_name || "—"}</span></td>}
                         <td className="px-2 py-2.5">{sale.florist_name || "—"}</td>
                         <td className="px-2 py-2.5">{item?.customer_detail ? (<div><div className="font-semibold">{item.customer_detail.name || "Mijoz"}</div>{item.customer_detail.masked_phone && <div className="text-[11px]" style={{ color: "var(--muted)" }}>{item.customer_detail.masked_phone}</div>}</div>) : <span style={{ color: "var(--muted)" }}>—</span>}</td>
-                        <td className="px-2 py-2.5 text-right tabular-nums">{fmtDate(sale.sold_at)}<div className="text-[11px]" style={{ color: "var(--muted)" }}>{sale.quantity} ta</div></td>
+                        <td className="px-2 py-2.5 text-right tabular-nums">{fmtDate(sale.sold_at)}<div className="text-[11px]" style={{ color: "var(--muted)" }}>{sale.quantity} ta{sale.flower_stems ? ` · ${sale.flower_stems} gul` : ""}</div></td>
                         <td className="px-2 py-2.5 text-right"><Money v={p.sale} /></td>
                         <td className="px-2 py-2.5 text-right" style={{ color: "var(--text-2)" }}><Money v={p.cost} /></td>
                         <td className="px-2 py-2.5 text-right" style={{ color: p.discount ? "var(--warning-ink)" : "var(--muted)" }}>{p.discount ? fmt(p.discount) : "—"}</td>
@@ -448,7 +578,7 @@ export default function HisobKitobPage() {
                       </tr>
                     }
                     detail={<CatalogDetail sale={sale} item={item} net={p.net} />}
-                    cols={9}
+                    cols={showBranchCol ? 10 : 9}
                   />
                 ))}
               </tbody>
@@ -459,6 +589,7 @@ export default function HisobKitobPage() {
 
       {/* ═══ SECTION 3 — GUL TURLARI ═══ */}
       <SectionCard n={3} icon={<Flower2 size={18} strokeWidth={2} />} title="Gul turlari bo'yicha" sub="qaysi nav pul keltiryapti, qaysisi zarar — xarid, sotuv, chiqit, foyda" onExport={variantRows.length ? () => doExport("Gul_turlari", () => X.variantSheet(variantExport())) : undefined}>
+        {hasBranchSales && <AttrNote />}
         {variantRows.length === 0 ? <EmptyState title="Ma'lumot yo'q" sub="Skladda partiya yo'q." /> : (
           <div className="overflow-x-auto thin-scroll">
             <table className="w-full min-w-[760px] border-collapse text-[13px]">
@@ -510,6 +641,13 @@ export default function HisobKitobPage() {
                     <span className="text-[13px]"><Money v={it.v} /> <span className="text-[11px]" style={{ color: "var(--muted)" }}>· {Math.round((it.v / (breakdown.salesTotal || 1)) * 100)}%</span></span>
                   </div>
                 ))}
+                {/* §6: filial rejimida chiqit STRUKTURAVIY BO'SH (filiallarda gul saqlanmaydi) */}
+                {branchMode === "branch" ? (
+                  <div className="rounded-[12px] border border-dashed px-3 py-3 text-center" style={{ borderColor: "var(--border)" }}>
+                    <p className="text-[12.5px] font-bold">Filiallarda gul saqlanmaydi</p>
+                    <p className="mt-0.5 text-[11.5px]" style={{ color: "var(--muted)" }}>Chiqit faqat asosiy filialda hisoblanadi — bu yerda ko&apos;rsatiladigan chiqit yo&apos;q.</p>
+                  </div>
+                ) : (<>
                 {/* CHIQIT — alohida, ko'zga tashlangan (real xarajat drayveri) + kengaytiriladi */}
                 <div className="rounded-[11px] border-[1.5px] px-3 py-2" style={{ borderColor: "var(--danger-ink)", background: "color-mix(in srgb, var(--danger-ink) 7%, transparent)" }}>
                   <button onClick={() => setWasteOpen(!wasteOpen)} className="flex w-full items-center justify-between gap-3 text-left">
@@ -537,8 +675,9 @@ export default function HisobKitobPage() {
                     <span className="flex items-center gap-2 text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}><Trash2 size={14} strokeWidth={2.2} /> Florist qo&apos;lidagi chiqit<Tip text="Floristga chiqarilgan, keyin uning qo'lida yo'qolgan gullar. Sklad chiqitidan alohida hisoblanadi." /></span>
                     <span className="text-[13px] font-bold tabular-nums" style={{ color: "var(--danger-ink)" }}>{fmt(floristWasteTotal.value)} · {floristWasteTotal.stems} dona</span>
                   </div>
-                  <p className="mt-1 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>Sklad chiqiti bilan qo&apos;shilmagan</p>
+                  <p className="mt-1 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>Sklad chiqiti bilan qo&apos;shilmagan{branchMode === "all" ? " · faqat asosiy filial" : ""}</p>
                 </div>
+                </>)}
                 {/* chegirma + sof foyda */}
                 <div className="flex items-center justify-between gap-3 rounded-[11px] px-3 py-2" style={{ background: "var(--surface-2)" }}>
                   <span className="flex items-center gap-2 text-[13px] font-semibold">Chegirmalar<Tip text="accounting.summary.discount_total — sotuvda berilgan umumiy chegirma." /></span>

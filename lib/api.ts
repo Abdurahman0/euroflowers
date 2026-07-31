@@ -356,7 +356,8 @@ export const api = {
   analytics: (p?: Period) => request<Analytics>(`/api/analytics/${qs({ from: p?.from, to: p?.to ? nextDay(p.to) : undefined, date_from: p?.from, date_to: p?.to ? nextDay(p.to) : undefined })}`),
 
   /** Hisob-kitob — sotuv/foyda/chegirma xulosalari; date_to INKLYUZIV (o'zgarishsiz). */
-  accounting: (p?: Period) => request<Accounting>(`/api/accounting/${qs({ date_from: p?.from, date_to: p?.to, from: p?.from, to: p?.to })}`),
+  // branch: "all" | "main" | "<id>" — sukut (yubormasak) backend "all" beradi.
+  accounting: (p?: Period & { branch?: string }) => request<Accounting>(`/api/accounting/${qs({ date_from: p?.from, date_to: p?.to, from: p?.from, to: p?.to, branch: p?.branch })}`),
   /** Excel eksportlar — fayl (blob) sifatida yuklab olinadi */
   exportFlorist: (p?: { date_from?: string; date_to?: string; florist?: number }) => downloadFile("/api/exports/florist/", p, "florist-hisobot"),
   exportFlorists: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florists/", p, "floristlar-hisobot"),

@@ -320,3 +320,70 @@ g. isBranchUser assumption: main-branch users must have `profile.branch = null` 
 - **Edit catalog composition over-balance** (was LIST 1 #10, open q c): its ONLY purpose is to
   learn whether PATCH re-validates against the florist's balance. **Recommend asking the backend
   dev instead of damaging a real item** — the UI is already conservative either way.
+
+═══════════════════════════════════════════════════════════════════
+# ACCOUNTING BRANCH SPLIT (HISOB_KITOB_FILIAL_AJRATMA, 2026-08-01)
+# READ-ONLY: verified vs live OpenAPI + GET. Same feature branch.
+═══════════════════════════════════════════════════════════════════
+
+## §0 — THE DEFAULT SCOPE CHANGED (live numbers, range 2026-07-01…07-31)
+- `?branch=main` → `summary.total_sales` = **7 700 000** (mode "main")
+- `?branch=all` / default → `summary.total_sales` = **7 700 000** (mode "all")
+- `?branch=2` (Parkent) → **0** (mode "branch", branch_name "Parkent filiali")
+- **The jump is currently ZERO** — Parkent has 0 sales this range, so all == main. The
+  structure (by_branch, share_percent, history branch tags) is live and correct; the size
+  of the jump will appear once branch sales exist.
+- **DECISION: default to `all`** (the truthful all-branch picture) — but the header ALWAYS
+  reads the branch label from server `branch_filter.mode`/`branch_name`, never local state,
+  so a screen can't be misread. Selector: Hammasi / Toshkent / <filial> (built from
+  /api/branches/, hidden for branch users).
+
+## §1a — ATTRIBUTION COLLISION (verdict)
+`accounting.history[]` now includes branch sales (`is_main_branch`, `branch_id`,
+`branch_name`, `flower_stems`). `saleLineAllocations(sale, catalogById.get(catalog_id))`:
+for a branch sale the item isn't in the (main-only) catalog map → `composition = []` →
+returns `[]`. **So NOTHING is double-counted and branch sales are NOT attributed onto main
+batches.** The output was already SAFE; I made it EXPLICIT by scoping the variant/supplier
+attribution to `is_main_branch` sales (`mainSales`) and LABELLING both panels ("faqat asosiy
+filial — filiallarda sklad yo'q"). Trade-off: in `all` mode the summary/table show all-branch
+money while the attribution panels show main only — that's correct (branches have no
+warehouse) and now stated in the UI.
+**Stage 4 §3 hole: PARTIALLY closed.** The *money* of branch sales is now visible (summary +
+by_branch + history), so revenue no longer vanishes. The *flower-level attribution* of branch
+sales still can't be derived client-side (no branch warehouse/composition) — unchanged, and
+now labelled rather than silent.
+
+## §1b — DASHBOARD ↔ HISOB-KITOB PARITY (revised rule)
+- Dashboard `period_catalog_sales_revenue` = **5 900 000** (own-branch).
+- Hisob-kitob default (all) `total_sales` = **7 700 000**.
+- The 1.8M gap is NOT the branch split (Parkent=0 → all==main). It is a **metric difference**
+  (`total_sales` ⊇ `catalog_sales_revenue`) that predates this spec — flag for backend.
+- **REVISED ACCEPTANCE RULE** (replaces "Dashboard = Analitika = Hisob-kitob exactly"):
+  parity is asserted against **`?branch=main`** only; any all-branch figure on Hisob-kitob is
+  labelled "Barcha filiallar" so it is never compared to an own-branch Dashboard number.
+
+## §1c — BRANCH-REPORT vs ACCOUNTING (they answer different questions)
+Same range: branch-report Parkent `sold_revenue` = **0** == accounting by_branch Parkent
+`total_sales` = **0** (agree today). They are **complementary**: `/branch-report/` = how many
+catalogs were sent to a branch and the markup; `/accounting/` by_branch = the money flow.
+Made the distinction visible with a one-line subtitle + cross-link on BOTH pages. Not
+reconciled client-side.
+
+## §1d — DISCOUNT SANITY
+Live main: `discount_total` **4 700 000** on `total_sales` **7 700 000** = **61%**. It really
+is that large (dev/test data has heavily-discounted sales). Not softened, but NOT made a
+headline — Skidka is a normal card, not a hero.
+
+## Built
+Branch selector (server-driven, hidden for branch users, combines with date range, doesn't
+leak to other pages); header title from `branch_filter`; 8 summary cards incl. new
+`sales_count`/`flower_stems` with per-branch split lines (all mode only, truncate+tooltip);
+ONE `BranchRow` renderer for by_branch + summary "Jami" footer (Tannarx breakdown in tooltip,
+`florist_fee_cost_total` labelled "Floristika xizmati" per the Stage-1 fee/salary split);
+history Filial column + filter + per-sale `flower_stems` (hidden in main/single mode); branch-
+mode waste empty state ("Filiallarda gul saqlanmaydi"); florist-waste block hidden in branch
+mode; Excel "Filiallar" sheet + branch in filename (client-side, so export == screen).
+Totals NEVER recomputed client-side — server values shown, share_percent displayed as given.
+
+## Untested write paths
+None new — this spec is read-only reporting. (All prior write paths still stand.)

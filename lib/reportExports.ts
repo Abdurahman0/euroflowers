@@ -1,4 +1,6 @@
 import { exportWorkbook, exportName, type SheetCol, type SheetDef } from "./xlsx";
+import { accountingRowView } from "./branch";
+import type { AccountingByBranch, AccountingFigures } from "./types";
 
 /**
  * Hisob-kitob bo'limlari uchun Excel eksport — har bo'limga alohida kitob,
@@ -86,10 +88,25 @@ const breakdownCols: SheetCol[] = [
 ];
 export const breakdownSheet = (rows: CostBreakdownRow[]): SheetDef => ({ name: "Xarajatlar taqsimoti", cols: breakdownCols, rows: rows as unknown as Record<string, unknown>[] });
 
+/** FILIALLAR varag'i — by_branch + summary (Jami). Ekran bilan bir xil ma'lumot
+    (klient by_branch'dan), shu bois eksport doim ekranga mos keladi. */
+const branchCols: SheetCol[] = [
+  { header: "Filial", key: "filial", type: "text" }, { header: "Sotuv", key: "sotuv", type: "int" },
+  { header: "Buket", key: "buket", type: "int" }, { header: "Gul donasi", key: "stems", type: "int" },
+  { header: "Savdo", key: "savdo", type: "money" }, { header: "Naqd", key: "naqd", type: "money" },
+  { header: "Karta", key: "karta", type: "money" }, { header: "Skidka", key: "skidka", type: "money" },
+  { header: "Tannarx", key: "tannarx", type: "money" }, { header: "Sof foyda", key: "foyda", type: "money" },
+  { header: "Ulush %", key: "ulush", type: "text" },
+];
+export const branchSheet = (rows: AccountingByBranch[], summary: AccountingFigures): SheetDef => {
+  const toRow = (f: AccountingFigures, jami = false) => { const v = accountingRowView(f); return { filial: jami ? "Jami" : v.name, sotuv: v.salesCount, buket: v.buket, stems: v.stems, savdo: v.sales, naqd: v.cash, karta: v.card, skidka: v.discount, tannarx: v.cost, foyda: v.net, ulush: `${v.share}%` }; };
+  return { name: "Filiallar", cols: branchCols, rows: rows.map((r) => toRow(r)), totals: toRow(summary, true) };
+};
+
 /** Bitta bo'limni alohida kitob qilib yuklab olish. */
 export const exportSection = (label: string, sheet: SheetDef, from?: string, to?: string) =>
   exportWorkbook(exportName(`Hisob-kitob_${label}`, from, to), [sheet]);
 
-/** Barcha bo'limlar — bitta kitob, har biri alohida varaqda. */
-export const exportAll = (sheets: SheetDef[], from?: string, to?: string) =>
-  exportWorkbook(exportName("Hisob-kitob_Barchasi", from, to), sheets);
+/** Barcha bo'limlar — bitta kitob. `branchLabel` fayl nomiga (filial + davr aniq bo'lsin). */
+export const exportAll = (sheets: SheetDef[], from?: string, to?: string, branchLabel?: string) =>
+  exportWorkbook(exportName(`Hisob-kitob_Barchasi${branchLabel ? `_${branchLabel}` : ""}`, from, to), sheets);

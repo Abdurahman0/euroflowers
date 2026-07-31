@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Building2, Download, TrendingUp } from "lucide-react";
 import { api } from "@/lib/api";
 import { useStore, usePerm } from "@/lib/store";
@@ -74,7 +75,8 @@ export default function BranchReportPage() {
         <span className="flex h-9 w-9 items-center justify-center rounded-[11px]" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}><Building2 size={18} strokeWidth={2} /></span>
         <div>
           <h1 className="text-[18px] font-extrabold tracking-tight">Filial hisoboti</h1>
-          <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>Har filialga yuborilgan, sotilgan va ustama qiymat</p>
+          {/* §1c: bu sahifa boshqa savolga javob beradi — pul oqimi Hisob-kitobda */}
+          <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>Nechta katalog yuborildi · nechtasi sotildi · <b style={{ color: "var(--text-2)" }}>ustama</b>. Pul oqimi (filiallar kesimida) → <Link href="/hisob-kitob" className="font-bold" style={{ color: "var(--primary)" }}>Hisob-kitob</Link></p>
         </div>
       </div>
 

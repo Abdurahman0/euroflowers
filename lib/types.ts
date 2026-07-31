@@ -428,16 +428,36 @@ export type PaymentType = "cash" | "card";
 
 /* ===== HISOB-KITOB (backend: GET /api/accounting/) — barcha pul maydonlari STRING ===== */
 export type AccountingPeriod = { date_from: string | null; date_to: string | null };
-export type AccountingSummary = {
-  total_sales: string; cash_total: string; card_total: string; unknown_total: string;
-  total_quantity: number; standard_quantity: number; custom_quantity: number;
+/** Filial ajratmasi (0-spec): `summary` VA `by_branch` qatorlari AYNAN shu shaklda —
+    bitta komponent bilan ikkalasi ham chiziladi. Filial maydonlari (branch_id/is_main/
+    share_percent) summary'da bo'lmasligi mumkin, shu bois ixtiyoriy. */
+export type AccountingFigures = {
+  branch_id?: number | null;
+  branch_name?: string;
+  is_main?: boolean;
+  sales_count?: number; // YANGI: sotuvlar soni
+  total_quantity: number;
+  flower_stems?: number; // YANGI: sotilgan gul donasi
+  standard_quantity: number; custom_quantity: number;
+  total_sales: string;
+  cash_total: string; cash_count?: number; cash_quantity?: number;
+  card_total: string; card_count?: number; card_quantity?: number;
+  unknown_total: string; unknown_count?: number; unknown_quantity?: number;
   discount_total: string; discounted_sales_count: number; discounted_quantity: number;
-  cost_total: string; net_profit: string;
-  // backend tannarxni ajratib beradi (0082/0083): flower+material+fee === cost_total (aniq)
+  cost_total: string;
+  // backend tannarxni ajratib beradi (0082/0083): flower+material+fee === cost_total (aniq).
+  // ⚠️ florist_fee_cost_total — MIJOZDAN olinadigan floristika xizmati (tannarx qismi),
+  // florist OYLIGI EMAS (Stage 1 fee/salary ajratmasi bilan bir xil).
   flower_cost_total?: string; material_cost_total?: string; florist_fee_cost_total?: string;
-  // davr chiqiti backendda hisoblanadi (test partiyalarni ham qamrab olishi mumkin — guard klientda)
+  // chiqit FAQAT asosiy filialda — filial qatorlarida doim 0
   waste_cost_total?: string; waste_stems?: number;
+  net_profit: string;
+  share_percent?: string; // umumiy savdodagi ulush, % (summary'da yo'q — Jami = 100%)
 };
+export type AccountingSummary = AccountingFigures;
+export type AccountingByBranch = AccountingFigures;
+/** Filial filtri holati — SARLAVHA shundan (klient state'dan EMAS). */
+export type AccountingBranchFilter = { mode: "all" | "main" | "branch"; branch_id: number | null; branch_name: string | null };
 export type AccountingByKind = { catalog_kind: CatalogKind; quantity: number; sales: string; discount: string };
 export type AccountingByPayment = { payment_type: string; label: string; quantity: number; sales: string };
 export type AccountingByVolume = { catalog_kind: CatalogKind; volume: CatalogVolume | null; quantity: number; sales: string; discount: string };
@@ -453,10 +473,14 @@ export type AccountingSale = {
   flower_cost?: string; material_cost?: string; florist_fee_cost?: string;
   payment_type: string; payment_label: string;
   discount_amount: string; discount_percent: string; discount_reason: string; sold_by: string;
+  // filial ajratmasi (0-spec) — history VA discounted_sales qatorlarida
+  branch_id?: number | null; branch_name?: string; is_main_branch?: boolean; flower_stems?: number;
 };
 export type Accounting = {
   period: AccountingPeriod;
+  branch_filter?: AccountingBranchFilter; // yangi — sukut bo'yicha "all"
   summary: AccountingSummary;
+  by_branch?: AccountingByBranch[]; // yangi — har filial (0 sotuvli ham keladi)
   by_kind: AccountingByKind[];
   by_payment: AccountingByPayment[];
   by_volume: AccountingByVolume[];
