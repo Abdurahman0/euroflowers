@@ -53,15 +53,15 @@ describe("CE2 — material payload: PER-ITEM quantity (server × quantity_total)
   });
 });
 
-describe("CE3 — salary payload is mode-aware (guards the §3 contract at the unit level)", () => {
-  it("standard never sends the key", () => {
-    for (const v of ["", "0", "50000", null, undefined] as const) {
-      expect(catalogSalaryPayload(v, "standard")).toEqual({});
-    }
+describe("CE3 — salary payload is value-only (fee now EDITABLE, sent in both modes)", () => {
+  it("empty/null/undefined → key omitted", () => {
+    for (const v of ["", null, undefined] as const) expect(catalogSalaryPayload(v)).toEqual({});
   });
-  it("custom keeps empty→omit, 0→\"0\", value→value", () => {
-    expect(catalogSalaryPayload("", "custom")).toEqual({});
-    expect(catalogSalaryPayload("0", "custom")).toEqual({ florist_salary_amount: "0" });
-    expect(catalogSalaryPayload("50000", "custom")).toEqual({ florist_salary_amount: "50000" });
+  it('operator-typed "0" → sent as "0" (never treated as empty)', () => {
+    expect(catalogSalaryPayload("0")).toEqual({ florist_salary_amount: "0" });
+  });
+  it("value → sent (normalized), regardless of catalog kind", () => {
+    expect(catalogSalaryPayload("50000")).toEqual({ florist_salary_amount: "50000" });
+    expect(catalogSalaryPayload("50000.00")).toEqual({ florist_salary_amount: "50000" });
   });
 });

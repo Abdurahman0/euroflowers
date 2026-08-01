@@ -5,7 +5,7 @@ import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
@@ -39,13 +39,19 @@ const compositionText = (k: CatalogItem) =>
 // Yagona manba: catalogWaiting (eski bo'sh-kompozitsiyali itemlarni ham qamraydi).
 const isUndistributed = (k: CatalogItem) => catalogWaiting(k);
 
-const STATUS_OPTS = [
-  { value: "", label: "Barcha holatlar" },
-  { value: "available", label: "Sotuvda" },
-  { value: "reserved", label: "Band" },
-  { value: "sold", label: "Sotildi" },
-  { value: "draft", label: "Qoralama" },
+// ⚠️ BROWSING FILTRI (server hisobotlariga TA'SIR QILMAYDI — sotilgan itemlar tarixiy fakt).
+// StatusBcdEnum = draft/available/reserved/sold/archived. «Sotilgan» = status sold YOKI soni to'lgan
+// (quantity_sold >= quantity_total) — soni AVTORITATIV, status «available» qolib ketgan bo'lsa ham.
+const isArchived = (k: CatalogItem) => k.status === "archived";
+const isSold = (k: CatalogItem) =>
+  !isArchived(k) && (k.status === "sold" || (k.quantity_total != null && k.quantity_total > 0 && (k.quantity_sold ?? 0) >= k.quantity_total));
+const isAvailableForSale = (k: CatalogItem) => !isArchived(k) && !isSold(k);
+type StatusView = "sotuvda" | "sold" | "archived" | "all";
+const STATUS_VIEWS: { value: StatusView; label: string }[] = [
+  { value: "sotuvda", label: "Sotuvda" },
+  { value: "sold", label: "Sotilgan" },
   { value: "archived", label: "Arxiv" },
+  { value: "all", label: "Barchasi" },
 ];
 
 const ARR_OPTS = [
@@ -77,8 +83,10 @@ export default function KatalogPage() {
   // server filtrlari
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
   const [arrType, setArrType] = useState("");
+  // HOLAT KO'RINISHI — KLIENT filtri (Sotuvda default). Sotilgan/arxiv/soni-to'lgan sukut YASHIRINADI.
+  // URL ?status= da saqlanadi (ulashiladi + refresh'dan omon qoladi). Server hammasini qaytaradi.
+  const [statusView, setStatusView] = useState<StatusView>("sotuvda");
   // florist va katalog turi — SERVER filtrlari (?florist= va ?catalog_kind= mavjud)
   const [floristFilter, setFloristFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
@@ -93,10 +101,11 @@ export default function KatalogPage() {
 
   const load = useCallback(async () => {
     try {
+      // ⚠️ status server'ga YUBORILMAYDI — hamma holat kelib, klientda «Holat» ko'rinishi bo'yicha
+      // ajratiladi (Sotuvda default = sold/archived/soni-to'lgan yashirin). Chip sonlari uchun kerak.
       setItems(await api.catalog({
         ordering: "-created_at",
         search: q || undefined,
-        status: status || undefined,
         arrangement_type: arrType || undefined,
         florist: floristFilter || undefined,
         catalog_kind: kindFilter || undefined,
@@ -107,13 +116,29 @@ export default function KatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, q, status, arrType, floristFilter, kindFilter, customerFilter]);
+  }, [showToast, q, arrType, floristFilter, kindFilter, customerFilter]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
   // florist ro'yxati — filtr uchun (bir marta)
   useEffect(() => { api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {}); }, []);
+
+  // URL ?status= o'qish (ulashilgan link / refresh o'sha ko'rinishga tushadi) — mount'da bir marta
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const s = new URLSearchParams(window.location.search).get("status");
+    if (s === "sold" || s === "archived" || s === "all" || s === "sotuvda") setStatusView(s);
+  }, []);
+  const changeStatusView = (v: StatusView) => {
+    setStatusView(v);
+    setUndistribOnly(false); // holat almashganda «taqsimlanmagan» filtrini tozalaymiz (chalkashmasin)
+    if (typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      if (v === "sotuvda") u.searchParams.delete("status"); else u.searchParams.set("status", v);
+      window.history.replaceState(null, "", u);
+    }
+  };
 
   // URL ?customer=<id> — mijoz nomini olib banner ko'rsatamiz (server filtri qo'llanadi)
   useEffect(() => {
@@ -125,8 +150,21 @@ export default function KatalogPage() {
       .catch(() => setCustomerFilter({ id: cid, label: `#${cid}` }));
   }, []);
 
-  const undistribCount = items.filter(isUndistributed).length;
-  const shownItems = undistribOnly ? items.filter(isUndistributed) : items;
+  // HOLAT bo'yicha sonlar (chip yorliqlari) + tanlangan ko'rinish bo'yicha filtrlangan ro'yxat
+  const statusCounts = useMemo(() => ({
+    sotuvda: items.filter(isAvailableForSale).length,
+    sold: items.filter(isSold).length,
+    archived: items.filter(isArchived).length,
+    all: items.length,
+  }), [items]);
+  const statusFiltered = useMemo(() => {
+    if (statusView === "sold") return items.filter(isSold);
+    if (statusView === "archived") return items.filter(isArchived);
+    if (statusView === "all") return items;
+    return items.filter(isAvailableForSale); // sotuvda (default)
+  }, [items, statusView]);
+  const undistribCount = statusFiltered.filter(isUndistributed).length;
+  const shownItems = undistribOnly ? statusFiltered.filter(isUndistributed) : statusFiltered;
 
   // ?item=<id> — bildirishnomadan («Sizga yangi katalog ishi biriktirildi»)
   // to'g'ridan-to'g'ri katalog kartasini ochamiz (ro'yxatda bo'lmasa ham).
@@ -189,7 +227,16 @@ export default function KatalogPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Katalog qidirish" placeholder="Nomi, mijoz ismi yoki telefoni…" />
-          <FilterSelect value={status} options={STATUS_OPTS} onChange={setStatus} label="Holat" />
+          {/* HOLAT chiplari — Sotuvda (default) · Sotilgan · Arxiv · Barchasi, sonlar bilan. KLIENT filtri. */}
+          <div className="flex items-center gap-1 rounded-full border p-1" style={{ borderColor: "var(--border)" }}>
+            {STATUS_VIEWS.map((sv) => (
+              <button key={sv.value} type="button" onClick={() => changeStatusView(sv.value)} aria-pressed={statusView === sv.value}
+                className="rounded-full px-3 py-1.5 text-[12.5px] font-bold transition-colors duration-150"
+                style={statusView === sv.value ? { background: "var(--primary)", color: "#fff" } : { color: "var(--muted)" }}>
+                {sv.label} <span className="tabular-nums opacity-70">{statusCounts[sv.value]}</span>
+              </button>
+            ))}
+          </div>
           <FilterSelect value={arrType} options={ARR_OPTS} onChange={setArrType} label="Turi" />
           <FilterSelect value={kindFilter} onChange={setKindFilter} label="Katalog turi" options={[{ value: "", label: "Barcha turlar" }, { value: "standard", label: "Standart" }, { value: "custom", label: "Maxsus" }]} />
           {florists.length > 0 && (
@@ -238,8 +285,10 @@ export default function KatalogPage() {
           const pending = Math.max(sold - dedu, 0);
           const left = Math.max(total - sold, 0);
           const sellable = left > 0 && (k.status === "available" || k.status === "reserved" || k.status === "draft");
+          // sotilgan/arxiv item ko'rsatilganda MUTED — sotuvdagi tovar bilan chalkashmasin (status chip qoladi)
+          const dimmed = isSold(k) || isArchived(k);
           return (
-            <article key={k.id} className="glass card-hover group flex flex-col overflow-hidden !rounded-[20px]">
+            <article key={k.id} className="glass card-hover group flex flex-col overflow-hidden !rounded-[20px]" style={dimmed ? { opacity: 0.6 } : undefined}>
               <div
                 className="relative h-[190px] cursor-pointer bg-bg2"
                 role="button"

@@ -51,26 +51,19 @@ describe("rateToCatalogSalary — the naming-trap mapper", () => {
   });
 });
 
-describe("catalogSalaryPayload — mode-aware (STANDART omits; CUSTOM keeps zero-is-a-value rule)", () => {
-  // ⚠️ STANDART: haq faqat hajm tarifidan → forma HECH QACHON florist_salary_amount yubormaydi.
-  it("standard → key ALWAYS omitted, whatever the value", () => {
-    expect(catalogSalaryPayload("", "standard")).toEqual({});
-    expect(catalogSalaryPayload("0", "standard")).toEqual({});
-    expect(catalogSalaryPayload("60000", "standard")).toEqual({});
-    expect(catalogSalaryPayload(null, "standard")).toEqual({});
+describe("catalogSalaryPayload — value-only (florist haqi TAHRIRLANADI; har ikki rejim yuboradi)", () => {
+  // ⚠️ Endi forma qiymati AYNAN yuboriladi (backend tarif bilan bosib o'tmaydi). "0"≠bo'sh.
+  it("empty / null / undefined → key omitted", () => {
+    expect(catalogSalaryPayload("")).toEqual({});
+    expect(catalogSalaryPayload(null)).toEqual({});
+    expect(catalogSalaryPayload(undefined)).toEqual({});
   });
-  // CUSTOM: ish hajmi noma'lum → operator kiritadi; "0"≠bo'sh (override qoidasi saqlanadi).
-  it("custom + empty/null/undefined → key omitted", () => {
-    expect(catalogSalaryPayload("", "custom")).toEqual({});
-    expect(catalogSalaryPayload(null, "custom")).toEqual({});
-    expect(catalogSalaryPayload(undefined, "custom")).toEqual({});
+  it('operator-typed "0" → sent as "0" (never treated as empty)', () => {
+    expect(catalogSalaryPayload("0")).toEqual({ florist_salary_amount: "0" });
   });
-  it('custom + operator-typed "0" → sent as "0" (never treated as empty)', () => {
-    expect(catalogSalaryPayload("0", "custom")).toEqual({ florist_salary_amount: "0" });
-  });
-  it("custom + value → sent", () => {
-    expect(catalogSalaryPayload("60000", "custom")).toEqual({ florist_salary_amount: "60000" });
-    expect(catalogSalaryPayload("60000.00", "custom")).toEqual({ florist_salary_amount: "60000" });
+  it("rate-resolved / operator-edited value → sent (normalized)", () => {
+    expect(catalogSalaryPayload("60000")).toEqual({ florist_salary_amount: "60000" });
+    expect(catalogSalaryPayload("60000.00")).toEqual({ florist_salary_amount: "60000" });
   });
 });
 

@@ -386,17 +386,17 @@ export function buildVolumeRatesPayload(cells: RateCell[]): VolumeRateInput[] {
     }));
 }
 
-/** Katalog `florist_salary_amount` payload — ⚠️ REJIMGA BOG'LIQ (spec: haq faqat CUSTOM'da qo'lda).
-    - STANDART  → kalit HECH QACHON yuborilmaydi (haq faqat hajm TARIFIDAN olinadi; input yo'q).
-    - CUSTOM    → ZERO qiymat, BO'SH EMAS:
-        · "" / null → kalit TUSHIRILADI (ish hajmi noma'lum — bo'sh qoldirildi)
+/** Katalog `florist_salary_amount` payload — ⚠️ HAR IKKI rejimda forma qiymati YUBORILADI (florist
+    haqi endi TAHRIRLANADI; auto-fill tarifdan, lekin operator ustidan yozishi mumkin). ZERO ≠ BO'SH:
+        · "" / null → kalit TUSHIRILADI (tarif yo'q va bo'sh qoldirildi)
         · "0"       → "0" YUBORILADI (operator ataylab nol qildi)
         · boshqa    → son sifatida yuboriladi
     Falsy tekshiruv (`if (v)`) ISHLATILMAYDI — u ataylab "0" ni bo'shdek talqin qilardi. */
-export function catalogSalaryPayload(value: string | null | undefined, kind: CatalogKind): { florist_salary_amount: string } | Record<string, never> {
-  if (kind !== "custom") return {}; // standart: tarifdan olinadi, forma yubormaydi
-  if (value === "" || value == null) return {};
-  return { florist_salary_amount: String(+value) };
+export function catalogSalaryPayload(value: string | null | undefined): { florist_salary_amount: string } | Record<string, never> {
+  // ⚠️ Endi HAR IKKI rejimda (standart+custom) forma qiymati AYNAN yuboriladi — backend uni tarif
+  //    bilan bosib o'tmaydi (spec: "if we send the fee explicitly, the server does NOT overwrite it").
+  if (value === "" || value == null) return {}; // bo'sh → kalit tushiriladi (tarif yo'q holati)
+  return { florist_salary_amount: String(+value) }; // "0" ham AYNAN yuboriladi (ataylab nol)
 }
 
 /** Chiqim TAHRIRI delta preview — «Skladda: 300 → 280 · Floristda: 30 → 50».
