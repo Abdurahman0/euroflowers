@@ -1,10 +1,11 @@
 "use client";
-import { AlertTriangle, Info, Plus, X } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, Info, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
+import { isBranchUser } from "@/lib/branch";
 import Modal, { ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
@@ -14,7 +15,7 @@ import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
 import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, batchDeliveryTag, buildFloristComposition, catalogClosed } from "@/lib/inventory";
 import FloristCompositionPicker from "./FloristCompositionPicker";
-import type { ArrangementType, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
+import type { ArrangementType, Branch, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; mode: "stems" | "bunches"; qty: string };
 type MatRow = { packaging: number; qty: string };
@@ -36,6 +37,15 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [kind, setKind] = useState<CatalogKind>(item?.catalog_kind ?? "standard");
   const [volume, setVolume] = useState<CatalogVolume | "">(item?.volume ?? "");
   const [florist, setFlorist] = useState<number>(item?.florist ?? 0);
+  // ⚠️ FILIAL — TO'G'RIDAN-TO'G'RI filial katalogi (spec FILIAL_UCHUN_KATALOG_QOSHISH).
+  // 0 = asosiy filial (branch yuborilmaydi). Faqat ASOSIY foydalanuvchi + YANGI item'da.
+  const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
+  const canPickBranch = !branchUser && !item; // tanlagich faqat asosiy foydalanuvchiga, yaratishda
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branch, setBranch] = useState<number>(0);
+  const branchMode = branch > 0;
+  // saqlangandan keyin (branch rejimida) natija kartasi — modal shu bilan ochiq qoladi
+  const [branchResult, setBranchResult] = useState<{ branchName: string; qty: number; perUnit: number; total: number; name: string; sourcePrice: string | null } | null>(null);
   // operator ish haqini QO'LDA tahrirladimi (CUSTOM) — true bo'lsa tarif uni bosib o'tmaydi
   const [salaryTouched, setSalaryTouched] = useState(false);
   const [f, setF] = useState({
@@ -99,7 +109,9 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     }).catch(() => showToast("Sklad partiyalarini yuklab bo'lmadi"));
     api.materials({ is_active: true }).then(setMaterials).catch(() => {});
     api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
-  }, [showToast, item]);
+    // FILIALLAR — faqat asosiy foydalanuvchi + yangi item uchun (tanlagich shu holatda chiqadi).
+    if (canPickBranch) api.branches({ is_main: false, is_active: true }).then(setBranches).catch(() => setBranches([]));
+  }, [showToast, item, canPickBranch]);
 
   // TARIFLAR — TANLANGAN floristning FAOL tariflari (backend auto-to'ldirishi bilan
   // AYNAN bir manba: ?florist=<id>&is_active=true). Drift bo'lmasligi uchun shu yerdan.
@@ -119,6 +131,10 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   useEffect(() => {
     if (florist !== prevFlorist.current) { setFloristBatches([]); prevFlorist.current = florist; }
   }, [florist]);
+  // ⚠️ FILIAL rejimi florist katalogi EMAS — filial tanlansa floristni tozalab, warehouse-rejimga qaytaramiz.
+  useEffect(() => {
+    if (branchMode && florist) setFlorist(0);
+  }, [branchMode, florist]);
 
   const batchOf = (id: number) => batches.find((b) => b.id === id);
   const matOf = (id: number) => materials.find((m) => m.id === id);
@@ -269,6 +285,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       setErrs((x) => ({ ...x, materials: "Material sonini kiriting (har dona uchun, 0 emas)" }));
       return showToast("Material sonini kiriting");
     }
+    // ⚠️ FILIAL katalogi: gul SONI MAJBURIY — florist-chiqim oqimi yo'q, son darrov skladdan yechiladi.
+    if (branchMode && !comp.some((r) => r.stock_batch && stemsOfRow(r) > 0)) {
+      setErrs((x) => ({ ...x, composition: "Filial katalogida gul va soni majburiy — qaysi guldan necha dona ketishini kiriting" }));
+      return showToast("Gul sonini kiriting");
+    }
     // NORMALLASHTIRISH: bir xil stock_batch/packaging qatorlari BITTAGA
     // birlashtiriladi (bitta buket = bitta item, ko'p qatorli composition).
     const composition = normalizeComposition(
@@ -291,6 +312,9 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       catalog_kind: kind,
       ...(volume ? { volume } : {}),
       ...(florist ? { florist } : {}),
+      // ⚠️ FILIAL — branch>0 bo'lsa YUBORILADI (asosiy filial = 0 → kalit tushiriladi).
+      // source_price YUBORILMAYDI — backend bir donaga tannarxni avtomatik yozadi (spec).
+      ...(branch ? { branch } : {}),
       height_cm: +f.height_cm || null,
       price: String(+f.price),
       // ⚠️ Floristika xizmati (florist_fee) — FAQAT CUSTOM'da (standartda input olib tashlandi).
@@ -318,14 +342,23 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     if (kind === "custom" && !item) { payload.status = "sold"; payload.payment_type = payment; }
     else if (!item) payload.status = "available";
     try {
-      await (item ? api.updateCatalogItem(item.id, payload) : api.createCatalogItem(payload));
+      const saved = await (item ? api.updateCatalogItem(item.id, payload) : api.createCatalogItem(payload));
       // DIQQAT: create javobida calculated_*/discount_amount 0 keladi (kompozitsiya
       // keyin saqlanadi, GET'da to'g'ri qiymat chiqadi). Shu bois preview'ga tayanamiz
       // — preview matematikasi endi backend bilan aynan mos (fee ham qo'shilgan).
-      const disc = price.discount;
-      showToast(item ? "✓ Katalog yozuvi yangilandi" : `✓ Katalogga qo'shildi${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`);
       notifyReportDataChanged(); // katalog tannarxi/tarkibi o'zgardi → hisobot keshi + mount sahifalar
       onSaved();
+      // ⚠️ §3 FILIAL rejimi: modalni YOPMAYMIZ — natija kartasi ko'rsatiladi (item asosiy
+      // ro'yxatda ko'rinmaydi, shuning uchun operator nima yaratilганini bir zumda ko'rsin).
+      if (branchMode) {
+        const branchName = branches.find((b) => b.id === branch)?.name ?? "filial";
+        showToast(`✓ Katalog ${branchName} filialiga qo'shildi`);
+        setBranchResult({ branchName, qty: qtyTotal, perUnit: perUnitStems, total: perUnitStems * qtyTotal, name: f.name_uz, sourcePrice: saved?.source_price ?? null });
+        setBusy(false);
+        return;
+      }
+      const disc = price.discount;
+      showToast(item ? "✓ Katalog yozuvi yangilandi" : `✓ Katalogga qo'shildi${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`);
       onClose();
     } catch (e) {
       // backend `detail` MASSIV yoki KO'P QATORLI string bo'lishi mumkin — bitta matnga yig'amiz.
@@ -377,10 +410,69 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       <span className={clsx("tabular-nums", strong ? "text-[15px] font-bold" : "text-[13px] font-semibold")} style={{ color: hue ?? "var(--text)" }}>{fmt(value)}</span>
     </div>
   );
+  // §3 filial natija kartasi qatori (k → v), ixtiyoriy tooltip + qiymat rangi
+  const ResultRow = ({ k, v, hue, title }: { k: string; v: string; hue?: string; title?: string }) => (
+    <div className="flex items-start justify-between gap-3 border-t px-3 py-2 first:border-t-0 text-[12.5px]" style={{ borderColor: "var(--line2)" }} title={title}>
+      <span className="shrink-0" style={{ color: "var(--muted)" }}>{k}{title ? " ⓘ" : ""}</span>
+      <span className="text-right font-semibold tabular-nums" style={{ color: hue ?? "var(--text)" }}>{v}</span>
+    </div>
+  );
+
+  // ⚠️ §3 FILIAL NATIJA KARTASI — saqlangandan keyin (branch rejimi). Item asosiy ro'yxatda
+  // KO'RINMAGANI uchun operator nima yaratilганini, qancha gul yechilганini va qayoqqa ketганини ko'radi.
+  if (branchResult) {
+    const r = branchResult;
+    return (
+      <Modal onClose={onClose} width={520}>
+        <ModalHeader icon={<CheckCircle2 size={20} strokeWidth={2} />} title="Filialga qo'shildi" sub={r.branchName} onClose={onClose} />
+        <div className="mt-1 flex items-start gap-2 rounded-[13px] px-3.5 py-3 text-[13px] font-bold" style={{ background: "var(--mint, rgba(61,138,95,.12))", color: "var(--success-ink, #3d8a5f)" }}>
+          <CheckCircle2 size={18} strokeWidth={2.2} className="mt-px shrink-0" />
+          <span>Katalog <b>{r.branchName}</b> filialiga qo&apos;shildi.</span>
+        </div>
+        <div className="mt-3 flex flex-col rounded-[13px] border" style={{ borderColor: "var(--border)" }}>
+          <ResultRow k="Katalog" v={`${r.name} · ${r.qty} dona`} />
+          <ResultRow k="Skladdan yechildi" v={`${stemsFmt(r.perUnit)} × ${r.qty} dona = ${stemsFmt(r.total)}`} hue="var(--acc)" />
+          {r.sourcePrice != null && +r.sourcePrice > 0 && (
+            <ResultRow k="Kelib chiqish narxi" v={`${fmt(r.sourcePrice)} / dona`} title="Bir donaga to'g'ri keladigan tannarx — filial hisobotidagi ustama (sotuv − kelib chiqishi) shundan hisoblanadi." />
+          )}
+          <ResultRow k="Qayerda" v="Asosiy ro'yxatda ko'rinmaydi — filial foydalanuvchisi ko'radi va sotadi." />
+        </div>
+        <div className="mt-5 flex justify-end gap-2.5 max-sm:[&>*]:flex-1">
+          <button onClick={onClose} className="btn-ghost">Yopish</button>
+          <button onClick={() => { if (typeof window !== "undefined") window.location.assign("/filial-hisoboti"); }} className="btn-primary">Filial hisobotini ochish</button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal onClose={onClose} width={640}>
       <ModalHeader icon={<Icon name="katalog" />} title={item ? "Katalog yozuvini tahrirlash" : "Katalog yaratish"} sub={item ? `${item.name_uz} · #${item.id}` : "Standart yoki maxsus kompozitsiya"} onClose={onClose} />
+
+      {/* ⚠️ §1 QAYSI FILIAL UCHUN — formaning ENG TEPASIDA (item qayoqqa ketishini belgilaydi).
+          Faqat ASOSIY foydalanuvchi + YANGI item + non-main filial(lar) mavjud bo'lsa. */}
+      {canPickBranch && branches.length > 0 && (
+        <div className="mt-1">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>
+            <Building2 size={14} strokeWidth={2.2} style={{ color: "var(--primary)" }} /> Qaysi filial uchun
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {[{ id: 0, name: "Asosiy filial" }, ...branches].map((b) => (
+              <button key={b.id} type="button" onClick={() => setBranch(b.id)} aria-pressed={branch === b.id}
+                className="rounded-[11px] border-[1.5px] px-3.5 py-1.5 text-[12.5px] font-bold transition-colors duration-150"
+                style={branch === b.id ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" } : { borderColor: "var(--border)", color: "var(--text-2)" }}>
+                {b.name}
+              </button>
+            ))}
+          </div>
+          {branchMode && (
+            <div className="mt-2 flex items-start gap-1.5 rounded-[11px] px-3 py-2 text-[12px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+              <Info size={13} strokeWidth={2.2} className="mt-px shrink-0" style={{ color: "var(--muted)" }} />
+              <span>Bu katalog <b>{branches.find((b) => b.id === branch)?.name}</b> filialiga qo&apos;shiladi va asosiy ro&apos;yxatda ko&apos;rinmaydi.</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* kind toggle */}
       {!item && (
@@ -434,12 +526,24 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           <Select value={volume} onChange={(v) => { const vol = v as CatalogVolume | ""; setVolume(vol); setErrs((x) => { const n = { ...x }; delete n.volume; return n; }); applyRate(vol, f.arrangement_type); }} placeholder="Tanlang" options={[{ value: "", label: "—" }, ...(["small", "medium", "large"] as const).map((v) => ({ value: v, label: VOLUME_LABEL[v] }))]} />
           <Err k="volume" />
         </Field>
-        <Field label="Florist">
-          <Select value={florist} onChange={(v) => setFlorist(+v)} placeholder="Tanlang" options={[{ value: 0, label: "—" }, ...florists.map((fp) => ({ value: fp.id, label: floristName(fp) }))]} />
-        </Field>
+        {/* ⚠️ FILIAL rejimida FLORIST YO'Q — filial katalogi florist katalogi emas (chiqim yopish
+            bosqichi yo'q); gul to'g'ridan-to'g'ri asosiy skladdan yechiladi. */}
+        {branchMode ? (
+          <Field label="Florist">
+            <div className="flex h-[42px] items-center rounded-[11px] px-3 text-[12px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>
+              Filial katalogi — florist tanlanmaydi (gul skladdan)
+            </div>
+          </Field>
+        ) : (
+          <Field label="Florist">
+            <Select value={florist} onChange={(v) => setFlorist(+v)} placeholder="Tanlang" options={[{ value: 0, label: "—" }, ...florists.map((fp) => ({ value: fp.id, label: floristName(fp) }))]} />
+          </Field>
+        )}
         <Field label={kind === "custom" ? "Soni" : "Soni (nechta bir xil tayyorlandi)"} span>
           <input className="inp" type="number" min={1} value={f.quantity_total} onChange={set("quantity_total")} placeholder="Masalan: 1" />
-          {kind === "standard" && perUnitStems > 0 && (
+          {/* ⚠️ §2 SKLADDAN YECHILADIGAN GUL — filial rejimida (yoki standart) doim ko'rsatiladi:
+              operator saqlashdan oldin AYNAN shu sonni ko'radi (30 × 2 = 60 dona). */}
+          {(kind === "standard" || branchMode) && perUnitStems > 0 && (
             <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
               {qtyTotal} dona × {stemsFmt(perUnitStems)} gul = <b style={{ color: "var(--acc)" }}>{stemsFmt(qtyTotal * perUnitStems)}</b> skladdan yechiladi
             </p>

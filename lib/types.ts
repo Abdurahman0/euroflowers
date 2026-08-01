@@ -1008,7 +1008,12 @@ export type BranchReportRow = {
   branch_id: number;
   branch_name: string;
   received_transfers: number;
+  /** Transfer orqali kelgan dona (asosiy filialdan yuborilgan). */
   received_quantity: number;
+  /** To'g'ridan-to'g'ri filial uchun yaratilgan dona (branch bilan POST). */
+  direct_quantity: number;
+  /** received_quantity + direct_quantity — «jami kelgan». */
+  incoming_quantity: number;
   catalog_items: number;
   available_quantity: number;
   sold_quantity: number;
@@ -1024,6 +1029,8 @@ export type BranchReport = {
   branches: BranchReportRow[];
   totals: {
     received_quantity: number;
+    direct_quantity: number;
+    incoming_quantity: number;
     sold_quantity: number;
     sold_revenue: string;
     discounted_quantity: number;

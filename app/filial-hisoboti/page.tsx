@@ -67,8 +67,10 @@ export default function BranchReportPage() {
         name: "Filiallar",
         cols: [
           { header: "Filial", key: "branch_name", type: "text" },
-          { header: "Yuborilgan (partiya)", key: "received_transfers", type: "int" },
-          { header: "Yuborilgan (dona)", key: "received_quantity", type: "int" },
+          { header: "Jami kelgan (dona)", key: "incoming_quantity", type: "int" },
+          { header: "Transfer (dona)", key: "received_quantity", type: "int" },
+          { header: "Transfer (partiya)", key: "received_transfers", type: "int" },
+          { header: "To'g'ridan-to'g'ri (dona)", key: "direct_quantity", type: "int" },
           { header: "Katalog yozuvlari", key: "catalog_items", type: "int" },
           { header: "Sotuvda", key: "available_quantity", type: "int" },
           { header: "Sotilgan", key: "sold_quantity", type: "int" },
@@ -80,7 +82,7 @@ export default function BranchReportPage() {
           { header: "Chegirma jami", key: "discount_total", type: "money" },
         ],
         rows: rep.branches as unknown as Record<string, unknown>[],
-        totals: { branch_name: "JAMI", received_quantity: rep.totals.received_quantity, sold_quantity: rep.totals.sold_quantity, sold_revenue: rep.totals.sold_revenue, discounted_quantity: rep.totals.discounted_quantity, discount_total: rep.totals.discount_total },
+        totals: { branch_name: "JAMI", incoming_quantity: rep.totals.incoming_quantity, received_quantity: rep.totals.received_quantity, direct_quantity: rep.totals.direct_quantity, sold_quantity: rep.totals.sold_quantity, sold_revenue: rep.totals.sold_revenue, discounted_quantity: rep.totals.discounted_quantity, discount_total: rep.totals.discount_total },
       }]);
       showToast("✓ Excel yuklab olindi");
     } catch { showToast("Eksport qilib bo'lmadi"); }
@@ -91,7 +93,7 @@ export default function BranchReportPage() {
   if (!rep && !err) return <FlowerLoader />;
 
   const branches = rep?.branches ?? [];
-  const reportEmpty = branches.length === 0 || branches.every((b) => +b.sold_revenue === 0 && b.received_quantity === 0);
+  const reportEmpty = branches.length === 0 || branches.every((b) => +b.sold_revenue === 0 && b.incoming_quantity === 0);
 
   return (
     <div className="flex flex-col gap-5">
@@ -155,13 +157,23 @@ export default function BranchReportPage() {
             </div>
           </section>
 
+          {/* ⚠️ §5 HALOL IZOH: asosiy foydalanuvchi filial kataloglarini YAKKA-yakka ko'ra olmaydi
+              (GET /api/catalog/ filialga scoped, itemda 404; ?branch filtri yo'q). Shu hisobot —
+              transfer/to'g'ridan-to'g'ri ajratmasi bilan — ularni kuzatishning yagona yo'li. */}
+          <div className="flex items-start gap-1.5 rounded-[12px] px-3 py-2 text-[12px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>
+            <Building2 size={13} strokeWidth={2.2} className="mt-px shrink-0" />
+            <span>Filial kataloglari asosiy ro&apos;yxatda ko&apos;rinmaydi (yakka item ochib bo&apos;lmaydi). Ular shu yerda — <b>transfer</b> yoki <b>to&apos;g&apos;ridan-to&apos;g&apos;ri</b> — yig&apos;indi sifatida hisoblanadi.</span>
+          </div>
+
           {/* jadval */}
           <section className="glass !rounded-[18px] p-5">
             <div className="overflow-x-auto thin-scroll">
-              <table className="w-full min-w-[900px] border-collapse text-[13px]">
+              <table className="w-full min-w-[1040px] border-collapse text-[13px]">
                 <thead><tr className="text-left" style={{ color: "var(--muted)" }}>
                   <th className="px-2 py-2 font-semibold">Filial</th>
-                  <th className="px-2 py-2 text-right font-semibold">Yuborilgan</th>
+                  <th className="px-2 py-2 text-right font-semibold">Jami kelgan</th>
+                  <th className="px-2 py-2 text-right font-semibold">Transfer</th>
+                  <th className="px-2 py-2 text-right font-semibold">To&apos;g&apos;ridan-to&apos;g&apos;ri</th>
                   <th className="px-2 py-2 text-right font-semibold">Sotuvda</th>
                   <th className="px-2 py-2 text-right font-semibold">Sotilgan</th>
                   <th className="px-2 py-2 text-right font-semibold">Tushum</th>
@@ -173,7 +185,10 @@ export default function BranchReportPage() {
                   {branches.map((b) => (
                     <tr key={b.branch_id} className="border-t" style={{ borderColor: "var(--line2)" }}>
                       <td className="px-2 py-2.5 font-bold">{b.branch_name}</td>
-                      <td className="px-2 py-2.5 text-right tabular-nums">{b.received_quantity}<div className="text-[11px]" style={{ color: "var(--muted)" }}>{b.received_transfers} partiya</div></td>
+                      {/* JAMI KELGAN (incoming) headline + ikki manba ajratmasi (transfer / to'g'ridan-to'g'ri) */}
+                      <td className="px-2 py-2.5 text-right tabular-nums font-bold">{b.incoming_quantity}</td>
+                      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{b.received_quantity}<div className="text-[11px]">{b.received_transfers} partiya</div></td>
+                      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{b.direct_quantity}</td>
                       <td className="px-2 py-2.5 text-right tabular-nums">{b.available_quantity}<div className="text-[11px]" style={{ color: "var(--muted)" }}>{b.catalog_items} yozuv</div></td>
                       <td className="px-2 py-2.5 text-right tabular-nums">{b.sold_quantity}</td>
                       <td className="px-2 py-2.5 text-right tabular-nums font-semibold">{fmt(b.sold_revenue)}</td>
@@ -186,7 +201,9 @@ export default function BranchReportPage() {
                 <tfoot>
                   <tr className="border-t-2 font-bold" style={{ borderColor: "var(--border-strong)" }}>
                     <td className="px-2 py-2.5">JAMI</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">{rep!.totals.received_quantity}</td>
+                    <td className="px-2 py-2.5 text-right tabular-nums">{rep!.totals.incoming_quantity}</td>
+                    <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{rep!.totals.received_quantity}</td>
+                    <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{rep!.totals.direct_quantity}</td>
                     <td className="px-2 py-2.5" />
                     <td className="px-2 py-2.5 text-right tabular-nums">{rep!.totals.sold_quantity}</td>
                     <td className="px-2 py-2.5 text-right tabular-nums">{fmt(rep!.totals.sold_revenue)}</td>

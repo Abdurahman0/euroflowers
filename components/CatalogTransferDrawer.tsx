@@ -64,6 +64,12 @@ export default function CatalogTransferDrawer({ item, onClose, onDone }: { item:
     <Modal onClose={onClose} width={460}>
       <ModalHeader icon={<Send size={18} strokeWidth={1.9} />} title="Filialga yuborish" sub={`${item.name_uz || item.name_ru} · sotuvda ${unsold} dona`} onClose={onClose} />
 
+      {/* ⚠️ §5 IKKI YO'LNI AJRATISH: bu MAVJUD asosiy katalogni filialga ko'chiradi. Yangi filial
+          katalogi yaratish uchun — «Katalog qo'shish»da yuqoridagi «Qaysi filial uchun» tanlagichi. */}
+      <p className="mb-3 rounded-[11px] px-3 py-2 text-[11.5px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>
+        Bu <b>mavjud</b> katalogdan filialga ko&apos;chiradi. Yangi filial katalogini noldan yaratish → «Katalog qo&apos;shish» → <b>«Qaysi filial uchun»</b>.
+      </p>
+
       <Field label="Filial" span>
         <Select value={branch} onChange={(v) => setBranch(+v)} placeholder={branches.length ? "Filialni tanlang" : "Faol filial yo'q"} options={branches.map((b) => ({ value: b.id, label: b.name }))} />
       </Field>
