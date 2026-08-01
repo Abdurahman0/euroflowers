@@ -1,4 +1,4 @@
-import type { ArrangementType, CatalogKind, CatalogVolume, FloristVolumeRate, MovementType, PackagingType, SalarySource, StaffType, StockBatch, VolumeRateInput } from "./types";
+import type { ArrangementType, CatalogKind, CatalogVolume, FloristVolumeRate, MovementType, PackagingType, RoundingSide, SalarySource, StaffType, StockBatch, StockDelivery, VolumeRateInput } from "./types";
 
 /**
  * Sklad/florist bo'limlari uchun MARKAZLASHGAN o'zbekcha yorliqlar,
@@ -83,6 +83,23 @@ export const roundingNote = (bunchPrice: number, stemsPerBunch: number): { round
   const exact = exactPerStem(bunchPrice, stemsPerBunch);
   const rounded = roundToHundred(exact);
   return { rounded, exact, changed: Math.round(exact) !== rounded, zeroed: bunchPrice > 0 && rounded === 0 };
+};
+
+/* ===== SAQLANGAN PARTIYA — server `rounding` bloki (DISPLAY-ONLY) =====
+   ⚠️ SAQLANGAN partiya narxini KO'RSATISH server blokidan chiqadi — farqni O'ZIMIZ hisoblamaymiz,
+   exact'ni hisobga ULAMAYMIZ. (Forma preview'i ayri: u round(bunch/stems/100)*100 client helper'idan.) */
+const num2 = (n: number) => n.toLocaleString("ru", { maximumFractionDigits: 2 });
+/** "(aniq: 998 · +2)" — FAQAT is_rounded=true bo'lganda (aks holda null → ko'rsatma). Server sonlari. */
+export const roundingHint = (side?: RoundingSide | null): string | null => {
+  if (!side || !side.is_rounded) return null;
+  const sign = side.per_stem_diff > 0 ? "+" : "";
+  return `aniq: ${num2(side.per_stem_exact)} · ${sign}${num2(side.per_stem_diff)}`;
+};
+/** Yuk sarlavhasi uchun: "aniq hisob: 99 800 · yaxlitlashdan +200" — FAQAT rounding_diff ≠ 0 bo'lganda. */
+export const deliveryRoundingHint = (d: Pick<StockDelivery, "total_cost_exact" | "rounding_diff">): string | null => {
+  if (!d.rounding_diff) return null;
+  const sign = d.rounding_diff > 0 ? "+" : "";
+  return `aniq hisob: ${num2(d.total_cost_exact ?? 0)} · yaxlitlashdan ${sign}${num2(d.rounding_diff)}`;
 };
 
 /* ===== PARTIYA (StockBatch) PAYLOAD — yuk-bog'langan holat + pochka/dona narx qoidasi =====

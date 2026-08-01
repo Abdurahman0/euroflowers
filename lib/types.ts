@@ -277,12 +277,23 @@ export type StockBatch = {
   received_stems: number;
   received_bunches?: string;
   remaining_stems: number;
+  /** ⚠️ YAXLITLANGAN dona tannarxi — HAMMA HISOB-KITOB SHU BILAN BORADI. */
   cost_per_stem: string;
   /** pochka tannarxi — yuborilsa cost_per_stem = cost_per_bunch ÷ stems_per_bunch,
       100 ga yaxlitlanadi (server hisoblaydi). Ikkalasi yuborilsa server hech narsa hisoblamaydi. */
   cost_per_bunch?: string;
+  /** ⚠️ ANIQ dona tannarxi (4 xona) — FAQAT KO'RSATISH UCHUN. Hech qanday hisobga KIRMAYDI. */
+  cost_per_stem_exact?: string;
+  /** ⚠️ YAXLITLANGAN dona sotuv narxi — hisob shu bilan. */
   sale_price_per_stem: string;
   sale_price_per_bunch: string;
+  /** ⚠️ ANIQ dona sotuv narxi (4 xona) — FAQAT KO'RSATISH UCHUN. Hisobga KIRMAYDI. */
+  sale_price_per_stem_exact?: string;
+  /** ⚠️ DISPLAY-ONLY yaxlitlash bloki (server tayyor beradi — farqni O'ZIMIZ hisoblamaymiz).
+      Hisob-kitob rounded (per_stem_rounded/total_rounded) bilan boradi; exact FAQAT ko'rsatish uchun.
+      Agar exact hisobga sizib kirsa — bizning raqamlar serverdan jimgina farq qiladi va hech narsa
+      xato bermaydi. Shu bois exact NEVER money math'ga ulanmaydi (Vitest bilan qo'riqlangan). */
+  rounding?: BatchRounding;
   minimum_sale_stems: number;
   image_url: string;
   notes: string;
@@ -294,6 +305,19 @@ export type StockBatch = {
   delivery?: number | null;
   delivery_detail?: DeliveryBrief | null;
 };
+
+/** ⚠️ DISPLAY-ONLY. Server tayyor beradi — biz hisoblamaymiz, hisobga ulamaymiz.
+    `total_*` kelgan butun son (received_stems) bo'yicha. is_rounded=false → farq yo'q. */
+export type RoundingSide = {
+  per_stem_exact: number;
+  per_stem_rounded: number;
+  per_stem_diff: number;
+  total_exact: number;
+  total_rounded: number;
+  total_diff: number;
+  is_rounded: boolean;
+};
+export type BatchRounding = { cost: RoundingSide; sale: RoundingSide };
 
 /** stock-batch javobidagi qisqa yuk ma'lumoti (supplier bu yerda NOM — string). */
 export type DeliveryBrief = {
@@ -325,7 +349,12 @@ export type StockDelivery = {
   batch_count: number;
   total_stems: number;
   remaining_stems: number;
+  /** ⚠️ YAXLITLANGAN narx bo'yicha jami tannarx — hisob shu bilan. */
   total_cost: string;
+  /** ⚠️ ANIQ hisob bo'yicha jami tannarx — FAQAT KO'RSATISH UCHUN (number keladi). */
+  total_cost_exact?: number;
+  /** ⚠️ yaxlitlash jami tannarxni qanchaga o'zgartirgani — DISPLAY-ONLY (number). */
+  rounding_diff?: number;
 };
 export type StockDeliveryInput = { number: string; received_at?: string; supplier?: number | null; note?: string };
 

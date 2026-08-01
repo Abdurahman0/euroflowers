@@ -12,7 +12,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import EmptyState from "./EmptyState";
 import FlowerLoader from "./FlowerLoader";
 import { fmt, fmtDate } from "@/lib/format";
-import { DELIVERY, formatStemsAndBunches } from "@/lib/inventory";
+import { DELIVERY, formatStemsAndBunches, roundingHint, deliveryRoundingHint } from "@/lib/inventory";
 import type { StockBatch, StockDelivery } from "@/lib/types";
 
 /**
@@ -70,11 +70,11 @@ export default function DeliveryDrawer({ delivery, onClose, onChanged }: {
           {d.note && <div className="col-span-2"><HeaderCell label="Izoh" value={d.note} /></div>}
         </div>
 
-        {/* JAMI (server) */}
+        {/* JAMI (server) — Tannarx: yaxlitlangan, ostida aniq hisob + yaxlitlash farqi (agar bo'lsa) */}
         <div className="mt-3 grid grid-cols-3 gap-2">
           <Stat label="Xil gul" value={String(d.batch_count)} />
           <Stat label="Qolgan / kelgan" value={`${d.remaining_stems} / ${d.total_stems}`} />
-          <Stat label="Tannarx" value={fmt(d.total_cost)} />
+          <Stat label="Tannarx" value={fmt(d.total_cost)} sub={deliveryRoundingHint(d)} />
         </div>
 
         {/* PARTIYALAR + qo'shish */}
@@ -88,21 +88,21 @@ export default function DeliveryDrawer({ delivery, onClose, onChanged }: {
           <EmptyState title="Bu yukda hali gul yo'q" sub="«Gul qo'shish» orqali shu yukka birinchi partiyani kiriting." />
         ) : (
           <div className="flex flex-col gap-2">
-            {batches.map((b) => (
-              <div key={b.id} className="flex flex-wrap items-center gap-3 rounded-[13px] border p-2.5" style={{ borderColor: "var(--border)", opacity: b.remaining_stems === 0 ? 0.6 : 1 }}>
-                <div className="min-w-[200px] flex-1">
-                  <StockLine data={lineFromStockBatch(b)} right={
-                    <div className="text-right">
-                      <div className="text-[13px] font-bold tabular-nums">{formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)}</div>
-                      {/* per-bunch YONIDA per-stem */}
-                      <div className="text-[11px]" style={{ color: "var(--muted)" }}>
-                        Tannarx {fmt(b.cost_per_stem)}/dona{b.cost_per_bunch ? ` · ${fmt(b.cost_per_bunch)}/pochka` : ""}
-                      </div>
-                    </div>
-                  } />
+            {batches.map((b) => {
+              // ⚠️ SAQLANGAN partiya — narx server `rounding` blokidan; exact FAQAT ko'rsatish, hisobga kirmaydi
+              const costHint = roundingHint(b.rounding?.cost);
+              const saleHint = roundingHint(b.rounding?.sale);
+              return (
+                <div key={b.id} className="rounded-[13px] border p-2.5" style={{ borderColor: "var(--border)", opacity: b.remaining_stems === 0 ? 0.6 : 1 }}>
+                  <StockLine data={lineFromStockBatch(b)} right={<span className="text-[13px] font-bold tabular-nums">{formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)}</span>} />
+                  <div className="mt-2 flex flex-col gap-0.5 border-t pt-2 text-[12px]" style={{ borderColor: "var(--line2)" }}>
+                    {b.cost_per_bunch && +b.cost_per_bunch > 0 && <PriceRow label="Pochka tannarxi" value={fmt(b.cost_per_bunch)} />}
+                    <PriceRow label="Dona tannarxi" value={`${fmt(b.cost_per_stem)}/dona`} hint={costHint} />
+                    <PriceRow label="Dona sotuv narxi" value={`${fmt(b.sale_price_per_stem)}/dona`} hint={saleHint} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -147,9 +147,20 @@ const HeaderCell = ({ label, value }: { label: string; value: string }) => (
     <div className="truncate text-[13px] font-bold" title={value}>{value}</div>
   </div>
 );
-const Stat = ({ label, value }: { label: string; value: string }) => (
+const Stat = ({ label, value, sub }: { label: string; value: string; sub?: string | null }) => (
   <div className="rounded-[12px] border px-3 py-2" style={{ borderColor: "var(--border)" }}>
     <div className="text-[11px] font-semibold" style={{ color: "var(--muted)" }}>{label}</div>
     <div className="text-[15px] font-extrabold tabular-nums">{value}</div>
+    {sub && <div className="mt-0.5 text-[10.5px] leading-tight" style={{ color: "var(--mut)" }}>{sub}</div>}
+  </div>
+);
+/** narx qatori — chapda yorliq, o'ngda yaxlitlangan qiymat + (aniq: … · +…) kulrang izoh (bo'lsa). */
+const PriceRow = ({ label, value, hint }: { label: string; value: string; hint?: string | null }) => (
+  <div className="flex items-baseline justify-between gap-2">
+    <span style={{ color: "var(--muted)" }}>{label}</span>
+    <span className="flex items-baseline gap-1.5 tabular-nums">
+      <b style={{ color: "var(--text-2)" }}>{value}</b>
+      {hint && <span className="text-[10.5px]" style={{ color: "var(--mut)" }}>({hint})</span>}
+    </span>
   </div>
 );

@@ -181,4 +181,19 @@ describe("saleLineAllocations", () => {
   it("returns [] when the catalog item is unknown", () => {
     expect(saleLineAllocations(sale49, undefined)).toEqual([]);
   });
+
+  // ⚠️ GUARD: cost derivations MUST read the ROUNDED cost_per_stem, NEVER cost_per_stem_exact.
+  // If a future refactor swaps to the exact field, this fails loudly (100×1000 → 100×998).
+  it("uses the ROUNDED cost_per_stem, not cost_per_stem_exact (display-only)", () => {
+    const itemRounded = {
+      id: 1, name_uz: "R", quantity_total: 1,
+      composition: [{ id: 1, stock_batch: 40, quantity_stems: 100, quantity_bunches: "4",
+        batch_detail: { id: 40, cost_per_stem: "1000", cost_per_stem_exact: "998.0000", variant: 23, supplier: 7, variant_detail: { id: 23 } } }],
+      materials: [],
+    } as unknown as CatalogItem;
+    const s = { catalog_id: 1, sale_total: "200000", cost_total: "100000", net_profit: "100000", quantity: 1, discount_amount: "0" } as unknown as AccountingSale;
+    const lines = saleLineAllocations(s, itemRounded);
+    expect(lines[0].cost).toBe(100000);   // 100 × 1000 (rounded)
+    expect(lines[0].cost).not.toBe(99800); // NOT 100 × 998 (exact) — exact must never leak into cost
+  });
 });

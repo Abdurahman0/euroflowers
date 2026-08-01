@@ -2,7 +2,7 @@
 import { ChevronRight, Truck } from "lucide-react";
 import StemGauge from "./StemGauge";
 import { fmt } from "@/lib/format";
-import { bunches, freshness, stems } from "@/lib/inventory";
+import { bunches, freshness, stems, roundingHint } from "@/lib/inventory";
 import type { StockBatch } from "@/lib/types";
 
 /**
@@ -21,6 +21,9 @@ export default function StockBatchCard({
 }) {
   const v = batch.variant_detail;
   const fr = freshness(batch.received_at);
+  // ⚠️ DISPLAY-ONLY: server rounding blokidan aniq hisob izohi (is_rounded=true bo'lganda)
+  const costHint = roundingHint(batch.rounding?.cost);
+  const saleHint = roundingHint(batch.rounding?.sale);
 
   return (
     <article
@@ -67,10 +70,10 @@ export default function StockBatchCard({
       {/* stem gauge — hero */}
       <StemGauge batch={batch} />
 
-      {/* narx qatori */}
+      {/* narx qatori — yaxlitlangan; ostida aniq hisob (is_rounded bo'lganda, DISPLAY-ONLY) */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]" style={{ color: "var(--muted)" }}>
-        <span>Tannarx <b style={{ color: "var(--text-2)" }}>{fmt(batch.cost_per_stem)}</b>/dona</span>
-        <span>→ Sotuv <b style={{ color: "var(--acc)" }}>{fmt(batch.sale_price_per_stem)}</b>/dona</span>
+        <span>Tannarx <b style={{ color: "var(--text-2)" }}>{fmt(batch.cost_per_stem)}</b>/dona{costHint && <span className="ml-1 text-[10.5px]" style={{ color: "var(--mut)" }}>({costHint})</span>}</span>
+        <span>→ Sotuv <b style={{ color: "var(--acc)" }}>{fmt(batch.sale_price_per_stem)}</b>/dona{saleHint && <span className="ml-1 text-[10.5px]" style={{ color: "var(--mut)" }}>({saleHint})</span>}</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {batch.cost_per_bunch && +batch.cost_per_bunch > 0 && (

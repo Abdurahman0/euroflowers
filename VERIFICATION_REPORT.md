@@ -818,3 +818,47 @@ After a close the composition (and thus cost) comes into existence, so every one
   + returns the rest to the warehouse (catalog costs come into existence). Wired to the modal's «Yopish».
 - POST /api/catalog/ with `florist` + `volume` + `arrangement_type` and NO composition — the new florist
   catalog create path.
+
+═══════════════════════════════════════════════════════════════════
+# PARTIYA ANIQ vs YAXLIT NARX (exact/rounding) — BUILD + AUDIT (2026-08-01)
+═══════════════════════════════════════════════════════════════════
+
+## §0 — THE RULE: exact/rounding is DISPLAY-ONLY
+`cost_per_stem_exact` / `sale_price_per_stem_exact` + the `rounding` block (batch) and
+`total_cost_exact` / `rounding_diff` (delivery) are DISPLAY-ONLY. All accounting stays on the ROUNDED
+fields. Types carry an explicit ⚠️ comment naming this rule (lib/types.ts StockBatch/StockDelivery).
+
+### Verified-UNCHANGED consumers (all read the ROUNDED field; zero read *_exact)
+| Site | reads | field |
+|---|---|---|
+| lib/finance.ts:161 saleLineAllocations → allocateByCost | `batch_detail.cost_per_stem` | rounded |
+| app/hisob-kitob/page.tsx:191/246/248/856 (florist-waste/purchase/variant-waste/consumption) | `cost_per_stem` | rounded |
+| app/floristlarga-chiqarilgan/page.tsx:125/218 (value-at-cost) | `batch_detail.cost_per_stem` | rounded |
+| app/analitika/page.tsx:149 (waste value) | `batch_detail.cost_per_stem` | rounded |
+| KatalogModal live price memo :219-220 | `cost_per_stem`/`sale_price_per_stem` | rounded |
+| StockBatchCard / BatchDrawer / DeliveryDrawer / pickers (display) | `cost_per_stem`/`sale_price_per_stem` | rounded |
+| FloristStockAdjustModal / FloristCloseIssueModal / BatchSarfiPanel | (do NOT read cost) | — |
+Note: the slim `FloristStockBatchDetail` only carries the rounded `cost_per_stem`, so balance/issue
+value-at-cost is rounded by construction (no exact field to accidentally use).
+Guard Vitest: finance.test.ts asserts saleLineAllocations cost = 100×1000 (rounded), NOT 100×998
+(exact) — a future swap to `*_exact` fails loudly.
+
+## §1 — client helper vs server block (split cleanly)
+- FORM PREVIEW (StockBatchModal, before save): keeps the client helper `round(bunch/stems/100)*100` +
+  "(yaxlitlandi, aniq hisob 998)" — UNCHANGED (nothing exists server-side yet).
+- SAVED BATCH DISPLAY: switched to the server `rounding` block via new `roundingHint()` /
+  `deliveryRoundingHint()` (lib/inventory) — we NEVER recompute exact/diff/totals. Switched call sites:
+  DeliveryDrawer (flower row + Tannarx header), BatchDrawer meta (Dona narxi / Tannarx (dona)),
+  StockBatchCard narx row.
+
+## §2 — display (only when is_rounded / rounding_diff≠0, grey small)
+Delivery detail flower row: Pochka tannarxi · Dona tannarxi (aniq: 998 · +2) · Dona sotuv narxi
+(aniq: 1 060 · +40). Delivery header Tannarx: 100 000 so'm + «aniq hisob: 99 800 · yaxlitlashdan +200».
+Pickers intentionally show the ROUNDED price only (selection UI) — the exact/rounded detail lives in
+the batch/delivery detail views. BatchSarfiPanel reads a stats endpoint with no price → nothing to show.
+
+## §3 — verify
+Live GET (18 batches, 4 deliveries): every live row has `is_rounded:false` (prices divide evenly) so
+the hint is correctly HIDDEN on real data; exact fields present and equal to rounded. Screenshots
+(dark+light) with a MOCKED is_rounded:true batch confirm the layout. 113 Vitest (+4), tsc clean, no
+console errors. READ-ONLY: GET + OpenAPI only.

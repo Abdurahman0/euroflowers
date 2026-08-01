@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { roundToHundred, perStemFromBunch, exactPerStem, roundingNote, buildBatchPayload } from "./inventory";
+import { roundToHundred, perStemFromBunch, exactPerStem, roundingNote, buildBatchPayload, roundingHint, deliveryRoundingHint } from "./inventory";
+import type { RoundingSide } from "./types";
 
 // ── DR1: rounding parity — EVERY row of the spec table (client must equal server)
 describe("DR1 — pochka→dona rounding matches the spec table exactly", () => {
@@ -97,5 +98,30 @@ describe("DR2 — buildBatchPayload send-rules", () => {
     const both = buildBatchPayload({ ...base, receivedBunches: 8, receivedStems: 200 });
     expect(both.received_bunches).toBe("8.00");
     expect("received_stems" in both).toBe(false);
+  });
+});
+
+// ── DR3: display-only rounding hints — only surface when is_rounded, never compute
+const side = (over?: Partial<RoundingSide>): RoundingSide => ({
+  per_stem_exact: 998, per_stem_rounded: 1000, per_stem_diff: 2,
+  total_exact: 99800, total_rounded: 100000, total_diff: 200, is_rounded: true, ...over,
+});
+// ru locale ajratgichi — nabel probel (U+00A0); taqqoslashda oddiy probelga keltiramiz
+const nsp = (s: string | null) => (s == null ? null : s.replace(/ /g, " "));
+describe("DR3 — roundingHint / deliveryRoundingHint (DISPLAY-ONLY, server numbers)", () => {
+  it("roundingHint returns '(aniq …)' only when is_rounded=true", () => {
+    expect(nsp(roundingHint(side()))).toBe("aniq: 998 · +2");
+    expect(roundingHint(side({ is_rounded: false }))).toBeNull(); // flat split → nothing shown
+    expect(roundingHint(undefined)).toBeNull();
+    expect(roundingHint(null)).toBeNull();
+  });
+  it("roundingHint reads the server's exact/diff verbatim — does NOT recompute", () => {
+    // even if per_stem_rounded/exact are internally inconsistent, we echo the server's diff
+    expect(nsp(roundingHint(side({ per_stem_exact: 1060, per_stem_diff: 40 })))).toBe("aniq: 1 060 · +40");
+  });
+  it("deliveryRoundingHint only when rounding_diff != 0", () => {
+    expect(nsp(deliveryRoundingHint({ total_cost_exact: 99800, rounding_diff: 200 }))).toBe("aniq hisob: 99 800 · yaxlitlashdan +200");
+    expect(deliveryRoundingHint({ total_cost_exact: 100000, rounding_diff: 0 })).toBeNull();
+    expect(deliveryRoundingHint({ total_cost_exact: 100000 })).toBeNull(); // no diff field → nothing
   });
 });

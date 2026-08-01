@@ -11,7 +11,7 @@ import { BatchMovementModal } from "./BatchMovementModal";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtDate, fmtTime, movementRefLabel } from "@/lib/format";
-import { formatStemsAndBunches } from "@/lib/inventory";
+import { formatStemsAndBunches, roundingHint } from "@/lib/inventory";
 import type { StockBatch, StockMovement, Supplier } from "@/lib/types";
 
 /**
@@ -40,11 +40,13 @@ const formFrom = (x: StockBatch) => ({
   supplier: x.supplier ?? 0,
 });
 
-function Meta({ label, value }: { label: string; value: React.ReactNode }) {
+function Meta({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string | null }) {
   return (
     <div className="rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2.5">
       <div className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--muted)]">{label}</div>
       <div className="mt-0.5 text-[14px] font-semibold">{value}</div>
+      {/* ⚠️ DISPLAY-ONLY: server rounding blokidan aniq hisob (is_rounded=true bo'lganda) */}
+      {sub && <div className="mt-0.5 text-[10.5px] font-medium" style={{ color: "var(--mut)" }}>({sub})</div>}
     </div>
   );
 }
@@ -213,9 +215,9 @@ export default function BatchDrawer({
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <Meta label="Qoldiq" value={formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)} />
             <Meta label="Qabul qilingan" value={`${b.received_stems} dona`} />
-            <Meta label="Dona narxi" value={fmt(b.sale_price_per_stem)} />
+            <Meta label="Dona narxi" value={fmt(b.sale_price_per_stem)} sub={roundingHint(b.rounding?.sale)} />
             <Meta label="Pochka narxi" value={fmt(b.sale_price_per_bunch)} />
-            <Meta label="Tannarx (dona)" value={fmt(b.cost_per_stem)} />
+            <Meta label="Tannarx (dona)" value={fmt(b.cost_per_stem)} sub={roundingHint(b.rounding?.cost)} />
             {b.cost_per_bunch && +b.cost_per_bunch > 0 && <Meta label="Tannarx (pochka)" value={fmt(b.cost_per_bunch)} />}
             <Meta label="Sklad qiymati" value={fmt(b.stock_value)} />
             <Meta label="Keldi" value={fmtDate(b.received_at)} />
