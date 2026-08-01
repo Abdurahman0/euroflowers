@@ -226,11 +226,11 @@ export type BatchEditForm = {
 export type BatchEditOriginal = {
   batch_number?: string; received_at?: string; height_cm?: number; stems_per_bunch?: number;
   minimum_sale_stems?: number; notes?: string; image_url?: string;
-  cost_per_bunch?: string; sale_price_per_bunch?: string; cost_per_stem?: string; sale_price_per_stem?: string;
+  cost_per_bunch?: string | null; sale_price_per_bunch?: string | null; cost_per_stem?: string | null; sale_price_per_stem?: string | null;
 };
 const numEq = (a: string, b: string | number | undefined | null): boolean =>
   (parseFloat(a) || 0) === (b == null ? 0 : typeof b === "string" ? (parseFloat(b) || 0) : b);
-function addPriceEdit(p: Record<string, unknown>, kind: "cost" | "sale", manual: boolean, bunch: string, stem: string, origBunch?: string, origStem?: string) {
+function addPriceEdit(p: Record<string, unknown>, kind: "cost" | "sale", manual: boolean, bunch: string, stem: string, origBunch?: string | null, origStem?: string | null) {
   const bunchKey = kind === "cost" ? "cost_per_bunch" : "sale_price_per_bunch";
   const stemKey = kind === "cost" ? "cost_per_stem" : "sale_price_per_stem";
   const bunchChanged = bunch.trim() !== "" && !numEq(bunch, origBunch);

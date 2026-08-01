@@ -56,6 +56,9 @@ export default function BranchReportPage() {
   const maxRevenue = useMemo(() => Math.max(1, ...(rep?.branches ?? []).map((b) => +b.sold_revenue || 0)), [rep]);
   const transferBranchNames = useMemo(() => Array.from(new Set((transfers ?? []).map((t) => t.branch_name).filter(Boolean))), [transfers]);
   const shownTransfers = useMemo(() => (transfers ?? []).filter((t) => !tBranch || t.branch_name === tBranch), [transfers, tBranch]);
+  // ⚠️ FILIAL foydalanuvchisiga backend `source_price`ni OLIB TASHLAYDI. Ustunni MA'LUMOTdan
+  // aniqlaymiz: birorta transferda asl narx bo'lsagina «Asl → …» ko'rsatamiz (aks holda faqat filial narxi).
+  const transfersHaveSource = useMemo(() => shownTransfers.some((t) => t.source_price != null), [shownTransfers]);
 
   const doExport = async () => {
     if (!rep) return;
@@ -236,7 +239,7 @@ export default function BranchReportPage() {
               <table className="w-full min-w-[640px] border-collapse text-[13px]">
                 <thead><tr className="text-left" style={{ color: "var(--muted)" }}>
                   <th className="px-2 py-2 font-semibold">Mahsulot</th><th className="px-2 py-2 font-semibold">Filial</th>
-                  <th className="px-2 py-2 text-right font-semibold">Soni</th><th className="px-2 py-2 text-right font-semibold">Asl → Filial narxi</th><th className="px-2 py-2 text-right font-semibold">Sana</th>
+                  <th className="px-2 py-2 text-right font-semibold">Soni</th><th className="px-2 py-2 text-right font-semibold">{transfersHaveSource ? "Asl → Filial narxi" : "Filial narxi"}</th><th className="px-2 py-2 text-right font-semibold">Sana</th>
                 </tr></thead>
                 <tbody>
                   {shownTransfers.map((t) => (
@@ -245,7 +248,7 @@ export default function BranchReportPage() {
                       <td className="px-2 py-2.5 font-semibold">{t.catalog_name}<div className="text-[11px]" style={{ color: "var(--muted)" }}>filial yozuvi #{t.target_item ?? "—"}</div></td>
                       <td className="px-2 py-2.5">{t.branch_name}</td>
                       <td className="px-2 py-2.5 text-right tabular-nums">{t.quantity}</td>
-                      <td className="px-2 py-2.5 text-right tabular-nums">{fmt(t.source_price)} → <b>{fmt(t.target_price)}</b></td>
+                      <td className="px-2 py-2.5 text-right tabular-nums">{t.source_price != null ? <>{fmt(t.source_price)} → </> : ""}<b>{fmt(t.target_price)}</b></td>
                       <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{(t.created_at || "").slice(0, 10)}</td>
                     </tr>
                   ))}

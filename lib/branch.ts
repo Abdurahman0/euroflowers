@@ -42,6 +42,17 @@ export const isBranchUser = (branch: number | null | undefined): boolean => bran
 export const screenAllowedForBranch = (id: ScreenId, branchUser: boolean): boolean =>
   !branchUser || BRANCH_SCREENS.includes(id);
 
+/** Katalog javobida TANNARX/FOYDA/FLORIST maydonlari filial foydalanuvchisiga backend'da
+    OLIB TASHLANADI (null). Ustun/blok CHIZILMASLIGI kerak — «0 so'm» EMAS, YO'Q ([[filial-narx-yashirish]]).
+    ⚠️ Ko'rinishni MA'LUMOTdan aniqlaymiz (`profit` bloki bor-yo'qligi), ROLdan emas:
+      · asosiy foydalanuvchida `profit` DOIM keladi → ko'rsatamiz;
+      · filial foydalanuvchida `profit` HECH QACHON kelmaydi → yashiramiz.
+    Bu backend qoidasi kelajakda o'zgarsa ham UI to'g'ri qoladi (rolga qotib qolmaydi). Bu yerdagi
+    sirtlarning hammasi allaqachon YUKLANGAN item'dan render qilinadi (loader ortida), shuning uchun
+    flicker yo'q — qo'shimcha isBranchUser gate'i shart emas. */
+export const catalogHasCostData = (item: { profit?: unknown } | null | undefined): boolean =>
+  item != null && item.profit != null;
+
 /** PURE: (filial foydalanuvchisi?, ko'ra oladigan sahifalar) → ko'rinadigan ekranlar.
     Ruxsat VA filial qatlami — ikkalasi ham o'tishi shart, hech qachon ko'proq emas. */
 export function visibleScreens(branchUser: boolean, viewablePages: PermissionPage[]): ScreenId[] {

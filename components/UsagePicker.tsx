@@ -68,7 +68,7 @@ export function StockUsagePicker({
             options={batches.map((b) => ({
               value: b.id,
               label: batchLabel(b),
-              sub: `Skladda: ${leftOf(b)} dona · ${Math.round(+b.sale_price_per_stem).toLocaleString("ru")} so'm/dona · №${b.batch_number}`,
+              sub: `Skladda: ${leftOf(b)} dona · ${Math.round(+(b.sale_price_per_stem ?? 0)).toLocaleString("ru")} so'm/dona · №${b.batch_number}`,
               hint: `${leftOf(b)} dona`,
             }))}
           />
@@ -230,7 +230,7 @@ export function MaterialUsagePicker({
             options={materials.map((m) => ({
               value: m.id,
               label: `${m.name_uz || m.name_ru}${m.size ? ` (${m.size})` : ""}`,
-              sub: `${PKG_TYPE[m.packaging_type] ?? m.packaging_type} · ${Math.round(+m.sale_price).toLocaleString("ru")} so'm · skladda: ${leftOf(m)} dona`,
+              sub: `${PKG_TYPE[m.packaging_type] ?? m.packaging_type} · ${Math.round(+(m.sale_price ?? 0)).toLocaleString("ru")} so'm · skladda: ${leftOf(m)} dona`,
               hint: `${leftOf(m)} dona`,
             }))}
           />

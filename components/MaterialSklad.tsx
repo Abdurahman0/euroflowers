@@ -39,8 +39,8 @@ export function MaterialModal({ material, onClose, onSaved }: { material: Packag
     name_ru: material?.name_ru ?? "",
     packaging_type: normType(material?.packaging_type ?? "wrap"),
     size: material?.size ?? "",
-    cost_price: material ? String(Math.round(+material.cost_price)) : "",
-    sale_price: material ? String(Math.round(+material.sale_price)) : "",
+    cost_price: material ? String(Math.round(+(material.cost_price ?? 0))) : "",
+    sale_price: material ? String(Math.round(+(material.sale_price ?? 0))) : "",
     quantity: material ? String(material.quantity) : "",
   });
   const [busy, setBusy] = useState(false);

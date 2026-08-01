@@ -4,6 +4,7 @@ import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send
 import Modal from "./Modal";
 import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
 import { KIND_LABEL, catalogWaiting } from "@/lib/inventory";
+import { catalogHasCostData } from "@/lib/branch";
 import { api } from "@/lib/api";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import type { CatalogHistory, CatalogHistoryAction, CatalogItem } from "@/lib/types";
@@ -61,6 +62,9 @@ export default function KatalogViewModal({
   const left = Math.max(total - sold, 0);
   const discount = Math.round(+(full.discount_amount ?? 0) || 0);
   const salary = Math.round(+(full.florist_salary_amount ?? 0) || 0);
+  // ⚠️ FILIAL narx yashirish: tannarx/foyda/florist bloklari MA'LUMOTdan aniqlanadi (profit bor-yo'q).
+  // false bo'lsa — bu ustun/qatorlar UMUMAN chizilmaydi (bo'sh «0 so'm»/tire EMAS). [[filial-narx-yashirish]]
+  const showCost = catalogHasCostData(full);
 
   // faqat MA'NOLI tarix: sotuvlar va chegirmalar birinchi navbatda
   const history = (full.history ?? []).slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
@@ -93,7 +97,7 @@ export default function KatalogViewModal({
               {left} TA QOLDI
             </span>
           )}
-          {discount > 0 && (
+          {showCost && discount > 0 && (
             <span className="absolute bottom-2.5 left-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold text-white" style={{ background: "var(--danger-ink)" }}>
               CHEGIRMA {fmt(discount)}
             </span>
@@ -111,8 +115,9 @@ export default function KatalogViewModal({
           <h2 className="min-w-0 text-[18px] font-bold tracking-tight">{full.name_uz || full.name_ru}</h2>
           <span className="whitespace-nowrap text-right">
             <span className="block text-[16px] font-bold" style={{ color: "var(--acc)" }}>{fmt(full.price)}</span>
-            {/* asl narx — FILIALGA yuborilgan nusxada saqlanadi (muted "asl narx") */}
-            {full.source_price != null && +full.source_price > 0 && +full.source_price !== +full.price && (
+            {/* asl narx (source_price) — FILIALGA yuborilgan nusxada saqlanadi; filial foydalanuvchisiga
+                backend NULL qaytaradi (Toshkent narxi) → faqat asosiy admin ko'radi. */}
+            {showCost && full.source_price != null && +full.source_price > 0 && +full.source_price !== +full.price && (
               <span className="block text-[11.5px]" style={{ color: "var(--muted)" }}>asl narx {fmt(full.source_price)}</span>
             )}
           </span>
@@ -134,10 +139,11 @@ export default function KatalogViewModal({
       <div className="mt-3.5 rounded-2xl border border-[color:var(--border)]">
         <Row k="Turi" v={ARRANGEMENT_LABEL[full.arrangement_type] ?? full.arrangement_type} />
         {full.height_cm != null && <Row k="Bo'yi" v={`${full.height_cm} sm`} />}
-        {full.calculated_component_price != null && +full.calculated_component_price > 0 && (
+        {/* ⚠️ TANNARX/FOYDA/FLORIST bloki — FILIAL foydalanuvchisiga UMUMAN chizilmaydi (showCost). */}
+        {showCost && full.calculated_component_price != null && +full.calculated_component_price > 0 && (
           <Row k="Komponentlar narxi" v={fmt(full.calculated_component_price)} />
         )}
-        {discount > 0 && (
+        {showCost && discount > 0 && (
           <Row
             k={`Chegirma${full.discount_percent && +full.discount_percent > 0 ? ` (${Math.round(+full.discount_percent * 10) / 10}%)` : ""}`}
             v={fmt(discount)}
@@ -146,9 +152,9 @@ export default function KatalogViewModal({
         )}
         {full.discount_reason && <Row k="Chegirma sababi" v={full.discount_reason} />}
         {full.note && <Row k="Ichki izoh" v={full.note} />}
-        {full.florist_fee != null && +full.florist_fee > 0 && <Row k="Floristika xizmati (mijozdan)" v={fmt(full.florist_fee)} />}
-        {salary > 0 && <Row k="Florist oyligiga" v={fmt(salary)} hue="var(--acc)" />}
-        {full.florist_detail && (
+        {showCost && full.florist_fee != null && +full.florist_fee > 0 && <Row k="Floristika xizmati (mijozdan)" v={fmt(full.florist_fee)} />}
+        {showCost && salary > 0 && <Row k="Florist oyligiga" v={fmt(salary)} hue="var(--acc)" />}
+        {showCost && full.florist_detail && (
           <Row
             k="Florist"
             v={[full.florist_detail.user_detail?.first_name, full.florist_detail.user_detail?.last_name].filter(Boolean).join(" ") || full.florist_detail.user_detail?.username || `#${full.florist_detail.id}`}

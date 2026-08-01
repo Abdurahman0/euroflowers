@@ -238,10 +238,10 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
 
   // JONLI NARX (klient preview — server calculated_* bilan solishtiriladi)
   const price = useMemo(() => {
-    const compPrice = comp.reduce((s, r) => { const b = batchOf(r.stock_batch); return s + (b ? Math.round(+b.sale_price_per_stem) * stemsOfRow(r) : 0); }, 0);
-    const compCost = comp.reduce((s, r) => { const b = batchOf(r.stock_batch); return s + (b ? Math.round(+b.cost_per_stem) * stemsOfRow(r) : 0); }, 0);
-    const matPrice = mats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+p.sale_price) * (+m.qty || 0) : 0); }, 0);
-    const matCost = mats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+p.cost_price) * (+m.qty || 0) : 0); }, 0);
+    const compPrice = comp.reduce((s, r) => { const b = batchOf(r.stock_batch); return s + (b ? Math.round(+(b.sale_price_per_stem ?? 0)) * stemsOfRow(r) : 0); }, 0);
+    const compCost = comp.reduce((s, r) => { const b = batchOf(r.stock_batch); return s + (b ? Math.round(+(b.cost_per_stem ?? 0)) * stemsOfRow(r) : 0); }, 0);
+    const matPrice = mats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+(p.sale_price ?? 0)) * (+m.qty || 0) : 0); }, 0);
+    const matCost = mats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+(p.cost_price ?? 0)) * (+m.qty || 0) : 0); }, 0);
     const fee = +f.florist_fee || 0;
     // BACKEND kontrakti (jonli tekshiruvda tasdiqlangan):
     //  • florist_fee HAM component narxiga, HAM tannarxga qo'shiladi
@@ -669,7 +669,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             // validatsiya SHU partiyaga tegishli BARCHA qatorlar yig'indisi bo'yicha (sklad qoldig'i)
             const over = r.stock_batch > 0 ? stemsForBatchNow(r.stock_batch) > avail : false;
             const under = b ? st > 0 && st < b.minimum_sale_stems : false;
-            const sub = b ? Math.round(+b.sale_price_per_stem) * st : 0;
+            const sub = b ? Math.round(+(b.sale_price_per_stem ?? 0)) * st : 0;
             const spb = spbOf(r.stock_batch);
             const flashing = flashBatch != null && r.stock_batch === flashBatch;
             const offending = stockError?.batchId != null && r.stock_batch === stockError.batchId;
@@ -732,7 +732,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           <div className="flex flex-col gap-2.5">
             {mats.map((m, i) => {
               const p = matOf(m.packaging);
-              const sub = p ? Math.round(+p.sale_price) * (+m.qty || 0) : 0;
+              const sub = p ? Math.round(+(p.sale_price ?? 0)) * (+m.qty || 0) : 0;
               const overMat = p ? (+m.qty || 0) > p.quantity : false;
               const flashing = flashMat != null && m.packaging === flashMat;
               return (

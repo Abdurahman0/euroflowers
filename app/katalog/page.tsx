@@ -12,6 +12,7 @@ import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import { catalogWaiting } from "@/lib/inventory";
+import { catalogHasCostData } from "@/lib/branch";
 import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
 import KatalogViewModal from "@/components/KatalogViewModal";
@@ -303,15 +304,16 @@ export default function KatalogPage() {
                 {(k.description_uz || k.description_ru) && (
                   <p className="text-[13px] italic" style={{ color: "var(--mut)" }}>{k.description_uz || k.description_ru}</p>
                 )}
-                {/* florist chipi (kim tayyorladi) */}
-                {k.florist_detail ? (
+                {/* florist chipi (kim tayyorladi) — ⚠️ FILIAL foydalanuvchisiga UMUMAN chizilmaydi
+                    (florist kimligi asosiy filial ishi; catalogHasCostData bilan gate). */}
+                {catalogHasCostData(k) && (k.florist_detail ? (
                   <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>
                     <span className="avatar-lead flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold">{initials(floristName(k.florist_detail))}</span>
                     <span className="truncate" title={floristName(k.florist_detail)}>{floristName(k.florist_detail)}</span>
                   </span>
                 ) : (
                   <span className="text-[12px] italic" style={{ color: "var(--muted)" }}>Florist ko&apos;rsatilmagan</span>
-                )}
+                ))}
                 {/* KUTAYAPTI: material+haq hisobda, faqat gul tannarxi yopilganda qo'shiladi → foyda hali to'liq emas */}
                 {isUndistributed(k) && (
                   <span className="flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }} title="Material va florist haqi allaqachon tannarxda; faqat gul tannarxi chiqim yopilganda qo'shiladi — foyda shundan keyin to'liq bo'ladi">
@@ -349,8 +351,8 @@ export default function KatalogPage() {
                     <span className="rounded-full bg-tint px-2.5 py-0.5">Jami: {total}</span>
                     <span className="rounded-full bg-tint px-2.5 py-0.5">Sotildi: {sold}</span>
                     {pending > 0 && <span className="rounded-full bg-peach px-2.5 py-0.5 text-peachink">Kutilmoqda: {pending}</span>}
-                    {/* chegirmada sotilgan — sotuv tarixida sabab bilan saqlanadi */}
-                    {+(k.discount_amount ?? 0) > 0 && (
+                    {/* chegirmada sotilgan — ⚠️ FILIALGA yashiriladi (komponent narxidan hisoblanadi, tannarxni oshkor qiladi) */}
+                    {catalogHasCostData(k) && +(k.discount_amount ?? 0) > 0 && (
                       <span
                         className="rounded-full px-2.5 py-0.5"
                         style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}

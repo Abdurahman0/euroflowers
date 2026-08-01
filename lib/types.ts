@@ -277,16 +277,18 @@ export type StockBatch = {
   received_stems: number;
   received_bunches?: string;
   remaining_stems: number;
-  /** ⚠️ YAXLITLANGAN dona tannarxi — HAMMA HISOB-KITOB SHU BILAN BORADI. */
-  cost_per_stem: string;
+  /** ⚠️ YAXLITLANGAN dona tannarxi — HAMMA HISOB-KITOB SHU BILAN BORADI.
+      ⚠️ FILIAL: katalog `composition[].batch_detail` ichida bu (va boshqa narx/qoldiq) maydonlar
+      backend'da NULL bo'ladi — gul nomi/navi/rangi/bo'yi qoladi. Sklad/kompozitor (asosiy) — to'liq. */
+  cost_per_stem?: string | null;
   /** pochka tannarxi — yuborilsa cost_per_stem = cost_per_bunch ÷ stems_per_bunch,
       100 ga yaxlitlanadi (server hisoblaydi). Ikkalasi yuborilsa server hech narsa hisoblamaydi. */
-  cost_per_bunch?: string;
+  cost_per_bunch?: string | null;
   /** ⚠️ ANIQ dona tannarxi (4 xona) — FAQAT KO'RSATISH UCHUN. Hech qanday hisobga KIRMAYDI. */
-  cost_per_stem_exact?: string;
-  /** ⚠️ YAXLITLANGAN dona sotuv narxi — hisob shu bilan. */
-  sale_price_per_stem: string;
-  sale_price_per_bunch: string;
+  cost_per_stem_exact?: string | null;
+  /** ⚠️ YAXLITLANGAN dona sotuv narxi — hisob shu bilan. (FILIAL nested: null) */
+  sale_price_per_stem?: string | null;
+  sale_price_per_bunch?: string | null;
   /** ⚠️ ANIQ dona sotuv narxi (4 xona) — FAQAT KO'RSATISH UCHUN. Hisobga KIRMAYDI. */
   sale_price_per_stem_exact?: string;
   /** ⚠️ DISPLAY-ONLY yaxlitlash bloki (server tayyor beradi — farqni O'ZIMIZ hisoblamaymiz).
@@ -457,18 +459,24 @@ export type CatalogItem = {
   height_cm: number | null;
   diameter_cm: number | null;
   price: string;
-  /** mijozdan olinadigan floristika xizmati (foydaga kiradi) */
-  florist_fee: string;
+  /** mijozdan olinadigan floristika xizmati (foydaga kiradi).
+      ⚠️ FILIAL foydalanuvchisiga backend NULL qaytaradi (tannarxni oshkor qiladi) — [[filial-narx-yashirish]]. */
+  florist_fee?: string | null;
   /** florist OYLIGIGA yoziladigan summa — maxsus katalogda fee'dan AJRATILGAN
-      (backend: custom'da florist_fee avtomatik oylikka qo'shilmaydi) */
-  florist_salary_amount?: string;
+      (backend: custom'da florist_fee avtomatik oylikka qo'shilmaydi). ⚠️ FILIALGA null. */
+  florist_salary_amount?: string | null;
+  /** ⚠️ FILIALGA null — kim yasagani asosiy filial ishi. */
   florist?: number | null;
   florist_detail?: FloristProfile | null;
-  /** backend hisoblaydi — mijoz preview'i faqat yo'l-yo'riq */
-  calculated_cost_price?: string;
-  calculated_component_price?: string;
-  discount_amount?: string;
-  discount_percent?: string;
+  /** backend hisoblaydi — mijoz preview'i faqat yo'l-yo'riq. ⚠️ FILIALGA null (tannarx). */
+  calculated_cost_price?: string | null;
+  calculated_component_price?: string | null;
+  /** ⚠️ FILIALGA null — komponent narxidan hisoblanadi, tannarxni oshkor qiladi. */
+  discount_amount?: string | null;
+  discount_percent?: string | null;
+  /** foyda bloki (tannarx + marja) — ⚠️ FILIAL foydalanuvchisiga BUTUN blok null bo'ladi.
+      Ko'rinishni SHU maydondan aniqlaymiz: `catalogHasCostData(item)` (lib/branch). */
+  profit?: CatalogProfit | null;
   /** chegirma sababi — calculated narxdan past sotilganda MAJBURIY */
   discount_reason?: string;
   /** ichki izoh / nazoratchi izohi — create/update'da yuboriladi, javobda qaytadi */
@@ -486,10 +494,26 @@ export type CatalogItem = {
   branch?: number;
   /** filial nomi (RO) — katalog javobiga qo'shildi (asosiy/Parkent) */
   branch_name?: string;
-  /** asosiy filial narxi — FILIALGA yuborilgan nusxada saqlanadi (null = yuborilmagan) */
+  /** asosiy filial narxi — FILIALGA yuborilgan nusxada saqlanadi (null = yuborilmagan).
+      ⚠️ FILIAL foydalanuvchisiga backend butunlay olib tashlaydi (Toshkent narxi). */
   source_price?: string | null;
+  /** manba katalog id — transfer nusxasi uchun. ⚠️ FILIALGA null. */
+  source_item?: number | null;
   social_post: number | null;
   created_by: number | null;
+};
+
+/** Katalog FOYDA bloki (backend hisoblaydi). ⚠️ FILIAL foydalanuvchisiga BUTUN blok null —
+    ko'rinish shu maydonning bor-yo'qligidan aniqlanadi (catalogHasCostData). */
+export type CatalogProfit = {
+  unit_price?: string | null;
+  unit_cost?: string | null;
+  unit_profit?: string | null;
+  unit_margin_percent?: string | null;
+  total_cost?: string | null;
+  total_potential_profit?: string | null;
+  sold_quantity?: number | null;
+  realized_profit?: string | null;
 };
 
 /** To'lov turi — katalog sotuvida (kontrakt: cash|card) */
@@ -716,9 +740,12 @@ export type Packaging = {
   capacity_max_stems: number;
   /** ⚠️ BITTA o'zgaruvchan tannarx — har material kirimi (receive) buni QAYTA YOZADI.
       Gul partiyasidan farqi: materialда per-partiya tannarx yo'q. Katalog material
-      tannarxi SHU joriy qiymatdan o'qiladi → eski kataloglar tannarxi retroaktiv siljiydi. */
-  cost_price: string;
-  sale_price: string;
+      tannarxi SHU joriy qiymatdan o'qiladi → eski kataloglar tannarxi retroaktiv siljiydi.
+      ⚠️ FILIAL: katalog `materials[].packaging_detail` ichida bu maydonlar backend'da NULL bo'ladi. */
+  cost_price?: string | null;
+  sale_price?: string | null;
+  /** ⚠️ FILIAL: katalog nested packaging_detail'da null (sklad qoldig'i oshkor bo'lmasin).
+      Materiallar sahifasi/kompozitorda (asosiy foydalanuvchi) esa doim to'liq keladi. */
   quantity: number;
   image_url: string;
   is_active: boolean;
@@ -990,7 +1017,8 @@ export type CatalogTransfer = {
   branch_name: string;
   catalog_name: string;
   quantity: number;
-  source_price: string;
+  /** asosiy filial narxi — ⚠️ FILIAL foydalanuvchisiga backend OLIB TASHLAYDI (faqat asosiy admin ko'radi). */
+  source_price?: string | null;
   target_price: string;
   note?: string;
   source_item?: number | null;

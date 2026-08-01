@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { login, ApiError } from "@/lib/api";
+import { invalidateReportCache } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
 import { Icon } from "@/components/icons";
 import SoundToggle from "@/components/SoundToggle";
@@ -100,6 +101,10 @@ export default function LoginPage() {
     setErr("");
     try {
       const u = await login(username.trim(), password);
+      // ⚠️ FILIAL narx yashirish §5: yangi sessiya — oldingi foydalanuvchining hisobot keshini
+      // (accounting/stock) TOZALAYMIZ, aks holda asosiy-filial tannarxi filial ko'rinishiga sizishi mumkin.
+      // (logout to'liq reload qiladi, lekin bu qo'shimcha himoya — SPA login yo'llari uchun ham.)
+      invalidateReportCache();
       // kontrakt: token javobida user+permissions keladi; bo'lmasa /api/me/
       if (u) setUser(u);
       else await loadMe();

@@ -57,11 +57,11 @@ export default function EditLeadModal({
   const suggested = useMemo(() => {
     const flowersSum = stockRows.reduce((s, r) => {
       const b = batches.find((x) => x.id === r.stock_batch);
-      return s + (b ? Math.round(+b.sale_price_per_stem) * r.quantity_stems : 0);
+      return s + (b ? Math.round(+(b.sale_price_per_stem ?? 0)) * r.quantity_stems : 0);
     }, 0);
     const packSum = packRows.reduce((s, r) => {
       const m = materials.find((x) => x.id === r.packaging);
-      return s + (m ? Math.round(+m.sale_price) * r.quantity : 0);
+      return s + (m ? Math.round(+(m.sale_price ?? 0)) * r.quantity : 0);
     }, 0);
     return flowersSum + packSum + (+f.florist_fee || 0);
   }, [stockRows, packRows, batches, materials, f.florist_fee]);
