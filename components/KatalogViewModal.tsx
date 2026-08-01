@@ -100,10 +100,11 @@ export default function KatalogViewModal({
           )}
         </div>
 
-        {/* KUTAYAPTI: florist katalogi, gul tanlangan lekin soni 0 → tannarxда gul qismi hozircha 0 */}
+        {/* KUTAYAPTI: florist katalogi, gul tanlangan lekin soni 0. ⚠️ §0c ANIQ: material va florist
+            haqi ALLAQACHON tannarxda (yaratishda yechilgan) — faqat GUL tannarxi hali qo'shilmagan. */}
         {catalogWaiting(full) && (
-          <div className="mt-2 flex items-center gap-1.5 rounded-[11px] px-3 py-2 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }}>
-            <Info size={14} strokeWidth={2.4} className="shrink-0" /> Chiqim yopilishini kutayapti — gul tanlangan, soni yopilganda hisoblanadi. Tannarx/foyda shundan keyin haqiqiy.
+          <div className="mt-2 flex items-start gap-1.5 rounded-[11px] px-3 py-2 text-[12.5px] font-bold leading-snug" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }}>
+            <Info size={14} strokeWidth={2.4} className="mt-0.5 shrink-0" /> Chiqim yopilishini kutayapti — material va florist haqi allaqachon hisobda, faqat <b>gul tannarxi</b> hali qo&apos;shilmagan (yopilganda qo&apos;shiladi). Foyda shu bois hozircha to&apos;liq emas.
           </div>
         )}
         <div className="mt-3.5 flex items-baseline justify-between gap-3">

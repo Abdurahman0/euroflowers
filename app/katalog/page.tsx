@@ -32,8 +32,8 @@ const compositionText = (k: CatalogItem) =>
     .map((c) => `${c.batch_detail?.variant_detail?.flower_detail?.name_uz ?? ""} ${c.batch_detail?.variant_detail?.name_uz ?? ""} ${c.quantity_stems} dona`.trim())
     .join(" · ") || "Tarkib kiritilmagan";
 
-/** LIMBO: florist katalogi, lekin gul HALI taqsimlanmagan (chiqim yopilmagan) → composition bo'sh.
-    Bunday item'ning tannarxi 0, foydasi 100% ko'rinadi — «Gul taqsimlanmagan» chipi bilan belgilanadi. */
+/** KUTAYAPTI: florist katalogi, gul tanlangan lekin soni 0 (chiqim yopilmagan). ⚠️ §0c: material
+    va florist haqi ALLAQACHON tannarxda — faqat GUL tannarxi hali qo'shilmagan. «Gul taqsimlanmagan» chip. */
 // ⚠️ «kutayapti» = florist katalogi, gul tanlangan lekin soni hali 0 (chiqim yopilmagan).
 // Yagona manba: catalogWaiting (eski bo'sh-kompozitsiyali itemlarni ham qamraydi).
 const isUndistributed = (k: CatalogItem) => catalogWaiting(k);
@@ -312,9 +312,9 @@ export default function KatalogPage() {
                 ) : (
                   <span className="text-[12px] italic" style={{ color: "var(--muted)" }}>Florist ko&apos;rsatilmagan</span>
                 )}
-                {/* LIMBO: florist katalogi, gul hali taqsimlanmagan → tannarx/foyda HAQIQIY EMAS */}
+                {/* KUTAYAPTI: material+haq hisobda, faqat gul tannarxi yopilganda qo'shiladi → foyda hali to'liq emas */}
                 {isUndistributed(k) && (
-                  <span className="flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }} title="Gul chiqim yopilganda taqsimlanadi — tannarx va foyda shundan keyin haqiqiy bo'ladi">
+                  <span className="flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }} title="Material va florist haqi allaqachon tannarxda; faqat gul tannarxi chiqim yopilganda qo'shiladi — foyda shundan keyin to'liq bo'ladi">
                     <Info size={11} strokeWidth={2.4} /> Gul taqsimlanmagan
                   </span>
                 )}

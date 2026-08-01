@@ -509,6 +509,14 @@ export const api = {
   floristStockReturn: (data: FloristStockReturnInput) =>
     request<FloristStockIssue>("/api/florist-stock-issues/return/", { method: "POST", body: JSON.stringify(data) }),
   floristStockIssues: (p?: Params) => list<FloristStockIssue>("/api/florist-stock-issues/", p),
+  /** Chiqim/qaytarish/chiqit yozuvini TAHRIRLASH — faqat son va izoh (florist/partiya o'zgarmas).
+      Farq skladga va florist balansiga avtomatik siljiydi (yo'nalish kind bo'yicha). */
+  floristStockIssueEdit: (id: number, data: { quantity_stems?: number; reason?: string }) =>
+    request<FloristStockIssue>(`/api/florist-stock-issues/${id}/edit/`, { method: "PATCH", body: JSON.stringify(data) }),
+  /** ⚠️ BEKOR QILISH — DELETE, DESTRUKTIV va QAYTMAS: yozuv o'chadi, sklad+florist qoldig'i asl
+      holiga qaytadi, sklad harakati ham o'chadi. Gul katalogda ishlatilgan bo'lsa 400 (bekor bo'lmaydi). */
+  floristStockIssueCancel: (id: number) =>
+    request<void>(`/api/florist-stock-issues/${id}/cancel/`, { method: "DELETE" }),
   /** Kimda qancha gul bor. Sukut: faqat remaining>0; hammasi uchun only_available=false. */
   floristStockBalances: (p?: Params) => list<FloristStockBalance>("/api/florist-stock-balances/", p),
 

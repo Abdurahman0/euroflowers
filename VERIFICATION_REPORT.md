@@ -456,6 +456,12 @@ go-live:
 ### KATALOG (florist + GUL + Turi + Hajm, SONI YO'Q) → CHIQIMNI YOPISH (har gulga alohida) →
 ### ADJUST. Gul-picker QAYTARILDI (FloristCompositionPicker) — faqat SON kiritish olib tashlandi;
 ### gul florist balansidan tanlanadi, miqdor chiqim yopilganda hisoblanadi.
+### ⚠️⚠️ KATALOG_TAHRIR (2026-08-01, keyingi): (§3) STANDART composerdan «Florist ish haqi» input,
+### «Floristika xizmati» va «Mijoz» OLIB TASHLANDI — standartda haq faqat HAJM TARIFIDAN, read-only
+### matn («Tarifdan: X»). CUSTOM'da uchalasi ham QOLADI. (§1) Son tahriri: kutayotgan katalogda
+### bemalol; YOPILGANDA oshirish gul talab qiladi (400 AYNAN + «gul chiqarish»/«adjust» yo'llari).
+### (§4) Tarix qatoriga ✏️Tuzatish · 🗑Bekor qilish — issue/return/waste ENDI QAYTMAS EMAS (cancel bilan
+### orqaga qaytadi, stem ishlatilmagan bo'lsa). Risk annotatsiyalari SHUNGA QARAB yangilandi (pastda).
 1.  Rate save: florist → «Hajm tariflari» → 6 katak → HAR katakda ish haqi VA «standart dona»
     (default_stems) — endi u TAQSIMOT OG'IRLIGI. Fee bor, dona yo'q katak OGOHLANTIRILADI. Saqlash. REV.
 2.  Empty ONE rate cell → Saqlash (o'sha hajm nofaol). REV — katakni qaytaring.
@@ -470,14 +476,27 @@ go-live:
     chiplardan yuqorida. Excel = HISOBOT (filiallar + JAMI); transfer tarixi faylga KIRMAYDI.
     Transfer tabida «Butun davr — sana filtri qo'llanmaydi» satri (backend date filtri yo'q — LIST 2 j).
     Ikkala tab ham hozir bo'sh (0 transfer, 0 filial sotuvi) — har biri nimadan to'lishini tushuntiradi. READ.
-6.  ISSUE florist + batch + ~8 → Chiqarish. REV (return orqali). Eski, arzon, tugab-qolgan partiya.
-7.  FLORIST KATALOGI (gul TANLANADI, soni yo'q): +Katalog → florist tanlang → «Gullar (florist
-    qo'lidan)» bloki chiqadi (FloristCompositionPicker): balansdan GUL tanlanadi, «Yana gul» bilan
-    bir nechta xil gul; SON kiritilmaydi (qoldiq faqat read-only kontekst). Turi + Hajm (majburiy)
-    ham. Gulsiz → «Floristga chiqarilgan qaysi guldan yasalganini tanlang»; hajmsiz → volume 400.
-    Salary «Tarifdan olindi». Kartada «Gul taqsimlanmagan» chip + katalog filtri (soni hali 0).
-    Balanssiz florist → «Bu floristga hali gul chiqarilmagan» + «Floristga gul chiqarish» yorlig'i.
+6.  ISSUE florist + batch + ~8 → Chiqarish. REV (cancel YOKI return orqali — §0d: cancel yozuvni
+    o'chirib IKKALA balansni asl holiga qaytaradi, gul ishlatilmagan bo'lsa). Eski, arzon partiya.
+7.  FLORIST KATALOGI (gul TANLANADI, soni yo'q): +Katalog → STANDART → florist tanlang → «Gullar
+    (florist qo'lidan)» (FloristCompositionPicker): balansdan GUL, «Yana gul» bilan ko'p xil gul;
+    SON kiritilmaydi (qoldiq read-only kontekst). Turi + Hajm (majburiy). Gulsiz → «Floristga
+    chiqarilgan qaysi guldan yasalganini tanlang»; hajmsiz → volume 400.
+    ✅ §3: «Florist ish haqi» INPUT YO'Q — o'rniga read-only «Tarifdan: X so'm» (florist+hajm tanlangach)
+       + «Florist oyligiga: X × N = …» satri. «Floristika xizmati» va «Mijoz» bo'limlari HAM YO'Q.
+    ✅ §0b: tarifsiz florist (masalan Abror) + hajm → «{Florist} uchun {Hajm} tarifi belgilanmagan —
+       katalog saqlanmaydi» + «Tarif qo'shish →» (→ /floristlar?rateFor=<id>). 10 floristdan 9 tasi
+       hozir TARIFSIZ (faqat Fatxulloh #8 da 6 tarif bor) — bulardan katalog yaratib bo'lmaydi (LIST 2 e).
+    ✅ §2: «Materiallar» — son HAR BITTA DONAGA (× soni server), «har bitta dona» izohi ko'rinadi;
+       material tanlab sonini bo'sh qoldiring → «Material sonini kiriting» (guldan farqli MAJBURIY).
+    Kartada «Gul taqsimlanmagan» chip (material+haq allaqachon hisobda, faqat gul tannarxi kutilmoqda).
     Gul tanlab floristni almashtiring → tanlov TOZALANADI. IRREV (yoziladi) — arzon test item.
+7c. CUSTOM composer solishtirish: +Katalog → MAXSUS → florist → ✅ «Floristika xizmati», «Florist ish
+    haqi» (EDITABLE input, tarifdan prefill) va «Mijoz» bo'limlari HAMMASI QOLADI (standartdan farqi). READ.
+7d. §1 SON TAHRIRI: 7-qadam katalogini (KUTAYOTGAN — hali yopilmagan) tahrirlang → sonni 1→3 qiling,
+    gulni ham o'zgartiring → Saqlash. ✅ Bemalol saqlanadi (backend bug tuzatilgan); forma «bemalol
+    o'zgartirasiz» deб yozadi. Chiqim yopgandan KEYIN sonni oshiring → 400 «… qo'lida yetarli gul yo'q»
+    AYNAN chiqadi + «Floristga gul chiqarish» va «Hisobni to'g'rilash (adjust)» yo'llari ko'rinadi. IRREV-ish.
 7a. CHIQIMNI YOPISH (birinchi taqsimot): Floristlarga chiqarilgan → Kimda qancha gul bor →
     qatordagi «Chiqimni yopish ⌄» menyusi (adjust ham shu yerda, yopish DOMINANT). Skladga
     qaytariladi kiriting → preview jadvali (Katalog·Hajm·Standart·Tushadi, per-item VA jami).
@@ -485,15 +504,26 @@ go-live:
     havolasi. Yopish. IRREV — katalog tannarxi endi PAYDO bo'ladi, «taqsimlanmagan» chip yo'qoladi.
 7b. ADJUST (keyingi tuzatish): shu qatorda «To'g'rilash» — close'dan KEYIN kam/ko'p ishlatilgan
     bo'lsa. Modal bir qatorli izoh bilan tartibni aytadi. IRREV (audit'da bosilmadi).
+7e. §4 CHIQIMNI TUZATISH/BEKOR (Tarix tabi): Floristlarga chiqarilgan → Tarix → qatordagi «⋮» →
+    ✅ «Tuzatish» → faqat SON + IZOH (florist/gul o'zgarmas — modal buni aytadi); sonni o'zgartiring →
+       DELTA preview «Skladda: X → Y · Floristda: X → Y» ko'rinadi (issue→sklad−/florist+; return→sklad+/
+       florist−; waste→faqat florist−). Saqlash → sklad+florist qoldig'i siljiydi.
+    ✅ «Bekor qilish» → kind bo'yicha aniq matn (issue→skladga qaytadi; return→floristga qaytadi;
+       waste→floristga qaytadi) + «butunlay o'chadi, orqaga qaytarib bo'lmaydi». Ha bosing → yozuv o'chadi.
+    ✅ Ishlatilgan chiqimni bekor qiling → 400 «… qo'lida atigi 0 dona bor, N donalik chiqimni bekor
+       qilib bo'lmaydi» AYNAN chiqadi (UI: ishlatilgan gul orqaga qaytmaydi). Muvaffaqiyatda balanslar+
+       tarix qayta yuklanadi, hisobot keshi yangilanadi. REV natijasi (bekor = asl holatga qaytish).
 8.  User branch: Xodimlar → NON-kritik userni Parkentga biriktiring. REV — keyin Asosiyga qaytaring.
 9.  User branch: o'sha userni Filialga TEGMASDAN saqlang. READ-ish — filiali o'zgarmasligini tekshiring.
 10. Customer on sale: 7-qadam item, 1 dona, Mavjud/Yangi mijoz. IRREV (sotuv yoziladi).
-11. RETURN: issue'ning bir qismini qaytaring. REV — sklad tiklanadi.
+11. RETURN: issue'ning bir qismini qaytaring. REV — sklad tiklanadi; qaytarish yozuvi ham endi
+    Tarixdan TUZATILADI/BEKOR qilinadi (§4).
 12. TRANSFER: asosiy katalog item → Filialga yuborish, 1 dona, eng arzon. IRREV — QAYTARIB BO'LMAYDI.
 13. DELETE floristli katalog. IRREV. ⚠️ KUTAYOTGAN katalogda gul tanlangan lekin soni 0 (composition
     bor, quantity_stems=0) → floristga HECH NARSA qaytmaydi (delete-confirm matni shuni HALOL aytadi:
     «gul soni hali yozilmagan…»); YOPILGAN katalogda (soni>0) stemlar florist balansiga qaytadi.
-14. WASTE: florist balansi → Chiqit, 1 dona. IRREV — gul butunlay yo'qoladi.
+14. WASTE: florist balansi → Chiqit, 1 dona. ⚠️ ENDI REV (§0d): Tarix → «⋮» → «Bekor qilish» chiqitni
+    bekor qiladi, 1 dona floristga qaytadi (gul katalogda ishlatilmagan bo'lsa). Ishlatilgach → 400, o'shanda IRREV.
 15. Branch-user tajribasi (Parkent login kerak). READ — menyu 3 ta, /sklad→redirect, +Katalog yo'q,
     chegirmada discount_reason majburiy.
 ### SKIP (faqat ochiq savolni tekshiradi — zarar arziydimi o'zingiz hal qiling)
@@ -795,6 +825,24 @@ r. CLOSE vs ADJUST — close'dan keyin adjust `to_catalog` o'sha guldan yasalgan
    «bir-birini to'ldiradi» deydi). Ziddiyat kutilmaydi, lekin ikkalasi ham katalog tannarxini o'zgartirgani
    uchun tartib muhim (UI ikkala modalда bir qatorli izoh bilan aytadi). SETTLE: agar close ham adjust
    ham bitta gulga ketma-ket qo'llansa, ikki marta hisoblanmasligini backend'да tasdiqlang.
+
+## LIST 2 — KATALOG_TAHRIR (2026-08-01) yangilanishlari
+s. ⚠️⚠️ TARIF — YARATISHDA BLOKLOVCHI, LEKIN 10 FLORISTDAN 9 TASIDA TARIF YO'Q (kritik, ship'dan oldin).
+   Live GET (/api/florist-volume-rates/?is_active=true): jami 6 tarif — HAMMASI faqat Fatxulloh (#8) da
+   (bouquet/basket × S/M/L). Qolgan 9 florist TARIFSIZ: Abror#4, Abubakir#5, Bekzod#6, Isroil#7, Zafar#9,
+   Azimjon#10, Abror#11, ShoxAkbar#12, Location Test#14. → Standart katalog yaratish shu 9 florist uchun
+   HOZIR volume 400 bilan BLOKLANADI. UI to'g'ri (florist+hajmni atab «Tarif qo'shish →» beradi), lekin
+   ma'lumot bo'shlig'i BACKEND/ADMIN ishi: ship'dan oldin har faol floristga hajm tariflari kiritilsin.
+t. ✅ RESOLVED (spec §1): quantity_total + composition BIRGA tahriri — eski «Katalog sklad qoldig'i umumiy
+   katalog sonidan oshib ketdi» 400 BACKEND bug edi, ENDI TUZATILGAN. Klientda bu bagga qarshi hech qanday
+   guard/blok QO'YILMAGAN edi (grep tasdiqladi) → olib tashlanadigan narsa yo'q. Kutayotgan katalogda son
+   bemalol; yopilgandan keyin oshirish gul talab qiladi (to'g'ri xatti-harakat — 400 AYNAN ko'rsatiladi).
+u. ✅ RESOLVED (spec §4 + OpenAPI): ISSUE/RETURN/WASTE endi TUZATILADI (PATCH …/edit/ {quantity_stems,reason})
+   va BEKOR QILINADI (DELETE …/cancel/ — generic destroy, kind ∈ {issue,return,waste}). Cancel ikkala
+   balansni asl holiga qaytaradi; gul katalogda ISHLATILGAN bo'lsa 400 («… qo'lida atigi 0 dona bor»).
+   Natija: LIST 1 risk annotatsiyalari yangilandi — issue/return/waste QAYTMAS EMAS (stem ishlatilgunча).
+   (a)/(b) hali ochiq: cancel sklad harakatini o'chiradi, lekin return/waste'ning ORIGINAL warehouse
+   movement yozuvi masalasi o'zgarmadi — o'sha ikki savol kuchida.
 
 ═══════════════════════════════════════════════════════════════════
 # FLORIST CHIQIM YOPISH (close-issue) — BUILD + AUDIT (2026-08-01)

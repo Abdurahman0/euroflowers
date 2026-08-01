@@ -14,6 +14,7 @@ import FloristStockReturnDrawer from "@/components/FloristStockReturnDrawer";
 import FloristStockIssueModal from "@/components/FloristStockIssueModal";
 import FloristStockAdjustModal from "@/components/FloristStockAdjustModal";
 import FloristCloseIssueModal from "@/components/FloristCloseIssueModal";
+import FloristIssueRowMenu from "@/components/FloristIssueRowMenu";
 import { fmt, fmtDate, fmtTime } from "@/lib/format";
 import { formatStemsAndBunches, stems as stemsFmt } from "@/lib/inventory";
 import type { FloristProfile, FloristStockBalance, FloristStockIssue, StockBatch } from "@/lib/types";
@@ -276,6 +277,8 @@ export default function FloristStockIssuePage() {
                           {!isFlorist && <span className="font-semibold" style={{ color: "var(--text-2)" }}>{i.florist_name}</span>}
                           <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: `color-mix(in srgb, ${KIND_HUE[i.kind]} 14%, transparent)`, color: KIND_HUE[i.kind] }}>{i.kind_label}</span>
                           <span>{fmtTime(i.created_at)}</span>
+                          {/* ✏️ Tuzatish · 🗑 Bekor qilish — chiqarish bilan bir xil huquq (MANAGE), florist ko'rmaydi */}
+                          {canManage && !isFlorist && <FloristIssueRowMenu issue={i} onDone={onStockChange} />}
                         </div>
                         {i.reason && <div className="w-full truncate pl-5 text-[12px] italic" style={{ color: "var(--mut)" }} title={i.reason}>{i.reason}</div>}
                       </div>

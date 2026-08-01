@@ -1,4 +1,4 @@
-import type { ArrangementType, CatalogKind, CatalogVolume, FloristVolumeRate, MovementType, PackagingType, RoundingSide, SalarySource, StaffType, StockBatch, StockDelivery, VolumeRateInput } from "./types";
+import type { ArrangementType, CatalogKind, CatalogVolume, FloristStockIssueKind, FloristVolumeRate, MovementType, PackagingType, RoundingSide, SalarySource, StaffType, StockBatch, StockDelivery, VolumeRateInput } from "./types";
 
 /**
  * Sklad/florist bo'limlari uchun MARKAZLASHGAN o'zbekcha yorliqlar,
@@ -386,14 +386,38 @@ export function buildVolumeRatesPayload(cells: RateCell[]): VolumeRateInput[] {
     }));
 }
 
-/** Katalog `florist_salary_amount` payload — ⚠️ ZERO qiymat, BO'SH EMAS.
-    - "" / null  → kalit TUSHIRILADI (backend tarifdan avto-to'ldiradi, spec §4)
-    - "0"        → "0" YUBORILADI (operator ataylab nol qildi — backend avto-to'ldirmasin)
-    - boshqa     → son sifatida yuboriladi
+/** Katalog `florist_salary_amount` payload — ⚠️ REJIMGA BOG'LIQ (spec: haq faqat CUSTOM'da qo'lda).
+    - STANDART  → kalit HECH QACHON yuborilmaydi (haq faqat hajm TARIFIDAN olinadi; input yo'q).
+    - CUSTOM    → ZERO qiymat, BO'SH EMAS:
+        · "" / null → kalit TUSHIRILADI (ish hajmi noma'lum — bo'sh qoldirildi)
+        · "0"       → "0" YUBORILADI (operator ataylab nol qildi)
+        · boshqa    → son sifatida yuboriladi
     Falsy tekshiruv (`if (v)`) ISHLATILMAYDI — u ataylab "0" ni bo'shdek talqin qilardi. */
-export function catalogSalaryPayload(value: string | null | undefined): { florist_salary_amount: string } | Record<string, never> {
+export function catalogSalaryPayload(value: string | null | undefined, kind: CatalogKind): { florist_salary_amount: string } | Record<string, never> {
+  if (kind !== "custom") return {}; // standart: tarifdan olinadi, forma yubormaydi
   if (value === "" || value == null) return {};
   return { florist_salary_amount: String(+value) };
+}
+
+/** Chiqim TAHRIRI delta preview — «Skladda: 300 → 280 · Floristda: 30 → 50».
+    Yo'nalish `kind` bo'yicha: issue sklad→florist, return florist→sklad, waste florist→yo'q.
+    Δ = yangi − eski. Sof HISOB (server bilan mos), Vitest bilan qamraladi.
+    `skladNow`/`floristNow` — HOZIRGI qoldiqlar (null → noma'lum, o'sha qator ko'rsatilmaydi). */
+export function computeIssueEditDelta(
+  kind: FloristStockIssueKind,
+  oldQty: number,
+  newQty: number,
+  skladNow: number | null,
+  floristNow: number | null,
+): { sklad: { from: number; to: number } | null; florist: { from: number; to: number } | null } {
+  const d = newQty - oldQty;
+  // issue: sklad −Δ, florist +Δ | return: sklad +Δ, florist −Δ | waste: sklad tegilmaydi, florist −Δ
+  const skladDelta = kind === "issue" ? -d : kind === "return" ? +d : 0;
+  const floristDelta = kind === "issue" ? +d : -d; // return & waste ikkalasi ham florist −Δ
+  return {
+    sklad: kind === "waste" || skladNow == null ? null : { from: skladNow, to: skladNow + skladDelta },
+    florist: floristNow == null ? null : { from: floristNow, to: floristNow + floristDelta },
+  };
 }
 export const KIND_LABEL: Record<CatalogKind, string> = { standard: "Standart", custom: "Maxsus" };
 export const SALARY_SOURCE_LABEL: Record<SalarySource, string> = {
