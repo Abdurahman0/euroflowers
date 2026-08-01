@@ -55,6 +55,39 @@ export const DELIVERY = {
     `Yuk ${number} · ${dateLabel}${supplier ? ` · ${supplier}` : ""}`,
 } as const;
 
+/** MATERIAL YUKI — markazlashgan yorliqlar. Gul "Yuk"idan ALOHIDA so'z ("Partiya" = StockBatch). */
+export const MATERIAL_DELIVERY = {
+  one: "Material yuki",
+  many: "Material yuklari",
+  neu: "Yangi material yuki",
+  receive: "Material kiritish",
+  colNumber: "Yuk",
+  supplierWord: "Postavshik",
+  lastSupplier: "Oxirgi postavshik",
+  /** "Material yuki M-1 · 01.08.2026" */
+  label: (number: string, dateLabel: string) => `Material yuki ${number} · ${dateLabel}`,
+  labelFull: (number: string, dateLabel: string, supplier?: string | null) =>
+    `Material yuki ${number} · ${dateLabel}${supplier ? ` · ${supplier}` : ""}`,
+} as const;
+
+/* ===== MATERIAL KIRITISH (receive) — sof mantiq (UI'dan mustaqil, testlanadi) =====
+   ⚠️ cost_price: bo'sh/null → kalit TUSHIRILADI (materialning tannarxi o'zgarmaydi); "0" → "0"
+   YUBORILADI (operator ataylab nol qildi). Falsy tekshiruv ISHLATILMAYDI (zero ≠ bo'sh).
+   quantity min 1 (0 rad etiladi). */
+export type MaterialReceiveReq = { packaging: number; quantity: number; cost_price?: string; reason?: string };
+export function buildMaterialReceivePayload(v: { packaging: number; quantity: number | string; costPrice?: string | null; reason?: string }):
+  { ok: true; req: MaterialReceiveReq } | { ok: false; reason: string } {
+  if (!v.packaging) return { ok: false, reason: "Materialni tanlang" };
+  const q = Math.floor(typeof v.quantity === "string" ? parseFloat(v.quantity) || 0 : v.quantity || 0);
+  if (q < 1) return { ok: false, reason: "Soni kamida 1 bo'lishi kerak" };
+  const req: MaterialReceiveReq = { packaging: v.packaging, quantity: q };
+  if (v.costPrice != null && v.costPrice !== "") req.cost_price = String(+v.costPrice); // "0" → "0" ketadi
+  if (v.reason && v.reason.trim()) req.reason = v.reason.trim();
+  return { ok: true, req };
+}
+/** typed "0" tannarx — LOUD ogohlantirish (nol tannarx katalog tannarxini kam ko'rsatadi). */
+export const receiveZeroCost = (costPrice?: string | null): boolean => costPrice != null && costPrice !== "" && +costPrice === 0;
+
 /** Partiya optioniga QISQA yuk konteksti — "Yuk 7 · 01.08" (ikki o'xshash partiyani ajratish).
     delivery_detail.received_at "2026-08-01" → "01.08". Yuk bo'lmasa bo'sh string. */
 export const batchDeliveryTag = (dd?: { number: string; received_at: string } | null): string => {

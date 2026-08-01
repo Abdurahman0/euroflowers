@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
-import DualQtyInput, { qtyPayload, type QtyMode } from "./DualQtyInput";
+import DualQtyInput, { qtyPayload, defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import { CalendarClock } from "lucide-react";
 import { Icon } from "./icons";
 import { fmtDate } from "@/lib/format";
@@ -27,7 +27,8 @@ const REASON_CHIPS = ["Chiqit", "So'lgan", "Sinov", "Tuzatish"];
 export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBatch; onClose: () => void; onDone: (updated: StockBatch) => void }) {
   const { showToast } = useStore();
   const [type, setType] = useState<MovementType>("waste");
-  const [mode, setMode] = useState<QtyMode>("stems");
+  // ⚠️ DEFAULT = POCHKA (stock shu tarzda keladi) — spb yo'q/1 bo'lsa dona'ga tushamiz
+  const [mode, setMode] = useState<QtyMode>(() => defaultQtyMode(batch.stems_per_bunch));
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);

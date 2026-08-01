@@ -937,3 +937,98 @@ BatchEditModal, so there is one edit form everywhere.
 - PATCH /api/stock-batches/{id}/ — DESTRUCTIVE when cost/stems_per_bunch change (rewrites historical
   COGS/profit for catalogs built from this batch, incl. sold). Wired to BatchEditModal «Saqlash»; sends
   only changed fields; NEVER fired in this audit. tsc clean, 121 Vitest green, no console errors.
+
+═══════════════════════════════════════════════════════════════════
+# MATERIAL YUKLARI (deliveries) + POCHKA-DEFAULT + MENU FIX (2026-08-01)
+═══════════════════════════════════════════════════════════════════
+
+## §0 — FIVE AUDITS
+- **a) Naming:** deliveries, not "Partiya" → «Material yuki / Material yuklari» (centralized as
+  `MATERIAL_DELIVERY` in lib/inventory). Labels: tab segment «Material yuklari», detail «Material yuki
+  M-1 · 01.08.2026 · Qadoq Servis», button «Material kiritish», list col «Oxirgi postavshik».
+- **b) ⚠️ RETROACTIVE COST — CONFIRMED, reported (not patched):** the client stores NO per-line material
+  cost snapshot (`CatalogMaterialUsage` = packaging + quantity only). Live client lookups: `hisob-kitob
+  page.tsx:862` shows a HISTORICAL sale's material line as `quantity × packaging_detail.cost_price`
+  (CURRENT price → shifts on every receive); `KatalogModal:221-222` composer preview reads current
+  cost (fine, new items). Authoritative accounting = server `material_cost_total` / per-sale
+  `material_cost` (branch.ts:100, finance.ts:140), displayed as-is, never recomputed client-side.
+  Whether the SERVER snapshots material_cost at sale time or recomputes from the current material price
+  is unknowable read-only. → LIST 2 (priority). Same class as the transferred-stem hole.
+- **c) Write paths:** material-movements GET-only. `MoveModal` previously did BOTH in+out via
+  `materialMovement`; the "Kirim (+)" bypassed deliveries. FIXED: incoming now goes through
+  `material-deliveries/{id}/receive/` (carries delivery+supplier); MoveModal is now CHIQIM-only. One
+  way to add stock. Material create's "Boshlang'ich soni" kept (initial count, unchanged per spec).
+- **d) Zero-is-a-value:** `buildMaterialReceivePayload` — empty/null cost_price → key OMITTED (price
+  unchanged); typed "0" → sends "0" + loud warning (`receiveZeroCost`). Vitest: empty-omits / "0"-sends
+  / real-value / qty<1-rejected.
+- **e) Material must exist first:** «+ Yangi material» inside the receive picker opens the existing
+  `MaterialModal` (exported from MaterialSklad) as a nested modal; on save it selects the new record —
+  receive-modal state preserved.
+- **DELETE mismatch:** OpenAPI exposes DELETE /api/material-deliveries/{id}/ but the spec omits it →
+  followed the spec, NO delete/archive offered for material yuklari (reported).
+
+## §1 — IA decision
+A **Gul yuklari / Material yuklari segment INSIDE the existing «Yuklar» tab** (not a 5th tab) —
+mirrors the «Kirim-chiqim jurnali» tab's existing Gul/Material source segment. Follows the chip
+convention. Material list cols: number·date·supplier·item_count·total_quantity·total_cost
+(server-computed); key=id (number repeats); date shown beside number.
+
+## Built
+- `MaterialDeliveryModal` (create/edit, flower-Yuk twin), `MaterialDeliveryDrawer` (detail + items
+  from /items/ + «Material kiritish»; NO delete), `MaterialReceiveModal` (grouped picker with current
+  qty+cost, quantity min-1, cost_price optional, reason, ⚠️ CONSEQUENCE preview «Soni 50→150 /
+  Tannarx 6 000→7 000» or «o'zgarmaydi», keep-open + added-so-far list, +Yangi material, field-keyed
+  400s, notifyReportDataChanged). Sklad Yuklar tab: Gul/Material segment + material list.
+- §3: MaterialCard «Oxirgi postavshik» from last_delivery (null → clean «—»); card→MaterialDetailModal
+  (last-delivery block + history from material-movements?packaging=, delivery + unit_cost, legacy
+  null-delivery rows rendered clean). MoveModal → Chiqim-only.
+- §4: `DualQtyInput` — `defaultQtyMode` (pochka when spb>1, else dona) + `convertQty` (re-converts on
+  switch, not reinterpret) + prominent chip «100 pochka = 2 500 dona». Defaulted: StockBatchModal (was
+  pochka), FloristStockIssueModal, FloristStockReturnDrawer, BatchMovementModal, KatalogModal
+  new/empty composition rows (existing rows stay dona — they hold absolute stems). The submitted field
+  (received_bunches vs received_stems / quantity_stems) is unchanged — only the INPUT unit. Preview
+  («Qoldiq X→Y») stays in dona. BatchEditModal has no toggle (numeric spb). Vitest in lib/qty.test.ts.
+- §5: `Popover` now bakes a DEFAULT themed surface (bg var(--surface-solid) + border + shadow-lg via
+  clsx-merged base class) — the florist row menu was see-through because Popover rendered no surface
+  and that one call site passed no background. Central fix benefits every menu; other consumers
+  (Select/DatePicker/DateChips/TimePicker/LeadStatusManager) already pass their own surface (inline bg
+  + larger shadow win via Tailwind order) so they're unchanged. Only the florist CloseAdjustMenu was
+  affected. Keyboard/focus/hover intact; z-95 body-portal stacking unchanged.
+- 22 new Vitest (qty 9 + receive 13). 138 total, green.
+
+## §6 — VERIFY
+Live GETs: material-deliveries=0, materials=0, material-movements=0 → the whole material flow is
+MOCK-VERIFIED (labelled). Screenshots (dark+light) confirm: material yuklari list, detail+add,
+receive consequence, materials «Oxirgi postavshik» column (+ clean «—» for never-received), material
+history, pochka-default with the «100 pochka = 2 500 dona» chip, and the FIXED (solid, readable) row
+menu. tsc clean, no console errors. READ-ONLY: no writes fired.
+
+## Untested write paths (added)
+- POST /api/material-deliveries/ (create material yuk), PATCH /api/material-deliveries/{id}/ (edit).
+- POST /api/material-deliveries/{id}/receive/ — ⚠️ with cost_price REWRITES the material's cost basis
+  (retroactive: catalogs using this material shift). Wired to the receive modal; NEVER fired.
+
+## LIST 1 — MATERIAL YUK BLOCK (append; risk-annotated)
+MD1. Yangi material yuki: Sklad → Yuklar → «Material yuklari» segment → «Yangi material yuki» → raqam
+     (M-1) + sana + postavshik + izoh → ochish. REV (bo'sh yuk).
+MD2. Ikkita material kiritish: yuk detali → «Material kiritish». BIRINCHISI narx BILAN (Soni 100,
+     Tannarx 7 000) — CONSEQUENCE «50→150 / 6 000→7 000» ni tekshiring → Kiritish. IKKINCHISI narx SIZ
+     (Tannarx bo'sh) — «Tannarx o'zgarmaydi» → Kiritish. Modal ochiq qoladi, «Shu yukka kiritildi»
+     ro'yxati o'sadi. ⚠️ IRREV + narx berilgan material TANNARX ASOSINI DOIMIY o'zgartiradi (shu
+     materialdan yasalgan eski katalog COGS'i siljiydi — LIST 2). Arzon test materiali ishlating.
+MD3. Jamilar: yuk qatorida Xil=2, Dona=jami, Tannarx server hisobidan chiqqanini tasdiqlang. READ.
+MD4. Oxirgi postavshik: Material sklad → kartada «Oxirgi postavshik: <postavshik> · M-1 · sana»
+     chiqqanini; hech kirim bo'lmagan materialda «—» ekanini tekshiring. READ.
+MD5. Tarix: material kartasini bosing → batafsil: oxirgi postavshik bloki + kirim tarixi (delivery +
+     unit_cost). Eski (delivery=null) yozuvlar toza ko'rinsin. READ.
+MD6. Kirim endi FAQAT receive orqali: Material sklad kartasidagi tugma «Chiqim» (kirim yo'q) —
+     kirimni yukdan kiritasiz. READ.
+
+## LIST 2 — RETROACTIVE MATERIAL COST (append)
+o. ⚠️ MATERIAL TANNARXI RETROAKTIV (PRIORITET) — material BITTA qatorli tannarxga ega; har receive
+   uni QAYTA YOZADI. Katalog material qatori faqat packaging id + quantity saqlaydi, tannarx material
+   qatorining JORIY qiymatidan o'qiladi. Client per-line ko'rsatuvlari (hisob-kitob CatalogDetail)
+   receive'dan keyin siljiydi. Avtoritativ pul — server `material_cost_total`. SETTLE: (1) server
+   sotuv paytida `material_cost`ni SNAPSHOT qiladimi yoki so'rov paytida joriy material narxidan qayta
+   hisoblaydimi? (2) qayta hisoblasa — o'tgan oydagi «O'rta savat»li katalog foydasi bugungi receive'da
+   siljiydi. Transferred-stem teshigi bilan bir sinf. Backend qaror.

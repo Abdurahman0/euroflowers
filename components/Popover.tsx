@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import clsx from "clsx";
 
 /**
  * Yakor elementga bog'langan suzuvchi qatlam (dropdown/kalendar) — body'ga
@@ -99,7 +100,11 @@ export default function Popover({
       data-lenis-prevent
       role={ariaLabel ? "dialog" : undefined}
       aria-label={ariaLabel}
-      className={className}
+      // ⚠️ DEFAULT SURFACE — har bir popover TOZA temali yuzaga ega bo'lsin (background token,
+      // border, shadow). Ilgari Popover o'zi yuza chizmasdi → fon bermagan chaqiruvchi (masalan
+      // florist qator-menyu) shaffof bo'lib ketardi. Chaqiruvchining o'z className/inline style'i
+      // baribir ustun keladi (bg inline > class; kattaroq shadow-2xl Tailwind tartibida yutadi).
+      className={clsx("rounded-[14px] border border-[color:var(--border)] bg-[color:var(--surface-solid)] shadow-lg", className)}
       style={{
         position: "fixed",
         zIndex: 95,

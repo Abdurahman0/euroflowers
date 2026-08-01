@@ -5,7 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
 import Select from "./Select";
-import DualQtyInput, { type QtyMode } from "./DualQtyInput";
+import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import StockLine, { lineFromStockBatch } from "./StockLine";
 import { formatStemsAndBunches, batchDeliveryTag } from "@/lib/inventory";
 import type { FloristProfile, StockBatch } from "@/lib/types";
@@ -36,7 +36,9 @@ export default function FloristStockIssueModal({
   const { showToast } = useStore();
   const [fFlorist, setFFlorist] = useState(initialFlorist);
   const [fBatch, setFBatch] = useState(0);
-  const [fMode, setFMode] = useState<QtyMode>("stems");
+  // ⚠️ DEFAULT = POCHKA; partiya tanlanганда o'sha partiyaning spb'siga qarab qayta belgilanadi
+  // (spb yo'q/1 → dona). Preview («Qoldiq: X → Y») baribir DONADA qoladi.
+  const [fMode, setFMode] = useState<QtyMode>("bunches");
   const [fQty, setFQty] = useState("");
   const [fReason, setFReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -84,7 +86,7 @@ export default function FloristStockIssueModal({
       </Field>
 
       <Field label="Partiya (skladdan)" span>
-        <Select value={fBatch} onChange={(v) => { setFBatch(+v); setFQty(""); }} placeholder="Gulni tanlang" searchable options={batchOpts} />
+        <Select value={fBatch} onChange={(v) => { setFBatch(+v); setFQty(""); setFMode(defaultQtyMode(batches.find((b) => b.id === +v)?.stems_per_bunch)); }} placeholder="Gulni tanlang" searchable options={batchOpts} />
       </Field>
 
       {/* tanlangan partiya — balanslar bilan BIR XIL qator grammatikasi (rasm + nomlar) */}

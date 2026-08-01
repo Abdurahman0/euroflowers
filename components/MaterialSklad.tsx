@@ -14,8 +14,8 @@ import { notifyReportDataChanged } from "@/lib/reportCache";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { useRouter } from "next/navigation";
-import { fmt, fmtTime, movementLeadId } from "@/lib/format";
-import { PACKAGING_LABEL } from "@/lib/inventory";
+import { fmt, fmtDate, fmtTime, movementLeadId } from "@/lib/format";
+import { PACKAGING_LABEL, MATERIAL_DELIVERY } from "@/lib/inventory";
 import { Icon } from "./icons";
 import type { MaterialMovement, Packaging, PackagingType } from "@/lib/types";
 
@@ -32,7 +32,7 @@ const TYPE_LABEL = PACKAGING_LABEL;
 /** har qanday qiymatni backend enumiga tushiradi (eski "accessory" → "other") */
 const normType = (t: string): PackagingType => (GROUP_ORDER.includes(t as PackagingType) ? (t as PackagingType) : "other");
 
-function MaterialModal({ material, onClose, onSaved }: { material: Packaging | null; onClose: () => void; onSaved: (m: Packaging) => void }) {
+export function MaterialModal({ material, onClose, onSaved }: { material: Packaging | null; onClose: () => void; onSaved: (m: Packaging) => void }) {
   const { showToast } = useStore();
   const [f, setF] = useState({
     name_uz: material?.name_uz ?? "",
@@ -106,9 +106,11 @@ function MaterialModal({ material, onClose, onSaved }: { material: Packaging | n
   );
 }
 
+/** ⚠️ CHIQIM (out) modali — KIRIM endi «Material yuki → Material kiritish» (receive) orqali
+    (delivery + postavshik bilan). Stock qo'shishning IKKINCHI yo'li bo'lmasligi uchun bu yerda
+    faqat chiqim/tuzatish qoladi (§0c). */
 function MoveModal({ material, onClose, onDone }: { material: Packaging; onClose: () => void; onDone: () => void }) {
   const showToast = useStore((s) => s.showToast);
-  const [type, setType] = useState<"in" | "out">("in");
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -116,12 +118,11 @@ function MoveModal({ material, onClose, onDone }: { material: Packaging; onClose
   const save = async () => {
     const n = +qty || 0;
     if (n <= 0) return showToast("Sonini kiriting");
-    if (type === "out" && n > material.quantity) return showToast(`Qoldiq yetarli emas: ${material.quantity} dona bor`);
+    if (n > material.quantity) return showToast(`Qoldiq yetarli emas: ${material.quantity} dona bor`);
     setBusy(true);
     try {
-      // javob sxemasi kontraktda ko'rsatilmagan — ro'yxatni qayta yuklash ishonchli
-      await api.materialMovement(material.id, { movement_type: type, quantity: n, reason: reason.trim() });
-      showToast(`✓ ${type === "in" ? "Kirim" : "Chiqim"}: ${material.name_uz} × ${n}`);
+      await api.materialMovement(material.id, { movement_type: "out", quantity: n, reason: reason.trim() });
+      showToast(`✓ Chiqim: ${material.name_uz} × ${n}`);
       onDone();
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Saqlab bo'lmadi");
@@ -131,34 +132,70 @@ function MoveModal({ material, onClose, onDone }: { material: Packaging; onClose
 
   return (
     <Modal onClose={onClose} width={420}>
-      <ModalHeader icon={<Icon name="sklad" size={20} />} title={material.name_uz} sub={`Qoldiq: ${material.quantity} dona — kirim yoki chiqim kiriting`} onClose={onClose} />
-      <Section>Harakat</Section>
-      <div className="mb-3 flex gap-1.5">
-        {(["in", "out"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setType(t)}
-            aria-pressed={type === t}
-            className={clsx("flex-1 rounded-xl border-[1.5px] py-2 text-[13px] font-bold transition-colors", type === t && "text-white")}
-            style={type === t ? { background: "var(--acc)", borderColor: "var(--acc)" } : { borderColor: "var(--border)", color: "var(--muted)" }}
-          >
-            {t === "in" ? "Kirim (+)" : "Chiqim (−)"}
-          </button>
-        ))}
-      </div>
+      <ModalHeader icon={<Icon name="sklad" size={20} />} title={material.name_uz} sub={`Qoldiq: ${material.quantity} dona — chiqim kiriting`} onClose={onClose} />
+      <p className="mb-3 rounded-[11px] px-3 py-2 text-[12px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>
+        Kirim endi «Material yuklari → Material kiritish» orqali (postavshik va tannarx bilan).
+      </p>
       <div className="grid grid-cols-1 gap-3">
-        <Field label="Soni (dona)">
+        <Field label="Chiqim soni (dona)">
           <input className="inp" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 10" autoFocus />
         </Field>
         <Field label="Sabab">
-          <input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={type === "in" ? "Masalan: yangi partiya keldi" : "Masalan: buyurtmaga ishlatildi"} />
+          <input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Masalan: buyurtmaga ishlatildi" />
         </Field>
       </div>
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
-        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Saqlash"}</button>
+        <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : "Chiqim"}</button>
       </ModalFooter>
+    </Modal>
+  );
+}
+
+/** Material batafsil — oxirgi postavshik bloki + kirim tarixi (delivery + unit_cost, eng yangi birinchi). */
+function MaterialDetailModal({ material, onClose }: { material: Packaging; onClose: () => void }) {
+  const [moves, setMoves] = useState<MaterialMovement[] | null>(null);
+  useEffect(() => { api.materialMovements({ packaging: material.id, ordering: "-created_at", page_size: 50 }).then(setMoves).catch(() => setMoves([])); }, [material.id]);
+  const ld = material.last_delivery;
+  return (
+    <Modal onClose={onClose} width={520}>
+      <ModalHeader icon={<Icon name="sklad" size={20} />} title={material.name_uz || material.name_ru} sub={`${TYPE_LABEL[normType(material.packaging_type)]}${material.size ? ` · ${material.size}` : ""} · qoldiq ${material.quantity} dona`} onClose={onClose} />
+
+      <Section>Oxirgi postavshik</Section>
+      {ld ? (
+        <div className="rounded-[13px] border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <div className="text-[13px] font-bold">{ld.supplier ?? "postavshiksiz"}</div>
+          <div className="mt-0.5 text-[12px]" style={{ color: "var(--muted)" }}>
+            Material yuki {ld.number} · {fmtDate(ld.received_at)}{ld.quantity != null ? ` · ${ld.quantity} dona` : ""}{ld.unit_cost != null && +ld.unit_cost > 0 ? ` · ${fmt(ld.unit_cost)}/dona` : ""}
+          </div>
+        </div>
+      ) : (
+        <p className="text-[13px]" style={{ color: "var(--muted)" }}>Hali kirim bo&apos;lmagan — postavshik ma&apos;lumoti yo&apos;q.</p>
+      )}
+
+      <Section>Kirim tarixi</Section>
+      {moves === null ? <p className="text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p> : moves.length === 0 ? (
+        <p className="text-[13px]" style={{ color: "var(--muted)" }}>Harakatlar hali yo&apos;q.</p>
+      ) : (
+        <div className="flex flex-col">
+          {moves.map((mv) => {
+            const isIn = mv.movement_type === "in";
+            return (
+              <div key={mv.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)" }}>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold">{isIn ? "KIRIM" : "CHIQIM"} · {mv.quantity} dona{mv.reason ? <span className="font-normal" style={{ color: "var(--text-2)" }}> — {mv.reason}</span> : null}</div>
+                  <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>{fmtTime(mv.created_at)}</div>
+                </div>
+                <div className="text-right text-[12px]">
+                  {/* ⚠️ ESKI yozuvlarda delivery/unit_cost null — bo'sh joy yoki "null" ko'rsatmaymiz */}
+                  {mv.unit_cost != null && +mv.unit_cost > 0 && <span className="font-semibold tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(mv.unit_cost)}/dona</span>}
+                  {mv.delivery != null && <span className="ml-2 rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>yuk #{mv.delivery}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Modal>
   );
 }
@@ -221,11 +258,12 @@ export function MaterialMovesJournal() {
   );
 }
 
-/** Bitta material kartasi — qoldiq, narx, kirim/chiqim. */
-function MaterialCard({ m, control, onEdit, onMove }: { m: Packaging; control: boolean; onEdit: () => void; onMove: () => void }) {
+/** Bitta material kartasi — qoldiq, narx, oxirgi postavshik, chiqim. Karta bosilsa batafsil. */
+function MaterialCard({ m, control, onEdit, onMove, onDetail }: { m: Packaging; control: boolean; onEdit: () => void; onMove: () => void; onDetail: () => void }) {
   const low = m.quantity > 0 && m.quantity <= 10;
+  const ld = m.last_delivery;
   return (
-    <article className="glass card-hover relative flex flex-col gap-2 !rounded-[18px] p-4">
+    <article className="glass card-hover relative flex cursor-pointer flex-col gap-2 !rounded-[18px] p-4" role="button" tabIndex={0} onClick={onDetail} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDetail(); } }} title="Batafsil va tarix">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-bold" title={m.name_uz || m.name_ru}>{m.name_uz || m.name_ru}</div>
@@ -234,7 +272,7 @@ function MaterialCard({ m, control, onEdit, onMove }: { m: Packaging; control: b
           </div>
         </div>
         {control && (
-          <button onClick={onEdit} className="icon-btn shrink-0" title="Tahrirlash" aria-label="Tahrirlash">
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="icon-btn shrink-0" title="Tahrirlash" aria-label="Tahrirlash">
             <Pencil size={15} strokeWidth={1.75} />
           </button>
         )}
@@ -253,9 +291,15 @@ function MaterialCard({ m, control, onEdit, onMove }: { m: Packaging; control: b
           <div className="text-sm font-bold" style={{ color: "var(--acc)" }}>{fmt(m.sale_price)}</div>
         </div>
       </div>
+      {/* ⚠️ OXIRGI POSTAVSHIK — last_delivery.supplier; null bo'lsa TOZA tire (bo'sh/crash emas) */}
+      <div className="truncate text-[11.5px]" style={{ color: "var(--mut)" }} title={ld ? `${MATERIAL_DELIVERY.lastSupplier}: ${ld.supplier ?? "—"} · ${ld.number} · ${fmtDate(ld.received_at)}` : undefined}>
+        {MATERIAL_DELIVERY.lastSupplier}: {ld ? (
+          <><b style={{ color: "var(--text-2)" }}>{ld.supplier ?? "—"}</b> <span style={{ color: "var(--mut)" }}>· {ld.number} · {fmtDate(ld.received_at)}</span></>
+        ) : "—"}
+      </div>
       {control && (
-        <button onClick={onMove} className="rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-tint" style={{ borderColor: "var(--line)" }}>
-          Kirim / chiqim
+        <button onClick={(e) => { e.stopPropagation(); onMove(); }} className="rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-tint" style={{ borderColor: "var(--line)" }}>
+          Chiqim
         </button>
       )}
     </article>
@@ -271,6 +315,7 @@ export default function MaterialSklad() {
   const [group, setGroup] = useState<"" | PackagingType>("");
   const [formM, setFormM] = useState<{ open: boolean; edit: Packaging | null }>({ open: false, edit: null });
   const [moveM, setMoveM] = useState<Packaging | null>(null);
+  const [detailM, setDetailM] = useState<Packaging | null>(null); // batafsil + kirim tarixi
 
   const load = useCallback(async () => {
     try {
@@ -375,7 +420,7 @@ export default function MaterialSklad() {
                 </div>
                 <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(235px,1fr))" }}>
                   {items.map((m) => (
-                    <MaterialCard key={m.id} m={m} control={control} onEdit={() => setFormM({ open: true, edit: m })} onMove={() => setMoveM(m)} />
+                    <MaterialCard key={m.id} m={m} control={control} onEdit={() => setFormM({ open: true, edit: m })} onMove={() => setMoveM(m)} onDetail={() => setDetailM(m)} />
                   ))}
                 </div>
               </section>
@@ -403,6 +448,7 @@ export default function MaterialSklad() {
           onDone={() => { setMoveM(null); notifyReportDataChanged(); load(); }}
         />
       )}
+      {detailM && <MaterialDetailModal material={detailM} onClose={() => setDetailM(null)} />}
     </>
   );
 }

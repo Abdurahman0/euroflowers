@@ -58,8 +58,10 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       ? { mode: "existing", id: item.customer_detail.id, detail: item.customer_detail }
       : { mode: "none" }
   );
+  // ⚠️ MAVJUD kompozitsiya qatorlari DONADA yuklanadi (ular absolyut dona qiymatini saqlaydi —
+  // pochka'ga aylantirish sonni noto'g'ri talqin qilardi). Faqat YANGI/bo'sh qator POCHKA default'da.
   const [comp, setComp] = useState<CompRow[]>(
-    item?.composition?.length ? item.composition.map((c) => ({ stock_batch: c.stock_batch, mode: "stems" as const, qty: String(c.quantity_stems) })) : [{ stock_batch: 0, mode: "stems", qty: "" }]
+    item?.composition?.length ? item.composition.map((c) => ({ stock_batch: c.stock_batch, mode: "stems" as const, qty: String(c.quantity_stems) })) : [{ stock_batch: 0, mode: "bunches", qty: "" }]
   );
   const [mats, setMats] = useState<MatRow[]>(item?.materials?.length ? item.materials.map((m) => ({ packaging: m.packaging, qty: String(m.quantity) })) : []);
   const [busy, setBusy] = useState(false);
@@ -158,7 +160,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     const used = new Set(comp.map((r) => r.stock_batch));
     // keyingi bo'sh variant — joriy rejim manbasidan (florist balansi yoki sklad)
     const next = compOptions.find((o) => !used.has(+o.value))?.value ?? compOptions[0]?.value ?? 0;
-    setComp([...comp, { stock_batch: +next, mode: "stems", qty: "" }]);
+    setComp([...comp, { stock_batch: +next, mode: "bunches", qty: "" }]); // yangi qator POCHKA default
   };
   const setMatAt = (i: number, newPack: number) => {
     setMats((rows) => {

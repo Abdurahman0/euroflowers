@@ -19,12 +19,14 @@ import StockBatchModal from "@/components/StockBatchModal";
 import BatchEditModal from "@/components/BatchEditModal";
 import DeliveryModal from "@/components/DeliveryModal";
 import DeliveryDrawer from "@/components/DeliveryDrawer";
+import MaterialDeliveryModal from "@/components/MaterialDeliveryModal";
+import MaterialDeliveryDrawer from "@/components/MaterialDeliveryDrawer";
 import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
-import { DELIVERY, MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL } from "@/lib/inventory";
-import type { FloristStockIssue, MaterialMovement, PackagingType, StockBatch, StockDelivery, StockMovement, Supplier } from "@/lib/types";
+import { DELIVERY, MATERIAL_DELIVERY, MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL } from "@/lib/inventory";
+import type { FloristStockIssue, MaterialDelivery, MaterialMovement, PackagingType, StockBatch, StockDelivery, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "KIRIM", out: "CHIQIM", adjustment: "TUZATISH", waste: "CHIQIT", transfer_out: "O'TKAZMA →", transfer_in: "→ O'TKAZMA",
@@ -123,6 +125,11 @@ export default function SkladPage() {
   const [deliveries, setDeliveries] = useState<StockDelivery[] | null>(null);
   const [selDelivery, setSelDelivery] = useState<StockDelivery | null>(null);
   const [newDeliveryOpen, setNewDeliveryOpen] = useState(false);
+  // YUKLAR tabi ichida Gul/Material segment (Kirim-chiqim jurnalidagi jSource pattern'i)
+  const [dSource, setDSource] = useState<"gul" | "material">("gul");
+  const [matDeliveries, setMatDeliveries] = useState<MaterialDelivery[] | null>(null);
+  const [selMatDelivery, setSelMatDelivery] = useState<MaterialDelivery | null>(null);
+  const [newMatDeliveryOpen, setNewMatDeliveryOpen] = useState(false);
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [floristWaste, setFloristWaste] = useState<FloristStockIssue[]>([]);
@@ -189,7 +196,13 @@ export default function SkladPage() {
   const loadDeliveries = useCallback(() => {
     api.stockDeliveries({ is_active: true, ordering: "-received_at" }).then(setDeliveries).catch(() => setDeliveries([]));
   }, []);
-  useEffect(() => { if (tab === "yuklar") loadDeliveries(); }, [tab, loadDeliveries]);
+  const loadMatDeliveries = useCallback(() => {
+    api.materialDeliveries({ is_active: true, ordering: "-received_at" }).then(setMatDeliveries).catch(() => setMatDeliveries([]));
+  }, []);
+  useEffect(() => {
+    if (tab !== "yuklar") return;
+    if (dSource === "gul") loadDeliveries(); else loadMatDeliveries();
+  }, [tab, dSource, loadDeliveries, loadMatDeliveries]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
@@ -264,9 +277,70 @@ export default function SkladPage() {
   );
 
   if (tab === "yuklar") {
+    const isGul = dSource === "gul";
     return (
       <>
         {tabBar}
+        {/* GUL / MATERIAL segment — Kirim-chiqim jurnalidagi manba segmenti bilan bir xil IA */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {(["gul", "material"] as const).map((sVal) => (
+            <button key={sVal} onClick={() => setDSource(sVal)} aria-pressed={dSource === sVal}
+              className={clsx("flex items-center gap-1.5 rounded-full border-[1.5px] px-4 py-1.5 text-[12.5px] font-bold transition-colors", dSource === sVal ? "text-white" : "bg-sfc")}
+              style={dSource === sVal ? { background: "var(--primary)", borderColor: "var(--primary)" } : { borderColor: "var(--line)", color: "var(--mut)" }}>
+              {sVal === "gul" ? "Gul yuklari" : MATERIAL_DELIVERY.many}
+            </button>
+          ))}
+        </div>
+
+        {!isGul ? (
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
+                Material yuki = bir kelishda kelgan materiallar guruhi. Avval yuk ochiladi, keyin materiallar kiritiladi.
+              </p>
+              <button onClick={() => setNewMatDeliveryOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px] ml-auto">
+                <Plus size={18} strokeWidth={1.75} /> {MATERIAL_DELIVERY.neu}
+              </button>
+            </div>
+            {matDeliveries === null ? <FlowerLoader /> : matDeliveries.length === 0 ? (
+              <EmptyState title="Hali material yuki yo'q" sub="«Yangi material yuki» orqali birinchi yukni oching, so'ng materiallarni kiriting." />
+            ) : (
+              <section className="glass !rounded-[20px] p-2 sm:p-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[680px] text-[13px]" style={{ borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ color: "var(--muted)" }}>
+                        <th className="px-3 py-2 text-left font-semibold">{MATERIAL_DELIVERY.colNumber}</th>
+                        <th className="px-3 py-2 text-left font-semibold">Sana</th>
+                        <th className="px-3 py-2 text-left font-semibold">{MATERIAL_DELIVERY.supplierWord}</th>
+                        <th className="px-3 py-2 text-right font-semibold">Xil</th>
+                        <th className="px-3 py-2 text-right font-semibold">Dona</th>
+                        <th className="px-3 py-2 text-right font-semibold">Tannarx</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* ⚠️ key = id (number TAKRORLANADI) */}
+                      {matDeliveries.map((dv) => (
+                        <tr key={dv.id} onClick={() => setSelMatDelivery(dv)} tabIndex={0} role="button"
+                          onKeyDown={(e) => e.key === "Enter" && setSelMatDelivery(dv)}
+                          className="cursor-pointer border-t transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--line2)" }}>
+                          <td className="px-3 py-2.5 font-bold">{dv.number}</td>
+                          <td className="px-3 py-2.5 tabular-nums" style={{ color: "var(--text-2)" }}>{fmtDate(dv.received_at)}</td>
+                          <td className="px-3 py-2.5">{dv.supplier_detail?.name ?? "—"}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{dv.item_count}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{dv.total_quantity.toLocaleString("ru")}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{fmt(dv.total_cost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+            {newMatDeliveryOpen && <MaterialDeliveryModal onClose={() => setNewMatDeliveryOpen(false)} onSaved={(dv) => { setNewMatDeliveryOpen(false); loadMatDeliveries(); setSelMatDelivery(dv); }} />}
+            {selMatDelivery && <MaterialDeliveryDrawer delivery={selMatDelivery} onClose={() => setSelMatDelivery(null)} onChanged={loadMatDeliveries} />}
+          </>
+        ) : (<>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
             Yuk = bir kelishda kelgan gullar guruhi. Avval yuk ochiladi, keyin ichiga partiyalar qo&apos;shiladi.
@@ -314,6 +388,7 @@ export default function SkladPage() {
         )}
         {newDeliveryOpen && <DeliveryModal onClose={() => setNewDeliveryOpen(false)} onSaved={(dv) => { setNewDeliveryOpen(false); loadDeliveries(); setSelDelivery(dv); }} />}
         {selDelivery && <DeliveryDrawer delivery={selDelivery} onClose={() => setSelDelivery(null)} onChanged={loadDeliveries} />}
+        </>)}
       </>
     );
   }

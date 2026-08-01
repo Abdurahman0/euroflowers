@@ -177,3 +177,44 @@ describe("DR4 — buildBatchEditPayload (changed-only)", () => {
     expect(batchEditIsRetroactive({ cost_per_stem: "999" })).toBe(true);
   });
 });
+
+// ── DR5: material receive payload — §0d zero-is-a-value (empty omits, "0" sends, real sends)
+import { buildMaterialReceivePayload, receiveZeroCost } from "./inventory";
+
+describe("DR5 — buildMaterialReceivePayload (zero ≠ empty)", () => {
+  it("empty cost_price → key OMITTED (material price unchanged)", () => {
+    const r = buildMaterialReceivePayload({ packaging: 30, quantity: 100, costPrice: "" });
+    expect(r).toEqual({ ok: true, req: { packaging: 30, quantity: 100 } });
+    expect(r.ok && "cost_price" in r.req).toBe(false);
+  });
+  it("null cost_price → omitted too", () => {
+    const r = buildMaterialReceivePayload({ packaging: 30, quantity: 100, costPrice: null });
+    expect(r.ok && "cost_price" in r.req).toBe(false);
+  });
+  it('typed "0" → SENDS "0" (deliberate zero, not empty)', () => {
+    const r = buildMaterialReceivePayload({ packaging: 30, quantity: 100, costPrice: "0" });
+    expect(r).toEqual({ ok: true, req: { packaging: 30, quantity: 100, cost_price: "0" } });
+  });
+  it("real value → sent (normalized)", () => {
+    const r = buildMaterialReceivePayload({ packaging: 30, quantity: 100, costPrice: "6000" });
+    expect(r.ok && r.req.cost_price).toBe("6000");
+  });
+  it("quantity < 1 → not ok (0 rejected client-side)", () => {
+    expect(buildMaterialReceivePayload({ packaging: 30, quantity: 0, costPrice: "" }).ok).toBe(false);
+    expect(buildMaterialReceivePayload({ packaging: 30, quantity: "0", costPrice: "" }).ok).toBe(false);
+  });
+  it("no packaging → not ok", () => {
+    expect(buildMaterialReceivePayload({ packaging: 0, quantity: 5 }).ok).toBe(false);
+  });
+  it("reason trimmed + omitted when blank", () => {
+    expect(buildMaterialReceivePayload({ packaging: 30, quantity: 5, reason: "  " }).ok && "reason" in (buildMaterialReceivePayload({ packaging: 30, quantity: 5, reason: "  " }) as { req: object }).req).toBe(false);
+    const r = buildMaterialReceivePayload({ packaging: 30, quantity: 5, reason: " yangi " });
+    expect(r.ok && r.req.reason).toBe("yangi");
+  });
+  it("receiveZeroCost flags typed 0 only (not empty)", () => {
+    expect(receiveZeroCost("0")).toBe(true);
+    expect(receiveZeroCost("")).toBe(false);
+    expect(receiveZeroCost(null)).toBe(false);
+    expect(receiveZeroCost("6000")).toBe(false);
+  });
+});

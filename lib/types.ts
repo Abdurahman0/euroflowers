@@ -692,6 +692,18 @@ export type FloristAttendance = {
 
 export type PackagingType = "wrap" | "basket" | "box" | "other" | "accessory";
 
+/** Materialning OXIRGI kirim partiyasi — materialda doimiy postavshik YO'Q, u shundan olinadi.
+    ⚠️ null = hech qachon kirim bo'lmagan (toza tire ko'rsatiladi, "null" emas). */
+export type LastDelivery = {
+  id: number;
+  number: string;
+  received_at: string;
+  supplier?: string | null;
+  supplier_id?: number | null;
+  quantity?: number;
+  unit_cost?: string;
+};
+
 export type Packaging = {
   id: number;
   created_at: string;
@@ -702,12 +714,17 @@ export type Packaging = {
   size: string;
   capacity_min_stems: number;
   capacity_max_stems: number;
+  /** ⚠️ BITTA o'zgaruvchan tannarx — har material kirimi (receive) buni QAYTA YOZADI.
+      Gul partiyasidan farqi: materialда per-partiya tannarx yo'q. Katalog material
+      tannarxi SHU joriy qiymatdan o'qiladi → eski kataloglar tannarxi retroaktiv siljiydi. */
   cost_price: string;
   sale_price: string;
   quantity: number;
   image_url: string;
   is_active: boolean;
   branch?: number;
+  /** oxirgi kirim partiyasi (GET /api/materials/{id}/) — postavshik shundan */
+  last_delivery?: LastDelivery | null;
 };
 
 /** Material sklad harakati (backend: /api/material-movements/, ichkarida Packaging) */
@@ -725,7 +742,34 @@ export type MaterialMovement = {
   packaging?: number;
   performed_by?: number | null;
   performed_by_detail?: User | null;
+  /** qaysi material-partiyadan (delivery). ⚠️ ESKI yozuvlarda null — normal. */
+  delivery?: number | null;
+  /** o'sha kirimdagi dona tannarxi. Eski yozuvlarda bo'lmaydi. */
+  unit_cost?: string | null;
 };
+
+/** MATERIAL YUKI (delivery) — kirimlarni guruhlaydigan yozuv (raqam·sana·postavshik).
+    ⚠️ `number` TAKRORLANADI — id keys/lookup, sana raqam yonida. Gul Yuki twin'i. */
+export type MaterialDelivery = {
+  id: number;
+  number: string;
+  received_at: string;
+  supplier?: number | null;
+  supplier_detail?: Supplier | null;
+  note?: string;
+  is_active: boolean;
+  created_by?: number | null;
+  created_by_detail?: User | null;
+  created_at: string;
+  updated_at: string;
+  /** server hisoblab beradi */
+  item_count: number;
+  total_quantity: number;
+  total_cost: string;
+};
+export type MaterialDeliveryInput = { number: string; received_at?: string; supplier?: number | null; note?: string };
+/** ⚠️ cost_price berilsa materialning tannarxini QAYTA YOZADI; berilmasa o'zgarmaydi (zero≠bo'sh). */
+export type MaterialReceiveInput = { packaging: number; quantity: number; cost_price?: string; reason?: string };
 
 export type AuditLog = {
   id: number;

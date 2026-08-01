@@ -5,7 +5,7 @@ import type {
   AISettings, Analytics, AuditLog, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard,
   Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
-  LeadStatusDef, MaterialMovement, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
+  LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
 import { dashboardDateTo, accountingDateTo } from "./format";
@@ -648,9 +648,24 @@ export const api = {
     request<Packaging>("/api/materials/", { method: "POST", body: JSON.stringify(data) }),
   updateMaterial: (id: number, data: Partial<Packaging>) =>
     request<Packaging>(`/api/materials/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  /** ⚠️ movement — CHIQIM/tuzatish uchun (kirim endi receive orqali: delivery+postavshik bilan). */
   materialMovement: (id: number, data: { movement_type: string; quantity: number; reason?: string }) =>
     request<Packaging>(`/api/materials/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
   materialMovements: (p?: Params) => list<MaterialMovement>("/api/material-movements/", p),
+
+  /* ===== MATERIAL YUKI (material-deliveries) — kirimlarni guruhlaydi (gul Yuki twin'i) ===== */
+  materialDeliveries: (p?: Params) => list<MaterialDelivery>("/api/material-deliveries/", p),
+  materialDelivery: (id: number) => request<MaterialDelivery>(`/api/material-deliveries/${id}/`),
+  /** yuk ichiga kiritilgan materiallar = kirim harakatlari (delivery + unit_cost bilan) */
+  materialDeliveryItems: (id: number, p?: Params) => list<MaterialMovement>(`/api/material-deliveries/${id}/items/`, p),
+  createMaterialDelivery: (data: MaterialDeliveryInput) =>
+    request<MaterialDelivery>("/api/material-deliveries/", { method: "POST", body: JSON.stringify(data) }),
+  updateMaterialDelivery: (id: number, data: Partial<MaterialDeliveryInput>) =>
+    request<MaterialDelivery>(`/api/material-deliveries/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  /** ⚠️ material KIRITISH — cost_price berilsa materialning tannarxini QAYTA YOZADI (retroaktiv:
+      shu materialdan yasalgan ESKI kataloglar tannarxiga ta'sir). Faqat tasdiqdan keyin. */
+  materialReceive: (id: number, data: MaterialReceiveInput) =>
+    request<MaterialMovement>(`/api/material-deliveries/${id}/receive/`, { method: "POST", body: JSON.stringify(data) }),
 
   /** Audit jurnali. Filtrlar SERVER tomonda:
       user (yoki user_id), action, entity_type, created_at_after/before, search */

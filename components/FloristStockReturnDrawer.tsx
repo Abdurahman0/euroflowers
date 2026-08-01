@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
-import DualQtyInput, { type QtyMode } from "./DualQtyInput";
+import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import StockLine, { lineFromBatchDetail } from "./StockLine";
 import { formatStemsAndBunches } from "@/lib/inventory";
 import { fmt } from "@/lib/format";
@@ -30,7 +30,8 @@ export default function FloristStockReturnDrawer({
 }) {
   const { showToast } = useStore();
   const [kind, setKind] = useState<"return" | "waste">(initialKind);
-  const [mode, setMode] = useState<QtyMode>("stems");
+  // ⚠️ DEFAULT = POCHKA — spb yo'q/1 bo'lsa dona
+  const [mode, setMode] = useState<QtyMode>(() => defaultQtyMode(balance.batch_detail?.stems_per_bunch));
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
   const [confirmWaste, setConfirmWaste] = useState(false);
