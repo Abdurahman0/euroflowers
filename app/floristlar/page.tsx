@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, Download, Pencil, Plus, Scissors, Trash2, User } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
@@ -11,18 +12,14 @@ import SearchInput from "@/components/SearchInput";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import FloristModal from "@/components/FloristModal";
-import FloristStatsView from "@/components/FloristStats";
-import FloristRateMatrix from "@/components/FloristRateMatrix";
-import Drawer from "@/components/Drawer";
-import DateChips from "@/components/DateChips";
-import type { FloristStats } from "@/lib/types";
 import SalaryLedger from "@/components/SalaryLedger";
 import AttendanceLedger from "@/components/AttendanceLedger";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import type { FloristProfile } from "@/lib/types";
 
 // «Hajm tariflari» tabi OLIB TASHLANDI — tariflar endi PER-FLORIST, har floristning
-// batafsil drawer'ida (FloristDetailDrawer → FloristRateMatrix). Umumiy tarif yo'q.
+// BATAFSIL SAHIFASIDA (/floristlar/[id] → «Hajm tariflari» bo'limi). Umumiy tarif yo'q.
+// Florist kartasiga bosilsa /floristlar/[id] sahifasiga o'tadi (ilgari drawer edi).
 const TAB_LABEL = { profillar: "Profillar", oyliklar: "Oyliklar", davomat: "Keldi-ketdi" } as const;
 type Tab = keyof typeof TAB_LABEL;
 
@@ -78,20 +75,19 @@ export default function FloristlarPage() {
   const [form, setForm] = useState<{ open: boolean; edit: FloristProfile | null }>({ open: false, edit: null });
   const [confirmOff, setConfirmOff] = useState<FloristProfile | null>(null);
   const [busy, setBusy] = useState(false);
-  const [statFor, setStatFor] = useState<FloristProfile | null>(null); // batafsil statistika drawer
+  const router = useRouter();
 
   const load = useCallback(() => {
     api.florists({ ordering: "user" }).then(setRows).catch((e) => showToast(e instanceof Error ? e.message : "Yuklashda xatolik"));
   }, [showToast]);
   useEffect(() => { load(); }, [load]);
-  // ?rateFor=<id> — composer «Tarif qo'shish» yorlig'idan: o'sha floristning drawer'ini
-  // ochamiz (tarif matritsasi shu yerda). Ro'yxat yuklangach bir marta.
+  // ?rateFor=<id> — composer «Tarif qo'shish» yorlig'idan: endi floristning BATAFSIL SAHIFASIga
+  // (tarif matritsasi «Hajm tariflari» bo'limida) yo'naltiramiz.
   useEffect(() => {
-    if (typeof window === "undefined" || !rows) return;
+    if (typeof window === "undefined") return;
     const id = Number(new URLSearchParams(window.location.search).get("rateFor"));
-    if (id) { const fp = rows.find((r) => r.id === id); if (fp) setStatFor(fp); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows]);
+    if (id) router.replace(`/floristlar/${id}#rates`);
+  }, [router]);
   useAutoRefresh(load);
 
   const name = (fp: FloristProfile) => {
@@ -159,7 +155,7 @@ export default function FloristlarPage() {
           {filtered.map((fp) => {
             const isApp = fp.staff_type === "apprentice";
             return (
-              <article key={fp.id} onClick={() => setStatFor(fp)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") setStatFor(fp); }} title="Batafsil statistika" className="glass card-hover group flex cursor-pointer flex-col gap-3 !rounded-[18px] p-4" style={{ opacity: fp.is_active ? 1 : 0.55 }}>
+              <article key={fp.id} onClick={() => router.push(`/floristlar/${fp.id}`)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") router.push(`/floristlar/${fp.id}`); }} title="Batafsil statistika" className="glass card-hover group flex cursor-pointer flex-col gap-3 !rounded-[18px] p-4" style={{ opacity: fp.is_active ? 1 : 0.55 }}>
                 <div className="flex items-center gap-3">
                   <span className="avatar-lead flex h-11 w-11 shrink-0 -rotate-3 items-center justify-center rounded-[13px] text-[14px] font-bold">{initials(name(fp))}</span>
                   <div className="min-w-0 flex-1">
@@ -200,8 +196,6 @@ export default function FloristlarPage() {
         </div>
       )}
 
-      {statFor && <FloristDetailDrawer florist={statFor} onClose={() => setStatFor(null)} />}
-
       {form.open && (
         <FloristModal
           florist={form.edit}
@@ -209,9 +203,6 @@ export default function FloristlarPage() {
           onSaved={(fp) => {
             setForm({ open: false, edit: null });
             setRows((rs) => { const list = rs ?? []; const i = list.findIndex((x) => x.id === fp.id); return i >= 0 ? list.map((x) => (x.id === fp.id ? fp : x)) : [fp, ...list]; });
-            // ochiq drawer'ni ham yangilaymiz — staff_type o'zgarsa matritsa darhol to'g'ri
-            // holatga o'tadi (matritsa florist.id o'zgarganda tariflarni qayta yuklaydi)
-            setStatFor((cur) => (cur && cur.id === fp.id ? fp : cur));
           }}
         />
       )}
@@ -227,44 +218,5 @@ export default function FloristlarPage() {
         />
       )}
     </>
-  );
-}
-
-/** Florist batafsil statistikasi — o'ng drawer. /florists/{id}/stats/ + server Excel eksport. */
-function FloristDetailDrawer({ florist, onClose }: { florist: FloristProfile; onClose: () => void }) {
-  const { showToast, dateFilter, dateRange } = useStore();
-  const [stats, setStats] = useState<FloristStats | null>(null);
-  const [err, setErr] = useState("");
-  const [exporting, setExporting] = useState(false);
-  const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
-  const to = dateRange ? dateRange.to : ymd(new Date());
-  const nm = florist.user_detail ? [florist.user_detail.first_name, florist.user_detail.last_name].filter(Boolean).join(" ") || florist.user_detail.username : `Florist #${florist.id}`;
-  useEffect(() => {
-    setStats(null); setErr("");
-    api.floristStats(florist.id, { from, to }).then(setStats).catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
-  }, [florist.id, from, to]);
-  const doExport = async () => {
-    setExporting(true);
-    try { await api.exportFlorist({ florist: florist.id, date_from: from, date_to: to }); showToast("✓ Excel yuklab olindi"); }
-    catch (e) { showToast(e instanceof ApiError ? e.message : "Eksport qilib bo'lmadi"); }
-    finally { setExporting(false); }
-  };
-  return (
-    <Drawer onClose={onClose} width={720} title={nm} sub="florist statistikasi (server)">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <DateChips />
-        <button onClick={doExport} disabled={exporting} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3 py-1.5 text-[12.5px] font-bold transition-colors hover:bg-[var(--hover)] disabled:opacity-60" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
-          <Download size={14} strokeWidth={2} /> {exporting ? "Yuklanmoqda…" : "Excel (6 varaq)"}
-        </button>
-      </div>
-      {err ? <p className="py-6 text-center text-[13px] font-bold" style={{ color: "var(--danger-ink)" }}>{err}</p>
-        : !stats ? <p className="py-6 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>
-        : <FloristStatsView stats={stats} />}
-
-      {/* PER-FLORIST hajm tariflari — shu floristning drawer'ida (umumiy tarif yo'q) */}
-      <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--border)" }}>
-        <FloristRateMatrix florist={florist} />
-      </div>
-    </Drawer>
   );
 }

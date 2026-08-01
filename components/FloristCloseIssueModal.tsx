@@ -131,7 +131,7 @@ export default function FloristCloseIssueModal({ balance, onClose, onDone }: {
                   <span key={i} className="rounded-full px-2 py-0.5 text-[11.5px] font-bold" style={{ background: "var(--danger-soft, rgba(160,74,74,.14))", color: "var(--danger-ink)" }}>{m}</span>
                 ))}
               </div>
-              <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.assign(`/floristlar?florist=${florist}`); }} className="mt-2.5 rounded-full border px-3 py-1 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--danger-ink)", color: "var(--danger-ink)" }}>Hajm tariflari →</button>
+              <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.assign(`/floristlar/${florist}#rates`); }} className="mt-2.5 rounded-full border px-3 py-1 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--danger-ink)", color: "var(--danger-ink)" }}>Hajm tariflari →</button>
             </div>
           )}
 

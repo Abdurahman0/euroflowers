@@ -653,7 +653,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-[12px] px-3 py-2.5 text-[12px] font-semibold" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>
               {/* ⚠️ §0b: tarif YARATISHDA bloklaydi (server volume 400). Florist+hajmni ATAB, matritsaga yo'l. */}
               <span><b>{selectedFlorist ? floristName(selectedFlorist) : "Bu florist"}</b> uchun <b>{VOLUME_LABEL[volume as CatalogVolume] ?? volume}</b> hajm tarifi belgilanmagan — katalog saqlanmaydi. Avval shu hajm narxini kiriting.</span>
-              <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.assign(`/floristlar?rateFor=${florist}`); }} className="shrink-0 rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--danger-ink)" }}>Tarif qo&apos;shish →</button>
+              <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.assign(`/floristlar/${florist}#rates`); }} className="shrink-0 rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--danger-ink)" }}>Tarif qo&apos;shish →</button>
             </div>
           )}
         </>

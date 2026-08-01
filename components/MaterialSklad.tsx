@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import SearchInput from "./SearchInput";
+import FilterSelect from "./FilterSelect";
 import ClearFilters from "./ClearFilters";
 import EmptyState from "./EmptyState";
 import FlowerLoader from "./FlowerLoader";
@@ -157,9 +158,35 @@ function MaterialDetailModal({ material, onClose }: { material: Packaging; onClo
   const [moves, setMoves] = useState<MaterialMovement[] | null>(null);
   useEffect(() => { api.materialMovements({ packaging: material.id, ordering: "-created_at", page_size: 50 }).then(setMoves).catch(() => setMoves([])); }, [material.id]);
   const ld = material.last_delivery;
+  // ⚠️ STAT STRIP — kirim/chiqim harakatlaridan (gul partiyasi kabi izlanuvchanlik). O'rtacha narx =
+  // KIRIMlarning og'irlikli o'rtachasi (narx tarixi shu harakatlarda). Qoldiq — materialning joriy soni.
+  const stat = useMemo(() => {
+    const ins = (moves ?? []).filter((m) => m.movement_type === "in");
+    const totIn = ins.reduce((s, m) => s + (m.quantity || 0), 0);
+    const totOut = (moves ?? []).filter((m) => m.movement_type === "out" || m.movement_type === "waste").reduce((s, m) => s + (m.quantity || 0), 0);
+    const priced = ins.filter((m) => m.unit_cost != null && +m.unit_cost > 0);
+    const costQty = priced.reduce((s, m) => s + (m.quantity || 0), 0);
+    const avg = costQty > 0 ? priced.reduce((s, m) => s + (m.quantity || 0) * +(m.unit_cost ?? 0), 0) / costQty : 0;
+    return { totIn, totOut, avg };
+  }, [moves]);
   return (
     <Modal onClose={onClose} width={520}>
       <ModalHeader icon={<Icon name="sklad" size={20} />} title={material.name_uz || material.name_ru} sub={`${TYPE_LABEL[normType(material.packaging_type)]}${material.size ? ` · ${material.size}` : ""} · qoldiq ${material.quantity} dona`} onClose={onClose} />
+
+      {/* STAT STRIP — jami olingan · sarflangan · qoldiq · o'rtacha narx */}
+      <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { k: "Jami olingan", v: `${stat.totIn} dona`, hue: "var(--text)" },
+          { k: "Sarflangan", v: `${stat.totOut} dona`, hue: "var(--text)" },
+          { k: "Qoldiq", v: `${material.quantity} dona`, hue: "var(--acc)" },
+          { k: "O'rtacha narx", v: stat.avg > 0 ? `${fmt(stat.avg)}/dona` : "—", hue: "var(--text)" },
+        ].map((c) => (
+          <div key={c.k} className="rounded-[12px] border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+            <div className="text-[10.5px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{c.k}</div>
+            <div className="mt-0.5 text-[14px] font-extrabold tabular-nums" style={{ color: c.hue }}>{c.v}</div>
+          </div>
+        ))}
+      </div>
 
       <Section>Oxirgi postavshik</Section>
       {ld ? (
@@ -313,6 +340,8 @@ export default function MaterialSklad() {
   const [materials, setMaterials] = useState<Packaging[] | null>(null);
   const [search, setSearch] = useState("");
   const [group, setGroup] = useState<"" | PackagingType>("");
+  // ⚠️ POSTAVSHIK filtri — material yetkazib beruvchisi oxirgi kirimdan (last_delivery.supplier) olinadi.
+  const [supplierF, setSupplierF] = useState("");
   const [formM, setFormM] = useState<{ open: boolean; edit: Packaging | null }>({ open: false, edit: null });
   const [moveM, setMoveM] = useState<Packaging | null>(null);
   const [detailM, setDetailM] = useState<Packaging | null>(null); // batafsil + kirim tarixi
@@ -334,9 +363,16 @@ export default function MaterialSklad() {
 
   // qidiruv + guruhlash (chip filtri saqlangan holda sanoqlar to'liq bo'lishi uchun avval qidiruv)
   const q = search.trim().toLowerCase();
+  // postavshik ro'yxati — materiallarning oxirgi kirimidagi noyob nomlar
+  const supplierOpts = useMemo(() => {
+    const names = Array.from(new Set((materials ?? []).map((m) => m.last_delivery?.supplier).filter((x): x is string => !!x))).sort();
+    return [{ value: "", label: "Barcha postavshiklar" }, ...names.map((n) => ({ value: n, label: n }))];
+  }, [materials]);
   const searched = useMemo(
-    () => (q ? (materials ?? []).filter((m) => [m.name_uz, m.name_ru, m.size].some((x) => (x ?? "").toLowerCase().includes(q))) : (materials ?? [])),
-    [materials, q]
+    () => (materials ?? []).filter((m) =>
+      (!q || [m.name_uz, m.name_ru, m.size].some((x) => (x ?? "").toLowerCase().includes(q)))
+      && (!supplierF || m.last_delivery?.supplier === supplierF)),
+    [materials, q, supplierF]
   );
   const byGroup = useMemo(() => {
     const g = new Map<PackagingType, Packaging[]>();
@@ -359,7 +395,8 @@ export default function MaterialSklad() {
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Material qidirish" />
-          <ClearFilters show={!!(search || group)} onClear={() => { setSearch(""); setGroup(""); }} />
+          {supplierOpts.length > 1 && <FilterSelect value={supplierF} onChange={setSupplierF} label="Postavshik" options={supplierOpts} />}
+          <ClearFilters show={!!(search || group || supplierF)} onClear={() => { setSearch(""); setGroup(""); setSupplierF(""); }} />
           {control && (
             <button onClick={() => setFormM({ open: true, edit: null })} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
               <Plus size={18} strokeWidth={1.75} /> Material qo&apos;shish
