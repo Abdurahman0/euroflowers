@@ -1,5 +1,5 @@
 "use client";
-import { ChevronRight, Truck } from "lucide-react";
+import { ChevronRight, Pencil, Truck } from "lucide-react";
 import StemGauge from "./StemGauge";
 import { fmt } from "@/lib/format";
 import { bunches, freshness, stems, roundingHint } from "@/lib/inventory";
@@ -14,10 +14,13 @@ export default function StockBatchCard({
   batch,
   onOpenSupplier,
   onView,
+  onEdit,
 }: {
   batch: StockBatch;
   onOpenSupplier?: (id: number) => void;
   onView?: () => void;
+  /** berilsa (faqat boshqarish huquqi bo'lsa) — kartada tahrirlash ikonkasi chiqadi */
+  onEdit?: () => void;
 }) {
   const v = batch.variant_detail;
   const fr = freshness(batch.received_at);
@@ -85,10 +88,25 @@ export default function StockBatchCard({
         {batch.height_label && <span className="rounded-full bg-sfc px-2 py-0.5 text-[11px] font-semibold" style={{ color: "var(--text-2)" }}>{batch.height_label}</span>}
       </div>
 
-      {/* batafsil — barcha amallar (chiqit/harakat/tahrirlash) shu modal ichida */}
+      {/* batafsil — barcha amallar shu modal ichida; TAHRIRLASH ikonkasi alohida target (kartani ochmaydi) */}
       <div className="mt-auto flex items-center justify-between border-t pt-2.5 text-[12px] font-bold transition-colors" style={{ borderColor: "var(--line2)", color: "var(--primary)" }}>
         <span>Batafsil va amallar</span>
-        <ChevronRight size={16} strokeWidth={2.2} className="transition-transform duration-150 group-hover:translate-x-0.5" />
+        <div className="flex items-center gap-1">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.stopPropagation(); }}
+              className="icon-btn !h-7 !w-7 transition-colors duration-150 hover:bg-[var(--hover)]"
+              style={{ color: "var(--text-2)" }}
+              title="Partiyani tahrirlash"
+              aria-label="Partiyani tahrirlash"
+            >
+              <Pencil size={13.5} strokeWidth={1.9} />
+            </button>
+          )}
+          <ChevronRight size={16} strokeWidth={2.2} className="transition-transform duration-150 group-hover:translate-x-0.5" />
+        </div>
       </div>
     </article>
   );

@@ -125,3 +125,55 @@ describe("DR3 — roundingHint / deliveryRoundingHint (DISPLAY-ONLY, server numb
     expect(deliveryRoundingHint({ total_cost_exact: 100000 })).toBeNull(); // no diff field → nothing
   });
 });
+
+// ── DR4: buildBatchEditPayload — changed-only PATCH (never full-object overwrite)
+import { buildBatchEditPayload, batchEditIsRetroactive, type BatchEditForm, type BatchEditOriginal } from "./inventory";
+
+const orig: BatchEditOriginal = {
+  batch_number: "EF-1", received_at: "2026-08-01", height_cm: 50, stems_per_bunch: 25,
+  minimum_sale_stems: 5, notes: "old", image_url: "img.jpg",
+  cost_per_bunch: "25000.00", sale_price_per_bunch: "50000.00", cost_per_stem: "1000.00", sale_price_per_stem: "2000.00",
+};
+const baseForm: BatchEditForm = {
+  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", stems_per_bunch: "25",
+  minimum_sale_stems: "5", notes: "old", image_url: "img.jpg",
+  cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
+  costManual: false, saleManual: false,
+};
+
+describe("DR4 — buildBatchEditPayload (changed-only)", () => {
+  it("nothing changed → EMPTY payload (no full-object overwrite)", () => {
+    expect(buildBatchEditPayload(orig, baseForm)).toEqual({});
+  });
+  it("numeric equality ignores decimal formatting (25000 == 25000.00)", () => {
+    expect(buildBatchEditPayload(orig, { ...baseForm, cost_per_bunch: "25000" })).toEqual({});
+  });
+  it("one field changed → ONLY that key", () => {
+    expect(buildBatchEditPayload(orig, { ...baseForm, notes: "new note" })).toEqual({ notes: "new note" });
+    expect(buildBatchEditPayload(orig, { ...baseForm, height_cm: "60" })).toEqual({ height_cm: 60 });
+    expect(buildBatchEditPayload(orig, { ...baseForm, minimum_sale_stems: "10" })).toEqual({ minimum_sale_stems: 10 });
+  });
+  it("cost changed via BUNCH (auto) → cost_per_bunch only, cost_per_stem OMITTED", () => {
+    const p = buildBatchEditPayload(orig, { ...baseForm, cost_per_bunch: "26000" });
+    expect(p).toEqual({ cost_per_bunch: "26000" });
+    expect("cost_per_stem" in p).toBe(false);
+  });
+  it("explicit per-stem OVERRIDE (manual) → BOTH sent when both changed", () => {
+    const p = buildBatchEditPayload(orig, { ...baseForm, costManual: true, cost_per_bunch: "26000", cost_per_stem: "999" });
+    expect(p).toEqual({ cost_per_bunch: "26000", cost_per_stem: "999" });
+  });
+  it("manual override, only per-stem changed → stem only (bunch untouched)", () => {
+    const p = buildBatchEditPayload(orig, { ...baseForm, costManual: true, cost_per_stem: "1050" });
+    expect(p).toEqual({ cost_per_stem: "1050" });
+  });
+  it("sale price change is independent of cost", () => {
+    expect(buildBatchEditPayload(orig, { ...baseForm, sale_price_per_bunch: "55000" })).toEqual({ sale_price_per_bunch: "55000" });
+  });
+  it("batchEditIsRetroactive flags cost / stems_per_bunch changes only", () => {
+    expect(batchEditIsRetroactive({ notes: "x" })).toBe(false);
+    expect(batchEditIsRetroactive({ sale_price_per_bunch: "55000" })).toBe(false);
+    expect(batchEditIsRetroactive({ cost_per_bunch: "26000" })).toBe(true);
+    expect(batchEditIsRetroactive({ stems_per_bunch: 20 })).toBe(true);
+    expect(batchEditIsRetroactive({ cost_per_stem: "999" })).toBe(true);
+  });
+});

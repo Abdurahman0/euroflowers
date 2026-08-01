@@ -9,13 +9,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
-import { useStore } from "@/lib/store";
+import { useStore, usePerm } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { dateAfterParam, fmt, fmtDate, fmtTime, movementLeadId, movementRefLabel, rangeParams } from "@/lib/format";
 import DateChips from "@/components/DateChips";
 import BatchDrawer from "@/components/BatchDrawer";
 import StockBatchCard from "@/components/StockBatchCard";
 import StockBatchModal from "@/components/StockBatchModal";
+import BatchEditModal from "@/components/BatchEditModal";
 import DeliveryModal from "@/components/DeliveryModal";
 import DeliveryDrawer from "@/components/DeliveryDrawer";
 import { SupplierDetail } from "@/components/SupplierModal";
@@ -114,6 +115,9 @@ const MAT_TYPES: PackagingType[] = ["wrap", "basket", "box", "other"];
 export default function SkladPage() {
   const router = useRouter();
   const { showToast, dateFilter, dateRange, setDateFilter } = useStore();
+  // partiya YARATISH/TAHRIRLASH ruxsati (spec: admin/warehouse = inventory boshqarish)
+  const { canControl } = usePerm();
+  const canManage = canControl("inventory");
   // bo'limlar: yuklar, gul sklad (partiyalar), material sklad va kirim-chiqim jurnali
   const [tab, setTab] = useState<"gul" | "yuklar" | "material" | "jurnal">("gul");
   const [deliveries, setDeliveries] = useState<StockDelivery[] | null>(null);
@@ -128,6 +132,7 @@ export default function SkladPage() {
   const [showFilter, setShowFilter] = useState<"" | "low" | "wilt">("");
   const [showDepleted, setShowDepleted] = useState(false); // tugagan (remaining_stems=0) partiyalarni ko'rsatish
   const [selBatch, setSelBatch] = useState<StockBatch | null>(null);
+  const [editBatch, setEditBatch] = useState<StockBatch | null>(null); // kartadagi ikonkadan tahrirlash
   const [search, setSearch] = useState("");
   // server filtrlari
   const [moveType, setMoveType] = useState("");
@@ -543,6 +548,7 @@ export default function SkladPage() {
             batch={b}
             onOpenSupplier={(sid) => api.supplier(sid).then(setSupplierDetail).catch(() => {})}
             onView={() => setSelBatch(b)}
+            onEdit={canManage ? () => setEditBatch(b) : undefined}
           />
         ))}
         {fBatches.length === 0 && (
@@ -556,6 +562,13 @@ export default function SkladPage() {
       </div>
 
       {kirimOpen && <StockBatchModal onClose={() => setKirimOpen(false)} onSaved={() => { notifyReportDataChanged(); load(); }} />}
+      {editBatch && (
+        <BatchEditModal
+          batch={editBatch}
+          onClose={() => setEditBatch(null)}
+          onSaved={(upd) => { setBatches((bs) => bs.map((x) => (x.id === upd.id ? upd : x))); load(); }}
+        />
+      )}
       {selBatch && (
         <BatchDrawer
           batch={selBatch}

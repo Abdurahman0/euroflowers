@@ -728,6 +728,15 @@ D4. Yukdan olindi: qo'shilgan partiyani BatchDrawer'da oching — batch_number/s
     preview bilan AYNAN teng (rounding parity). READ.
 D5. Arxiv: gulli yukni «Arxivlash» → tasdiq matni "ARXIVLANADI (is_active=false)" deydi. REV-ish
     (arxiv, o'chmaydi). Ehtiyot: keyin ro'yxatdan yo'qoladi.
+D6. Yuk select LOCK bug (tuzatildi): «Yangi partiya» → Yukni tanlang → BOSHQA yukka almashtiring.
+    Select butun modal davomida ochiladi; ostidagi «raqam·sana·postavshik shu yukdan» satri darhol
+    yangilanadi. READ. (ilgari birinchi tanlovdan keyin qulflanib qolardi.)
+D7. PARTIYA TAHRIRLASH: partiya kartasidagi ✎ ikonka (yoki detaldagi «Tahrirlash») → BatchEditModal.
+    ⚠️ TANNARX / pochka-dona / dona-tannarx o'zgartirsa RETROAKTIV ogoh chiqadi («avval yasalgan
+    kataloglar tannarxiga ta'sir»). IRREV bo'lmasa ham TARIXIY sonlarga DESTRUKTIV: sotilgan
+    kataloglar COGS/foydasi siljiydi (adjust bilan bir xil). FAQAT o'zgargan maydon PATCH qilinadi;
+    hech narsa o'zgarmasa Saqlash o'chiq. Provenance (Yuk/nav/qoldiq/qabul) o'zgartirilmaydi.
+    RISK: tannarx tegmasa REV-ish (tavsifiy); tannarx tegsa — ISTORIK RAQAMLARGA DESTRUKTIV, ehtiyot.
 
 ## LIST 2 — ROUNDING QUESTION (append)
 n. Pochka→dona yaxlitlash 100 ga — arzon gullar uchun to'g'rimi? cost_per_stem = cost_per_bunch ÷
@@ -862,3 +871,69 @@ Live GET (18 batches, 4 deliveries): every live row has `is_rounded:false` (pric
 the hint is correctly HIDDEN on real data; exact fields present and equal to rounded. Screenshots
 (dark+light) with a MOCKED is_rounded:true batch confirm the layout. 113 Vitest (+4), tsc clean, no
 console errors. READ-ONLY: GET + OpenAPI only.
+
+═══════════════════════════════════════════════════════════════════
+# SKLAD: YUK-SELECT LOCK FIX + BATCH EDIT (icon + fuller form) (2026-08-01)
+═══════════════════════════════════════════════════════════════════
+
+## §1 — Yuk dropdown lock (bug) — CAUSE + FIX
+CAUSE: `StockBatchModal` rendered `{boundDelivery ? <static text> : <Select>}` — the moment a Yuk was
+picked, `boundDelivery` became truthy and the JSX SWAPPED the Select for a read-only block with NO
+clear/change affordance → trapped until close. FIX: the Select now always renders (whole modal life);
+a derived read-only «raqam·sana·postavshik shu yukdan» line sits BELOW it and re-renders on change (no
+stale text). Deliveries are always loaded + the pre-bound prop is seeded into the list so the prop case
+stays changeable too (clearly labelled to prevent misfiling). Legacy no-delivery path was removed in an
+earlier task, so a batch is always Yuk-bound; there is no "clear to none" — the field is simply
+always-changeable, never trapped.
+Same-class check elsewhere: CustomerPicker DOES swap to a static chip on select but has an explicit ✕
+"Boshqasini tanlash" escape (not trapped — OK). Florist/supplier (KatalogModal, DeliveryModal,
+StockBatchModal) and the branch select (CatalogTransferDrawer) are plain interactive Selects (OK). Only
+the Yuk had no escape — fixed.
+
+## §2b — PATCH /api/stock-batches/{id}/ writable fields (OpenAPI) + classification
+Writable: received_bunches, batch_number, received_at, height_cm, height_from_cm, height_to_cm,
+stems_per_bunch, received_stems, remaining_stems, cost_per_bunch, cost_per_stem, cost_per_stem_exact,
+sale_price_per_bunch, sale_price_per_stem, sale_price_per_stem_exact, minimum_sale_stems, image_url,
+notes, is_active, variant, delivery, supplier.
+Read-only: id, variant_detail, supplier_detail, delivery_detail, rounding, remaining_bunches,
+remaining_bunches_label, stock_value, height_label, created_at, updated_at.
+
+| Field | Class | Exposed in edit? | Note |
+|---|---|---|---|
+| notes, image_url, minimum_sale_stems, height_cm | SAFE | yes (plain) | descriptive |
+| sale_price_per_bunch (+ per-stem override) | SAFE | yes (plain) | forward-looking; recorded sales keep their own price |
+| received_at | SAFE-ish | yes (plain) | re-dates the batch (freshness/date-window display) — minor |
+| cost_per_bunch / cost_per_stem | ⚠️ RETROACTIVE | yes, behind LOUD warning | your read CONFIRMED: catalog COGS derives from batch cost (saleLineAllocations); moves historical profit exactly like adjust |
+| stems_per_bunch | ⚠️ RETROACTIVE | yes, behind LOUD warning | your read CONFIRMED: every dona↔pochka conversion (florist balances, issue toggle, remaining_bunches, displays) shifts |
+| received_stems | 🚫 DANGEROUS | NO | editing the original received qty on a partly-consumed batch can desync/negate remaining_stems (server recompute unknown) |
+| remaining_stems | 🚫 DANGEROUS | NO | directly editing live stock bypasses the movement journal → stock vs history desync |
+| delivery (move to another Yuk) | 🚫 DANGEROUS | NO | retroactively rewrites the batch's number/date/supplier AND shifts both deliveries' totals — provenance rewrite |
+| variant | 🚫 DANGEROUS | NO | changes what every existing catalog/composition line points to |
+| supplier | 🚫 (derived) | NO | comes from the Yuk for delivery-bound batches — editing contradicts provenance |
+| is_active | — | via existing "Nofaollashtirish" button | not a form field |
+DECISION NEEDED FROM YOU: the four 🚫 (received_stems, remaining_stems, delivery-move, variant) are
+NOT exposed. If you want any of them editable (e.g. delivery-move to fix a misfiled batch), say so.
+
+## §2c — form behavior (built)
+Edit reuses the create modal's pricing exactly — shared `PriceHint` component (extracted to
+`components/BatchPriceFields.tsx`, used by BOTH create + edit) → pochka price primary, computed per-stem,
+rounding note, «qo'lda kiritish» override. Prefill from the record; `buildBatchEditPayload` sends ONLY
+CHANGED keys (never a full overwrite; numeric equality ignores decimal formatting so 25000==25000.00),
+price rule identical to create (bunch → stem omitted; explicit override → both). Retroactive warning
+box (`batchEditIsRetroactive`) shows when cost/stems_per_bunch changed — same treatment as the adjust
+sold-cost warning. On success: `notifyReportDataChanged()` + parent refetch. The old inline BatchDrawer
+edit form (full-overwrite, no rounding UI) was REPLACED — BatchDrawer's «Tahrirlash» now opens the SAME
+BatchEditModal, so there is one edit form everywhere.
+
+## Built
+- Bug fix: StockBatchModal Yuk select always-interactive + derived line.
+- `components/BatchPriceFields.tsx` (shared PriceHint), `components/BatchEditModal.tsx` (fuller edit).
+- `lib/inventory.ts`: `buildBatchEditPayload` + `batchEditIsRetroactive` + types; 8 new Vitest (121 total, green).
+- StockBatchCard: ✎ edit icon in the footer (icon-btn pattern, stopPropagation so it doesn't open the
+  card; separate target), gated on `canControl("inventory")` (parent passes onEdit only when permitted;
+  view-only sees no icon). Sklad page wires it → BatchEditModal.
+
+## Untested write paths (added — READ-ONLY, none fired)
+- PATCH /api/stock-batches/{id}/ — DESTRUCTIVE when cost/stems_per_bunch change (rewrites historical
+  COGS/profit for catalogs built from this batch, incl. sold). Wired to BatchEditModal «Saqlash»; sends
+  only changed fields; NEVER fired in this audit. tsc clean, 121 Vitest green, no console errors.

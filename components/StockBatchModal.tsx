@@ -8,6 +8,7 @@ import Select from "./Select";
 import ImageInput from "./ImageInput";
 import DualQtyInput, { type QtyMode } from "./DualQtyInput";
 import DeliveryModal from "./DeliveryModal";
+import { PriceHint } from "./BatchPriceFields";
 import { Icon } from "./icons";
 import { fmt, fmtDate } from "@/lib/format";
 import { DELIVERY, buildBatchPayload, perStemFromBunch, roundingNote } from "@/lib/inventory";
@@ -53,8 +54,11 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
       const first = vs[0];
       if (first) { setFlowerId((p) => p || first.flower); setF((p) => ({ ...p, variant: p.variant || first.id })); }
     }).catch(() => showToast("Gul navlarini yuklab bo'lmadi"));
-    // yuk bog'lanmagan bo'lsa — mavjud yuklar ro'yxatini olamiz (eng yangi birinchi)
-    if (!delivery) api.stockDeliveries({ is_active: true, ordering: "-received_at" }).then(setDeliveries).catch(() => {});
+    // Yuk ro'yxatini DOIM olamiz (eng yangi birinchi) — select butun modal davomida INTERAKTIV qoladi.
+    // Pre-bound (prop) yuk ro'yxatda bo'lmasa oldiga qo'shamiz (o'zgartirilishi mumkin, lekin ko'rinadi).
+    api.stockDeliveries({ is_active: true, ordering: "-received_at" })
+      .then((ds) => setDeliveries(delivery && !ds.some((d) => d.id === delivery.id) ? [delivery, ...ds] : ds))
+      .catch(() => { if (delivery) setDeliveries([delivery]); });
   }, [showToast, delivery]);
 
   const flowers = useMemo(() => {
@@ -67,8 +71,9 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
   const spb = +f.stems_per_bunch || variant?.default_stems_per_bunch || 20;
   const receivedStems = qtyMode === "bunches" ? Math.round((+qty || 0) * spb) : Math.round(+qty || 0);
 
-  // bog'langan yuk — prop yoki tanlangan
-  const boundDelivery = delivery ?? deliveries.find((d) => d.id === selDelivery) ?? null;
+  // TANLANGAN yuk — ro'yxatdan (yuklanmagunча prop'ga tayanadi). selDelivery o'zgarganda
+  // darhol qayta hisoblanadi → pastdagi read-only satr eskirmaydi.
+  const boundDelivery = deliveries.find((d) => d.id === selDelivery) ?? (delivery?.id === selDelivery ? delivery : null);
 
   // NARX preview — pochkadan dona (yaxlitlangan) yoki qo'lda kiritilgan
   const costBunch = +f.cost_per_bunch || 0;
@@ -124,30 +129,31 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
       <Modal onClose={onClose} width={560}>
         <ModalHeader icon={<Icon name="sklad" size={20} />} title="Yangi partiya" sub={boundDelivery ? DELIVERY.labelFull(boundDelivery.number, fmtDate(boundDelivery.received_at), boundDelivery.supplier_detail?.name) : "Yuk ichiga gul qo'shish"} onClose={onClose} />
 
-        {/* YUK — bog'langan bo'lsa MATN (uch maydon shu yerdan), aks holda tanlash */}
+        {/* YUK — select BUTUN modal davomida interaktiv (o'zgartirsa, pastdagi read-only satr
+            darhol yangilanadi). Raqam/sana/postavshik shu tanlangan yukdan olinadi. */}
         <Section>Yuk</Section>
-        {boundDelivery ? (
-          <div className="flex items-center gap-2.5 rounded-[13px] border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-            <Truck size={16} strokeWidth={2} style={{ color: "var(--primary)" }} />
+        <Field label="Qaysi yukka" span>
+          <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-bold">{DELIVERY.label(boundDelivery.number, fmtDate(boundDelivery.received_at))}</div>
-              <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>{boundDelivery.supplier_detail?.name ?? "postavshiksiz"}{boundDelivery.note ? ` · ${boundDelivery.note}` : ""}</div>
+              <Select value={selDelivery} onChange={(v) => { setSelDelivery(+v); setErrs((x) => { const n = { ...x }; delete n.delivery; return n; }); }} placeholder="Yukni tanlang" searchable
+                options={deliveries.map((d) => ({ value: d.id, label: DELIVERY.label(d.number, fmtDate(d.received_at)), sub: d.supplier_detail?.name ?? "postavshiksiz" }))} />
             </div>
-            <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>raqam · sana · postavshik yukdan</span>
+            <button type="button" onClick={() => setNewDelivery(true)} className="icon-btn border shrink-0" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }} title={DELIVERY.neu} aria-label={DELIVERY.neu}>
+              <Plus size={16} strokeWidth={2} />
+            </button>
           </div>
-        ) : (
-          <Field label="Qaysi yukka" span>
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <Select value={selDelivery} onChange={(v) => { setSelDelivery(+v); setErrs((x) => { const n = { ...x }; delete n.delivery; return n; }); }} placeholder="Yukni tanlang" searchable
-                  options={deliveries.map((d) => ({ value: d.id, label: DELIVERY.label(d.number, fmtDate(d.received_at)), sub: d.supplier_detail?.name ?? "postavshiksiz" }))} />
-              </div>
-              <button type="button" onClick={() => setNewDelivery(true)} className="icon-btn border shrink-0" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }} title={DELIVERY.neu} aria-label={DELIVERY.neu}>
-                <Plus size={16} strokeWidth={2} />
-              </button>
+          <Err k="delivery" />
+        </Field>
+        {/* DERIVED read-only tasdiq — tanlangan yukdan (misfiling'дан saqlaydi); o'zgarsa darhol yangilanadi */}
+        {boundDelivery && (
+          <div className="mt-2 flex items-center gap-2.5 rounded-[13px] border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+            <Truck size={15} strokeWidth={2} style={{ color: "var(--primary)" }} />
+            <div className="min-w-0 flex-1">
+              <div className="text-[12.5px] font-bold">{DELIVERY.label(boundDelivery.number, fmtDate(boundDelivery.received_at))}</div>
+              <div className="text-[11px]" style={{ color: "var(--muted)" }}>{boundDelivery.supplier_detail?.name ?? "postavshiksiz"}{boundDelivery.note ? ` · ${boundDelivery.note}` : ""}</div>
             </div>
-            <Err k="delivery" />
-          </Field>
+            <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>raqam · sana · postavshik shu yukdan</span>
+          </div>
         )}
 
         <Section>Gul</Section>
@@ -206,33 +212,5 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
         <DeliveryModal onClose={() => setNewDelivery(false)} onSaved={(d) => { setDeliveries((ds) => [d, ...ds]); setSelDelivery(d.id); setNewDelivery(false); }} />
       )}
     </>
-  );
-}
-
-/** dona narxi — muted preview + yaxlitlash izohi + 0 ga tushsa LOUD ogoh + qo'lda kiritish. */
-function PriceHint({ label, perStem, note, manual, manualVal, onManualToggle, onManualChange }: {
-  label: string; perStem: number; note: { exact: number; changed: boolean; zeroed: boolean };
-  manual: boolean; manualVal: string; onManualToggle: () => void; onManualChange: (v: string) => void;
-}) {
-  return (
-    <div className="mt-1.5">
-      {manual ? (
-        <div className="flex items-center gap-2">
-          <input className="inp" type="number" value={manualVal} onChange={(e) => onManualChange(e.target.value)} placeholder={`${label} (qo'lda)`} aria-label={`${label} qo'lda`} />
-          <button type="button" onClick={onManualToggle} className="shrink-0 text-[11.5px] font-bold" style={{ color: "var(--muted)" }}>← avto</button>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-1 text-[12px]" style={{ color: "var(--muted)" }}>
-          <span>→ {label}: <b style={{ color: "var(--text-2)" }}>{perStem.toLocaleString("ru")} so&apos;m</b></span>
-          {note.changed && <span style={{ color: "var(--mut)" }}>(yaxlitlandi, aniq hisob {note.exact.toLocaleString("ru", { maximumFractionDigits: 2 })})</span>}
-          <button type="button" onClick={onManualToggle} className="text-[11px] font-bold" style={{ color: "var(--primary)" }}>qo&apos;lda kiritish</button>
-        </div>
-      )}
-      {note.zeroed && !manual && (
-        <p className="mt-1 flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[12px] font-bold" style={{ background: "var(--danger-soft, rgba(160,74,74,.14))", color: "var(--danger-ink)" }}>
-          ⚠ {label} 0 ga yaxlitlanadi (aniq hisob {note.exact.toLocaleString("ru", { maximumFractionDigits: 2 })}) — tannarx asosi yo&apos;qoladi
-        </p>
-      )}
-    </div>
   );
 }

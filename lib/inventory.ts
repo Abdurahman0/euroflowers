@@ -149,6 +149,63 @@ export function buildBatchPayload(v: BatchPayloadInput): Record<string, unknown>
   return p;
 }
 
+/* ===== PARTIYA TAHRIRLASH (PATCH) — FAQAT O'ZGARGAN maydonlar =====
+   ⚠️ To'liq-obyekt ustiga yozish EMAS: tegilmagan maydon QAYTA YUBORILMAYDI (user-branch
+   payload'i bilan bir xil intizom). Narx qoidasi create bilan bir xil: pochka asosiy;
+   dona narxi FAQAT «qo'lda kiritish» (manual) da yuboriladi — override bo'lsa ikkalasi ham. */
+export type BatchEditForm = {
+  batch_number: string;
+  received_at: string; // "YYYY-MM-DD"
+  height_cm: string;
+  stems_per_bunch: string;
+  minimum_sale_stems: string;
+  notes: string;
+  image_url: string;
+  cost_per_bunch: string;
+  sale_price_per_bunch: string;
+  cost_per_stem: string; // override qiymati
+  sale_price_per_stem: string; // override qiymati
+  costManual: boolean;
+  saleManual: boolean;
+};
+export type BatchEditOriginal = {
+  batch_number?: string; received_at?: string; height_cm?: number; stems_per_bunch?: number;
+  minimum_sale_stems?: number; notes?: string; image_url?: string;
+  cost_per_bunch?: string; sale_price_per_bunch?: string; cost_per_stem?: string; sale_price_per_stem?: string;
+};
+const numEq = (a: string, b: string | number | undefined | null): boolean =>
+  (parseFloat(a) || 0) === (b == null ? 0 : typeof b === "string" ? (parseFloat(b) || 0) : b);
+function addPriceEdit(p: Record<string, unknown>, kind: "cost" | "sale", manual: boolean, bunch: string, stem: string, origBunch?: string, origStem?: string) {
+  const bunchKey = kind === "cost" ? "cost_per_bunch" : "sale_price_per_bunch";
+  const stemKey = kind === "cost" ? "cost_per_stem" : "sale_price_per_stem";
+  const bunchChanged = bunch.trim() !== "" && !numEq(bunch, origBunch);
+  if (manual) {
+    // OVERRIDE — dona narxi o'zgargan bo'lsa yuboriladi; pochka ham o'zgargan bo'lsa u ham (ikkalasi knowingly)
+    if (stem.trim() !== "" && !numEq(stem, origStem)) p[stemKey] = String(+stem);
+    if (bunchChanged) p[bunchKey] = String(+bunch);
+  } else if (bunchChanged) {
+    // AVTO — faqat pochka narxi (server dona narxini qayta hisoblaydi); dona YUBORILMAYDI
+    p[bunchKey] = String(+bunch);
+  }
+}
+export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditForm): Record<string, unknown> {
+  const p: Record<string, unknown> = {};
+  if (form.batch_number.trim() !== (orig.batch_number ?? "")) p.batch_number = form.batch_number.trim();
+  const origDate = (orig.received_at ?? "").slice(0, 10);
+  if (form.received_at && form.received_at.slice(0, 10) !== origDate) p.received_at = form.received_at.slice(0, 10);
+  if (+form.height_cm > 0 && +form.height_cm !== orig.height_cm) p.height_cm = +form.height_cm;
+  if (+form.stems_per_bunch > 0 && +form.stems_per_bunch !== orig.stems_per_bunch) p.stems_per_bunch = +form.stems_per_bunch;
+  if (+form.minimum_sale_stems > 0 && +form.minimum_sale_stems !== orig.minimum_sale_stems) p.minimum_sale_stems = +form.minimum_sale_stems;
+  if (form.notes !== (orig.notes ?? "")) p.notes = form.notes;
+  if (form.image_url !== (orig.image_url ?? "")) p.image_url = form.image_url;
+  addPriceEdit(p, "cost", form.costManual, form.cost_per_bunch, form.cost_per_stem, orig.cost_per_bunch, orig.cost_per_stem);
+  addPriceEdit(p, "sale", form.saleManual, form.sale_price_per_bunch, form.sale_price_per_stem, orig.sale_price_per_bunch, orig.sale_price_per_stem);
+  return p;
+}
+/** RETROAKTIV o'zgarish bormi — tannarx/pochka-dona bo'linishi (avval yasalgan kataloglar tannarxiga ta'sir). */
+export const batchEditIsRetroactive = (payload: Record<string, unknown>): boolean =>
+  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload;
+
 /* ===== yuborishdan oldin NORMALLASHTIRISH (katalog / social post) =====
    Bitta buket/savat = BITTA CatalogItem, ichida ko'p qatorli composition.
    Bir xil stock_batch (yoki packaging) qatorlari BITTAGA birlashtiriladi
