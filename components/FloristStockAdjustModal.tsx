@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Ban, Scale, TriangleAlert } from "lucide-react";
+import { AlertTriangle, Ban, Info, Scale, TriangleAlert } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader } from "./Modal";
@@ -138,6 +138,12 @@ export default function FloristStockAdjustModal({
           <span className="text-[13px] font-bold tabular-nums">{headerRemaining}</span>
         </div>
       )}
+
+      {/* adjust vs close-issue — bir qatorli izoh (§4): avval chiqim yopiladi, adjust — KEYINGI tuzatish */}
+      <p className="mt-2 flex items-center gap-1.5 text-[11.5px]" style={{ color: "var(--muted)" }}>
+        <Info size={12} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--primary)" }} />
+        Bu <b>keyingi tuzatish</b>. Agar chiqim hali yopilmagan bo&apos;lsa, avval «Chiqimni yopish»ni ishlating.
+      </p>
 
       {result ? (
         /* ===== NATIJA (adjust'dan keyin) ===== */

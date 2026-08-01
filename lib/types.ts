@@ -900,7 +900,10 @@ export type FloristVolumeRate = {
       mos kelishi shart — moslik satr-tenglik). API'da erkin satr, lekin biz S/M/L
       YOZMAYMIZ — auto-to'ldirish jimgina ishlamay qolardi. */
   volume: CatalogVolume;
-  default_stems: number;
+  /** ⚠️ endi TAQSIMOT OG'IRLIGI (close-issue): standart dona soni ulushni belgilaydi.
+      Serverda IXTIYORIY (OpenAPI required emas) — null/0 bo'lsa og'irlik buziladi.
+      UI himoyalangan: fee bor, stems yo'q katakni ogohlantiradi. */
+  default_stems?: number | null;
   florist_fee: string;
   is_active: boolean;
 };
@@ -1065,6 +1068,50 @@ export type AdjustResult = {
 /** batch — to_catalog da ixtiyoriy (berilmasa hamma qoldiq), to_florist da MAJBURIY.
     quantity_stems — faqat to_florist uchun, u yerda MAJBURIY. */
 export type AdjustInput = { florist: number; direction: AdjustDirection; batch?: number; quantity_stems?: number };
+
+/* ===== CHIQIMNI YOPISH (close-issue) — florist katalogi endi faqat hajm bilan; gul chiqim
+   yopilganda hajm standartiga qarab kataloglarga taqsimlanadi (adjust'dan OLDINGI birinchi taqsimot). */
+export type CloseIssuePreviewItem = {
+  catalog_item: number;
+  catalog_name: string;
+  arrangement_type: string;
+  /** ⚠️ ko'rsatish qiymati — backend "S"/"M"/"L" qaytarishi mumkin (VOLUME_SHORT), katalog
+      esa small/medium/large SAQLAYDI. Faqat jadval yorlig'i sifatida ishlatiladi. */
+  volume: string;
+  quantity_total: number;
+  standard_stems: number;
+  /** har bir donaga tushadigan gul */
+  stems_per_item: number;
+  /** butun katalogga tushadigan gul (quantity_total > 1 da stems_per_item dan FARQ qiladi) */
+  stems_total: number;
+};
+/** hajm tarifi belgilanmagan turi+hajm — bo'sh bo'lmasa yopish BLOKLANADI.
+    Shakli noaniq (read-only kuzatilmadi): obyekt yoki tayyor yorliq string bo'lishi mumkin. */
+export type CloseIssueMissingRate = { arrangement_type?: string; volume?: string; label?: string } | string;
+export type CloseIssuePreview = {
+  florist: number;
+  florist_name: string;
+  batch_id: number;
+  batch_number: string;
+  flower: string;
+  florist_stems_now: number;
+  return_stems: number;
+  share_stems: number;
+  unplaced_stems: number;
+  missing_rates: CloseIssueMissingRate[];
+  items: CloseIssuePreviewItem[];
+};
+export type CloseIssueResult = {
+  /** ⚠️ bu YERDA florist = ism (string) */
+  florist: string;
+  batch_number: string;
+  returned_stems: number;
+  shared_stems: number;
+  unplaced_stems: number;
+  items: CloseIssuePreviewItem[];
+};
+/** batch MAJBURIY (har gul alohida yopiladi). return_stems ixtiyoriy (sukut 0). */
+export type CloseIssueInput = { florist: number; batch: number; return_stems?: number };
 
 /** Florist oylik yozuvi (backend: /api/florist-salary/) */
 export type SalarySource = "catalog" | "custom_catalog" | "daily" | "manual";

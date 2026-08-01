@@ -429,10 +429,15 @@ go-live:
   listed 7.6M → sold 3.0M, discount 4.6M, reason "opamga".
 
 ## LIST 1 — MANUAL CHECKLIST (risk: READ / REV / IRREV; run in order)
-1.  Rate save: florist → «Hajm tariflari» → 6 katak → Saqlash. REV.
+### ⚠️ FLORIST OQIMI QAYTA YOZILDI (2026-08-01, close-issue): tartib RATES → ISSUE →
+### KATALOG (faqat hajm) → CHIQIMNI YOPISH → ADJUST. Eski «katalog florist balansidan gul
+### tanlaydi» oqimi O'CHDI (Stage 2 kompozitsiya-picker olib tashlandi).
+1.  Rate save: florist → «Hajm tariflari» → 6 katak → HAR katakda ish haqi VA «standart dona»
+    (default_stems) — endi u TAQSIMOT OG'IRLIGI. Fee bor, dona yo'q katak OGOHLANTIRILADI. Saqlash. REV.
 2.  Empty ONE rate cell → Saqlash (o'sha hajm nofaol). REV — katakni qaytaring.
 3.  Copy-from-florist → Nusxalash (manba tegilmaydi). READ src / REV target.
-4.  Balanceless florist → composer empty state + shortcut. READ. (issue'dan OLDIN)
+4.  Tarif enum: florist katalogida Turi FAQAT Buket/Savat (QUTI yo'q — rate enum box'ni qabul
+    qilmaydi; box florist katalogi yopilmaydi, LIST 2 a). Warehouse katalogida uchtasi ham bor. READ.
 5.  Branch report → davr tanlang. IKKI CHIP (florist-stock sahifasidagi bilan bir xil): «Hisobot»
     (default) va «Yuborilganlar tarixi». `?tab=` da saqlanadi; chipni almashtiring — filtrlar
     aralashmaydi. «Hisobot» = filial jadvali (Ustama ustuni ajratilgan) + JAMI satri + ustama-vs-asl
@@ -442,13 +447,24 @@ go-live:
     Transfer tabida «Butun davr — sana filtri qo'llanmaydi» satri (backend date filtri yo'q — LIST 2 j).
     Ikkala tab ham hozir bo'sh (0 transfer, 0 filial sotuvi) — har biri nimadan to'lishini tushuntiradi. READ.
 6.  ISSUE florist + batch + ~8 → Chiqarish. REV (return orqali). Eski, arzon, tugab-qolgan partiya.
-7.  Catalog from florist balance (salary «Tarifdan olindi»), 1 dona. REV (delete orqali). Throwaway item.
+7.  FLORIST KATALOGI (faqat hajm): +Katalog → florist tanlang → GUL BLOKI YO'Q, «Florist
+    katalogida gul tanlanmaydi» izohi chiqadi. Faqat Turi + Hajm (majburiy) → Saqlash. Hajmsiz
+    yuborsa 400 (volume/arrangement_type maydonida ko'rsatiladi). Salary «Tarifdan olindi».
+    Kartada «Gul taqsimlanmagan» chip + katalog filtri. IRREV (yoziladi) — arzon test item.
+7a. CHIQIMNI YOPISH (birinchi taqsimot): Floristlarga chiqarilgan → Kimda qancha gul bor →
+    qatordagi «Chiqimni yopish ⌄» menyusi (adjust ham shu yerda, yopish DOMINANT). Skladga
+    qaytariladi kiriting → preview jadvali (Katalog·Hajm·Standart·Tushadi, per-item VA jami).
+    return==balans → «Hammasi skladga qaytadi» (calm). missing_rates → Yopish O'CHADI + matritsa
+    havolasi. Yopish. IRREV — katalog tannarxi endi PAYDO bo'ladi, «taqsimlanmagan» chip yo'qoladi.
+7b. ADJUST (keyingi tuzatish): shu qatorda «To'g'rilash» — close'dan KEYIN kam/ko'p ishlatilgan
+    bo'lsa. Modal bir qatorli izoh bilan tartibni aytadi. IRREV (audit'da bosilmadi).
 8.  User branch: Xodimlar → NON-kritik userni Parkentga biriktiring. REV — keyin Asosiyga qaytaring.
 9.  User branch: o'sha userni Filialga TEGMASDAN saqlang. READ-ish — filiali o'zgarmasligini tekshiring.
 10. Customer on sale: 7-qadam item, 1 dona, Mavjud/Yangi mijoz. IRREV (sotuv yoziladi).
 11. RETURN: issue'ning bir qismini qaytaring. REV — sklad tiklanadi.
 12. TRANSFER: asosiy katalog item → Filialga yuborish, 1 dona, eng arzon. IRREV — QAYTARIB BO'LMAYDI.
-13. DELETE 7-qadam floristli katalog. IRREV — gullar floristga qaytadi, YOZUV o'chadi.
+13. DELETE floristli katalog. IRREV. ⚠️ YOPILMAGAN katalogda composition YO'Q → floristga HECH
+    NARSA qaytmaydi (delete-confirm matni shuni HALOL aytadi); YOPILGAN katalogda gullar qaytadi.
 14. WASTE: florist balansi → Chiqit, 1 dona. IRREV — gul butunlay yo'qoladi.
 15. Branch-user tajribasi (Parkent login kerak). READ — menyu 3 ta, /sklad→redirect, +Katalog yo'q,
     chegirmada discount_reason majburiy.
@@ -720,3 +736,85 @@ n. Pochka→dona yaxlitlash 100 ga — arzon gullar uchun to'g'rimi? cost_per_st
    buzadi. Mayda gul uchun finaroq (masalan 10 ga) yaxlitlash kerakmi? SETTLE: backend policy.
    Bog'liq: mixed basis — eski #61 cost_per_stem=5333 (100 ning karrasi EMAS) yangi yaxlitlangan
    partiyalar bilan bitta hisobotda aralashadi.
+o. ⚠️ SOTISH-YOPISHDAN-OLDIN (PRIORITET) — florist katalogini chiqim YOPILMASDAN sotib bo'ladimi?
+   Yopilmagan item'da composition YO'Q → COGS 0 → sotuv paytida foyda 100% ko'rinadi, keyin close
+   tannarxni yozadi → TARIXIY foyda siljiydi. Spec jim. Read-only tekshirib bo'lmadi (0 florist
+   katalog live). SETTLE: (1) yopilmagan florist katalogini sotishni backend bloklaydimi? (2) bloklamasa,
+   sotilgach close COGS'ni orqaga to'g'rilaydimi yoki sotuv «taqsimlanmagan» qolib ketadimi?
+p. ⚠️ RATE ENUM box'siz — CatalogItem.arrangement_type = [bouquet,basket,box] (2c2Enum), lekin
+   FloristVolumeRate.arrangement_type = [bouquet,basket] (E15Enum, box YO'Q). Ya'ni box florist
+   katalogi hech qachon mos tarif ololmaydi → missing_rates → YOPIB BO'LMAYDI. UI himoyasi: florist
+   rejimida Turi'dan box olib tashlandi + matritsa 2×3 qoldi. SETTLE: rate enum'ga box qo'shilsinmi
+   (spec «quti» deydi), yoki florist katalogida box rasman taqiqlansinmi?
+q. ⚠️ default_stems null — FloristVolumeRate.default_stems OpenAPI'da required EMAS (nullable). Endi u
+   TAQSIMOT OG'IRLIGI. Tarif bor, lekin default_stems null/0 bo'lsa — o'sha katalog og'irligi 0 (ulush
+   0) bo'ladimi yoki xato? Read-only aniqlanmadi (6 live tarifning hammasida bor). UI himoyasi:
+   matritsada fee bor, dona yo'q katak ogohlantiriladi. SETTLE: backend — null default_stems xatti-harakati.
+r. CLOSE vs ADJUST — close'dan keyin adjust `to_catalog` o'sha guldan yasalgan kataloglarni bo'ladi;
+   endi ular composition'li. Bizning o'qishimiz: MANTIQIY qoladi — close BIRINCHI taqsimot (bo'sh
+   kataloglarga), adjust floristda ORTGAN gulni MAVJUD composition'ga qo'shadi/kamaytiradi (spec
+   «bir-birini to'ldiradi» deydi). Ziddiyat kutilmaydi, lekin ikkalasi ham katalog tannarxini o'zgartirgani
+   uchun tartib muhim (UI ikkala modalда bir qatorli izoh bilan aytadi). SETTLE: agar close ham adjust
+   ham bitta gulga ketma-ket qo'llansa, ikki marta hisoblanmasligini backend'да tasdiqlang.
+
+═══════════════════════════════════════════════════════════════════
+# FLORIST CHIQIM YOPISH (close-issue) — BUILD + AUDIT (2026-08-01)
+═══════════════════════════════════════════════════════════════════
+
+## §0 — SIX AUDITS (live + code)
+- **a) Box enum:** the RATE enum (E15Enum, governs the matrix) is STILL `[bouquet, basket]` — no box —
+  so the matrix stays **2×3** (spec's «quti» is ahead of the API). BUT the CATALOG enum (2c2Enum) DOES
+  have box, so a box florist catalog would be uncloseable; mitigated by dropping box from florist-mode
+  Turi. → LIST 2 p.
+- **b) default_stems:** OPTIONAL on the rate (not in OpenAPI `required`; all 6 live rates have it). Now
+  it's the distribution WEIGHT — promoted to a first-class matrix input with a fee-but-no-stems warning.
+  Null/0 behavior untestable read-only → LIST 2 q.
+- **c) Zero rates:** NO longer zero — **6 rates live, all florist 8 (Fatxulloh)**; every other florist has
+  0. Actionable states + matrix links surfaced in the close modal + florist catalog form.
+- **d) Volume matching:** rates store **small/medium/large** (live), `volumeArrangementMatch` uses exact
+  equality; matrix + catalog both use small/medium/large; `VOLUME_SHORT` (S/M/L) is display-only. The
+  preview's `"volume":"S"` is a backend DISPLAY label. No second representation introduced.
+- **e) Stage-2 deletions:** removed from KatalogModal — florist `compOptions` branch, per-row «mavjud:N»,
+  `availOf` florist half, `rowInvalidFlorist`/`anyInvalidRow`/`over`-via-`stemsForBatchNow`, `balances`
+  loader, «Bu floristga hali gul chiqarilmagan» empty-state+shortcut, the florist arm of the 400 renderer.
+  `lib/floristStock.ts` `balanceRemaining/batchHeldByFlorist/stemsForBatch/isBatchOverBalance/CompStemRow`
+  DELETED (adjust imports a disjoint set — verified). Warehouse composition path UNTOUCHED (tsc-verified,
+  screenshot: warehouse catalog still picks flowers).
+- **f) Limbo catalogs:** an unclosed florist catalog has EMPTY composition → `saleLineAllocations` returns
+  `[]` (0 to supplier/variant sections) and the KatalogModal live-price computes **cost 0 / profit 100%**;
+  server `net_profit`/`cost_total` depend on the backend. Mitigation: «Gul taqsimlanmagan» chip on the
+  catalog card + detail + a client filter. Sell-before-close is untestable read-only → LIST 2 o (priority).
+
+## §5 — REPORTING IMPACT (limbo)
+| Site | For an unclosed (empty-composition) florist catalog |
+|---|---|
+| `saleLineAllocations` / supplier + variant profit tables | returns [] → contributes 0 revenue & 0 cost (item absent from those sections) |
+| KatalogModal live-price preview | cost 0 → «Taxminiy foyda» = full sale (100%) |
+| KatalogViewModal «Komponentlar narxi» | hidden (server component price 0) |
+| hisob-kitob KPI/per-sale «Sof foyda» | server `net_profit`/`cost_total` — if backend reports 0 cost, reads 100% margin |
+After a close the composition (and thus cost) comes into existence, so every one of these moves — hence
+`notifyReportDataChanged()` on close success.
+
+## Built
+- API: `closeIssuePreview` (GET) + `closeIssue` (POST, never auto-called) + types. Live probe: 0 balances
+  today → close-issue-preview MOCK-VERIFIED only (endpoint confirmed: needs florist+batch; without batch
+  400s `{"detail":"Florist va gul tanlanishi kerak."}`). 6 rates confirmed live (florist 8).
+- `FloristCloseIssueModal` (reuses Modal/StockLine): return_stems (clamped, debounced preview), «Kataloglarga
+  bo'linadi» from preview, table Katalog·Hajm·Standart·Tushadi with per-item AND total, Jami footer,
+  missing_rates → confirm disabled + matrix link, unplaced surfaced, all-returns calm state, verbatim 400,
+  result summary, double-submit guard, ordering copy.
+- Row menu «Chiqimni yopish ⌄» (dominant) + «To'g'rilash» (adjust) with one-line descriptions, gated on
+  inventory MANAGE. Both modals carry a one-line ordering note (§4).
+- KatalogModal florist mode: flower block replaced by an explanatory note; Turi limited to buket/basket;
+  Hajm required (client + server 400 on volume/arrangement_type); existing-composition florist catalogs
+  shown READ-ONLY with an adjust hint; rate-missing link to the matrix; salary auto-fill kept. Delete-confirm
+  now truthful for both cases (unclosed → nothing returns to the florist).
+- «Gul taqsimlanmagan» chip on catalog card + detail + a client-side filter.
+- `lib/floristStock.ts`: `buildCloseIssueRequest`/`clampReturnStems`/`closeIssueBlocked`/`missingRateLabels`/
+  `allReturns` + 11 new Vitest (109 total, green). tsc clean.
+
+## Untested write paths (added — READ-ONLY, none fired)
+- POST /api/florist-stock-balances/close-issue/ — distributes issued stock into empty-composition catalogs
+  + returns the rest to the warehouse (catalog costs come into existence). Wired to the modal's «Yopish».
+- POST /api/catalog/ with `florist` + `volume` + `arrangement_type` and NO composition — the new florist
+  catalog create path.

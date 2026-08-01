@@ -1,5 +1,5 @@
 "use client";
-import { Pencil, Plus, Send, Trash2, User, X } from "lucide-react";
+import { Info, Pencil, Plus, Send, Trash2, User, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -31,6 +31,10 @@ const compositionText = (k: CatalogItem) =>
     .map((c) => `${c.batch_detail?.variant_detail?.flower_detail?.name_uz ?? ""} ${c.batch_detail?.variant_detail?.name_uz ?? ""} ${c.quantity_stems} dona`.trim())
     .join(" · ") || "Tarkib kiritilmagan";
 
+/** LIMBO: florist katalogi, lekin gul HALI taqsimlanmagan (chiqim yopilmagan) → composition bo'sh.
+    Bunday item'ning tannarxi 0, foydasi 100% ko'rinadi — «Gul taqsimlanmagan» chipi bilan belgilanadi. */
+const isUndistributed = (k: CatalogItem) => !!k.florist && !(k.composition?.length);
+
 const STATUS_OPTS = [
   { value: "", label: "Barcha holatlar" },
   { value: "available", label: "Sotuvda" },
@@ -61,6 +65,7 @@ export default function KatalogPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   // ko'rish / tahrirlash / o'chirish
+  const [undistribOnly, setUndistribOnly] = useState(false); // «Gul taqsimlanmagan» klient filtri
   const [viewItem, setViewItem] = useState<CatalogItem | null>(null);
   const [editItem, setEditItem] = useState<CatalogItem | null>(null);
   const [confirmDel, setConfirmDel] = useState<CatalogItem | null>(null);
@@ -116,7 +121,8 @@ export default function KatalogPage() {
       .catch(() => setCustomerFilter({ id: cid, label: `#${cid}` }));
   }, []);
 
-  const shownItems = items;
+  const undistribCount = items.filter(isUndistributed).length;
+  const shownItems = undistribOnly ? items.filter(isUndistributed) : items;
 
   // ?item=<id> — bildirishnomadan («Sizga yangi katalog ishi biriktirildi»)
   // to'g'ridan-to'g'ri katalog kartasini ochamiz (ro'yxatda bo'lmasa ham).
@@ -189,6 +195,17 @@ export default function KatalogPage() {
               label="Florist"
               options={[{ value: "", label: "Barcha floristlar" }, ...florists.map((fp) => ({ value: String(fp.id), label: floristName(fp) }))]}
             />
+          )}
+          {/* «Gul taqsimlanmagan» — chiqim yopilmagan florist kataloglari (tannarx/foyda haqiqiy emas) */}
+          {undistribCount > 0 && (
+            <button
+              onClick={() => setUndistribOnly((v) => !v)}
+              className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors hover:bg-[var(--hover)]"
+              style={{ borderColor: undistribOnly ? "var(--warning-ink, #8a6d1f)" : "var(--border)", color: undistribOnly ? "var(--warning-ink, #8a6d1f)" : "var(--text-2)" }}
+              title="Gul hali taqsimlanmagan florist kataloglari"
+            >
+              <Info size={13} strokeWidth={2.2} /> Gul taqsimlanmagan ({undistribCount}){undistribOnly ? " ✕" : ""}
+            </button>
           )}
         </div>
         {/* filialda katalog YARATIB BO'LMAYDI (backend 400) — tugmani ko'rsatmaymiz */}
@@ -291,6 +308,12 @@ export default function KatalogPage() {
                   </span>
                 ) : (
                   <span className="text-[12px] italic" style={{ color: "var(--muted)" }}>Florist ko&apos;rsatilmagan</span>
+                )}
+                {/* LIMBO: florist katalogi, gul hali taqsimlanmagan → tannarx/foyda HAQIQIY EMAS */}
+                {isUndistributed(k) && (
+                  <span className="flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }} title="Gul chiqim yopilganda taqsimlanadi — tannarx va foyda shundan keyin haqiqiy bo'ladi">
+                    <Info size={11} strokeWidth={2.4} /> Gul taqsimlanmagan
+                  </span>
                 )}
                 {/* mijoz chipi (kim sotib oldi) — bosilsa shu mijoz bo'yicha filtr */}
                 {k.customer_detail && (
@@ -411,11 +434,18 @@ export default function KatalogPage() {
                 ⚠ Bu yozuvdan {confirmDel.quantity_sold} ta sotilgan — sotuv tarixi ham yo&apos;qolishi mumkin.
               </p>
             )}
-            {/* florist tanlangan katalog o'chirilsa — gul SKLADGA EMAS, FLORIST qo'liga qaytadi */}
+            {/* florist katalogi: gul TAQSIMLANGAN bo'lsa (composition bor) → florist qo'liga qaytadi;
+                YOPILMAGAN bo'lsa (composition yo'q) → floristga HECH NARSA qaytmaydi (halol matn). */}
             {confirmDel.florist ? (
-              <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
-                ↩ Gullar <b>skladga emas, {confirmDel.florist_detail ? floristName(confirmDel.florist_detail) : "floristning"} qo&apos;liga</b> qaytadi.
-              </p>
+              confirmDel.composition?.length ? (
+                <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+                  ↩ Gullar <b>skladga emas, {confirmDel.florist_detail ? floristName(confirmDel.florist_detail) : "floristning"} qo&apos;liga</b> qaytadi.
+                </p>
+              ) : (
+                <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+                  Bu katalogda gul hali <b>taqsimlanmagan</b> (chiqim yopilmagan) — floristga hech narsa qaytmaydi, faqat yozuv o&apos;chadi.
+                </p>
+              )
             ) : null}
             <div className="mt-5 flex gap-2.5">
               <button onClick={() => setConfirmDel(null)} className="btn-ghost flex-1">Bekor qilish</button>

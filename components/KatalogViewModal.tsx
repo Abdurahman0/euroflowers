@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send } from "lucide-react";
+import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send, Info } from "lucide-react";
 import Modal from "./Modal";
 import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
 import { KIND_LABEL } from "@/lib/inventory";
@@ -100,6 +100,12 @@ export default function KatalogViewModal({
           )}
         </div>
 
+        {/* LIMBO: florist katalogi, gul hali taqsimlanmagan → tannarx/foyda haqiqiy emas */}
+        {!!full.florist && !(full.composition?.length) && (
+          <div className="mt-2 flex items-center gap-1.5 rounded-[11px] px-3 py-2 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }}>
+            <Info size={14} strokeWidth={2.4} className="shrink-0" /> Gul taqsimlanmagan — chiqim yopilganda hajm bo&apos;yicha bo&apos;linadi. Tannarx va foyda shundan keyin haqiqiy.
+          </div>
+        )}
         <div className="mt-3.5 flex items-baseline justify-between gap-3">
           <h2 className="min-w-0 text-[18px] font-bold tracking-tight">{full.name_uz || full.name_ru}</h2>
           <span className="whitespace-nowrap text-right">

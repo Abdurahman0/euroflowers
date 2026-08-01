@@ -1,6 +1,7 @@
 "use client";
 import type {
   Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult,
+  CloseIssuePreview, CloseIssueInput, CloseIssueResult,
   AISettings, Analytics, AuditLog, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard,
   Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
@@ -519,6 +520,16 @@ export const api = {
       qayta yozadi → hisob-kitobdagi sof foyda siljiydi. Faqat foydalanuvchi tasdig'idan keyin. */
   floristStockAdjust: (data: AdjustInput) =>
     request<AdjustResult>("/api/florist-stock-balances/adjust/", { method: "POST", body: JSON.stringify(data) }),
+
+  /** CHIQIMNI YOPISH — OLDINDAN KO'RISH. GET, bazaga TEGMAYDI: erkin chaqirsa bo'ladi.
+      batch MAJBURIY (har gul alohida). return_stems ixtiyoriy (sukut 0). */
+  closeIssuePreview: (p: { florist: number; batch: number; return_stems?: number }) =>
+    request<CloseIssuePreview>(`/api/florist-stock-balances/close-issue-preview/${qs({ florist: p.florist, batch: p.batch, return_stems: p.return_stems })}`),
+  /** ⚠️ BAJARISH — POST: return_stems skladga qaytadi, qolgani guli yozilmagan kataloglarga
+      taqsimlanadi (katalog tannarxi endi paydo bo'ladi → hisobot raqamlari siljiydi).
+      Faqat foydalanuvchi tasdig'idan keyin. adjust'dan OLDINGI birinchi taqsimot. */
+  closeIssue: (data: CloseIssueInput) =>
+    request<CloseIssueResult>("/api/florist-stock-balances/close-issue/", { method: "POST", body: JSON.stringify(data) }),
 
   /** Joriy foydalanuvchining florist profili (o'z hisoboti uchun). Florist bo'lmasa 404. */
   floristMe: () => request<FloristProfile>("/api/florists/me/"),

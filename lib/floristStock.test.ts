@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  balanceRemaining, batchHeldByFlorist, stemsForBatch, isBatchOverBalance, type CompStemRow,
   buildAdjustRequest, canReturnToFlorist, previewBlocked, blockedBatches, unblockedBatches,
   totalUnplaced, floristRemainsAfter, formatChange,
+  clampReturnStems, buildCloseIssueRequest, closeIssueBlocked, missingRateLabels, allReturns,
 } from "./floristStock";
-import type { AdjustPreview, FloristStockBalance, FloristStockIssue } from "./types";
+import type { AdjustPreview, CloseIssuePreview, FloristStockBalance, FloristStockIssue } from "./types";
 
 // ── FU1: the exact payloads used in the Stage 2 screenshots, now TYPED. If a
 //    fixture I invented doesn't satisfy the documented shape, this file won't compile.
@@ -27,45 +27,10 @@ describe("FU1 — screenshot fixtures satisfy the live types", () => {
   });
 });
 
-// ── FU2: florist-balance composition validation (the over-balance logic)
-const bal = [{ batch: 51, remaining_stems: 20 }, { batch: 52, remaining_stems: 12 }];
-
-describe("FU2 — over-balance validation", () => {
-  it("single row over the balance → over", () => {
-    const rows: CompStemRow[] = [{ stock_batch: 51, stems: 25 }];
-    expect(isBatchOverBalance(rows, bal, 51)).toBe(true);
-  });
-  it("TWO rows on the same batch jointly over the balance → over (sum case)", () => {
-    const rows: CompStemRow[] = [{ stock_batch: 51, stems: 12 }, { stock_batch: 51, stems: 10 }];
-    expect(stemsForBatch(rows, 51)).toBe(22);
-    expect(isBatchOverBalance(rows, bal, 51)).toBe(true);
-  });
-  it("two rows on the same batch within the balance → NOT over", () => {
-    const rows: CompStemRow[] = [{ stock_batch: 51, stems: 8 }, { stock_batch: 51, stems: 10 }];
-    expect(isBatchOverBalance(rows, bal, 51)).toBe(false);
-  });
-  it("exactly at the balance → valid (not over)", () => {
-    const rows: CompStemRow[] = [{ stock_batch: 51, stems: 20 }];
-    expect(isBatchOverBalance(rows, bal, 51)).toBe(false);
-  });
-  it("balance lookup falls back to 0 for an unheld batch", () => {
-    expect(balanceRemaining(bal, 99)).toBe(0);
-  });
-});
-
-describe("FU2 — re-validation after switching florist", () => {
-  const floristA = [{ batch: 51, remaining_stems: 20 }];
-  const floristB = [{ batch: 77, remaining_stems: 5 }]; // holds a different batch
-  it("a row on batch 51 is valid for florist A but invalid after switching to florist B", () => {
-    expect(batchHeldByFlorist(floristA, 51)).toBe(true);
-    expect(batchHeldByFlorist(floristB, 51)).toBe(false); // florist B doesn't hold it → invalid row, never silently dropped
-  });
-  it("an unheld batch is 'invalid', not 'over' (0 remaining, but flagged as not-held)", () => {
-    const rows: CompStemRow[] = [{ stock_batch: 51, stems: 5 }];
-    expect(isBatchOverBalance(rows, floristB, 51)).toBe(false); // not counted as over — it's the invalid path
-    expect(batchHeldByFlorist(floristB, 51)).toBe(false);
-  });
-});
+// NOTE: FU2 (florist-balance composition over-balance validation) was removed with the
+// florist-mode composition feature — florist catalogs no longer pick flowers; the
+// close-issue flow distributes them. balanceRemaining/stemsForBatch/isBatchOverBalance/
+// batchHeldByFlorist were deleted from lib/floristStock.ts (adjust never used them).
 
 // ── FA1: adjust preview-request builder — the endpoint's required-field rules
 describe("FA1 — buildAdjustRequest required-field rules", () => {
@@ -180,5 +145,75 @@ describe("FA3 — blocked/unplaced/footer from the preview", () => {
         ] }],
     };
     expect(floristRemainsAfter(p)).toBe(10); // 4 + 6 returned
+  });
+});
+
+// ── FC1: close-issue preview-request builder — batch required, return_stems clamped
+describe("FC1 — buildCloseIssueRequest", () => {
+  it("batch is REQUIRED (each flower closed separately) → not ok without it", () => {
+    const r = buildCloseIssueRequest({ florist: 4, batch: null, balance: 600 });
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.reason).toMatch(/partiya|gul/i);
+  });
+  it("no florist → not ok", () => {
+    expect(buildCloseIssueRequest({ florist: 0, batch: 72, balance: 600 }).ok).toBe(false);
+  });
+  it("return_stems omitted when 0 (server default)", () => {
+    const r = buildCloseIssueRequest({ florist: 4, batch: 72, returnStems: 0, balance: 600 });
+    expect(r).toEqual({ ok: true, req: { florist: 4, batch: 72 } });
+  });
+  it("return_stems forwarded when > 0", () => {
+    const r = buildCloseIssueRequest({ florist: 4, batch: 72, returnStems: 40, balance: 600 });
+    expect(r).toEqual({ ok: true, req: { florist: 4, batch: 72, return_stems: 40 } });
+  });
+  it("return_stems CLAMPED to the balance (never exceeds what the florist holds)", () => {
+    const r = buildCloseIssueRequest({ florist: 4, batch: 72, returnStems: 9999, balance: 600 });
+    expect(r.ok && r.req.return_stems).toBe(600);
+  });
+});
+
+describe("FC1b — clampReturnStems", () => {
+  it("clamps to [0, balance], floors, treats junk/negatives as 0", () => {
+    expect(clampReturnStems(40, 600)).toBe(40);
+    expect(clampReturnStems(700, 600)).toBe(600);
+    expect(clampReturnStems(-5, 600)).toBe(0);
+    expect(clampReturnStems("", 600)).toBe(0);
+    expect(clampReturnStems("40.9", 600)).toBe(40);
+    expect(clampReturnStems(null, 600)).toBe(0);
+  });
+});
+
+// ── FC2: missing_rates → blocked; all-returns; label normalization
+const previewClose = (over?: Partial<CloseIssuePreview>): CloseIssuePreview => ({
+  florist: 4, florist_name: "Abror", batch_id: 72, batch_number: "QA-CLOSE",
+  flower: "Atirgul · Freedom · Qizil", florist_stems_now: 600, return_stems: 40,
+  share_stems: 560, unplaced_stems: 0, missing_rates: [],
+  items: [
+    { catalog_item: 91, catalog_name: "S buket 1", arrangement_type: "bouquet", volume: "S", quantity_total: 1, standard_stems: 15, stems_per_item: 62, stems_total: 62 },
+    { catalog_item: 94, catalog_name: "L savat", arrangement_type: "basket", volume: "L", quantity_total: 4, standard_stems: 40, stems_per_item: 50, stems_total: 200 },
+  ],
+  ...over,
+});
+
+describe("FC2 — close-issue preview flags", () => {
+  it("no missing_rates → not blocked (confirm allowed)", () => {
+    expect(closeIssueBlocked(previewClose())).toBe(false);
+  });
+  it("missing_rates non-empty → blocked (confirm DISABLED)", () => {
+    expect(closeIssueBlocked(previewClose({ missing_rates: [{ arrangement_type: "Buket", volume: "XL" }] }))).toBe(true);
+  });
+  it("missing-rate labels normalize both object and string shapes", () => {
+    expect(missingRateLabels(previewClose({ missing_rates: [{ arrangement_type: "Buket", volume: "XL" }, "Savat · XL", { label: "Quti · S" }] })))
+      .toEqual(["Buket · XL", "Savat · XL", "Quti · S"]);
+  });
+  it("all-returns: return==balance, share 0 → calm state, not an error", () => {
+    expect(allReturns(previewClose({ return_stems: 600, share_stems: 0 }))).toBe(true);
+    expect(allReturns(previewClose())).toBe(false); // partial → distributes
+  });
+  it("per-item ≠ total when quantity_total > 1 (formatChange reused for display)", () => {
+    // L savat: 50/item across 4 items = 200 total
+    const c = formatChange(50, 200);
+    expect(c.perItemLabel).toBe("+50/dona");
+    expect(c.totalLabel).toBe("+200 jami");
   });
 });

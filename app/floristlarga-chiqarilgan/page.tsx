@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { HandHelping, PackagePlus, Plus, RotateCcw, Scale, Trash2, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, HandHelping, PackageCheck, PackagePlus, Plus, RotateCcw, Scale, Trash2, Users } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
@@ -8,10 +8,12 @@ import { useStore, usePerm } from "@/lib/store";
 import FlowerLoader from "@/components/FlowerLoader";
 import EmptyState from "@/components/EmptyState";
 import FilterSelect from "@/components/FilterSelect";
+import Popover from "@/components/Popover";
 import StockLine, { lineFromBatchDetail } from "@/components/StockLine";
 import FloristStockReturnDrawer from "@/components/FloristStockReturnDrawer";
 import FloristStockIssueModal from "@/components/FloristStockIssueModal";
 import FloristStockAdjustModal from "@/components/FloristStockAdjustModal";
+import FloristCloseIssueModal from "@/components/FloristCloseIssueModal";
 import { fmt, fmtDate, fmtTime } from "@/lib/format";
 import { formatStemsAndBunches, stems as stemsFmt } from "@/lib/inventory";
 import type { FloristProfile, FloristStockBalance, FloristStockIssue, StockBatch } from "@/lib/types";
@@ -54,6 +56,8 @@ export default function FloristStockIssuePage() {
   // HISOBNI TO'G'RILASH modali — scoped=balance (per-row, ikkala yo'nalish) yoki
   // scoped=null (per-florist, faqat to_catalog, hamma partiya)
   const [adjust, setAdjust] = useState<{ florist: number; name: string; scoped: FloristStockBalance | null; total: number } | null>(null);
+  // CHIQIMNI YOPISH modali (birinchi taqsimot) — bitta balans (florist+partiya) uchun
+  const [closeTarget, setCloseTarget] = useState<FloristStockBalance | null>(null);
 
   // URL o'qish: ?tab= va ?florist= (deep link modalni prefill bilan OCHADI)
   useEffect(() => {
@@ -218,11 +222,10 @@ export default function FloristStockIssuePage() {
                             <StockLine data={lineFromBatchDetail(bd)} right={<div><div className="text-[13px] font-bold tabular-nums">{formatStemsAndBunches(b.remaining_stems, spbb)}</div><div className="text-[11px]" style={{ color: "var(--muted)" }}>{fmt(val)}</div></div>} />
                           </div>
                           {!isFlorist && b.remaining_stems > 0 && (
-                            <div className="flex shrink-0 flex-wrap gap-2">
-                              {/* PER-BATCH: shu partiya — ikkala yo'nalish ochiq */}
-                              {canManage && (
-                                <button onClick={() => setAdjust({ florist: b.florist, name: b.florist_name, scoped: b, total: b.remaining_stems })} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}><Scale size={13} strokeWidth={2.2} /> To&apos;g&apos;rilash</button>
-                              )}
+                            <div className="flex shrink-0 flex-wrap items-center gap-2">
+                              {/* CHIQIMNI YOPISH (birinchi taqsimot) + TO'G'RILASH (keyingi tuzatish) —
+                                  bitta menyuda, yopish DOMINANT (ikkalasi ham inventory MANAGE huquqi bilan) */}
+                              {canManage && <CloseAdjustMenu onClose={() => setCloseTarget(b)} onAdjust={() => setAdjust({ florist: b.florist, name: b.florist_name, scoped: b, total: b.remaining_stems })} />}
                               <button onClick={() => setReturnTarget({ balance: b, kind: "return" })} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--success-ink, #3d8a5f)" }}><RotateCcw size={13} strokeWidth={2.2} /> Qaytarish</button>
                               <button onClick={() => setReturnTarget({ balance: b, kind: "waste" })} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--danger-ink)" }}><Trash2 size={13} strokeWidth={2.2} /> Chiqit</button>
                             </div>
@@ -307,7 +310,37 @@ export default function FloristStockIssuePage() {
           onDone={onAdjustDone}
         />
       )}
+      {closeTarget && (
+        <FloristCloseIssueModal balance={closeTarget} onClose={() => setCloseTarget(null)} onDone={onStockChange} />
+      )}
     </div>
+  );
+}
+
+/** Bitta qatorda IKKI o'xshash amal — chalkashmasin uchun MENYUDA, bir qatorli izohlar bilan.
+    «Chiqimni yopish» DOMINANT (primary, tepada) — kutilgan amal; «To'g'rilash» — keyingi tuzatish. */
+function CloseAdjustMenu({ onClose, onAdjust }: { onClose: () => void; onAdjust: () => void }) {
+  const anchor = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button ref={anchor} onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}
+        className="flex items-center gap-1.5 rounded-[11px] px-2.5 py-1.5 text-[12px] font-bold text-white transition-opacity hover:opacity-90" style={{ background: "var(--primary)" }}>
+        <PackageCheck size={13} strokeWidth={2.2} /> Chiqimni yopish <ChevronDown size={13} strokeWidth={2.4} />
+      </button>
+      <Popover anchor={anchor} open={open} onClose={() => setOpen(false)} width={248}>
+        <div className="flex flex-col gap-1 p-1.5">
+          <button onClick={() => { setOpen(false); onClose(); }} className="flex flex-col items-start rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-[var(--hover)]">
+            <span className="flex items-center gap-1.5 text-[13px] font-bold" style={{ color: "var(--primary)" }}><PackageCheck size={14} strokeWidth={2.2} /> Chiqimni yopish</span>
+            <span className="text-[11.5px]" style={{ color: "var(--muted)" }}>Chiqarilgan gulni kataloglarga bo&apos;lish (birinchi taqsimot)</span>
+          </button>
+          <button onClick={() => { setOpen(false); onAdjust(); }} className="flex flex-col items-start rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-[var(--hover)]">
+            <span className="flex items-center gap-1.5 text-[13px] font-bold" style={{ color: "var(--text-2)" }}><Scale size={14} strokeWidth={2.2} /> To&apos;g&apos;rilash</span>
+            <span className="text-[11.5px]" style={{ color: "var(--muted)" }}>Yopilgandan keyingi tuzatish (kam/ko&apos;p ishlatilgan bo&apos;lsa)</span>
+          </button>
+        </div>
+      </Popover>
+    </>
   );
 }
 

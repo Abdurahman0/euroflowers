@@ -1,27 +1,8 @@
-import type { AdjustDirection, AdjustInput, AdjustPreview } from "./types";
-import type { FloristStockBalance } from "./types";
+import type { AdjustDirection, AdjustInput, AdjustPreview, CloseIssueInput, CloseIssuePreview } from "./types";
 
-/** Kompozitsiya qatori (soddalashtirilgan) — validatsiya uchun faqat partiya + dona. */
-export type CompStemRow = { stock_batch: number; stems: number };
-type BalanceLite = Pick<FloristStockBalance, "batch" | "remaining_stems">;
-
-/** SHU partiya bo'yicha florist balansi (dona). Tutmasa 0. */
-export const balanceRemaining = (balances: BalanceLite[], batchId: number): number =>
-  balances.find((b) => b.batch === batchId)?.remaining_stems ?? 0;
-
-/** Florist bu partiyani umuman tutadimi (florist almashganda qayta-tekshirish uchun). */
-export const batchHeldByFlorist = (balances: Pick<FloristStockBalance, "batch">[], batchId: number): boolean =>
-  balances.some((b) => b.batch === batchId);
-
-/** SHU partiyaga tegishli BARCHA qatorlar yig'indisi — ikki qator bitta partiyani
-    BIRGA oshirib yubormasligi uchun validatsiya yig'indi bo'yicha bo'ladi. */
-export const stemsForBatch = (rows: CompStemRow[], batchId: number): number =>
-  rows.reduce((s, r) => s + (r.stock_batch === batchId ? r.stems : 0), 0);
-
-/** Qator (yig'indi bo'yicha) florist balansidan oshib ketdimi. Florist tutmaydigan
-    partiya `over` emas — u ALOHIDA «invalid» holat (batchHeldByFlorist=false). */
-export const isBatchOverBalance = (rows: CompStemRow[], balances: BalanceLite[], batchId: number): boolean =>
-  batchHeldByFlorist(balances, batchId) && stemsForBatch(rows, batchId) > balanceRemaining(balances, batchId);
+// NOTE: florist-balans KOMPOZITSIYA validatsiyasi (balanceRemaining / batchHeldByFlorist /
+// stemsForBatch / isBatchOverBalance / CompStemRow) OLIB TASHLANDI — florist katalogi endi gul
+// tanlamaydi (close-issue taqsimlaydi). ADJUST oqimi bu funksiyalarni ISHLATMAGAN.
 
 /* ===== ADJUST (hisobni to'g'rilash) — sof mantiq (UI'dan mustaqil, testlanadi) ===== */
 
@@ -91,3 +72,45 @@ export function formatChange(perItem: number, total: number): { perItemLabel: st
   const s = (n: number) => (n > 0 ? `+${n}` : String(n)); // manfiyda minus o'zi keladi
   return { perItemLabel: `${s(perItem)}/dona`, totalLabel: `${s(total)} jami`, sign };
 }
+
+/* ===== CHIQIMNI YOPISH (close-issue) — sof mantiq (UI'dan mustaqil, testlanadi) ===== */
+
+/** return_stems ni [0, balans] oralig'iga qisadi (raqamsiz → 0; balansdan oshsa → balans). */
+export function clampReturnStems(value: number | string | null | undefined, balance: number): number {
+  const n = typeof value === "string" ? Math.floor(parseFloat(value) || 0) : Math.floor(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(n, Math.max(0, balance));
+}
+
+/** close-issue-preview / close-issue so'rovini yasaydi. batch MAJBURIY (har gul alohida).
+    return_stems balansga qisiladi. Yetmasa {ok:false} + sabab (serverga TAYANMAYMIZ). */
+export function buildCloseIssueRequest(input: {
+  florist: number;
+  batch: number | null | undefined;
+  returnStems?: number | string | null;
+  balance: number;
+}): { ok: true; req: CloseIssueInput } | { ok: false; reason: string } {
+  if (!input.florist) return { ok: false, reason: "Floristni tanlang" };
+  if (!input.batch) return { ok: false, reason: "Gulni (partiyani) tanlang" };
+  const return_stems = clampReturnStems(input.returnStems, input.balance);
+  return { ok: true, req: { florist: input.florist, batch: input.batch, ...(return_stems > 0 ? { return_stems } : {}) } };
+}
+
+/** Hajm tarifi belgilanmagan turi+hajmlar bormi → yopish BLOKLANADI. */
+export const closeIssueBlocked = (p: Pick<CloseIssuePreview, "missing_rates">): boolean =>
+  (p.missing_rates ?? []).length > 0;
+
+/** missing_rates yorliqlari — obyekt yoki tayyor string bo'lishi mumkin, ikkalasini ham qo'llaymiz. */
+export const missingRateLabels = (p: Pick<CloseIssuePreview, "missing_rates">): string[] =>
+  (p.missing_rates ?? []).map((m) => {
+    if (typeof m === "string") return m;
+    if (m.label) return m.label;
+    return [m.arrangement_type, m.volume].filter(Boolean).join(" · ") || "—";
+  });
+
+/** return_stems balansga TENG → hammasi skladga qaytadi, taqsimot bo'lmaydi (share 0). */
+export const allReturns = (p: Pick<CloseIssuePreview, "florist_stems_now" | "return_stems" | "share_stems">): boolean =>
+  (p.share_stems ?? 0) === 0 && (p.return_stems ?? 0) >= (p.florist_stems_now ?? 0) && (p.florist_stems_now ?? 0) > 0;
+
+/** «Kataloglarga bo'linadi» — preview'dan (biz hisoblamaymiz). */
+export const shareStems = (p: Pick<CloseIssuePreview, "share_stems">): number => p.share_stems ?? 0;
