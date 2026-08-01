@@ -96,22 +96,29 @@ export default function FloristStockIssuePage() {
   //   3) loadBalances/loadIssues — SHU sahifa (florist-stock-balances + issues)
   //   Katalog ro'yxati (api.catalog) — Hisob-kitob event orqali, boshqa sahifalar keyingi mount'da.
   //   (1)+(2) markazlashgan notifyReportDataChanged() ichida; (3) shu sahifa refetch'i.
+  // ⚠️ Sklad partiyalari — chiqarish/qaytarish/chiqit/adjust/close'dan KEYIN qayta yuklanadi (qoldiq JONLI;
+  //    tugagan partiya chiqarish tanlagichida qolmasin). remaining>0 filtri shu yerda.
+  const loadBatches = useCallback(() => {
+    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+  }, []);
   const onAdjustDone = useCallback(() => {
     notifyReportDataChanged();
     loadBalances();
     loadIssues();
-  }, [loadBalances, loadIssues]);
-  // florist chiqarish/qaytarish/chiqit ham sklad qoldig'i + qiymatini o'zgartiradi → hisobot
+    loadBatches();
+  }, [loadBalances, loadIssues, loadBatches]);
+  // florist chiqarish/qaytarish/chiqit ham sklad qoldig'i + qiymatini o'zgartiradi → hisobot + partiya qoldig'i
   const onStockChange = useCallback(() => {
     notifyReportDataChanged();
     loadBalances();
     loadIssues();
-  }, [loadBalances, loadIssues]);
+    loadBatches();
+  }, [loadBalances, loadIssues, loadBatches]);
   useEffect(() => {
     if (isFlorist) return; // florist chiqarish forma/ro'yxatini ko'rmaydi
-    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+    loadBatches();
     api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
-  }, [isFlorist]);
+  }, [isFlorist, loadBatches]);
 
   const scopedBalances = useMemo(() => (!balances ? null : isFlorist && myFloristId ? balances.filter((b) => b.florist === myFloristId) : balances), [balances, isFlorist, myFloristId]);
   const scopedIssues = useMemo(() => {

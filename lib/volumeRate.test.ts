@@ -1,6 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { volumeArrangementMatch, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, buildVolumeRatesPayload, VOLUMES, type RateCell } from "./inventory";
+import { volumeArrangementMatch, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, buildVolumeRatesPayload, volumeLabel, VOLUMES, type RateCell } from "./inventory";
 import type { FloristVolumeRate } from "./types";
+
+describe("volumeLabel — YAGONA hajm yorlig'i (API small/medium/large + S/M/L; null → Belgilanmagan)", () => {
+  it("small/medium/large → Uzbek", () => {
+    expect(volumeLabel("small")).toBe("Kichik");
+    expect(volumeLabel("medium")).toBe("O'rta");
+    expect(volumeLabel("large")).toBe("Katta");
+  });
+  it("S/M/L (va katta harf) ham qamraladi", () => {
+    expect(volumeLabel("S")).toBe("Kichik");
+    expect(volumeLabel("M")).toBe("O'rta");
+    expect(volumeLabel("L")).toBe("Katta");
+    expect(volumeLabel("MEDIUM")).toBe("O'rta");
+  });
+  it("null / bo'sh / noma'lum → Belgilanmagan (filtrlanmaydi)", () => {
+    expect(volumeLabel(null)).toBe("Belgilanmagan");
+    expect(volumeLabel(undefined)).toBe("Belgilanmagan");
+    expect(volumeLabel("")).toBe("Belgilanmagan");
+    expect(volumeLabel("xl")).toBe("Belgilanmagan");
+  });
+});
 
 const rate = (o: Partial<FloristVolumeRate>): FloristVolumeRate => ({
   id: 1, florist: 4, arrangement_type: "bouquet", volume: "medium",

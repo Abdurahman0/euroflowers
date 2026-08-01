@@ -59,7 +59,10 @@ export default function FloristStockIssueModal({
     flashTimer.current = setTimeout(() => setFlashBatch(null), 600);
   };
 
+  // ⚠️ TUGAGAN partiyalarni (remaining_stems <= 0) tanlagichda KO'RSATMAYMIZ — chiqarib bo'lmaydi.
+  //    (Ota-sahifa ham refetch qiladi; bu esa modal ichidagi himoya — eski/tugagan partiya sirg'alib chiqmasin.)
   const batchOpts = useMemo(() => [...batches]
+    .filter((b) => (b.remaining_stems ?? 0) > 0)
     .sort((a, b) => `${a.variant_detail?.flower_detail?.name_uz}`.localeCompare(`${b.variant_detail?.flower_detail?.name_uz}`))
     .map((b) => ({
       value: b.id,

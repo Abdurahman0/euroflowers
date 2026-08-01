@@ -6,7 +6,7 @@ import { ArrowLeft, Download, TrendingUp, TrendingDown, PackagePlus, RotateCcw, 
 import { api, ApiError } from "@/lib/api";
 import { useStore, usePerm } from "@/lib/store";
 import { fmt, fmtDate, fmtTime, dateAfterParam, initials } from "@/lib/format";
-import { STAFF_LABEL, formatStemsAndBunches } from "@/lib/inventory";
+import { STAFF_LABEL, formatStemsAndBunches, volumeLabel } from "@/lib/inventory";
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
 import FloristRateMatrix from "@/components/FloristRateMatrix";
@@ -115,13 +115,18 @@ export default function FloristDetailPage() {
     if (!id) return;
     api.floristStockBalances({ florist: id, only_available: "false", ordering: "batch" }).then(setBalances).catch(() => setBalances([]));
   }, [id]);
+  // ⚠️ Sklad partiyalari — chiqarish/qaytarish/chiqit'dan KEYIN qayta yuklanadi (qoldiq JONLI bo'lsin,
+  //    tugagan partiya tanlagichda qolmasin). remaining>0 filtri ham shu yerda.
+  const loadBatches = useCallback(() => {
+    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     api.florist(id).then(setFlorist).catch(() => setFlorist(null)).finally(() => setLoading(false));
-    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
-  }, [id]);
+    loadBatches();
+  }, [id, loadBatches]);
   useEffect(() => { loadStats(); }, [loadStats]);
   useEffect(() => { loadBalances(); }, [loadBalances]);
 
@@ -235,18 +240,22 @@ export default function FloristDetailPage() {
               ) : <EmptyState title="Bu davrda faoliyat yo'q" sub="Tanlangan oralig'da ish haqi ham, sotuv ham yozilmagan." />}
             </Section>
 
-            {/* c) HAJM VA TUR */}
+            {/* c) HAJM VA TUR — ⚠️ hajm YAGONA `volumeLabel` bilan (API «small» → «Kichik»; null → «Belgilanmagan»). */}
             <Section id="mix" title="Hajm va tur bo'yicha">
-              <div className="grid items-start gap-4 lg:grid-cols-2">
-                <div>
-                  <div className="mb-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>Turi bo&apos;yicha</div>
-                  <MixTable rows={stats.by_arrangement.map((a) => ({ label: a.arrangement_label, sub: "", count: a.count, sold: a.sold_quantity, amount: a.amount }))} />
+              {stats.by_arrangement.length === 0 && stats.by_volume.length === 0 ? (
+                <EmptyState title="Bu davrda ma'lumot yo'q" sub="Tanlangan oralig'da hajm/tur bo'yicha faoliyat yozilmagan — davrni kengaytiring." />
+              ) : (
+                <div className="grid items-start gap-4 lg:grid-cols-2">
+                  <div>
+                    <div className="mb-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>Turi bo&apos;yicha</div>
+                    <MixTable rows={stats.by_arrangement.map((a) => ({ label: a.arrangement_label, sub: "", count: a.count, sold: a.sold_quantity, amount: a.amount }))} empty="Bu davrda tur bo'yicha ma'lumot yo'q" />
+                  </div>
+                  <div>
+                    <div className="mb-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>Hajm bo&apos;yicha</div>
+                    <MixTable rows={stats.by_volume.map((v) => ({ label: v.arrangement_label, sub: volumeLabel(v.volume), count: v.count, sold: v.sold_quantity, amount: v.amount }))} empty="Bu davrda hajm bo'yicha ma'lumot yo'q" />
+                  </div>
                 </div>
-                <div>
-                  <div className="mb-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>Hajm bo&apos;yicha</div>
-                  <MixTable rows={stats.by_volume.map((v) => ({ label: v.arrangement_label, sub: v.volume, count: v.count, sold: v.sold_quantity, amount: v.amount }))} />
-                </div>
-              </div>
+              )}
             </Section>
 
             {/* d) MANBA BO'YICHA */}
@@ -365,10 +374,10 @@ export default function FloristDetailPage() {
       })()}
 
       {florist && issueOpen && (
-        <FloristStockIssueModal initialFlorist={id} batches={batches} florists={[florist]} onClose={() => setIssueOpen(false)} onDone={() => { loadBalances(); loadStats(); }} />
+        <FloristStockIssueModal initialFlorist={id} batches={batches} florists={[florist]} onClose={() => setIssueOpen(false)} onDone={() => { loadBalances(); loadStats(); loadBatches(); }} />
       )}
       {returnTarget && (
-        <FloristStockReturnDrawer balance={returnTarget.balance} initialKind={returnTarget.kind} onClose={() => setReturnTarget(null)} onDone={() => { loadBalances(); loadStats(); }} />
+        <FloristStockReturnDrawer balance={returnTarget.balance} initialKind={returnTarget.kind} onClose={() => setReturnTarget(null)} onDone={() => { loadBalances(); loadStats(); loadBatches(); }} />
       )}
     </div>
   );
@@ -383,8 +392,8 @@ function MiniRow({ k, v, tip }: { k: string; v: string; tip?: string }) {
   );
 }
 
-function MixTable({ rows }: { rows: { label: string; sub: string; count: number; sold: number; amount: string }[] }) {
-  if (rows.length === 0) return <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>Ma&apos;lumot yo&apos;q.</p>;
+function MixTable({ rows, empty = "Ma'lumot yo'q." }: { rows: { label: string; sub: string; count: number; sold: number; amount: string }[]; empty?: string }) {
+  if (rows.length === 0) return <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>{empty}</p>;
   return (
     <div className="overflow-x-auto thin-scroll">
       <table className="w-full min-w-[300px] border-collapse text-[12.5px]">

@@ -336,6 +336,16 @@ export const STAFF_LABEL: Record<StaffType, string> = { florist: "Florist", appr
 export const VOLUMES = ["small", "medium", "large"] as const;
 export const ARRANGEMENTS = ["bouquet", "basket"] as const;
 export const VOLUME_LABEL: Record<CatalogVolume, string> = { small: "Kichik", medium: "O'rta", large: "Katta" };
+/** ⚠️ HAJM yorlig'i — YAGONA manba. API «small/medium/large» qaytaradi, lekin ba'zi javoblarda
+    «S/M/L» ham uchraydi — ikkalasini ham qamraymiz. Hajmsiz (null/"") → «Belgilanmagan».
+    Solishtirish/yuborishда HAR DOIM API qiymati (small/medium/large) ishlatiladi, faqat KO'RSATISH shu. */
+export const volumeLabel = (v: string | null | undefined): string => {
+  const k = (v ?? "").trim().toLowerCase();
+  if (k === "small" || k === "s") return "Kichik";
+  if (k === "medium" || k === "m") return "O'rta";
+  if (k === "large" || k === "l") return "Katta";
+  return "Belgilanmagan";
+};
 /** Qisqa yorliq (matritsa ustuni) — API qiymati emas, faqat ko'rsatish uchun. */
 export const VOLUME_SHORT: Record<CatalogVolume, string> = { small: "S", medium: "M", large: "L" };
 export const ARRANGEMENT_UZ: Record<(typeof ARRANGEMENTS)[number], string> = { bouquet: "Buket", basket: "Savat" };
