@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send, Info } from "lucide-react";
 import Modal from "./Modal";
 import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
-import { KIND_LABEL } from "@/lib/inventory";
+import { KIND_LABEL, catalogWaiting } from "@/lib/inventory";
 import { api } from "@/lib/api";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import type { CatalogHistory, CatalogHistoryAction, CatalogItem } from "@/lib/types";
@@ -100,10 +100,10 @@ export default function KatalogViewModal({
           )}
         </div>
 
-        {/* LIMBO: florist katalogi, gul hali taqsimlanmagan → tannarx/foyda haqiqiy emas */}
-        {!!full.florist && !(full.composition?.length) && (
+        {/* KUTAYAPTI: florist katalogi, gul tanlangan lekin soni 0 → tannarxда gul qismi hozircha 0 */}
+        {catalogWaiting(full) && (
           <div className="mt-2 flex items-center gap-1.5 rounded-[11px] px-3 py-2 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }}>
-            <Info size={14} strokeWidth={2.4} className="shrink-0" /> Gul taqsimlanmagan — chiqim yopilganda hajm bo&apos;yicha bo&apos;linadi. Tannarx va foyda shundan keyin haqiqiy.
+            <Info size={14} strokeWidth={2.4} className="shrink-0" /> Chiqim yopilishini kutayapti — gul tanlangan, soni yopilganda hisoblanadi. Tannarx/foyda shundan keyin haqiqiy.
           </div>
         )}
         <div className="mt-3.5 flex items-baseline justify-between gap-3">

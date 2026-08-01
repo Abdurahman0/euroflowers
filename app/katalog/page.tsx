@@ -11,6 +11,7 @@ import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtTime, initials } from "@/lib/format";
+import { catalogWaiting } from "@/lib/inventory";
 import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
 import KatalogViewModal from "@/components/KatalogViewModal";
@@ -33,7 +34,9 @@ const compositionText = (k: CatalogItem) =>
 
 /** LIMBO: florist katalogi, lekin gul HALI taqsimlanmagan (chiqim yopilmagan) → composition bo'sh.
     Bunday item'ning tannarxi 0, foydasi 100% ko'rinadi — «Gul taqsimlanmagan» chipi bilan belgilanadi. */
-const isUndistributed = (k: CatalogItem) => !!k.florist && !(k.composition?.length);
+// ⚠️ «kutayapti» = florist katalogi, gul tanlangan lekin soni hali 0 (chiqim yopilmagan).
+// Yagona manba: catalogWaiting (eski bo'sh-kompozitsiyali itemlarni ham qamraydi).
+const isUndistributed = (k: CatalogItem) => catalogWaiting(k);
 
 const STATUS_OPTS = [
   { value: "", label: "Barcha holatlar" },
@@ -434,16 +437,17 @@ export default function KatalogPage() {
                 ⚠ Bu yozuvdan {confirmDel.quantity_sold} ta sotilgan — sotuv tarixi ham yo&apos;qolishi mumkin.
               </p>
             )}
-            {/* florist katalogi: gul TAQSIMLANGAN bo'lsa (composition bor) → florist qo'liga qaytadi;
-                YOPILMAGAN bo'lsa (composition yo'q) → floristga HECH NARSA qaytmaydi (halol matn). */}
+            {/* florist katalogi: chiqim YOPILGAN bo'lsa (soni bor) → florist qo'liga stem qaytadi;
+                KUTAYAPTI bo'lsa (soni hali 0) → floristga HECH NARSA qaytmaydi (halol matn).
+                ⚠️ kutayaptida ham composition bor (soni 0) — shuning uchun catalogWaiting bo'yicha ajratamiz. */}
             {confirmDel.florist ? (
-              confirmDel.composition?.length ? (
+              catalogWaiting(confirmDel) ? (
                 <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
-                  ↩ Gullar <b>skladga emas, {confirmDel.florist_detail ? floristName(confirmDel.florist_detail) : "floristning"} qo&apos;liga</b> qaytadi.
+                  Bu katalogda gul soni hali <b>yozilmagan</b> (chiqim yopilmagan) — floristga hech narsa qaytmaydi, faqat yozuv o&apos;chadi.
                 </p>
               ) : (
                 <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
-                  Bu katalogda gul hali <b>taqsimlanmagan</b> (chiqim yopilmagan) — floristga hech narsa qaytmaydi, faqat yozuv o&apos;chadi.
+                  ↩ Gullar <b>skladga emas, {confirmDel.florist_detail ? floristName(confirmDel.florist_detail) : "floristning"} qo&apos;liga</b> qaytadi.
                 </p>
               )
             ) : null}

@@ -12,7 +12,8 @@ import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
-import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, batchDeliveryTag } from "@/lib/inventory";
+import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, batchDeliveryTag, buildFloristComposition, catalogClosed } from "@/lib/inventory";
+import FloristCompositionPicker from "./FloristCompositionPicker";
 import type { ArrangementType, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; mode: "stems" | "bunches"; qty: string };
@@ -64,6 +65,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     item?.composition?.length ? item.composition.map((c) => ({ stock_batch: c.stock_batch, mode: "stems" as const, qty: String(c.quantity_stems) })) : [{ stock_batch: 0, mode: "bunches", qty: "" }]
   );
   const [mats, setMats] = useState<MatRow[]>(item?.materials?.length ? item.materials.map((m) => ({ packaging: m.packaging, qty: String(m.quantity) })) : []);
+  // ⚠️ FLORIST katalogi: gul(lar) tanlanadi (soni EMAS). Kutayotgan (soni 0) itemni tahrirlashда
+  // gullar prefill; yopilgan (soni > 0) item read-only (isFloristClosed). Yangi item → bo'sh.
+  const [floristBatches, setFloristBatches] = useState<number[]>(
+    item?.florist && item.composition?.length && !catalogClosed(item) ? item.composition.map((c) => c.stock_batch) : []
+  );
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
   // yetarli qoldiq yo'q — backend `detail` (ko'p qatorli) alohida holatda ko'rsatiladi
@@ -103,12 +109,17 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     api.floristVolumeRates({ florist, is_active: true }).then(setRates).catch(() => setRates([]));
   }, [florist]);
 
-  // FLORIST rejimi — endi katalog FAQAT hajm bilan; gul chiqim yopilganda taqsimlanadi.
-  // Gul TANLASH bloki YO'Q (Stage 2 kompozitsiya-picker olib tashlandi).
+  // FLORIST rejimi — katalog florist qo'lidagi gul(lar)dan yasaladi (soni chiqim yopilganda).
   const floristMode = florist > 0;
-  // Tahrirlanayotgan florist katalogida ALLAQACHON kompozitsiya bormi (chiqim yopilgan
-  // yoki o'zgarishdan oldin yaratilgan) — bunda qatorlarni JIMGINA o'chirmaymiz, read-only ko'rsatamiz.
-  const hasExistingComp = floristMode && !!item?.composition?.length;
+  // YOPILGAN florist katalogi (hamma qatorda soni > 0) — tarkib READ-ONLY (adjust bilan tuzatiladi).
+  // Kutayotgan (soni 0) — gul o'zgartirilishi mumkin.
+  const isFloristClosed = !!item && catalogClosed(item);
+  // ⚠️ Florist ALMASHSA — tanlangan gul(lar) TOZALANADI (yangi floristda bo'lmasligi mumkin;
+  //  hech qachon jimgina noto'g'ri tanlov saqlanmaydi).
+  const prevFlorist = useRef(item?.florist ?? 0);
+  useEffect(() => {
+    if (florist !== prevFlorist.current) { setFloristBatches([]); prevFlorist.current = florist; }
+  }, [florist]);
 
   const batchOf = (id: number) => batches.find((b) => b.id === id);
   const matOf = (id: number) => materials.find((m) => m.id === id);
@@ -255,6 +266,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       setErrs((x) => ({ ...x, volume: "Florist katalogida hajmni tanlash kerak — gul shu bo'yicha taqsimlanadi" }));
       return showToast("Hajmni tanlang");
     }
+    // FLORIST katalogi: gul MAJBURIY (kutayotgan/yangi holatda; yopilgan read-only). Soni EMAS.
+    if (floristMode && !isFloristClosed && floristBatches.filter((id) => id > 0).length === 0) {
+      setErrs((x) => ({ ...x, composition: "Floristga chiqarilgan qaysi guldan yasalganini tanlang" }));
+      return showToast("Gulni tanlang");
+    }
     // NORMALLASHTIRISH: bir xil stock_batch/packaging qatorlari BITTAGA
     // birlashtiriladi (bitta buket = bitta item, ko'p qatorli composition).
     const composition = normalizeComposition(
@@ -289,9 +305,13 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       ...(kind === "custom" ? {} : { instagram_story_url: f.instagram_story_url }),
       description_uz: f.description_uz,
       image_url: f.image_url,
-      // ⚠️ FLORIST katalogi: composition YUBORILMAYDI (gul chiqim yopilganda taqsimlanadi).
-      // Mavjud kompozitsiyali florist katalogi tahrirlansa ham qatorlar TEGILMAYDI (server saqlaydi).
-      ...(compLocked ? {} : { materials: materialsPayload, ...(floristMode ? {} : { composition }) }),
+      // ⚠️ FLORIST katalogi: composition = FAQAT gul (stock_batch), quantity_stems YUBORILMAYDI
+      // (u 0 bo'lib turadi, chiqim yopilganda hisoblanadi). Operator rejimida oldingidek soni bilan.
+      // Yopilgan florist katalogi (read-only) tahrirlansa — composition TEGILMAYDI (server saqlaydi).
+      ...(compLocked ? {} : { materials: materialsPayload }),
+      ...(!compLocked && !(floristMode && isFloristClosed)
+        ? { composition: floristMode ? buildFloristComposition(floristBatches) : composition }
+        : {}),
       // MIJOZ: existing→{customer}, new→{customer_name,customer_phone}, tozalash→{customer:null}
       ...(customerPayload(cust, hadCustomer) ?? {}),
     };
@@ -487,11 +507,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           warehouse katalogda esa oldingidek skladdan tanlanadi. */}
       {floristMode ? (
         <>
-          <Section>Gullar</Section>
-          {hasExistingComp ? (
-            // TAHRIR: allaqachon gul taqsimlangan (yopilgan/eski) — qatorlar READ-ONLY, jimgina o'chirilmaydi
+          <Section>Gullar (florist qo&apos;lidan)</Section>
+          {isFloristClosed ? (
+            // YOPILGAN katalog — gul allaqachon taqsimlangan, tarkib READ-ONLY (adjust bilan tuzatiladi)
             <div className="rounded-[14px] border p-3.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-              <p className="text-[12.5px] font-semibold">Bu katalogga gul allaqachon taqsimlangan — tarkib faqat ko&apos;rish uchun.</p>
+              <p className="text-[12.5px] font-semibold">Chiqim yopilgan — gul taqsimlangan, tarkib faqat ko&apos;rish uchun.</p>
               <div className="mt-2 flex flex-col gap-1">
                 {(item?.composition ?? []).map((c) => (
                   <div key={c.stock_batch} className="flex items-center justify-between gap-2 text-[12px]">
@@ -503,10 +523,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
               <p className="mt-2 text-[11.5px]" style={{ color: "var(--muted)" }}>Sonlarni tuzatish kerak bo&apos;lsa «Kimda qancha gul bor» dagi <b>To&apos;g&apos;rilash</b> (adjust) amalidan foydalaning.</p>
             </div>
           ) : (
-            <div className="rounded-[14px] border border-dashed p-4" style={{ borderColor: "var(--border)" }}>
-              <p className="flex items-center gap-1.5 text-[13px] font-semibold"><Info size={15} strokeWidth={2} style={{ color: "var(--primary)" }} /> Florist katalogida gul tanlanmaydi</p>
-              <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: "var(--muted)" }}>Faqat yuqoridagi <b>Turi</b> va <b>Hajm</b>ni belgilang. Chiqarilgan gul <b>chiqim yopilganda</b> hajm standartiga qarab shu kataloglarga avtomatik bo&apos;linadi — nazoratchi <b>Floristlarga chiqarilgan → Kimda qancha gul bor → «Chiqimni yopish»</b> orqali yopadi.</p>
-            </div>
+            // KUTAYOTGAN/YANGI — gul(lar) tanlanadi (soni EMAS); butun mantiq FloristCompositionPicker'da
+            <FloristCompositionPicker florist={florist} value={floristBatches} onChange={(ids) => { setFloristBatches(ids); setErrs((x) => { const n = { ...x }; delete n.composition; return n; }); }} error={errs.composition} />
           )}
           {rateMissing && (
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-[12px] px-3 py-2 text-[12px] font-semibold" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>

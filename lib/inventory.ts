@@ -41,6 +41,28 @@ export const formatStemsAndBunches = (
    ⚠️ "Partiya" = StockBatch (backend xatolari ham shunday ataydi) — o'zgarmaydi.
    Yuk = partiyalarni guruhlaydigan yozuv. Yorliqlar SHU YERDA, literal sifatida sochilmaydi.
    ⚠️ Yuk `number` TAKRORLANADI — yorliqda DOIM sana bilan birga ko'rsatiladi (ikki "7" ni ajratish). */
+/* ===== FLORIST KATALOGI — gul tanlanadi, soni chiqim yopilganda hisoblanadi =====
+   ⚠️ Backend bu oqimni IKKI marta o'zgartirdi. Sof mantiq SHU YERDA markazlashgan
+   (komponentlar inline emas) — keyingi o'zgarish kichik tahrir bo'lsin. */
+
+/** Florist katalogi kompozitsiyasi — FAQAT gul (stock_batch). `quantity_stems` YUBORILMAYDI:
+    u 0 bo'lib turadi va chiqim yopilganda hisoblanadi (spec). Bir xil batch takrorlanmaydi. */
+export const buildFloristComposition = (batchIds: number[]): { stock_batch: number }[] =>
+  batchIds.filter((id, i, arr) => id > 0 && arr.indexOf(id) === i).map((id) => ({ stock_batch: id }));
+
+/** «Chiqim yopilishini kutayapti» — florist katalogi, gul tanlangan lekin soni hali 0.
+    Spec: composition.some(row => quantity_stems === 0). ESKI bo'sh-kompozitsiyali florist
+    itemlarni ham qamraydi (comp.length === 0). Operator (floristsiz) katalogi HECH QACHON waiting emas. */
+export const catalogWaiting = (item: { florist?: number | null; composition?: ({ quantity_stems?: number } | null)[] | null }): boolean => {
+  if (!item.florist) return false;
+  const comp = item.composition ?? [];
+  return comp.length === 0 || comp.some((c) => ((c?.quantity_stems ?? 0) === 0));
+};
+
+/** Florist katalogi YOPILGANMI — hamma qatorda soni > 0 (qisman to'lgani hali kutayapti). */
+export const catalogClosed = (item: { florist?: number | null; composition?: ({ quantity_stems?: number } | null)[] | null }): boolean =>
+  !!item.florist && (item.composition?.length ?? 0) > 0 && (item.composition ?? []).every((c) => ((c?.quantity_stems ?? 0) > 0));
+
 export const DELIVERY = {
   one: "Yuk",
   many: "Yuklar",

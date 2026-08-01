@@ -232,36 +232,56 @@ puppeteer scratchpad; the mock payloads are typed fixtures under test.
     chiqadi → Ha. ✅ Hammasi nofaol (ataylab tasdiq bilan himoyalangan).
 4.  NUSXALASH: «Boshqa floristdan» → manba floristni tanlang → Nusxalash → grid to'ladi (dirty)
     → Saqlash. ✅ MANBA florist o'zgarmaydi; joriy florist tariflari to'ldi.
-5.  CHIQARISH: Floristlarga chiqarilgan → Florist + Partiya (skladdan) + 30 dona → Chiqarish.
-    ✅ Sklad partiyasi −30; balansda +30; sklad jurnalida «Floristga chiqarildi» chipi.
-6.  KATALOG (florist qo'lidan): Katalog → +Katalog → shu florist + Hajm (salary «Tarifdan
-    olindi» bilan to'ladi) + gul BALANSDAN («mavjud: N dona») + narx → Qo'shish.
-    ✅ Florist balansi kamaydi; SKLAD qoldig'i O'ZGARMADI.
+5.  CHIQARISH (2 xil gul — qizil/oq keysi uchun): Floristlarga chiqarilgan → Florist + Partiya
+    QIZIL (skladdan) + 200 dona → Chiqarish; yana Florist + Partiya OQ + 300 dona → Chiqarish.
+    ✅ Sklad partiyalari −200/−300; balansda qizil +200, oq +300; jurnalda «Floristga chiqarildi».
+6.  KATALOG (florist qo'lidan — GUL TANLANADI, SONI YO'Q): Katalog → +Katalog → shu florist +
+    Turi + Hajm (majburiy, salary «Tarifdan olindi» bilan to'ladi) + GUL tanlang (florist
+    balansidan — QIZIL) + narx → Qo'shish. ⚠️ Gul SONI kiritilmaydi; qoldiq faqat READ-ONLY
+    kontekst. Qizildan 2 ta buket, oqdan 3 ta buket yasang (oqni «Yana gul»siz alohida item).
+    ✅ Karta «Gul taqsimlanmagan» chipi bilan chiqadi (soni hali 0); FLORIST balansi HOZIRCHA
+    O'ZGARMAYDI (son chiqim yopilganda hisoblanadi); SKLAD ham o'zgarmadi.
     ✅ Salaryни qo'lda o'zgartiring → tarif bosib o'tmaydi; «Tarifdan qayta olish» → qayta oladi.
+    ✅ Gulsiz saqlashga urinsangiz → «Floristga chiqarilgan qaysi guldan yasalganini tanlang»;
+       hajmsiz → «Florist katalogida hajmni tanlash kerak — gul shu bo'yicha taqsimlanadi».
 7.  BALANSSIZ FLORIST: gul chiqarilmagan floristni tanlang → «Bu floristga hali gul
     chiqarilmagan» + «Floristga gul chiqarish» yorlig'i. ✅ Yorliq to'g'ri floristga olib boradi.
-8.  QAYTARISH: Floristlarga chiqarilgan → balans qatori → Qaytarish → 10 dona. ✅ Balans −10;
+    ✅ FLORIST ALMASHTIRISH: gul tanlagach floristni boshqasiga o'zgartiring → tanlov TOZALANADI
+       (yangi floristda o'sha gul yo'q — jimgina saqlanmaydi).
+8.  CHIQIMNI YOPISH (QIZIL): Floristlarga chiqarilgan → qizil balans qatori → «Chiqimni yopish»
+    → skladga qaytariladigan sonni kiriting (masalan 0) → jonli preview faqat QIZILDAN yasalgan
+    (soni 0) kataloglarni ko'rsatadi, OQ kataloglarga TEGMAYDI → Yopish.
+    ✅ Qizil buketlar 100/100 to'ldi; oq buketlar 0/0/0 QOLDI → oq itemlar HALI «kutayapti»
+       (some(q===0) → partial ≠ done); qizil balans 0 ga tushdi.
+    ✅ NOMZOD YO'Q keysi: hech qizil-katalog qolmagan holatda yopmoqchi bo'lsangiz → serverning
+       aniq 400 matni AYNAN ko'rinadi («…bu guldan yasalgan, soni yozilmagan katalog yo'q. Qolgan
+       N dona gulni skladga qaytaring yoki chiqitga yozing»); «Skladga qaytariladi» yo'li ko'rinadi.
+9.  CHIQIMNI YOPISH (OQ): oq balans qatori → «Chiqimni yopish» → preview endi OQ kataloglarni
+    ko'rsatadi → Yopish. ✅ Oq buketlar 100/100/100 to'ldi; qizillar o'zgarmadi; oq balans 0.
+    ✅ Endi ikkala item ham «Gul taqsimlanmagan» chipisiz (yopilgan); tannarx/foyda haqiqiy.
+10. TO'G'RILASH (adjust): Floristlarga chiqarilgan → «Kimda qancha gul bor» → To'g'rilash.
+    ✅ Yopilgan katalog tahririda tarkib READ-ONLY + «To'g'rilash (adjust)» maslahati ko'rinadi.
+11. QAYTARISH: Floristlarga chiqarilgan → balans qatori → Qaytarish → 10 dona. ✅ Balans −10;
     SKLAD partiyasi +10 tiklandi (OCHIQ SAVOL a).
-9.  CHIQIT: balans → Chiqit → 2 dona → tasdiq → Ha. ✅ Balans −2; SKLAD partiyasi O'ZGARMADI;
+12. CHIQIT: balans → Chiqit → 2 dona → tasdiq → Ha. ✅ Balans −2; SKLAD partiyasi O'ZGARMADI;
     «Florist qo'lidagi chiqit» bloki (Hisob-kitob + Sklad jurnal xulosasi) 2 dona ko'rsatadi;
     sklad «Chiqit» JAMIGA qo'shilmagan (OCHIQ SAVOL b).
-10. TAHRIRLASH: 6-qadamdagi katalogni tahrirlang, gul sonini balansdan OSHIRING → Saqlash.
-    ✅ Server 400 beradimi (balansga qayta tekshiradimi)? (OCHIQ SAVOL c). Bizning inline
-    ogohlantirish oldindan ko'rsatadi.
-11. O'CHIRISH: shu katalogni o'chiring → tasdiqda «gullar floristning qo'liga qaytadi» yozuvi.
-    ✅ Gullar SKLADGA emas, FLORIST balansiga qaytdi.
-12. MIJOZ: Katalog → item → Sotish → Mavjud/Yangi mijoz → soting. ✅ Mijoz chipi kartada/detalda.
-13. YUBORISH: Katalog → asosiy item → «Filialga yuborish» → Filial + Soni (maks = sotilmagan) +
+13. O'CHIRISH (ikki holat):
+    ✅ KUTAYOTGAN item (soni 0) → o'chirishda «gul soni hali yozilmagan — floristga hech narsa
+       qaytmaydi, faqat yozuv o'chadi» (halol: chindan hech narsa qaytmaydi).
+    ✅ YOPILGAN item (soni > 0) → «gullar floristning qo'liga qaytadi» (stemlar balansga qaytadi).
+14. MIJOZ: Katalog → item → Sotish → Mavjud/Yangi mijoz → soting. ✅ Mijoz chipi kartada/detalda.
+15. YUBORISH: Katalog → asosiy item → «Filialga yuborish» → Filial + Soni (maks = sotilmagan) +
     narx (bo'sh = asl) → «5 tadan 2 tasi ketadi, 3 qoladi» + ustama ko'rinadi → yuboring.
     ✅ «Qaytarib bo'lmaydi» ogohlantirishi ko'rinadi; asosiy filialda soni kamaydi; agar
     ko'p so'rasangiz «Yuborish uchun atigi N dona bor» 400 chiqadi.
-14. FILIAL HISOBOTI: Filial hisoboti → davr tanlang. ✅ Har filial qatori (yuborilgan/sotilgan/
+16. FILIAL HISOBOTI: Filial hisoboti → davr tanlang. ✅ Har filial qatori (yuborilgan/sotilgan/
     ustama), «ustama vs asl» stacked bar, «Yuborilganlar tarixi» (target — oddiy matn, link EMAS),
     Excel eksport. Bo'sh davr → chiroyli empty state.
-15. XODIM FILIALI: Xodimlar → yangi/tahrir → «Filial» select. ✅ Parkent tanlab saqlang →
+17. XODIM FILIALI: Xodimlar → yangi/tahrir → «Filial» select. ✅ Parkent tanlab saqlang →
     o'sha user faqat Dashboard·Hisob·Katalog ko'radi. Mavjud Parkent userni tahrirlab filialга
     TEGMASDAN saqlang → filiali O'ZGARMAYDI (asosiyга ko'chib ketmaydi).
-16. (Parkent akkaunt bo'lsa) Parkent user: menyu faqat 3 ta; /sklad'ga URL → Dashboard'ga
+18. (Parkent akkaunt bo'lsa) Parkent user: menyu faqat 3 ta; /sklad'ga URL → Dashboard'ga
     yo'naltiriladi; +Katalog tugmasi YO'Q; item'da «asl narx» muted; chegirma bilan sotuvda
     discount_reason MAJBURIY.
 
@@ -270,14 +290,17 @@ puppeteer scratchpad; the mock payloads are typed fixtures under test.
 ═══════════════════════════════════════════════════════════════════
 a. FLORIST RETURN → warehouse restore: does `return` write a warehouse IN StockMovement, and
    with what `reference_type`? (Frontend has a defensive `florist_return` label.) SETTLE:
-   run checklist #8, watch the sklad journal for a new entry.
+   run checklist #11, watch the sklad journal for a new entry.
 b. FLORIST WASTE → warehouse totals: does florist `waste` write a warehouse `waste`
    StockMovement? If YES, our separate block must NOT be summed (already isn't); if NO, our
    separate block is the only place the loss shows. Either way we're correct, but you need to
-   KNOW so loss numbers are trusted. SETTLE: run #9, check whether sklad «Chiqit» total moves.
-c. PATCH re-validation: does `PATCH /catalog/{id}/` re-validate composition against the
-   florist's balance? UI is conservative (client-side re-check + warns server may reject).
-   SETTLE: run #10 with an over-balance edit.
+   KNOW so loss numbers are trusted. SETTLE: run #12, check whether sklad «Chiqit» total moves.
+c. MULTIPLE FLOWERS PER FLORIST CATALOG: OpenAPI confirms `composition` is an array with
+   `stock_batch` required + `quantity_stems` OPTIONAL — so a single florist buket MAY carry
+   several stock_batch rows (qizil + oq), and the frontend now sends `composition:
+   [{stock_batch}, …]` (no quantity_stems). CONFIRM the close-issue distributor fills ONLY the
+   rows matching the closed batch and leaves the other-flower rows at 0 (item stays «kutayapti»
+   until every batch is closed). SETTLE: run checklist #6+#8+#9 with the qizil/oq case.
 d. APPRENTICE reactivation: after apprentice→florist, do the old rates reactivate or stay
    `is_active:false`? UI is honest ("tariflari nofaol — qayta saqlang"). SETTLE: set a florist
    apprentice, revert, open the matrix.
@@ -429,9 +452,10 @@ go-live:
   listed 7.6M → sold 3.0M, discount 4.6M, reason "opamga".
 
 ## LIST 1 — MANUAL CHECKLIST (risk: READ / REV / IRREV; run in order)
-### ⚠️ FLORIST OQIMI QAYTA YOZILDI (2026-08-01, close-issue): tartib RATES → ISSUE →
-### KATALOG (faqat hajm) → CHIQIMNI YOPISH → ADJUST. Eski «katalog florist balansidan gul
-### tanlaydi» oqimi O'CHDI (Stage 2 kompozitsiya-picker olib tashlandi).
+### ⚠️ FLORIST OQIMI YANA TUZATILDI (2026-08-01, gul-picker QAYTDI): tartib RATES → ISSUE →
+### KATALOG (florist + GUL + Turi + Hajm, SONI YO'Q) → CHIQIMNI YOPISH (har gulga alohida) →
+### ADJUST. Gul-picker QAYTARILDI (FloristCompositionPicker) — faqat SON kiritish olib tashlandi;
+### gul florist balansidan tanlanadi, miqdor chiqim yopilganda hisoblanadi.
 1.  Rate save: florist → «Hajm tariflari» → 6 katak → HAR katakda ish haqi VA «standart dona»
     (default_stems) — endi u TAQSIMOT OG'IRLIGI. Fee bor, dona yo'q katak OGOHLANTIRILADI. Saqlash. REV.
 2.  Empty ONE rate cell → Saqlash (o'sha hajm nofaol). REV — katakni qaytaring.
@@ -447,10 +471,13 @@ go-live:
     Transfer tabida «Butun davr — sana filtri qo'llanmaydi» satri (backend date filtri yo'q — LIST 2 j).
     Ikkala tab ham hozir bo'sh (0 transfer, 0 filial sotuvi) — har biri nimadan to'lishini tushuntiradi. READ.
 6.  ISSUE florist + batch + ~8 → Chiqarish. REV (return orqali). Eski, arzon, tugab-qolgan partiya.
-7.  FLORIST KATALOGI (faqat hajm): +Katalog → florist tanlang → GUL BLOKI YO'Q, «Florist
-    katalogida gul tanlanmaydi» izohi chiqadi. Faqat Turi + Hajm (majburiy) → Saqlash. Hajmsiz
-    yuborsa 400 (volume/arrangement_type maydonida ko'rsatiladi). Salary «Tarifdan olindi».
-    Kartada «Gul taqsimlanmagan» chip + katalog filtri. IRREV (yoziladi) — arzon test item.
+7.  FLORIST KATALOGI (gul TANLANADI, soni yo'q): +Katalog → florist tanlang → «Gullar (florist
+    qo'lidan)» bloki chiqadi (FloristCompositionPicker): balansdan GUL tanlanadi, «Yana gul» bilan
+    bir nechta xil gul; SON kiritilmaydi (qoldiq faqat read-only kontekst). Turi + Hajm (majburiy)
+    ham. Gulsiz → «Floristga chiqarilgan qaysi guldan yasalganini tanlang»; hajmsiz → volume 400.
+    Salary «Tarifdan olindi». Kartada «Gul taqsimlanmagan» chip + katalog filtri (soni hali 0).
+    Balanssiz florist → «Bu floristga hali gul chiqarilmagan» + «Floristga gul chiqarish» yorlig'i.
+    Gul tanlab floristni almashtiring → tanlov TOZALANADI. IRREV (yoziladi) — arzon test item.
 7a. CHIQIMNI YOPISH (birinchi taqsimot): Floristlarga chiqarilgan → Kimda qancha gul bor →
     qatordagi «Chiqimni yopish ⌄» menyusi (adjust ham shu yerda, yopish DOMINANT). Skladga
     qaytariladi kiriting → preview jadvali (Katalog·Hajm·Standart·Tushadi, per-item VA jami).
@@ -463,14 +490,17 @@ go-live:
 10. Customer on sale: 7-qadam item, 1 dona, Mavjud/Yangi mijoz. IRREV (sotuv yoziladi).
 11. RETURN: issue'ning bir qismini qaytaring. REV — sklad tiklanadi.
 12. TRANSFER: asosiy katalog item → Filialga yuborish, 1 dona, eng arzon. IRREV — QAYTARIB BO'LMAYDI.
-13. DELETE floristli katalog. IRREV. ⚠️ YOPILMAGAN katalogda composition YO'Q → floristga HECH
-    NARSA qaytmaydi (delete-confirm matni shuni HALOL aytadi); YOPILGAN katalogda gullar qaytadi.
+13. DELETE floristli katalog. IRREV. ⚠️ KUTAYOTGAN katalogda gul tanlangan lekin soni 0 (composition
+    bor, quantity_stems=0) → floristga HECH NARSA qaytmaydi (delete-confirm matni shuni HALOL aytadi:
+    «gul soni hali yozilmagan…»); YOPILGAN katalogda (soni>0) stemlar florist balansiga qaytadi.
 14. WASTE: florist balansi → Chiqit, 1 dona. IRREV — gul butunlay yo'qoladi.
 15. Branch-user tajribasi (Parkent login kerak). READ — menyu 3 ta, /sklad→redirect, +Katalog yo'q,
     chegirmada discount_reason majburiy.
 ### SKIP (faqat ochiq savolni tekshiradi — zarar arziydimi o'zingiz hal qiling)
 - All-empty rate save (butun grid o'chadi) — guard unit-tested, backend dev'ga aytish yetarli.
-- Katalog kompozitsiyasini balansdan oshirib tahrirlash — faqat ochiq savol (c); backend dev'ga bering.
+- Florist katalogida gul-soni endi FORMADAN kiritilmaydi (chiqim yopishda hisoblanadi) — eski
+  «balansdan oshirib tahrirlash» validatsiyasi endi TATBIQ ETILMAYDI; ochiq savol (c) → multiple-
+  composition close taqsimotiga o'zgardi. Backend dev qizil/oq keysini tasdiqlasin.
 
 ### ⚠️ ACCOUNTING BRANCH SPLIT — NEVER OBSERVED WITH REAL DATA (run LAST)
 Parkent=0 today, so `all`==`main` and every split screen was mocked. After step 12 (transfer):
