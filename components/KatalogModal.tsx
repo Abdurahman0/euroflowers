@@ -37,6 +37,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [kind, setKind] = useState<CatalogKind>(item?.catalog_kind ?? "standard");
   const [volume, setVolume] = useState<CatalogVolume | "">(item?.volume ?? "");
   const [florist, setFlorist] = useState<number>(item?.florist ?? 0);
+  // OFORMLENIYA floristi — yasagandan ALOHIDA, ixtiyoriy. Haq = decoration_fee × quantity_total (backend yozadi).
+  const [decorationFlorist, setDecorationFlorist] = useState<number>(item?.decoration_florist ?? 0);
   // ⚠️ FILIAL — TO'G'RIDAN-TO'G'RI filial katalogi (spec FILIAL_UCHUN_KATALOG_QOSHISH).
   // 0 = asosiy filial (branch yuborilmaydi). Faqat ASOSIY foydalanuvchi + YANGI item'da.
   const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
@@ -135,7 +137,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   // ⚠️ FILIAL rejimi florist katalogi EMAS — filial tanlansa floristni tozalab, warehouse-rejimga qaytaramiz.
   useEffect(() => {
     if (branchMode && florist) setFlorist(0);
-  }, [branchMode, florist]);
+    if (branchMode && decorationFlorist) setDecorationFlorist(0);
+  }, [branchMode, florist, decorationFlorist]);
 
   const batchOf = (id: number) => batches.find((b) => b.id === id);
   const matOf = (id: number) => materials.find((m) => m.id === id);
@@ -218,6 +221,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   // Florist haqi ENDI TAHRIRLANADI (har ikki rejim). effectiveSalary DOIM forma maydonidan.
   const effectiveSalary = +f.florist_salary_amount || 0;
   const selectedFlorist = florists.find((fp) => fp.id === florist);
+  // OFORMLENIYA — tanlangan bezovchi floristning decoration_fee'si (× soni) — alohida oylik yozuvi (source=decoration).
+  const decoFloristObj = florists.find((fp) => fp.id === decorationFlorist);
+  const decoFee = Math.round(+(decoFloristObj?.decoration_fee ?? 0) || 0);
+  const decoPay = decoFee * qtyTotal;
+  const decoFeeMissing = decorationFlorist > 0 && decoFee <= 0;
   // maydondagi qiymat AYNAN tarifdagi summa (auto-fill'dan) — "Tarifdan olindi" belgisi uchun
   const salaryFromRate = !salaryTouched && !!currentRate && f.florist_salary_amount === rateToCatalogSalary(currentRate);
 
@@ -313,6 +321,9 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       catalog_kind: kind,
       ...(volume ? { volume } : {}),
       ...(florist ? { florist } : {}),
+      // OFORMLENIYA floristi — ixtiyoriy. decoration_salary_amount YUBORILMAYDI (read-only kabi:
+      // backend decoration_fee × quantity_total ni O'ZI yozadi). Tozalash uchun tahrirlashda null yuboramiz.
+      ...(!branchMode ? { decoration_florist: decorationFlorist || null } : {}),
       // ⚠️ FILIAL — branch>0 bo'lsa YUBORILADI (asosiy filial = 0 → kalit tushiriladi).
       // source_price YUBORILMAYDI — backend bir donaga tannarxni avtomatik yozadi (spec).
       ...(branch ? { branch } : {}),
@@ -541,6 +552,24 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             <Select value={florist} onChange={(v) => setFlorist(+v)} placeholder="Tanlang" options={[{ value: 0, label: "—" }, ...florists.map((fp) => ({ value: fp.id, label: floristName(fp) }))]} />
           </Field>
         )}
+        {/* OFORMLENIYA floristi — yasagandan ALOHIDA, ixtiyoriy. Filial rejimida yo'q. */}
+        {!branchMode && (
+          <Field label="Oformleniya floristi" span>
+            <Select value={decorationFlorist} onChange={(v) => setDecorationFlorist(+v)} placeholder="Tanlang" options={[{ value: 0, label: "— (tanlanmasa haq yozilmaydi)" }, ...florists.map((fp) => ({ value: fp.id, label: floristName(fp), sub: Math.round(+(fp.decoration_fee ?? 0)) > 0 ? `${fmt(fp.decoration_fee)} / dona` : "narx belgilanmagan" }))]} />
+            {decorationFlorist === 0 ? (
+              <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>Ixtiyoriy — tanlanmasa oformleniya uchun haq yozilmaydi.</span>
+            ) : decoFeeMissing ? (
+              <span className="mt-1 flex flex-wrap items-center gap-1 text-[11.5px] font-semibold" style={{ color: "var(--warning-ink, #8a6d1f)" }}>
+                ⚠ Bu floristda oformleniya narxi belgilanmagan.
+                <a href={`/floristlar/${decorationFlorist}`} target="_blank" rel="noreferrer" className="underline" style={{ color: "var(--primary)" }}>Profilda belgilash</a>
+              </span>
+            ) : (
+              <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
+                Oformleniya haqi: {decoFee.toLocaleString("ru")} × {qtyTotal} dona = <b style={{ color: "var(--acc)" }}>{fmt(decoPay)}</b>
+              </span>
+            )}
+          </Field>
+        )}
         <Field label={kind === "custom" ? "Soni" : "Soni (nechta bir xil tayyorlandi)"} span>
           <input className="inp" type="number" min={1} value={f.quantity_total} onChange={set("quantity_total")} placeholder="Masalan: 1" />
           {/* ⚠️ §2 SKLADDAN YECHILADIGAN GUL — filial rejimida (yoki standart) doim ko'rsatiladi:
@@ -735,7 +764,9 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
             {mats.map((m, i) => {
               const p = matOf(m.packaging);
               const sub = p ? Math.round(+(p.sale_price ?? 0)) * (+m.qty || 0) : 0;
-              const overMat = p ? (+m.qty || 0) > p.quantity : false;
+              // ⚠️ §3: skladdan yechiladigan HAQIQIY miqdor = son × quantity_total (backend ko'paytiradi).
+              const need = (+m.qty || 0) * qtyTotal;
+              const overMat = p ? need > p.quantity : false;
               const flashing = flashMat != null && m.packaging === flashMat;
               return (
                 <div
@@ -748,9 +779,15 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                     <input className="inp !py-1.5" type="number" value={m.qty} onChange={(e) => setMats(mats.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} placeholder="1" />
                     <button type="button" onClick={() => setMats(mats.filter((_, j) => j !== i))} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={15} strokeWidth={1.75} /></button>
                   </div>
-                  <div className="mt-1 flex items-center justify-between px-0.5 text-[11.5px]">
-                    <span style={{ color: overMat ? "#b3873a" : "var(--muted)" }}>{p ? (overMat ? `Qoldiqdan ko'p (${p.quantity} dona)` : `${p.quantity} dona bor`) : ""}</span>
-                    {sub > 0 && <span className="font-semibold" style={{ color: "var(--acc)" }}>{fmt(sub)}</span>}
+                  <div className="mt-1 flex items-center justify-between gap-2 px-0.5 text-[11.5px]">
+                    <span style={{ color: overMat ? "#b3873a" : "var(--muted)" }}>
+                      {p ? (
+                        overMat
+                          ? `${m.qty || 0} × ${qtyTotal} = ${need} dona kerak — qoldiqdan ko'p (${p.quantity} dona)`
+                          : <>{m.qty || 0} × {qtyTotal} = <b style={{ color: "var(--text-2)" }}>{need}</b> dona skladdan yechiladi · {p.quantity} bor</>
+                      ) : ""}
+                    </span>
+                    {sub > 0 && <span className="shrink-0 font-semibold" style={{ color: "var(--acc)" }}>{fmt(sub)}</span>}
                   </div>
                 </div>
               );
@@ -854,8 +891,12 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           <PriceLine label="Sotuv narxi" value={price.sale} strong />
           {price.discount > 0 && <PriceLine label="Chegirma" value={price.discount} hue="var(--danger-ink)" />}
           {price.fee > 0 && <PriceLine label={kind === "custom" ? "Floristika xizmati" : "Florist haqi"} value={price.fee} />}
-          {price.salary > 0 && florist > 0 && <PriceLine label="Florist oyligiga" value={price.salary} hue="var(--acc)" />}
+          {price.salary > 0 && florist > 0 && <PriceLine label="Florist haqi (oylikka)" value={price.salary} hue="var(--acc)" />}
+          {decoPay > 0 && <PriceLine label="Oformleniya haqi (oylikka)" value={decoPay} hue="var(--acc)" />}
           <PriceLine label="Taxminiy foyda" value={price.profit} hue={price.profit >= 0 ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)"} strong />
+          {(price.salary > 0 && florist > 0) || decoPay > 0 ? (
+            <PriceLine label="Foyda — haqlardan keyin" value={price.profit - (florist > 0 ? price.salary : 0) - decoPay} hue={price.profit - (florist > 0 ? price.salary : 0) - decoPay >= 0 ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)"} />
+          ) : null}
         </div>
         <p className="mt-1 text-[11px]" style={{ color: "var(--muted)" }}>
           {price.qty > 1 ? `${price.qty} dona uchun jami · ` : ""}Aniq qiymatni saqlagandan so&apos;ng backend hisoblaydi.

@@ -280,3 +280,32 @@ Verified live: a lead's `customer_detail` exposes `leads_count` (all-time) and `
 - **Proposed (NOT implemented):** a Dashboard "Bugungi zakladlar" tile (today's reservation deposits
   taken) would be a useful cashflow pulse, but it must carry the same "cashflow, not sales" framing
   to avoid reintroducing the double-count confusion. Left as a proposal per instruction.
+
+## DECORATION FLORIST + SALE-TIME MATERIALS + PIECE COUNTS (2026-08-02)
+- **Material `quantity` is PER ONE catalog unit; backend deducts `quantity × quantity_total`.**
+  Verified the composer (`KatalogModal.tsx:305`) sends the raw per-unit `quantity` — **no
+  pre-multiplication, no double-deduct**. The price panel multiplies by `quantity_total` for
+  DISPLAY only. The sell dialog's new "Sotuvda qo'shilgan" materials follow the same rule
+  (per-sold-unit quantity; backend × quantity). Fixed the composer's material over-limit check to
+  compare `quantity × quantity_total` against remaining (was only checking per-unit — silently
+  under-warned when quantity_total was large).
+- **Decoration pay is a SALARY expense, not catalog COGS.** `decoration_florist` →
+  `decoration_fee × quantity_total` written as a `FloristSalaryEntry` (source=`decoration` at
+  catalog creation, source=`sale_decoration` at sell — the two are SEPARATE entries and can both
+  fire on one item). It is NOT part of `cost_total`/catalog profit; the composer shows it as its
+  own "Oformleniya haqi (oylikka)" line plus a "Foyda — haqlardan keyin" line (profit minus both
+  labor lines) so the bottom line is honest without diverging from the backend's sale profit
+  (= sale − component cost).
+- **`decoration_salary_amount` accepted but treated read-only.** The API accepts an override, but
+  we never send it — the backend computes `decoration_fee × quantity_total`. Flagged for a future
+  override control if operators ask.
+- **Sale-time materials fold into `material_cost`.** The server's per-sale `material_cost` already
+  includes sale-time materials, so Section 2's cost/net reconciliation still holds; the expanded
+  row now itemises `sale_materials`/`sale_decoration` from the catalog history `snapshot`
+  (client-read, no accounting-endpoint dependency — those fields are NOT on `AccountingSale`).
+- **Florist stats counts now mean PIECES (quantity_total), not records.** `catalog_count`,
+  `bouquet_count`, `standard/custom_count`, `by_*[].count`, `avg_fee_per_item` are per-piece.
+  Relabelled every florist-page/Section-5 count as "(dona)". `avg_fee_per_item` is server-computed
+  per piece; our only client "avg per item" (Hisob-kitob Section 5 = salary ÷ (standard+custom))
+  now divides by pieces — consistent, provided the analytics production stats also moved to pieces
+  (that endpoint is separate from `/stats/`; assumed per the spec, unverified on live data).

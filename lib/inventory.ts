@@ -433,12 +433,16 @@ export const KIND_LABEL: Record<CatalogKind, string> = { standard: "Standart", c
 export const SALARY_SOURCE_LABEL: Record<SalarySource, string> = {
   catalog: "Katalog",
   custom_catalog: "Maxsus katalog",
+  decoration: "Oformleniya",
+  sale_decoration: "Sotuv oformleniyasi",
   daily: "Kunlik",
   manual: "Qo'lda",
 };
 export const SALARY_SOURCE_HUE: Record<SalarySource, string> = {
   catalog: "var(--primary)",
   custom_catalog: "#6a6ac2",
+  decoration: "var(--acc)",
+  sale_decoration: "#c27ba0",
   daily: "#b3873a",
   manual: "#8a8a8a",
 };

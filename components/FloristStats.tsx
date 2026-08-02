@@ -55,11 +55,11 @@ export default function FloristStats({ stats }: { stats: FloristStats }) {
       {/* summary kartalar */}
       <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))" }}>
         <Card label="Jami oylik" value={`${fmtMoney(+s.salary_total)} so'm`} sub={`${s.salary_entries_count} yozuv`} hero />
-        <Card label="Mahsulot" value={String(s.catalog_count)} sub={`${s.bouquet_count} buket · ${s.basket_count} savat`} />
-        <Card label="Standart / Maxsus" value={`${s.standard_count} / ${s.custom_count}`} />
-        <Card label="Sotilgan / Qolgan" value={`${s.sold_quantity} / ${s.unsold_quantity}`} />
+        <Card label="Yasagan (dona)" value={`${s.catalog_count} dona`} sub={`${s.bouquet_count} buket · ${s.basket_count} savat`} tip="Yasalgan DONA soni (quantity_total yig'indisi) — katalog yozuvlari soni emas." />
+        <Card label="Standart / Maxsus (dona)" value={`${s.standard_count} / ${s.custom_count}`} />
+        <Card label="Sotilgan / Qolgan (dona)" value={`${s.sold_quantity} / ${s.unsold_quantity}`} />
         <Card label="Sotuv daromadi" value={`${fmtMoney(+s.sale_revenue)} so'm`} tip="Haqiqiy sotilgan narx (chegirmadan keyin) — ko'rsatilgan narx emas." />
-        <Card label="O'rtacha haq" value={`${fmtMoney(+s.avg_fee_per_item)} so'm`} sub="1 mahsulotga" />
+        <Card label="O'rtacha haq" value={`${fmtMoney(+s.avg_fee_per_item)} so'm`} sub="1 donaga" tip="Jami katalog ish haqi ÷ yasalgan dona soni." />
         <Card label="Ishlagan kunlar" value={String(s.attendance_days)} />
       </div>
 
@@ -95,7 +95,7 @@ export default function FloristStats({ stats }: { stats: FloristStats }) {
           <h4 className="mb-3 text-[14px] font-bold">Buket / Savat · Hajm bo&apos;yicha</h4>
           <div className="overflow-x-auto thin-scroll">
             <table className="w-full min-w-[380px] border-collapse text-[12.5px]">
-              <thead><tr className="text-left" style={{ color: "var(--muted)" }}><th className="px-1 py-1 font-semibold">Turi</th><th className="px-1 py-1 font-semibold">Hajm</th><th className="px-1 py-1 text-right font-semibold">Soni</th><th className="px-1 py-1 text-right font-semibold">Sotildi</th><th className="px-1 py-1 text-right font-semibold">Haq</th></tr></thead>
+              <thead><tr className="text-left" style={{ color: "var(--muted)" }}><th className="px-1 py-1 font-semibold">Turi</th><th className="px-1 py-1 font-semibold">Hajm</th><th className="px-1 py-1 text-right font-semibold">Soni (dona)</th><th className="px-1 py-1 text-right font-semibold">Sotildi</th><th className="px-1 py-1 text-right font-semibold">Haq</th></tr></thead>
               <tbody>
                 {stats.by_volume.length === 0 && <tr><td colSpan={5} className="px-1 py-2" style={{ color: "var(--muted)" }}>Ma&apos;lumot yo&apos;q.</td></tr>}
                 {stats.by_volume.map((v, i) => (

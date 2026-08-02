@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Download, Pencil, Plus, Scissors, Trash2, User } from "lucide-react";
+import { Clock, Download, Pencil, Plus, Scissors, Sparkles, Trash2, User } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
@@ -173,6 +173,11 @@ export default function FloristlarPage() {
                     </span>
                   )}
                   <span className="rounded-full bg-sfc px-2.5 py-0.5 font-semibold" style={{ color: "var(--text-2)" }}>Kunlik {fmt(fp.daily_pay)}</span>
+                  {Math.round(+(fp.decoration_fee ?? 0)) > 0 && (
+                    <span className="flex items-center gap-1 rounded-full px-2.5 py-0.5 font-semibold" style={{ background: "color-mix(in srgb, var(--acc) 14%, transparent)", color: "var(--acc)" }} title="Oformleniya (bezash) haqi — 1 dona uchun">
+                      <Sparkles size={11} strokeWidth={2} /> Oformleniya {fmt(fp.decoration_fee)}
+                    </span>
+                  )}
                 </div>
                 <div className="mt-auto flex items-end justify-between border-t pt-2.5" style={{ borderColor: "var(--line2)" }}>
                   <div>

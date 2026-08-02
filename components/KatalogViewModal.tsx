@@ -157,10 +157,17 @@ export default function KatalogViewModal({
         {full.note && <Row k="Ichki izoh" v={full.note} />}
         {showCost && full.florist_fee != null && +full.florist_fee > 0 && <Row k="Floristika xizmati (mijozdan)" v={fmt(full.florist_fee)} />}
         {showCost && salary > 0 && <Row k="Florist oyligiga" v={fmt(salary)} hue="var(--acc)" />}
+        {showCost && full.decoration_salary_amount != null && +full.decoration_salary_amount > 0 && <Row k="Oformleniya haqi (oylikka)" v={fmt(full.decoration_salary_amount)} hue="var(--acc)" />}
         {showCost && full.florist_detail && (
           <Row
-            k="Florist"
+            k="Florist (yasagan)"
             v={[full.florist_detail.user_detail?.first_name, full.florist_detail.user_detail?.last_name].filter(Boolean).join(" ") || full.florist_detail.user_detail?.username || `#${full.florist_detail.id}`}
+          />
+        )}
+        {showCost && full.decoration_florist_detail && (
+          <Row
+            k="Oformleniya floristi"
+            v={[full.decoration_florist_detail.user_detail?.first_name, full.decoration_florist_detail.user_detail?.last_name].filter(Boolean).join(" ") || full.decoration_florist_detail.user_detail?.username || `#${full.decoration_florist_detail.id}`}
           />
         )}
         {full.customer_detail && (
@@ -254,6 +261,30 @@ export default function KatalogViewModal({
                   {(h.discount_reason || h.note) && (
                     <p className="mt-1 text-[12.5px] italic" style={{ color: "var(--muted)" }}>{h.discount_reason || h.note}</p>
                   )}
+                  {/* §5 SOTUVDA QO'SHILGAN — snapshot ichidagi qo'shimcha material va bezovchi (sotuv haqiqiy tannarxi shaffof) */}
+                  {(() => {
+                    const snap = h.snapshot;
+                    const sm = snap?.sale_materials?.filter(Boolean) ?? [];
+                    const sd = snap?.sale_decoration;
+                    if (sm.length === 0 && !sd) return null;
+                    return (
+                      <div className="mt-2 rounded-[10px] px-2.5 py-1.5" style={{ background: "var(--surface-2)" }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--acc)" }}>Sotuvda qo&apos;shilgan</div>
+                        {sm.map((m, mi) => (
+                          <div key={mi} className="mt-0.5 flex items-center justify-between gap-2 text-[12px]">
+                            <span style={{ color: "var(--text-2)" }}>📦 {m.material ?? m.type ?? "Material"}{m.quantity != null ? ` · ${m.quantity} dona` : ""}</span>
+                            {showCost && (m.cost != null || m.unit_cost != null) && <span className="tabular-nums font-semibold" style={{ color: "var(--text-2)" }}>{fmt(m.cost ?? m.unit_cost ?? 0)}</span>}
+                          </div>
+                        ))}
+                        {sd && (
+                          <div className="mt-0.5 flex items-center justify-between gap-2 text-[12px]">
+                            <span style={{ color: "var(--text-2)" }}>✨ Oformleniya: {sd.florist_name ?? `#${sd.florist ?? "?"}`}</span>
+                            {showCost && (sd.amount != null || sd.fee != null || sd.decoration_fee != null) && <span className="tabular-nums font-semibold" style={{ color: "var(--acc)" }}>{fmt(sd.amount ?? sd.fee ?? sd.decoration_fee ?? 0)}</span>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

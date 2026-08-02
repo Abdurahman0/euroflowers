@@ -221,13 +221,16 @@ export type SupplierPayment = {
 export type SupplierPaymentInput = { supplier: number; amount: string; paid_at?: string; method?: SupplierPaymentMethod; note?: string };
 
 /** Florist statistikasi — /florists/{id}/stats/ va /florists/me/dashboard/ bir xil shakl. */
-export type FloristStatsSalarySource = "catalog" | "custom_catalog" | "daily" | "manual";
+export type FloristStatsSalarySource = "catalog" | "custom_catalog" | "decoration" | "sale_decoration" | "daily" | "manual";
 export type FloristStats = {
   florist: { id: number; name: string; username: string; staff_type: StaffType; staff_type_label: string; phone: string; daily_pay: string; is_active: boolean };
   period: { date_from: string | null; date_to: string | null };
   summary: {
     salary_total: string; salary_entries_count: number;
     catalog_salary_total: string; daily_salary_total: string; manual_salary_total: string;
+    /** OFORMLENIYA (dekoratsiya) haqi jami — assembly (catalog) haqidan ALOHIDA. */
+    decoration_salary_total?: string;
+    // ⚠️ Quyidagi *_count endi DONA (quantity_total yig'indisi), katalog yozuvlari soni EMAS.
     catalog_count: number; bouquet_count: number; basket_count: number;
     standard_count: number; custom_count: number;
     sold_quantity: number; unsold_quantity: number;
@@ -425,11 +428,22 @@ export type CatalogHistory = {
   discount_percent?: string;
   discount_reason?: string;
   note?: string;
-  snapshot?: unknown;
+  /** SOTUV paytidagi holat surati (freeform). YANGI: sotuvda qo'shilgan materiallar/oformleniya. */
+  snapshot?: CatalogSaleSnapshot | null;
   created_by?: number | null;
   created_by_detail?: User | null;
   created_at: string;
   updated_at?: string;
+};
+
+/** Sotuv history snapshot (backend freeform JSON — shakl TASDIQLANMAGAN, mudofaacha o'qiymiz).
+    sale_materials/sale_decoration — sotuv vaqtida qo'shilgan qo'shimcha material va bezovchi florist. */
+export type SaleMaterialSnapshot = { type?: string; material?: string; packaging?: number; quantity?: number; unit_cost?: string | number | null; cost?: string | number | null };
+export type SaleDecorationSnapshot = { florist?: number | null; florist_name?: string | null; decoration_fee?: string | number | null; fee?: string | number | null; amount?: string | number | null; quantity?: number | null };
+export type CatalogSaleSnapshot = {
+  sale_materials?: SaleMaterialSnapshot[];
+  sale_decoration?: SaleDecorationSnapshot | null;
+  [k: string]: unknown;
 };
 
 export type CatalogItem = {
@@ -468,6 +482,12 @@ export type CatalogItem = {
   /** ⚠️ FILIALGA null — kim yasagani asosiy filial ishi. */
   florist?: number | null;
   florist_detail?: FloristProfile | null;
+  /** OFORMLENIYA floristi — bezash uchun (yasagandan ALOHIDA, ixtiyoriy). */
+  decoration_florist?: number | null;
+  decoration_florist_detail?: FloristProfile | null;
+  /** backend AVTOMATIK yozadi (tanlangan decoration_florist decoration_fee × quantity_total).
+      «read-only kabi» ishlating — yubormang; server hisoblaydi. ⚠️ FILIALGA null (tannarx). */
+  decoration_salary_amount?: string | null;
   /** backend hisoblaydi — mijoz preview'i faqat yo'l-yo'riq. ⚠️ FILIALGA null (tannarx). */
   calculated_cost_price?: string | null;
   calculated_component_price?: string | null;
@@ -981,6 +1001,9 @@ export type FloristProfile = {
   arrival_radius_meters: number | null;
   departure_radius_meters: number | null;
   is_active: boolean;
+  /** OFORMLENIYA (dekoratsiya) haqi — 1 dona buket/savat bezash uchun qo'shiladigan flat summa.
+      Hajm tarifi (S/M/L) EMAS. Katalog/sotuvda decoration_florist tanlansa: decoration_fee × quantity. */
+  decoration_fee?: string | null;
   /** faqat o'qish */
   salary_total: string;
   catalog_count: number;
@@ -1226,7 +1249,7 @@ export type CloseIssueResult = {
 export type CloseIssueInput = { florist: number; batch: number; return_stems?: number };
 
 /** Florist oylik yozuvi (backend: /api/florist-salary/) */
-export type SalarySource = "catalog" | "custom_catalog" | "daily" | "manual";
+export type SalarySource = "catalog" | "custom_catalog" | "decoration" | "sale_decoration" | "daily" | "manual";
 export type FloristSalaryEntry = {
   id: number;
   florist: number;

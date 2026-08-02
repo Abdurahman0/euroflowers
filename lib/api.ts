@@ -559,7 +559,7 @@ export const api = {
   /** Katalogdan sotish. quantity berilmasa backend 1 ta deb oladi.
       Arzonroq sotilsa: sale_price (dona narxi) + discount_reason yuboriladi —
       backend chegirmani hisoblab history'ga yozadi. */
-  sellCatalogItem: (id: number, data?: { quantity?: number; sale_price?: string; discount_reason?: string; payment_type?: PaymentType; sold_at?: string; reservation?: number }) =>
+  sellCatalogItem: (id: number, data?: { quantity?: number; sale_price?: string; discount_reason?: string; payment_type?: PaymentType; sold_at?: string; reservation?: number; materials?: { packaging: number; quantity: number }[]; decoration_florist?: number }) =>
     request<CatalogItem>(`/api/catalog/${id}/sell/`, {
       method: "POST",
       body: JSON.stringify({
@@ -570,6 +570,10 @@ export const api = {
         ...(data?.sold_at ? { sold_at: data.sold_at } : {}),
         // ⚠️ BRON: berilsa backend history'ga bron ID + paid_amount + remaining_due yozadi (full narx savdoga kiradi)
         ...(data?.reservation ? { reservation: data.reservation } : {}),
+        // ⚠️ SOTUVDA QO'SHILGAN: material quantity 1 DONA sotuv uchun (backend × quantity qiladi — oldindan ko'paytirmang).
+        ...(data?.materials?.length ? { materials: data.materials } : {}),
+        // ⚠️ SOTUV OFORMLENIYASI: catalog-yaratishdagi decoration'dan ALOHIDA (source=sale_decoration) salary yoziladi.
+        ...(data?.decoration_florist ? { decoration_florist: data.decoration_florist } : {}),
       }),
     }),
   catalogItem: (id: number) => request<CatalogItem>(`/api/catalog/${id}/`),

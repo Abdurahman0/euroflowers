@@ -1,5 +1,5 @@
 "use client";
-import { Info, Pencil, Plus, Send, Trash2, User, X } from "lucide-react";
+import { Info, Pencil, Plus, Send, Sparkles, Trash2, User, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -91,6 +91,7 @@ export default function KatalogPage() {
   const [statusView, setStatusView] = useState<StatusView>("sotuvda");
   // florist va katalog turi — SERVER filtrlari (?florist= va ?catalog_kind= mavjud)
   const [floristFilter, setFloristFilter] = useState("");
+  const [decorationFilter, setDecorationFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
   const [florists, setFlorists] = useState<FloristProfile[]>([]);
   // MIJOZ filtri — URL ?customer=<id> orqali (mijoz sahifasidan / chipdan); tozalanadigan banner
@@ -110,6 +111,7 @@ export default function KatalogPage() {
         search: q || undefined,
         arrangement_type: arrType || undefined,
         florist: floristFilter || undefined,
+        decoration_florist: decorationFilter || undefined,
         catalog_kind: kindFilter || undefined,
         customer: customerFilter?.id || undefined,
       }));
@@ -118,7 +120,7 @@ export default function KatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, q, arrType, floristFilter, kindFilter, customerFilter]);
+  }, [showToast, q, arrType, floristFilter, decorationFilter, kindFilter, customerFilter]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
@@ -266,6 +268,14 @@ export default function KatalogPage() {
               options={[{ value: "", label: "Barcha floristlar" }, ...florists.map((fp) => ({ value: String(fp.id), label: floristName(fp) }))]}
             />
           )}
+          {florists.length > 0 && (
+            <FilterSelect
+              value={decorationFilter}
+              onChange={setDecorationFilter}
+              label="Oformleniya"
+              options={[{ value: "", label: "Barcha bezovchilar" }, ...florists.map((fp) => ({ value: String(fp.id), label: floristName(fp) }))]}
+            />
+          )}
           {/* «Gul taqsimlanmagan» — chiqim yopilmagan florist kataloglari (tannarx/foyda haqiqiy emas) */}
           {undistribCount > 0 && (
             <button
@@ -382,6 +392,13 @@ export default function KatalogPage() {
                 ) : (
                   <span className="text-[12px] italic" style={{ color: "var(--muted)" }}>Florist ko&apos;rsatilmagan</span>
                 ))}
+                {/* OFORMLENIYA floristi — ALOHIDA chip (accent + Sparkles), yasovchidan farqlansin */}
+                {catalogHasCostData(k) && k.decoration_florist_detail && (
+                  <span className="flex min-w-0 items-center gap-1 text-[11.5px] font-semibold" style={{ color: "var(--acc)" }} title={`Oformleniya: ${floristName(k.decoration_florist_detail)}`}>
+                    <Sparkles size={12} strokeWidth={2} className="shrink-0" />
+                    <span className="truncate">{floristName(k.decoration_florist_detail)}</span>
+                  </span>
+                )}
                 {/* KUTAYAPTI: material+haq hisobda, faqat gul tannarxi yopilganda qo'shiladi → foyda hali to'liq emas */}
                 {isUndistributed(k) && (
                   <span className="flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }} title="Material va florist haqi allaqachon tannarxda; faqat gul tannarxi chiqim yopilganda qo'shiladi — foyda shundan keyin to'liq bo'ladi">

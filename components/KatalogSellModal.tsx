@@ -1,15 +1,20 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CalendarClock, CreditCard, Info, Minus, Plus, Tag, X } from "lucide-react";
+import { Banknote, CalendarClock, ChevronDown, CreditCard, Info, Minus, Package, Plus, Sparkles, Tag, X } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
+import Select from "./Select";
 import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import { fmt } from "@/lib/format";
+import { PACKAGING_LABEL } from "@/lib/inventory";
 import { paymentProgress } from "@/lib/reservation";
-import type { CatalogItem, PaymentType, Reservation } from "@/lib/types";
+import type { CatalogItem, FloristProfile, Packaging, PaymentType, Reservation } from "@/lib/types";
+
+type SaleMat = { packaging: number; qty: string };
+const floristName = (fp: FloristProfile) => { const u = fp.user_detail; return [u?.first_name, u?.last_name].filter(Boolean).join(" ") || u?.username || `#${fp.id}`; };
 
 const custLabel = (r: Reservation) => r.customer_detail?.name || r.customer_name || `Bron #${r.id}`;
 
@@ -68,6 +73,27 @@ export default function KatalogSellModal({
   const [dateOn, setDateOn] = useState(false);
   const [soldAt, setSoldAt] = useState("");
 
+  // §4 SOTUVDA QO'SHILGAN — ixtiyoriy qo'shimcha material + oformleniya (yig'ilmagan holda tez sotuv uchun).
+  const [extraOpen, setExtraOpen] = useState(false);
+  const [materials, setMaterials] = useState<Packaging[]>([]);
+  const [florists, setFlorists] = useState<FloristProfile[]>([]);
+  const [saleMats, setSaleMats] = useState<SaleMat[]>([]);
+  const [saleDeco, setSaleDeco] = useState<number>(0);
+  useEffect(() => {
+    api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+    api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
+  }, []);
+  const matOf = (id: number) => materials.find((m) => m.id === id);
+  const matGroups = useMemo(() => {
+    const g = new Map<string, Packaging[]>();
+    materials.forEach((m) => { (g.get(m.packaging_type) ?? g.set(m.packaging_type, []).get(m.packaging_type)!).push(m); });
+    return g;
+  }, [materials]);
+  const addSaleMat = () => { const used = new Set(saleMats.map((m) => m.packaging)); const next = materials.find((p) => !used.has(p.id)); setSaleMats([...saleMats, { packaging: next?.id ?? 0, qty: "1" }]); };
+  const decoObj = florists.find((fp) => fp.id === saleDeco);
+  const decoFee = Math.round(+(decoObj?.decoration_fee ?? 0) || 0);
+  const decoFeeMissing = saleDeco > 0 && decoFee <= 0;
+
   // §2 BRON — ulanган bo'lsa: to'liq sotuv narxi daromad, oldingi zaklad esa ALLAQACHON cashflow (ikki marta sanamang).
   const [resv, setResv] = useState<Reservation | null>(presetReservation);
   const [pickerOn, setPickerOn] = useState(false);
@@ -109,6 +135,12 @@ export default function KatalogSellModal({
 
   const needsReason = discountOn && calc.unitDiscount > 0;
 
+  // §4 SOTUVDA QO'SHILGAN iqtisodi: material qoldiqni × qty (server ko'paytiradi), tannarx va oformleniya haqi.
+  const validSaleMats = saleMats.filter((m) => m.packaging > 0 && +m.qty > 0);
+  const extraMatCost = validSaleMats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+(p.cost_price ?? 0)) * (+m.qty || 0) * qty : 0); }, 0);
+  const decoPay = decoFee * qty;
+  const extraTotal = extraMatCost + decoPay;
+
   const submit = async () => {
     const next: Record<string, string> = {};
     if (discountOn && (!price || salePrice <= 0)) next.sale_price = "Narxni kiriting";
@@ -138,6 +170,9 @@ export default function KatalogSellModal({
         ...(discountOn ? { sale_price: salePrice.toFixed(2), discount_reason: reason.trim() || undefined } : {}),
         ...(dateOn && soldAt ? { sold_at: soldAt } : {}),
         ...(resv ? { reservation: resv.id } : {}),
+        // §4: quantity PER 1 sotuv dona (backend × quantity qiladi — oldindan ko'paytirmang).
+        ...(validSaleMats.length ? { materials: validSaleMats.map((m) => ({ packaging: m.packaging, quantity: +m.qty })) } : {}),
+        ...(saleDeco ? { decoration_florist: saleDeco } : {}),
       });
       // customer_detail — PATCH javobidan (backend mavjud mijozga ULAGAN bo'lsa ismi ko'rinsin)
       const linked = updated.customer_detail || patched?.customer_detail;
@@ -313,6 +348,72 @@ export default function KatalogSellModal({
       {/* MIJOZ — ixtiyoriy (walk-in yoki mavjud) */}
       <div className="mt-4">
         <CustomerPicker value={cust} onChange={setCust} />
+      </div>
+
+      {/* §4 SOTUVDA QO'SHILGAN — yig'iq (tez sotuv buzilmasin); qo'shimcha material + oformleniya */}
+      <div className="mt-4 rounded-[14px] border" style={{ borderColor: extraOpen ? "var(--primary)" : "var(--border)" }}>
+        <button type="button" onClick={() => setExtraOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left">
+          <span className="flex min-w-0 items-center gap-2">
+            <Package size={16} strokeWidth={2} style={{ color: extraOpen ? "var(--primary)" : "var(--muted)" }} />
+            <span className="min-w-0">
+              <span className="block text-[13px] font-bold">Sotuvda qo&apos;shilgan</span>
+              <span className="block text-[11.5px]" style={{ color: "var(--muted)" }}>Qo&apos;shimcha material va oformleniya — ixtiyoriy</span>
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            {(validSaleMats.length > 0 || saleDeco > 0) && <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>{validSaleMats.length + (saleDeco > 0 ? 1 : 0)}</span>}
+            <ChevronDown size={16} className="transition-transform duration-200" style={{ transform: extraOpen ? "rotate(180deg)" : undefined, color: "var(--muted)" }} />
+          </span>
+        </button>
+        {extraOpen && (
+          <div className="border-t px-3.5 py-3" style={{ borderColor: "var(--border)" }}>
+            {/* MATERIALLAR — 1 dona sotuvga; server × quantity qiladi */}
+            <div className="mb-1 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>Qo&apos;shimcha materiallar</div>
+            <div className="flex flex-col gap-2">
+              {saleMats.map((m, i) => {
+                const p = matOf(m.packaging);
+                const need = (+m.qty || 0) * qty;
+                const over = p ? need > p.quantity : false;
+                return (
+                  <div key={i}>
+                    <div className="grid grid-cols-[1fr_74px_30px] items-center gap-2">
+                      <Select value={m.packaging} onChange={(v) => setSaleMats(saleMats.map((x, j) => (j === i ? { ...x, packaging: +v } : x)))} options={Array.from(matGroups.entries()).flatMap(([g, list]) => list.map((pk) => ({ value: pk.id, label: pk.name_uz, sub: `${PACKAGING_LABEL[g as keyof typeof PACKAGING_LABEL] ?? g} · ${pk.quantity} dona bor` })))} />
+                      <input className="inp !py-1.5" type="number" value={m.qty} onChange={(e) => setSaleMats(saleMats.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} placeholder="1" />
+                      <button type="button" onClick={() => setSaleMats(saleMats.filter((_, j) => j !== i))} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={14} strokeWidth={1.75} /></button>
+                    </div>
+                    {p && (
+                      <p className="mt-0.5 px-0.5 text-[11px]" style={{ color: over ? "#b3873a" : "var(--muted)" }}>
+                        {m.qty || 0} × {qty} sotuv = <b style={{ color: over ? "#b3873a" : "var(--text-2)" }}>{need}</b> dona yechiladi{over ? ` — qoldiqdan ko'p (${p.quantity})` : ` · ${p.quantity} bor`}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+              <button type="button" onClick={addSaleMat} disabled={materials.length === 0} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3 py-1.5 text-[12px] font-bold disabled:opacity-50">
+                <Plus size={14} strokeWidth={1.75} /> Material qo&apos;shish
+              </button>
+            </div>
+
+            {/* OFORMLENIYA floristi — sale_decoration salary (catalog-yaratishdagi decoration'dan ALOHIDA) */}
+            <div className="mb-1 mt-4 flex items-center gap-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}><Sparkles size={13} style={{ color: "var(--acc)" }} /> Oformleniya floristi</div>
+            <Select value={saleDeco} onChange={(v) => setSaleDeco(+v)} placeholder="Tanlang" options={[{ value: 0, label: "— (tanlanmasa haq yozilmaydi)" }, ...florists.map((fp) => ({ value: fp.id, label: floristName(fp), sub: Math.round(+(fp.decoration_fee ?? 0)) > 0 ? `${fmt(fp.decoration_fee)} / dona` : "narx belgilanmagan" }))]} />
+            {saleDeco > 0 && (decoFeeMissing ? (
+              <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--warning-ink, #8a6d1f)" }}>⚠ Bu floristda oformleniya narxi belgilanmagan — haq yozilmaydi.</p>
+            ) : (
+              <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Oformleniya haqi: {decoFee.toLocaleString("ru")} × {qty} = <b style={{ color: "var(--acc)" }}>{fmt(decoPay)}</b></p>
+            ))}
+
+            {/* IQTISODIY TA'SIR — bu sotuvga */}
+            {extraTotal > 0 && (
+              <div className="mt-3 rounded-[11px] px-3 py-2 text-[12px]" style={{ background: "var(--surface-2)" }}>
+                <div className="flex items-center justify-between"><span style={{ color: "var(--muted)" }}>Qo&apos;shimcha material tannarxi</span><span className="font-semibold tabular-nums">{fmt(extraMatCost)}</span></div>
+                <div className="flex items-center justify-between"><span style={{ color: "var(--muted)" }}>Oformleniya haqi (oylikka)</span><span className="font-semibold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(decoPay)}</span></div>
+                <div className="mt-1 flex items-center justify-between border-t pt-1 font-bold" style={{ borderColor: "var(--border)" }}><span>Bu sotuvga qo&apos;shimcha xarajat</span><span className="tabular-nums" style={{ color: "var(--danger-ink)" }}>−{fmt(extraTotal)}</span></div>
+                <p className="mt-1 flex items-start gap-1 text-[10.5px] leading-snug" style={{ color: "var(--muted)" }}><Info size={11} className="mt-px shrink-0" /> Material tannarxi sotuv foydasini kamaytiradi; oformleniya haqi floristga oylik sifatida yoziladi (source: sotuv oformleniyasi).</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* SOTUV SANASI — ixtiyoriy; default hozir */}

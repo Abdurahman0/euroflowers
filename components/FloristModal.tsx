@@ -21,6 +21,7 @@ export default function FloristModal({ florist, onClose, onSaved }: { florist: F
     daily_pay: florist?.daily_pay ? String(Math.round(+florist.daily_pay)) : "",
     work_start_time: florist?.work_start_time ?? "",
     work_end_time: florist?.work_end_time ?? "",
+    decoration_fee: florist?.decoration_fee ? String(Math.round(+florist.decoration_fee)) : "",
     lat: florist?.shop_latitude != null ? +florist.shop_latitude : null as number | null,
     lng: florist?.shop_longitude != null ? +florist.shop_longitude : null as number | null,
     arrival: florist?.arrival_radius_meters ?? 100,
@@ -48,6 +49,8 @@ export default function FloristModal({ florist, onClose, onSaved }: { florist: F
         shop_longitude: f.lng != null ? String(f.lng) : null,
         arrival_radius_meters: f.arrival,
         departure_radius_meters: f.departure,
+        // OFORMLENIYA haqi — hajm tarifidan ALOHIDA flat fee (1 dona bezash uchun); "0" ham yuboriladi.
+        decoration_fee: f.decoration_fee ? String(+f.decoration_fee) : "0",
         is_active: f.is_active,
       };
       const saved = florist ? await api.updateFlorist(florist.id, payload) : await api.createFlorist(payload);
@@ -77,6 +80,10 @@ export default function FloristModal({ florist, onClose, onSaved }: { florist: F
         <Field label="Kunlik haq (so'm)"><input className="inp" type="number" value={f.daily_pay} onChange={(e) => setF({ ...f, daily_pay: e.target.value })} placeholder="Masalan: 150000" /></Field>
         <Field label="Ish boshlanishi"><TimePicker value={f.work_start_time?.slice(0, 5) ?? ""} onChange={(v) => setF({ ...f, work_start_time: v })} placeholder="Masalan: 09:00" ariaLabel="Ish boshlanish vaqti" /></Field>
         <Field label="Ish tugashi"><TimePicker value={f.work_end_time?.slice(0, 5) ?? ""} onChange={(v) => setF({ ...f, work_end_time: v })} placeholder="Masalan: 18:00" ariaLabel="Ish tugash vaqti" /></Field>
+        <Field label="Oformleniya haqi (so'm)" span>
+          <input className="inp" type="number" value={f.decoration_fee} onChange={(e) => setF({ ...f, decoration_fee: e.target.value })} placeholder="Masalan: 30000" />
+          <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>Har bir buket/savat oformleniyasi uchun qo&apos;shiladigan summa. Hajm tarifidan alohida — bezovchi florist tanlansa <b>× dona</b> hisoblanadi.</span>
+        </Field>
       </div>
 
       <Section>Geofence — do&apos;kon joyi</Section>

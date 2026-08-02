@@ -192,8 +192,8 @@ export default function FloristDetailPage() {
                 caption="Katalog YARATILGANDA yoziladi (sotilganda emas)." tip="Har katalog qo'shilганда floristga tarif bo'yicha haq yoziladi — sotuvni kutmaydi." />
               <HeroStat label="Sotuv daromadi" value={`${fmt(s.sale_revenue)}`} delta={p ? pct(+s.sale_revenue, +p.sale_revenue) : null}
                 caption="Uning mahsulotlari sotuvidan tushgan real summa (chegirmadan keyin)." tip="Ko'rsatilgan narx emas — haqiqiy sotilgan narx." />
-              <HeroStat label="Mahsulot soni" value={String(s.catalog_count)} delta={p ? pct(s.catalog_count, p.catalog_count) : null}
-                caption={`${s.bouquet_count} buket · ${s.basket_count} savat`} />
+              <HeroStat label="Yasagan (dona)" value={String(s.catalog_count)} delta={p ? pct(s.catalog_count, p.catalog_count) : null}
+                caption={`${s.bouquet_count} buket · ${s.basket_count} savat`} tip="Yasalgan DONA soni (quantity_total yig'indisi) — katalog yozuvlari soni emas." />
               <HeroStat label="Ishlagan kunlar" value={String(s.attendance_days)} delta={p ? pct(s.attendance_days, p.attendance_days) : null}
                 caption="Keldi-ketdi bo'yicha ro'yxatga olingan kunlar." />
             </div>
@@ -202,9 +202,9 @@ export default function FloristDetailPage() {
             <Section id="prod" title="Ishlab chiqarish">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-3">
-                  <MiniRow k="Buket / Savat" v={`${s.bouquet_count} / ${s.basket_count}`} />
-                  <MiniRow k="Standart / Maxsus" v={`${s.standard_count} / ${s.custom_count}`} />
-                  <MiniRow k="O'rtacha haq (1 mahsulotga)" v={fmt(s.avg_fee_per_item)} tip="Jami ish haqi ÷ mahsulot soni." />
+                  <MiniRow k="Buket / Savat (dona)" v={`${s.bouquet_count} / ${s.basket_count}`} />
+                  <MiniRow k="Standart / Maxsus (dona)" v={`${s.standard_count} / ${s.custom_count}`} />
+                  <MiniRow k="O'rtacha haq (1 donaga)" v={fmt(s.avg_fee_per_item)} tip="Jami katalog ish haqi ÷ yasalgan dona soni." />
                 </div>
                 <div>
                   <div className="mb-1.5 flex items-baseline justify-between text-[12.5px]">
@@ -281,6 +281,17 @@ export default function FloristDetailPage() {
 
             {/* e) HAJM TARIFLARI */}
             <Section id="rates" title="Hajm tariflari">
+              {florist && (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border px-3.5 py-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-semibold">Oformleniya haqi</div>
+                    <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>Hajm tarifidan alohida — 1 dona buket/savat bezash uchun</div>
+                  </div>
+                  <span className="shrink-0 rounded-full px-3 py-1 text-[13px] font-bold tabular-nums" style={{ background: "color-mix(in srgb, var(--acc) 14%, transparent)", color: "var(--acc)" }}>
+                    {Math.round(+(florist.decoration_fee ?? 0)) > 0 ? `${fmt(florist.decoration_fee)} / dona` : "Belgilanmagan"}
+                  </span>
+                </div>
+              )}
               {florist ? <FloristRateMatrix florist={florist} /> : <p className="text-[13px]" style={{ color: "var(--muted)" }}>Florist ma&apos;lumoti yuklanmadi.</p>}
             </Section>
 
@@ -397,7 +408,7 @@ function MixTable({ rows, empty = "Ma'lumot yo'q." }: { rows: { label: string; s
   return (
     <div className="overflow-x-auto thin-scroll">
       <table className="w-full min-w-[300px] border-collapse text-[12.5px]">
-        <thead><tr className="text-left" style={{ color: "var(--muted)" }}><th className="px-1 py-1 font-semibold">Turi</th>{rows.some((r) => r.sub) && <th className="px-1 py-1 font-semibold">Hajm</th>}<th className="px-1 py-1 text-right font-semibold">Soni</th><th className="px-1 py-1 text-right font-semibold">Sotildi</th><th className="px-1 py-1 text-right font-semibold">Haq</th></tr></thead>
+        <thead><tr className="text-left" style={{ color: "var(--muted)" }}><th className="px-1 py-1 font-semibold">Turi</th>{rows.some((r) => r.sub) && <th className="px-1 py-1 font-semibold">Hajm</th>}<th className="px-1 py-1 text-right font-semibold">Soni (dona)</th><th className="px-1 py-1 text-right font-semibold">Sotildi</th><th className="px-1 py-1 text-right font-semibold">Haq</th></tr></thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i} className="border-t" style={{ borderColor: "var(--line2)" }}>

@@ -733,10 +733,10 @@ export default function HisobKitobPage() {
             <table className="w-full min-w-[760px] border-collapse text-[13px]">
               <thead><tr className="text-left" style={{ color: "var(--muted)" }}>
                 <th className="px-2 py-2 font-semibold">Florist</th>
-                <th className="px-2 py-2 text-right font-semibold">Standart / Maxsus</th>
+                <th className="px-2 py-2 text-right font-semibold">Standart / Maxsus<Tip text="Yasalgan DONA soni (quantity_total) — katalog yozuvlari soni emas." /></th>
                 <th className="px-2 py-2 text-right font-semibold">Ishlab chiqarish</th>
                 <th className="px-2 py-2 text-right font-semibold">Oylik</th>
-                <th className="px-2 py-2 text-right font-semibold">1 mahsulotga<Tip text="Oylik / jami mahsulot soni" /></th>
+                <th className="px-2 py-2 text-right font-semibold">1 donaga<Tip text="Oylik / yasalgan dona soni" /></th>
                 <th className="px-2 py-2 text-right font-semibold">Mahsulot foydasi<Tip text="Shu florist yasagan sotuvlarning server net_profit yig'indisi." /></th>
                 <th className="w-6" />
               </tr></thead>
@@ -927,6 +927,10 @@ function FragmentRows({ row, detail, open, cols }: { row: React.ReactNode; detai
     tannarx ajratmasi (flower_cost/material_cost/florist_fee_cost — sotuv bo'yicha). */
 function CatalogDetail({ sale, item, net }: { sale: import("@/lib/types").AccountingSale; item?: CatalogItem; net: number }) {
   const qty = sale.quantity;
+  // §5 SOTUVDA QO'SHILGAN — shu sotuv history snapshot'idan (material_cost ichida allaqachon hisobga olingan → tannarx reconcile qiladi)
+  const snap = item?.history?.find((h) => h.id === sale.history_id)?.snapshot;
+  const saleMats = snap?.sale_materials?.filter(Boolean) ?? [];
+  const saleDeco = snap?.sale_decoration;
   return (
     <div className="px-3 py-3">
       {item ? (
@@ -949,6 +953,26 @@ function CatalogDetail({ sale, item, net }: { sale: import("@/lib/types").Accoun
         </>
       ) : (
         <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>Kompozitsiya mavjud emas (katalog yozuvi o&apos;chirilgan) — tannarx ajratmasi serverdan.</p>
+      )}
+      {/* §5 SOTUVDA QO'SHILGAN — qo'shimcha material va bezovchi florist (snapshot); tannarxi material_cost'ga kirgan */}
+      {(saleMats.length > 0 || saleDeco) && (
+        <div className="mt-2 rounded-[10px] border-t pt-2" style={{ borderColor: "var(--line2)" }}>
+          <div className="mb-1 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--acc)" }}>Sotuvda qo&apos;shilgan</div>
+          <div className="flex flex-col gap-1">
+            {saleMats.map((m, mi) => (
+              <div key={mi} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
+                <span className="min-w-0 truncate">📦 {m.material ?? m.type ?? "Material"}{m.quantity != null ? ` · ${m.quantity} dona` : ""}</span>
+                {(m.cost != null || m.unit_cost != null) && <span className="shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(m.cost ?? m.unit_cost ?? 0)}</span>}
+              </div>
+            ))}
+            {saleDeco && (
+              <div className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
+                <span className="min-w-0 truncate">✨ Oformleniya (sotuvda): {saleDeco.florist_name ?? `#${saleDeco.florist ?? "?"}`}</span>
+                {(saleDeco.amount != null || saleDeco.fee != null) && <span className="shrink-0 tabular-nums" style={{ color: "var(--acc)" }}>{fmt(saleDeco.amount ?? saleDeco.fee ?? 0)}</span>}
+              </div>
+            )}
+          </div>
+        </div>
       )}
       {/* SERVER tannarx ajratmasi (butun sotuv bo'yicha, × {qty}). flower+material+fee === cost_total (kafolat). */}
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-[12.5px]" style={{ borderColor: "var(--line2)" }}>
