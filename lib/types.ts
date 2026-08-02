@@ -579,6 +579,10 @@ export type Accounting = {
   by_volume: AccountingByVolume[];
   discounted_sales: AccountingSale[];
   history: AccountingSale[];
+  /** ⚠️ BRON to'lovlari — ALOHIDA cashflow (sotuv EMAS). Sotuv full narxda savdoga kiradi;
+      zaklad/oldindan to'lov shu yerda ko'rinadi. Server dinamik qo'shadi (OpenAPI'da yo'q). */
+  reservation_payments_summary?: ReservationPaymentSummary;
+  reservation_payments?: AccountingReservationPayment[];
 };
 
 export type PostType = "post" | "reel" | "story" | "ad";
@@ -1321,7 +1325,83 @@ export type InstagramEvent = {
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "crm" | "mijozlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "floristStock" | "branchReport" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
+export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "crm" | "bronlar" | "mijozlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "floristStock" | "branchReport" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";
 /** Maxsus davr — YYYY-MM-DD (ikkalasi ham kiritilgan kun bilan) */
 export type DateRange = { from: string; to: string };
+
+/* ===== BRON (reservation) — mijoz oldindan to'lov qiladi (zaklad) ===== */
+export type ReservationStatus = "active" | "fulfilled" | "cancelled";
+export type ReservationPaymentStatus = "unpaid" | "deposit" | "paid";
+export type Fulfillment = "delivery" | "pickup";
+/** to'lov usuli — sotuvdan (cash/card) farqli: BRONda o'tkazma (transfer) ham bor */
+export type PaymentMethod = "cash" | "card" | "transfer";
+
+export type ReservationPayment = {
+  id: number;
+  amount: string;
+  method: PaymentMethod;
+  paid_at?: string | null;
+  note?: string;
+  reservation: number;
+  created_at: string;
+  updated_at?: string;
+  created_by?: number | null;
+  created_by_detail?: User | null;
+};
+
+export type Reservation = {
+  id: number;
+  customer_detail?: Customer | null;
+  catalog_detail?: { id: number; name_uz?: string; name_ru?: string } | null;
+  /** to'lovlar NESTED keladi — alohida fetch shart emas (add-payment'dan keyin bronni refetch qilamiz) */
+  payments: ReservationPayment[];
+  paid_amount: string;
+  remaining_amount: string;
+  status: ReservationStatus;
+  payment_status: ReservationPaymentStatus;
+  request_uz: string;
+  arrangement_type?: ArrangementType | "" | null;
+  estimated_price?: string | null;
+  desired_date?: string | null;
+  desired_time?: string;
+  fulfillment?: Fulfillment | "" | null;
+  delivery_address?: string;
+  note?: string;
+  customer?: number | null;
+  catalog_item?: number | null;
+  created_at: string;
+  updated_at: string;
+  created_by?: number | null;
+  /** write-only (yaratishda) — CustomerPicker "new" rejimi */
+  customer_name?: string;
+  customer_phone?: string;
+};
+
+export type ReservationInput = Partial<{
+  customer: number | null; customer_name: string; customer_phone: string;
+  request_uz: string; arrangement_type: ArrangementType | ""; estimated_price: string;
+  desired_date: string; desired_time: string; fulfillment: Fulfillment | ""; delivery_address: string;
+  note: string; catalog_item: number | null;
+}>;
+export type ReservationPaymentInput = { amount: string; method: PaymentMethod; paid_at?: string; note?: string };
+export type CatalogRestoreFlowersInput = { florist: number; old_batch: number; new_batch: number; quantity_stems: number; reason?: string };
+export type FloristStockBulkIssueInput = { florist: number; items: { batch: number; quantity_stems: number }[]; reason?: string };
+
+/** Hisob-kitob bron-to'lovlari (server dinamik qo'shadi; item shakli LIVE'da tasdiqlanmagan — 0 to'lov bor,
+    shuning uchun himoyalangan/ixtiyoriy). */
+export type ReservationPaymentSummary = { count: number; total: string; cash_total: string; card_total: string; transfer_total: string };
+export type AccountingReservationPayment = {
+  id?: number;
+  amount: string;
+  method?: PaymentMethod;
+  paid_at?: string | null;
+  created_at?: string;
+  note?: string;
+  customer_name?: string | null;
+  customer_detail?: Customer | null;
+  reservation?: number | null;
+  reservation_id?: number | null;
+  reservation_detail?: { id: number; request_uz?: string } | null;
+  created_by_detail?: User | null;
+};

@@ -1,6 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
-import { Banknote, CalendarClock, CreditCard, Minus, Plus, Tag } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Banknote, CalendarClock, CreditCard, Info, Minus, Plus, Tag, X } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -8,7 +8,10 @@ import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
 import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import { fmt } from "@/lib/format";
-import type { CatalogItem, PaymentType } from "@/lib/types";
+import { paymentProgress } from "@/lib/reservation";
+import type { CatalogItem, PaymentType, Reservation } from "@/lib/types";
+
+const custLabel = (r: Reservation) => r.customer_detail?.name || r.customer_name || `Bron #${r.id}`;
 
 const PAYMENTS: { value: PaymentType; label: string; icon: typeof Banknote }[] = [
   { value: "cash", label: "Naqd", icon: Banknote },
@@ -32,10 +35,13 @@ export default function KatalogSellModal({
   item,
   onClose,
   onSold,
+  presetReservation = null,
 }: {
   item: CatalogItem;
   onClose: () => void;
   onSold: (updated: CatalogItem) => void;
+  /** §2: bronni ulash — detail drawer «Katalogdan sotish»dan yoki ?reservation= orqali oldindan tanlanadi */
+  presetReservation?: Reservation | null;
 }) {
   const showToast = useStore((s) => s.showToast);
   const total = item.quantity_total ?? 1;
@@ -61,6 +67,34 @@ export default function KatalogSellModal({
   // SOTUV SANASI — ixtiyoriy; yoqilib o'zgartirilsagina yuboriladi (aks holda backend: hozir)
   const [dateOn, setDateOn] = useState(false);
   const [soldAt, setSoldAt] = useState("");
+
+  // §2 BRON — ulanган bo'lsa: to'liq sotuv narxi daromad, oldingi zaklad esa ALLAQACHON cashflow (ikki marta sanamang).
+  const [resv, setResv] = useState<Reservation | null>(presetReservation);
+  const [pickerOn, setPickerOn] = useState(false);
+  const [resvList, setResvList] = useState<Reservation[] | null>(null);
+  const [resvQ, setResvQ] = useState("");
+
+  // Bron tanlanganda: mijozni va (chegirma yoqilmagan bo'lsa) narxni oldindan to'ldiramiz
+  useEffect(() => {
+    if (!resv) return;
+    if (resv.customer_detail && !hadCustomer) setCust({ mode: "existing", id: resv.customer_detail.id, detail: resv.customer_detail });
+    const est = Math.round(+(resv.estimated_price ?? 0) || 0);
+    if (est > 0 && est !== listPrice && !discountOn) { setDiscountOn(true); setPrice(String(est)); }
+    setQty(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resv?.id]);
+
+  const openPicker = async () => {
+    setPickerOn(true);
+    if (resvList) return;
+    try { const d = await api.reservations({ status: "active", ordering: "desired_date", page_size: 100 }); setResvList(d); }
+    catch { setResvList([]); }
+  };
+  const pickable = useMemo(() => {
+    const xs = resvList ?? [];
+    const q = resvQ.trim().toLowerCase();
+    return q ? xs.filter((r) => custLabel(r).toLowerCase().includes(q) || (r.request_uz || "").toLowerCase().includes(q)) : xs;
+  }, [resvList, resvQ]);
 
   const salePrice = discountOn ? Math.round(+price || 0) : listPrice;
   const calc = useMemo(() => {
@@ -103,6 +137,7 @@ export default function KatalogSellModal({
         payment_type: payment,
         ...(discountOn ? { sale_price: salePrice.toFixed(2), discount_reason: reason.trim() || undefined } : {}),
         ...(dateOn && soldAt ? { sold_at: soldAt } : {}),
+        ...(resv ? { reservation: resv.id } : {}),
       });
       // customer_detail — PATCH javobidan (backend mavjud mijozga ULAGAN bo'lsa ismi ko'rinsin)
       const linked = updated.customer_detail || patched?.customer_detail;
@@ -130,6 +165,69 @@ export default function KatalogSellModal({
         sub={`${item.name_uz || item.name_ru} · ${fmt(listPrice)} / dona`}
         onClose={onClose}
       />
+
+      {/* §2 BRON ULASH + HISOB-KITOB */}
+      {!resv ? (
+        <button type="button" onClick={openPicker} className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-[13px] border-[1.5px] border-dashed py-2.5 text-[12.5px] font-bold transition-colors" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>
+          <Tag size={14} strokeWidth={1.9} /> Bronga bog&apos;lash (ixtiyoriy)
+        </button>
+      ) : (
+        <div className="mt-1 rounded-[16px] border p-3.5" style={{ borderColor: "var(--primary)", background: "var(--primary-soft)" }}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--primary)" }}>Bronga bog&apos;landi</div>
+              <div className="truncate text-[14px] font-bold">{custLabel(resv)}</div>
+            </div>
+            <button type="button" onClick={() => setResv(null)} className="icon-btn !h-7 !w-7 shrink-0" aria-label="Bronni uzish"><X size={14} /></button>
+          </div>
+          {(() => {
+            const est = Math.round(+(resv.estimated_price ?? 0) || 0);
+            const prog = paymentProgress(resv.paid_amount, resv.estimated_price);
+            const diff = calc.totalSum - est;
+            return (
+              <>
+                <div className="mt-2.5 grid grid-cols-3 gap-2 text-center">
+                  <SettleCell label="Bron summasi" value={fmt(est)} />
+                  <SettleCell label="Oldindan to'langan" value={fmt(prog.paid)} hue="var(--acc)" />
+                  <SettleCell label="Qolgan to'lov" value={fmt(prog.remaining)} hue={prog.remaining > 0 ? "var(--danger-ink)" : "var(--success-ink, #3d8a5f)"} />
+                </div>
+                {est > 0 && diff !== 0 && (
+                  <p className="mt-2 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
+                    Sotuv narxi bron summasidan {diff > 0 ? "yuqori" : "past"}: <b style={{ color: diff > 0 ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)" }}>{diff > 0 ? "+" : "−"}{fmt(Math.abs(diff))}</b>
+                  </p>
+                )}
+                <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug" style={{ color: "var(--muted)" }}>
+                  <Info size={13} className="mt-px shrink-0" />
+                  To&apos;liq sotuv narxi <b>daromad</b> sifatida yoziladi. Oldindan olingan zaklad ({fmt(prog.paid)}) esa allaqachon cashflow&apos;ga kirgan — hisob-kitobda uni ikki marta sanamang.
+                </p>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* BRON TANLASH — ro'yxat (faol bronlar) */}
+      {pickerOn && !resv && (
+        <div className="mt-2 rounded-[14px] border" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2 border-b px-2.5 py-2" style={{ borderColor: "var(--border)" }}>
+            <input className="inp !h-9 flex-1" autoFocus value={resvQ} onChange={(e) => setResvQ(e.target.value)} placeholder="Bron qidirish (mijoz, so'rov)…" />
+            <button type="button" onClick={() => setPickerOn(false)} className="icon-btn !h-8 !w-8 shrink-0" aria-label="Yopish"><X size={14} /></button>
+          </div>
+          <div className="max-h-56 overflow-y-auto p-1.5">
+            {resvList === null ? <p className="px-2 py-3 text-[12.5px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>
+              : pickable.length === 0 ? <p className="px-2 py-3 text-[12.5px]" style={{ color: "var(--muted)" }}>Faol bron topilmadi</p>
+              : pickable.map((r) => (
+                <button key={r.id} type="button" onClick={() => { setResv(r); setPickerOn(false); }} className="flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-[var(--hover)]">
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-bold">{custLabel(r)}</span>
+                    <span className="block truncate text-[11px]" style={{ color: "var(--muted)" }}>{r.request_uz || "—"}</span>
+                  </span>
+                  <span className="shrink-0 text-[11.5px] font-semibold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(r.estimated_price)}</span>
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* SONI — stepper */}
       <Field label="Nechta sotiladi" span>
@@ -265,5 +363,14 @@ export default function KatalogSellModal({
         </button>
       </ModalFooter>
     </Modal>
+  );
+}
+
+function SettleCell({ label, value, hue }: { label: string; value: string; hue?: string }) {
+  return (
+    <div className="rounded-[11px] px-1.5 py-1.5" style={{ background: "var(--surface-solid, var(--surface))" }}>
+      <div className="text-[9.5px] font-semibold uppercase leading-tight tracking-wide" style={{ color: "var(--muted)" }}>{label}</div>
+      <div className="mt-0.5 text-[12.5px] font-extrabold tabular-nums" style={{ color: hue ?? "var(--text)" }}>{value}</div>
+    </div>
   );
 }

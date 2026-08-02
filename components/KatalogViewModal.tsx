@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send, Info } from "lucide-react";
+import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send, Info, Recycle } from "lucide-react";
 import Modal from "./Modal";
 import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
 import { KIND_LABEL, catalogWaiting } from "@/lib/inventory";
@@ -37,6 +37,7 @@ export default function KatalogViewModal({
   onEdit,
   onDelete,
   onTransfer,
+  onRestore,
 }: {
   item: CatalogItem;
   onClose: () => void;
@@ -44,6 +45,8 @@ export default function KatalogViewModal({
   onDelete?: () => void;
   /** asosiy filial admini uchun — filialga yuborish (sotilmagan qismi bor bo'lsa) */
   onTransfer?: () => void;
+  /** §3 restavratsiya — tarkibdagi so'lgan gulni almashtirish (tarkib bor bo'lsa) */
+  onRestore?: () => void;
 }) {
   // ro'yxat javobida `history` bo'lmasligi mumkin — batafsil ochilganda o'qiymiz
   const [full, setFull] = useState<CatalogItem>(item);
@@ -270,8 +273,18 @@ export default function KatalogViewModal({
         </a>
       )}
 
-      {(onEdit || onDelete || onTransfer) && (
-        <div className="mt-4 flex gap-2 border-t border-[color:var(--border)] pt-4">
+      {(onEdit || onDelete || onTransfer || onRestore) && (
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--border)] pt-4">
+          {onRestore && full.composition?.length ? (
+            <button
+              type="button"
+              onClick={onRestore}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--primary)]"
+              style={{ color: "var(--primary)" }}
+            >
+              <Recycle size={14} strokeWidth={1.9} /> Restavratsiya
+            </button>
+          ) : null}
           {onTransfer && (
             <button
               type="button"

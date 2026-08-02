@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown } from "lucide-react";
+import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown, BookmarkCheck, Info } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { accountingCached, stockBatchesCached, invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
@@ -11,6 +11,8 @@ import { fmt, fmtDate, dateAfterParam, dateBeforeParam } from "@/lib/format";
 import { KIND_LABEL, VOLUME_LABEL, SALARY_SOURCE_LABEL } from "@/lib/inventory";
 import { ARRANGEMENT_LABEL } from "@/components/badges";
 import { num, saleProfit, profitTone, wasteTotals, costBreakdown, saleLineAllocations, excludeTest } from "@/lib/finance";
+import { PAYMENT_METHOD_LABEL } from "@/lib/reservation";
+import type { PaymentMethod } from "@/lib/types";
 import { isBranchUser, accountingBranchParam, accountingRowView, branchSplitLine, type BranchSelection } from "@/lib/branch";
 import * as X from "@/lib/reportExports";
 import DateChips from "@/components/DateChips";
@@ -78,6 +80,15 @@ const Money = ({ v, tone, bold }: { v: number; tone?: string; bold?: boolean }) 
   <span className={`tabular-nums ${bold ? "font-bold" : "font-semibold"}`} style={{ color: tone }}>{fmt(v)}</span>
 );
 
+function MiniStat({ label, value, hue }: { label: string; value: string; hue?: string }) {
+  return (
+    <div className="rounded-[13px] border px-3 py-2.5" style={{ borderColor: "var(--border)" }}>
+      <div className="truncate text-[10.5px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{label}</div>
+      <div className="mt-0.5 truncate text-[15px] font-extrabold tabular-nums" style={{ color: hue ?? "var(--text)" }}>{value}</div>
+    </div>
+  );
+}
+
 /** by_branch qatori VA summary (Jami) — YAGONA renderer (accountingRowView). Tannarx
     ostida gul/material/xizmat ajratmasi tooltip'da. ⚠️ florist_fee_cost = MIJOZDAN
     olinadigan floristika XIZMATI (tannarx qismi), florist OYLIGI emas. */
@@ -121,6 +132,8 @@ export default function HisobKitobPage() {
   const [floristWaste, setFloristWaste] = useState<FloristStockIssue[]>([]);
   const [prod, setProd] = useState<Analytics["florist_production_stats"]>([]);
   const [salary, setSalary] = useState<FloristSalaryEntry[]>([]);
+  // §5: bron to'lovlari (zaklad cashflow) — reservations'dan tekislab, davr bo'yicha filtrlaymiz
+  const [resvPays, setResvPays] = useState<{ id: number; date: string; amount: number; method: PaymentMethod; customer: string; request: string; reservationId: number }[]>([]);
   const [err, setErr] = useState("");
 
   const [catSort, setCatSort] = useState<SortKey>("net");
@@ -155,6 +168,17 @@ export default function HisobKitobPage() {
     api.floristStockIssues({ kind: "waste", created_at_after: from, created_at_before: dateBeforeParam(to), page_size: 200 }).then(setFloristWaste).catch(() => setFloristWaste([]));
     api.analytics({ from, to }).then((a) => setProd(a.florist_production_stats ?? [])).catch(() => setProd([]));
     api.floristSalary().then(setSalary).catch(() => setSalary([]));
+    // BRON TO'LOVLARI — barcha bronlar payments'ini tekislab, to'langan sanasi davr ichida bo'lganini olamiz
+    api.reservations({ page_size: 200 }).then((rs) => {
+      const out: typeof resvPays = [];
+      for (const r of rs) for (const p of r.payments ?? []) {
+        const raw = p.paid_at || p.created_at || "";
+        const d = raw.slice(0, 10);
+        if (d && d >= from && d <= to) out.push({ id: p.id, date: raw, amount: Math.round(+p.amount || 0), method: p.method, customer: r.customer_detail?.name || r.customer_name || `Bron #${r.id}`, request: r.request_uz || "", reservationId: r.id });
+      }
+      out.sort((a, b) => (a.date < b.date ? 1 : -1));
+      setResvPays(out);
+    }).catch(() => setResvPays([]));
   }, [visible, from, to, branchParam]);
 
   // to'lov CRUD dan keyin — suppliers (rollup) va payments qayta yuklanadi
@@ -190,6 +214,13 @@ export default function HisobKitobPage() {
     stems: floristWaste.reduce((s, w) => s + w.quantity_stems, 0),
     value: floristWaste.reduce((s, w) => s + w.quantity_stems * (+(w.batch_detail?.cost_per_stem ?? 0) || 0), 0),
   }), [floristWaste]);
+
+  // ── Section 6: bron to'lovlari (zaklad cashflow) ─────────────────
+  const resvTotals = useMemo(() => {
+    const t = { count: resvPays.length, total: 0, cash: 0, card: 0, transfer: 0 };
+    for (const p of resvPays) { t.total += p.amount; if (p.method === "cash") t.cash += p.amount; else if (p.method === "card") t.card += p.amount; else t.transfer += p.amount; }
+    return t;
+  }, [resvPays]);
 
   // ── Section 2: katalog foydasi (har sotuv) ───────────────────────
   const catRows = useMemo(() => sales.map((s) => {
@@ -284,12 +315,14 @@ export default function HisobKitobPage() {
       { label: "Sof foyda", amount: breakdown.netProfit, pct: Math.round((breakdown.netProfit / base) * 100) },
     ];
   };
+  const reservationExport = (): X.ReservationPaymentRow[] => resvPays.map((p) => ({ paidAt: fmtDate(p.date), customer: p.customer, request: p.request, method: PAYMENT_METHOD_LABEL[p.method], amount: p.amount }));
   const doExportAll = () => {
     // FILIALLAR varag'i (by_branch bo'lsa) + fayl nomiga joriy filial rejimi
     const bb = acc?.by_branch ?? [];
     const branchSheets = bb.length ? [X.branchSheet(bb, acc!.summary)] : [];
     const branchLabel = acc?.branch_filter?.mode === "branch" ? (acc.branch_filter.branch_name ?? "Filial") : acc?.branch_filter?.mode === "main" ? "Toshkent" : "Hammasi";
-    return X.exportAll([...branchSheets, X.supplierSheet(supplierExport()), X.catalogSheet(catalogExport()), X.variantSheet(variantExport()), X.breakdownSheet(breakdownExport()), X.floristSheet(floristExport())], from, to, branchLabel).then(() => showToast("✓ Barchasi yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
+    const resvSheets = resvPays.length ? [X.reservationSheet(reservationExport())] : [];
+    return X.exportAll([...branchSheets, X.supplierSheet(supplierExport()), X.catalogSheet(catalogExport()), X.variantSheet(variantExport()), X.breakdownSheet(breakdownExport()), X.floristSheet(floristExport()), ...resvSheets], from, to, branchLabel).then(() => showToast("✓ Barchasi yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
   };
   const doExport = (label: string, sheet: () => import("@/lib/xlsx").SheetDef) => X.exportSection(label, sheet(), from, to).then(() => showToast("✓ Excel yuklab olindi")).catch(() => showToast("Eksport qilib bo'lmadi"));
 
@@ -740,6 +773,56 @@ export default function HisobKitobPage() {
                   />
                 ))}
               </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── 6. BRON TO'LOVLARI (zaklad — cashflow, sotuv EMAS) ── */}
+      <SectionCard n={6} icon={<BookmarkCheck size={18} strokeWidth={2} />} title="Bron to'lovlari" sub="oldindan olingan zakladlar — cashflow (sotuv daromadidan alohida)" onExport={resvPays.length ? () => doExport("Bron_tolovlari", () => X.reservationSheet(reservationExport())) : undefined}>
+        <p className="mb-3 flex items-start gap-1.5 rounded-[12px] px-3.5 py-2.5 text-[12px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+          <Info size={14} className="mt-px shrink-0" style={{ color: "var(--primary)" }} />
+          Bu <b>zaklad</b> pullari — kirim (cashflow). Bron katalogdan sotilganda to&apos;liq sotuv narxi 2-bo&apos;limda daromad bo&apos;lib yoziladi. <b>Zakladni ikki marta sanamang</b> — u shu yerda faqat pul oqimi sifatida ko&apos;rsatiladi.
+        </p>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <MiniStat label="Jami zaklad" value={fmt(resvTotals.total)} hue="var(--acc)" />
+          <MiniStat label="Naqd" value={fmt(resvTotals.cash)} />
+          <MiniStat label="Karta" value={fmt(resvTotals.card)} />
+          <MiniStat label="O'tkazma" value={fmt(resvTotals.transfer)} />
+        </div>
+        {resvPays.length === 0 ? (
+          <p className="mt-3 text-[13px]" style={{ color: "var(--muted)" }}>Bu davrda bron to&apos;lovi yo&apos;q.</p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-[13px]">
+              <thead>
+                <tr className="text-left" style={{ color: "var(--muted)" }}>
+                  <th className="py-2 pr-3 font-semibold">Sana</th>
+                  <th className="py-2 pr-3 font-semibold">Mijoz</th>
+                  <th className="py-2 pr-3 font-semibold">So&apos;rov</th>
+                  <th className="py-2 pr-3 font-semibold">Usul</th>
+                  <th className="py-2 pl-3 text-right font-semibold">Summa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resvPays.map((p) => (
+                  <tr key={p.id} className="border-t" style={{ borderColor: "var(--line2)" }}>
+                    <td className="py-2 pr-3 tabular-nums whitespace-nowrap">{fmtDate(p.date)}</td>
+                    <td className="py-2 pr-3">
+                      <Link href={`/bronlar`} className="font-semibold hover:underline">{p.customer}</Link>
+                    </td>
+                    <td className="max-w-[220px] truncate py-2 pr-3" style={{ color: "var(--text-2)" }} title={p.request}>{p.request || "—"}</td>
+                    <td className="py-2 pr-3"><span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--hover)", color: "var(--text-2)" }}>{PAYMENT_METHOD_LABEL[p.method]}</span></td>
+                    <td className="py-2 pl-3 text-right font-bold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(p.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2" style={{ borderColor: "var(--border)" }}>
+                  <td colSpan={4} className="py-2 pr-3 font-bold">Jami ({resvTotals.count} ta to&apos;lov)</td>
+                  <td className="py-2 pl-3 text-right font-extrabold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(resvTotals.total)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

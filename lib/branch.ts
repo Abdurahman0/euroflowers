@@ -17,6 +17,7 @@ export const NAV: NavItem[] = [
   { id: "branchReport", href: "/filial-hisoboti", label: "Filial hisoboti", pages: ["dashboard"] },
   { id: "ai", href: "/ai", label: "AI yordamchi", pages: ["ai_settings"] },
   { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", pages: ["crm"] },
+  { id: "bronlar", href: "/bronlar", label: "Bronlar", pages: ["crm"] },
   { id: "mijozlar", href: "/mijozlar", label: "Mijozlar", pages: ["customers"] },
   { id: "suppliers", href: "/suppliers", label: "Yetkazib beruvchilar", pages: ["suppliers", "inventory"] },
   { id: "postlar", href: "/postlar", label: "Postlar", pages: ["social_posts"] },

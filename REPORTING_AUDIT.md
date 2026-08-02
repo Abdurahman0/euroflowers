@@ -256,3 +256,27 @@ Verified live: a lead's `customer_detail` exposes `leads_count` (all-time) and `
   in the branch report, not main COGS. (VERIFICATION_REPORT §3; LIST 2, item f.)
 - **Money stays server-authoritative** everywhere (net_profit/cost_total); client only does
   attribution (saleLineAllocations) and separate not-summed loss displays.
+
+## RESERVATION PAYMENTS — PREPAYMENT DOUBLE-COUNT GUARD (2026-08-02)
+- **Bronlar (reservations) introduce prepayments/deposits (zaklad).** A reservation's
+  `payments[]` are cash received BEFORE the catalog sale exists. When the reservation is later
+  fulfilled via **Katalogdan sotish**, the catalog `sell` records the FULL sale price as revenue
+  (Section 2 / analytics). If we also counted reservation payments as sales/revenue, the same
+  money would appear twice.
+- **Guard chosen:** reservation payments are surfaced in Hisob-kitob **Section 6 "Bron to'lovlari"
+  as CASHFLOW ONLY** (a separate section, explicitly not sales), with an ⓘ note stating the sale
+  price — not the deposit — is the revenue and the deposit must not be double-counted. Totals are
+  broken out by method (naqd/karta/o'tkazma). The sell modal repeats the same ⓘ next to the
+  settlement block.
+- **No summation into net_profit/revenue:** Section 6 is client-derived from `reservations` (flatten
+  `payments[]`, filter by paid date within the period) and is **never added** to Section 2's sale
+  totals or the server `summary`. Money stays server-authoritative for actual sales; reservation
+  cashflow is a display-only overlay.
+- **Unconfirmed (read-only audit):** the accounting endpoint MAY also emit
+  `reservation_payments`/`reservation_payments_summary` (0 live records at audit time). We do NOT
+  rely on those fields; Section 6 derives from `/api/reservations/` directly to avoid depending on
+  an unverified shape. If the backend later authoritatively returns reservation payments, prefer
+  that source and drop the client flatten.
+- **Proposed (NOT implemented):** a Dashboard "Bugungi zakladlar" tile (today's reservation deposits
+  taken) would be a useful cashflow pulse, but it must carry the same "cashflow, not sales" framing
+  to avoid reintroducing the double-count confusion. Left as a proposal per instruction.

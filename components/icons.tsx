@@ -5,6 +5,7 @@ import {
   Analytics01Icon,
   ApiIcon,
   ArrowDown01Icon,
+  Bookmark02Icon,
   Calculator01Icon,
   ClipboardClockIcon,
   DeliveryTruck01Icon,
@@ -51,6 +52,7 @@ const ICONS: Record<string, typeof FlowerIcon> = {
   hisob: Calculator01Icon,
   chat: BubbleChatIcon,
   crm: ShoppingBag01Icon, // Buyurtmalar
+  bronlar: Bookmark02Icon, // Bronlar (zaklad)
   mijozlar: UserGroupIcon,
   sklad: PackageIcon,
   suppliers: DeliveryTruck01Icon,

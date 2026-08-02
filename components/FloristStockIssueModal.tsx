@@ -42,8 +42,10 @@ export default function FloristStockIssueModal({
   const [rows, setRows] = useState<Row[]>([{ batch: 0, mode: "bunches", qty: "" }]);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  // qisman xatoda: qaysi partiya qatoriga server nima dedi (batch id → matn)
+  // ALL-OR-NOTHING: server matnida partiya raqami bo'lsa o'sha qatorga (batch id → matn) bog'laymiz
   const [rowErr, setRowErr] = useState<Record<number, string>>({});
+  // umumiy tranzaksiya xatosi (partiya aniqlanmasa) — banner sifatida
+  const [formErr, setFormErr] = useState<string | null>(null);
   const [flashBatch, setFlashBatch] = useState<number | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -73,7 +75,7 @@ export default function FloristStockIssueModal({
   // DUBLIKAT partiya → mavjud qatorga qo'shiladi (composer bilan bir xil), aks holda qatorni belgilaymiz.
   // ⚠️ flash/toast setRows UPDATER'idan TASHQARIDA chaqiriladi (render paytida setState bermaslik uchun).
   const setBatchAt = (i: number, newBatch: number) => {
-    setRowErr({});
+    setRowErr({}); setFormErr(null);
     const dupIdx = rows.findIndex((r, j) => j !== i && r.batch === newBatch && newBatch > 0);
     if (dupIdx === -1) {
       setRows((rs) => rs.map((r, j) => (j === i ? { batch: newBatch, qty: "", mode: defaultQtyMode(batchOf(newBatch)?.stems_per_bunch) } : r)));
@@ -90,7 +92,7 @@ export default function FloristStockIssueModal({
       .filter((_, j) => j !== i));
     flash(newBatch);
   };
-  const setQtyAt = (i: number, qty: string) => { setRowErr({}); setRows((rs) => rs.map((r, j) => (j === i ? { ...r, qty } : r))); };
+  const setQtyAt = (i: number, qty: string) => { setRowErr({}); setFormErr(null); setRows((rs) => rs.map((r, j) => (j === i ? { ...r, qty } : r))); };
   const setModeAt = (i: number, mode: QtyMode) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, mode } : r)));
   const addRow = () => setRows((rs) => [...rs, { batch: 0, mode: "bunches", qty: "" }]);
   const removeRow = (i: number) => setRows((rs) => (rs.length > 1 ? rs.filter((_, j) => j !== i) : rs));
@@ -104,30 +106,24 @@ export default function FloristStockIssueModal({
     if (!florist) return showToast("Floristni tanlang");
     if (validRows.length === 0) return showToast("Kamida bitta gul va sonini kiriting");
     if (anyOver) return showToast("Ba'zi qatorlar qoldiqdan oshib ketdi");
-    setBusy(true); setRowErr({});
-    // ⚠️ KETMA-KET (backend bitta partiya/so'rov). Har qatorning natijasini yig'amiz.
-    const errs: Record<number, string> = {};
-    let ok = 0;
-    for (const r of validRows) {
-      try {
-        await api.floristStockIssue({ florist, batch: r.batch, quantity_stems: stemsOf(r), reason: reason.trim() || undefined });
-        ok++;
-      } catch (e) {
-        const detail = e instanceof ApiError && e.body && typeof e.body === "object" && "detail" in e.body ? String((e.body as { detail: unknown }).detail) : null;
-        errs[r.batch] = detail || (e instanceof ApiError ? e.message : "Chiqarib bo'lmadi");
-      }
-    }
-    onDone(); // har holatda balanslarni + qoldiqlarni qayta yuklaymiz
-    if (Object.keys(errs).length === 0) {
-      showToast(`✓ ${ok} ta gul chiqarildi`);
+    setBusy(true); setRowErr({}); setFormErr(null);
+    try {
+      // ⚠️ BITTA TRANZAKSIYA — bitta gulda qoldiq yetmasa HECH BIRI chiqmaydi (all-or-nothing).
+      await api.floristStockBulkIssue({ florist, items: validRows.map((r) => ({ batch: r.batch, quantity_stems: stemsOf(r) })), reason: reason.trim() || undefined });
+      showToast(`✓ ${validRows.length} ta gul chiqarildi`);
+      onDone(); // balanslar + partiya qoldiqlari qayta yuklanadi
       onClose();
-      return;
+    } catch (e) {
+      // ⚠️ HECH NARSA chiqmadi — HAMMA qator qoladi. Server matnidagi partiya raqamiga qarab aybdorni belgilaymiz.
+      const detail = e instanceof ApiError && e.body && typeof e.body === "object" && "detail" in e.body ? (e.body as { detail: unknown }).detail : null;
+      const msg = Array.isArray(detail) ? detail.join("\n") : detail != null ? String(detail) : (e instanceof ApiError ? e.message : "Chiqarib bo'lmadi");
+      const offending: Record<number, string> = {};
+      for (const r of validRows) { const bn = batchOf(r.batch)?.batch_number; if (bn && msg.includes(bn)) offending[r.batch] = msg; }
+      setRowErr(offending);
+      setFormErr(msg); // umumiy banner (partiya aniq bo'lsa ham — all-or-nothing ekanini ta'kidlaydi)
+      showToast(e instanceof ApiError ? e.message : "Chiqarib bo'lmadi");
+      setBusy(false);
     }
-    // QISMAN: o'tgan qatorlarni olib tashlab, XATO qatorlarni matn bilan qoldiramiz
-    showToast(`${ok} ta chiqarildi · ${Object.keys(errs).length} ta xato`);
-    setRows(validRows.filter((r) => errs[r.batch]));
-    setRowErr(errs);
-    setBusy(false);
   };
 
   return (
@@ -182,12 +178,22 @@ export default function FloristStockIssueModal({
         <input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Masalan: Ertangi buketlar uchun" />
       </Field>
 
-      {/* XULOSA — nechta gul, jami dona, tannarx qiymati */}
+      {/* XULOSA — nechta gul, jami dona, tannarx qiymati + ALL-OR-NOTHING eslatmasi */}
       {validRows.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-[12px] px-3 py-2 text-[12.5px] font-bold" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
-          <span>{validRows.length} gul · <span style={{ color: "var(--primary)" }}>{totalStems.toLocaleString("ru")} dona</span></span>
-          <span>Tannarx: <span style={{ color: "var(--acc)" }}>{fmt(totalCost)}</span></span>
+        <div className="mt-3 rounded-[12px] px-3 py-2" style={{ background: "var(--surface-2)" }}>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[12.5px] font-bold" style={{ color: "var(--text-2)" }}>
+            <span>{validRows.length} gul · <span style={{ color: "var(--primary)" }}>{totalStems.toLocaleString("ru")} dona</span></span>
+            <span>Tannarx: <span style={{ color: "var(--acc)" }}>{fmt(totalCost)}</span></span>
+          </div>
+          {validRows.length > 1 && <p className="mt-1 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>Bitta gulda qoldiq yetmasa, hech biri chiqarilmaydi (bitta tranzaksiya).</p>}
         </div>
+      )}
+
+      {/* TRANZAKSIYA XATOSI — hech narsa chiqmadi, server matni AYNAN */}
+      {formErr && (
+        <p className="mt-3 whitespace-pre-line rounded-[11px] px-3 py-2 text-[12.5px] font-semibold" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>
+          Hech biri chiqarilmadi — {formErr}
+        </p>
       )}
 
       <ModalFooter>

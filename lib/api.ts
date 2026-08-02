@@ -6,6 +6,7 @@ import type {
   Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
+  Reservation, ReservationInput, ReservationPayment, ReservationPaymentInput, CatalogRestoreFlowersInput, FloristStockBulkIssueInput,
   SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
 import { dashboardDateTo, accountingDateTo } from "./format";
@@ -504,6 +505,10 @@ export const api = {
   /** Sklad → florist. Skladdan minus, florist balansiga plus. */
   floristStockIssue: (data: FloristStockIssueInput) =>
     request<FloristStockIssue>("/api/florist-stock-issues/issue/", { method: "POST", body: JSON.stringify(data) }),
+  /** ⚠️ KO'P GULNI BITTA TRANZAKSIYADA chiqarish — bitta rowda qoldiq yetmasa HECH BIRI chiqmaydi
+      (all-or-nothing). Ketma-ket POST'lar o'rniga. Javob: yaratilgan chiqimlar ro'yxati. */
+  floristStockBulkIssue: (data: FloristStockBulkIssueInput) =>
+    request<Paginated<FloristStockIssue>>("/api/florist-stock-issues/bulk-issue/", { method: "POST", body: JSON.stringify(data) }),
   /** Floristdan qaytarish (skladga tiklanadi) yoki chiqit (skladga qaytmaydi).
       `kind` DOIM yuboriladi — waste destruktiv, default'ga tayanmaymiz. */
   floristStockReturn: (data: FloristStockReturnInput) =>
@@ -554,7 +559,7 @@ export const api = {
   /** Katalogdan sotish. quantity berilmasa backend 1 ta deb oladi.
       Arzonroq sotilsa: sale_price (dona narxi) + discount_reason yuboriladi —
       backend chegirmani hisoblab history'ga yozadi. */
-  sellCatalogItem: (id: number, data?: { quantity?: number; sale_price?: string; discount_reason?: string; payment_type?: PaymentType; sold_at?: string }) =>
+  sellCatalogItem: (id: number, data?: { quantity?: number; sale_price?: string; discount_reason?: string; payment_type?: PaymentType; sold_at?: string; reservation?: number }) =>
     request<CatalogItem>(`/api/catalog/${id}/sell/`, {
       method: "POST",
       body: JSON.stringify({
@@ -563,12 +568,32 @@ export const api = {
         ...(data?.discount_reason ? { discount_reason: data.discount_reason } : {}),
         ...(data?.payment_type ? { payment_type: data.payment_type } : {}),
         ...(data?.sold_at ? { sold_at: data.sold_at } : {}),
+        // ⚠️ BRON: berilsa backend history'ga bron ID + paid_amount + remaining_due yozadi (full narx savdoga kiradi)
+        ...(data?.reservation ? { reservation: data.reservation } : {}),
       }),
     }),
   catalogItem: (id: number) => request<CatalogItem>(`/api/catalog/${id}/`),
   /** quantity berilmasa sotilgan-u hali yechilmagan hamma son yechiladi */
   deductCatalogStock: (id: number, quantity?: number) =>
     request<CatalogItem>(`/api/catalog/${id}/deduct_stock/`, { method: "POST", body: JSON.stringify(quantity ? { quantity } : {}) }),
+  /** ⚠️ RESTAVRATSIYA — so'lgan gulni almashtirish. UCH ta ish birga: eski gul CHIQITga,
+      yangi gul floristga CHIQARILADI, katalog tarkibi YANGILANADI. Javob: yangilangan katalog item. */
+  restoreCatalogFlowers: (id: number, data: CatalogRestoreFlowersInput) =>
+    request<CatalogItem>(`/api/catalog/${id}/restore-flowers/`, { method: "POST", body: JSON.stringify(data) }),
+
+  /* ===== BRON (reservations) — mijoz oldindan to'lov (zaklad) ===== */
+  reservations: (p?: Params) => list<Reservation>("/api/reservations/", p),
+  reservation: (id: number) => request<Reservation>(`/api/reservations/${id}/`),
+  createReservation: (data: ReservationInput) =>
+    request<Reservation>("/api/reservations/", { method: "POST", body: JSON.stringify(data) }),
+  updateReservation: (id: number, data: Partial<ReservationInput>) =>
+    request<Reservation>(`/api/reservations/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  /** To'lov qo'shish — javob YARATILGAN to'lov (bronni refetch qilib jami/qoldiqni yangilaymiz). */
+  addReservationPayment: (id: number, data: ReservationPaymentInput) =>
+    request<ReservationPayment>(`/api/reservations/${id}/add-payment/`, { method: "POST", body: JSON.stringify(data) }),
+  /** Bekor qilish — javob YANGILANGAN bron (status=cancelled). */
+  cancelReservation: (id: number) =>
+    request<Reservation>(`/api/reservations/${id}/cancel/`, { method: "POST", body: "{}" }),
 
   socialPosts: (p?: Params) => list<SocialPost>("/api/social-posts/", p),
   createSocialPost: (data: Partial<SocialPost>) =>

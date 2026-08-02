@@ -18,9 +18,10 @@ import KatalogModal from "@/components/KatalogModal";
 import KatalogViewModal from "@/components/KatalogViewModal";
 import KatalogSellModal from "@/components/KatalogSellModal";
 import CatalogTransferDrawer from "@/components/CatalogTransferDrawer";
+import CatalogRestoreDrawer from "@/components/CatalogRestoreDrawer";
 import { usePerm } from "@/lib/store";
 import { isBranchUser } from "@/lib/branch";
-import type { CatalogItem, FloristProfile } from "@/lib/types";
+import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 
 /** Florist ismi (user_detail'dan) — bo'lmasa bo'sh */
 const floristName = (fp?: FloristProfile | null): string => {
@@ -70,6 +71,7 @@ export default function KatalogPage() {
   const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
   const mainUser = !branchUser;
   const [transferItem, setTransferItem] = useState<CatalogItem | null>(null);
+  const [restoreItem, setRestoreItem] = useState<CatalogItem | null>(null);
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -184,6 +186,23 @@ export default function KatalogPage() {
 
   // «Sotish» — modal orqali: soni + ixtiyoriy chegirma narxi va sababi
   const [sellItem, setSellItem] = useState<CatalogItem | null>(null);
+  // §2 Bron bilan sotish — Bronlar sahifasidan «Katalogdan sotish» (?reservation=&item=) orqali
+  const [presetResv, setPresetResv] = useState<Reservation | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const rid = Number(sp.get("reservation"));
+    if (!rid) return;
+    api.reservation(rid).then((r) => {
+      setPresetResv(r);
+      const iid = Number(sp.get("item")) || (typeof r.catalog_item === "number" ? r.catalog_item : 0);
+      if (iid) api.catalogItem(iid).then(setSellItem).catch(() => {});
+    }).catch(() => {});
+    // URL'ni tozalaymiz — refresh qayta ochmasin
+    const u = new URL(window.location.href);
+    u.searchParams.delete("reservation"); u.searchParams.delete("item");
+    window.history.replaceState(null, "", u);
+  }, []);
 
   /** quantity bermasak backend sotilgan-u hali yechilmagan HAMMA sonni yechadi */
   const deduct = async (k: CatalogItem) => {
@@ -448,8 +467,9 @@ export default function KatalogPage() {
       {sellItem && (
         <KatalogSellModal
           item={sellItem}
+          presetReservation={presetResv}
           onClose={() => setSellItem(null)}
-          onSold={(upd) => { patchItem(upd); setSellItem(null); notifyReportDataChanged(); loadNotifs(); load(); }}
+          onSold={(upd) => { patchItem(upd); setSellItem(null); setPresetResv(null); notifyReportDataChanged(); loadNotifs(); load(); }}
         />
       )}
 
@@ -472,6 +492,21 @@ export default function KatalogPage() {
           onEdit={control ? () => { setEditItem(viewItem); setViewItem(null); } : undefined}
           onDelete={control ? () => setConfirmDel(viewItem) : undefined}
           onTransfer={mainUser && control && ((viewItem.quantity_total ?? 1) - (viewItem.quantity_sold ?? 0)) > 0 ? () => { setTransferItem(viewItem); setViewItem(null); } : undefined}
+          onRestore={control ? () => { setRestoreItem(viewItem); setViewItem(null); } : undefined}
+        />
+      )}
+
+      {restoreItem && (
+        <CatalogRestoreDrawer
+          item={restoreItem}
+          onClose={() => setRestoreItem(null)}
+          onDone={async (upd) => {
+            setRestoreItem(null);
+            patchItem(upd);
+            // tarkib/partiya/balans o'zgardi → to'liq itemni qayta o'qib ko'rsatamiz + hisobot keshini yangilaymiz
+            try { const fresh = await api.catalogItem(upd.id); patchItem(fresh); setViewItem(fresh); } catch { setViewItem(upd); }
+            notifyReportDataChanged(); loadNotifs(); load();
+          }}
         />
       )}
 

@@ -103,6 +103,19 @@ export const branchSheet = (rows: AccountingByBranch[], summary: AccountingFigur
   return { name: "Filiallar", cols: branchCols, rows: rows.map((r) => toRow(r)), totals: toRow(summary, true) };
 };
 
+export type ReservationPaymentRow = { paidAt: string; customer: string; request: string; method: string; amount: number };
+const reservationCols: SheetCol[] = [
+  { header: "Sana", key: "paidAt", type: "date" },
+  { header: "Mijoz", key: "customer", type: "text" },
+  { header: "So'rov", key: "request", type: "text" },
+  { header: "Usul", key: "method", type: "text" },
+  { header: "Summa", key: "amount", type: "money" },
+];
+export const reservationSheet = (rows: ReservationPaymentRow[]): SheetDef => ({
+  name: "Bron to'lovlari", cols: reservationCols, rows: rows as unknown as Record<string, unknown>[],
+  totals: { customer: "JAMI", amount: sum(rows, "amount") },
+});
+
 /** Bitta bo'limni alohida kitob qilib yuklab olish. */
 export const exportSection = (label: string, sheet: SheetDef, from?: string, to?: string) =>
   exportWorkbook(exportName(`Hisob-kitob_${label}`, from, to), [sheet]);
