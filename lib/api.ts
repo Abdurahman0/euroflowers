@@ -2,7 +2,7 @@
 import type {
   Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult,
   CloseIssuePreview, CloseIssueInput, CloseIssueResult,
-  AISettings, Analytics, AuditLog, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard, Debt, DebtByCustomer,
+  AISettings, Analytics, AuditLog, BatchUsage, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard, Debt, DebtByCustomer,
   Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
@@ -457,6 +457,18 @@ export const api = {
    */
   deleteStockBatch: (id: number) =>
     request<{ detail?: string; is_active?: boolean } | undefined>(`/api/stock-batches/${id}/`, { method: "DELETE" }),
+  /** GET — partiya QAYERDA ishlatilgan (tasdiq oynasi raqamlari uchun).
+      ⚠️ `is_used` — SERVERNING hukmi; bizdagi `remaining !== received` zaif taxmin
+      (jonli auditda 14 tadan 2 tasi nomuvofiq chiqdi). Faqat shu maydonga ishoning. */
+  batchUsage: (id: number) => request<BatchUsage>(`/api/stock-batches/${id}/usage/`),
+  /**
+   * ISHLATILGAN partiyada navni almashtirish. `reason` MAJBURIY (audit jurnaliga tushadi).
+   * ⚠️ QAYTARIB BO'LMAYDI — OpenAPI'da teskari amal YO'Q. Ikkinchi marta eski navga
+   * qaytarish «undo» EMAS: auditda IKKITA yozuv qoladi.
+   * Javobda `variant_change` bloki keladi (OpenAPI'da e'lon qilinmagan).
+   */
+  changeBatchVariant: (id: number, data: { variant: number; reason: string }) =>
+    request<StockBatch>(`/api/stock-batches/${id}/change-variant/`, { method: "POST", body: JSON.stringify(data) }),
   /** kontrakt tavsiyasi: o'chirish o'rniga PATCH {is_active:false} */
   deactivateStockBatch: (id: number) =>
     request<StockBatch>(`/api/stock-batches/${id}/`, { method: "PATCH", body: JSON.stringify({ is_active: false }) }),

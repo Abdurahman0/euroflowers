@@ -590,3 +590,83 @@ describe("yangi maydonlar — supplier faqat YUKSIZ partiyada", () => {
       .toMatchObject({ height_from_cm: 40, height_to_cm: 60 });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NAVNI ALMASHTIRISH (spec: NAVNI_ALMASHTIRISH.md)
+// ─────────────────────────────────────────────────────────────────────────────
+import { buildVariantChangePayload, variantChangeNeedsDialog, variantUsageLines } from "./inventory";
+import type { BatchUsage } from "./types";
+
+const USAGE = (over: Partial<BatchUsage> = {}): BatchUsage => ({
+  batch: 167, batch_number: "CHG-QA", variant: "Atirgul · Prut · Oq", is_used: true,
+  catalog_items: 1, sold_catalog_items: 1, florist_issues: 0, lead_usages: 0,
+  stock_movements: 2, used_stems: 40, ...over,
+});
+
+describe("buildVariantChangePayload — sabab MAJBURIY, ayni nav TAQIQ", () => {
+  it("to'g'ri kirish → {variant, reason}", () => {
+    expect(buildVariantChangePayload(32, "Kirimda xato nav yozilgan", 41))
+      .toEqual({ variant: 32, reason: "Kirimda xato nav yozilgan" });
+  });
+  it("⚠️ sabab BO'SH → null (submit bloklanadi)", () => {
+    expect(buildVariantChangePayload(32, "", 41)).toBeNull();
+  });
+  it("⚠️ sabab faqat bo'shliq → null", () => {
+    expect(buildVariantChangePayload(32, "   ", 41)).toBeNull();
+  });
+  it("sabab atrofidagi bo'shliqlar kesiladi", () => {
+    expect(buildVariantChangePayload(32, "  xato  ", 41)?.reason).toBe("xato");
+  });
+  it("⚠️ AYNI nav tanlangan → null («Bu nav allaqachon tanlangan» 400'i qo'zg'atilmaydi)", () => {
+    expect(buildVariantChangePayload(41, "sabab", 41)).toBeNull();
+  });
+  it("nav tanlanmagan (0) → null", () => {
+    expect(buildVariantChangePayload(0, "sabab", 41)).toBeNull();
+  });
+});
+
+describe("variantChangeNeedsDialog — SERVERNING is_used hukmi", () => {
+  it("is_used: true → tasdiq oynasi kerak", () => {
+    expect(variantChangeNeedsDialog(USAGE({ is_used: true }))).toBe(true);
+  });
+  it("is_used: false → oyna KERAK EMAS, oddiy PATCH yetarli", () => {
+    expect(variantChangeNeedsDialog(USAGE({ is_used: false }))).toBe(false);
+  });
+  it("usage hali kelmagan → oyna ochilmaydi (taxmin qilmaymiz)", () => {
+    expect(variantChangeNeedsDialog(null)).toBe(false);
+    expect(variantChangeNeedsDialog(undefined)).toBe(false);
+  });
+  it("⚠️ JONLI NOMUVOFIQLIK: #174 — qoldiq = kelgan, LEKIN server is_used=true", () => {
+    // bizning zaif tekshiruv «tegilmagan» deydi; qaror SERVERNIKI bo'lishi shart
+    const weakSaysUntouched = batchVariantLocked({ received_stems: 100, remaining_stems: 100 });
+    expect(weakSaysUntouched).toBe(false);
+    expect(variantChangeNeedsDialog(USAGE({ is_used: true, used_stems: 0, catalog_items: 0, stock_movements: 3 }))).toBe(true);
+  });
+});
+
+describe("variantUsageLines — FAQAT nolga teng bo'lmaganlar", () => {
+  it("spec misoli: katalog 1 (1 sotilgan), 40 dona, 2 harakat", () => {
+    expect(variantUsageLines(USAGE())).toEqual([
+      { label: "Katalog", value: "1 ta (1 tasi SOTILGAN)" },
+      { label: "Ketgan gul", value: "40 dona" },
+      { label: "Sklad harakati", value: "2 ta" },
+    ]);
+  });
+  it("sotilmagan bo'lsa «SOTILGAN» qismi chiqmaydi", () => {
+    expect(variantUsageLines(USAGE({ sold_catalog_items: 0 }))[0]).toEqual({ label: "Katalog", value: "1 ta" });
+  });
+  it("nolga teng qatorlar TUSHIRIB QOLDIRILADI", () => {
+    const lines = variantUsageLines(USAGE({ catalog_items: 0, used_stems: 0, florist_issues: 0, lead_usages: 0, stock_movements: 3 }));
+    expect(lines).toEqual([{ label: "Sklad harakati", value: "3 ta" }]);
+  });
+  it("jonli #138: katalog 2, 150 dona, florist 1, 2 harakat", () => {
+    expect(variantUsageLines(USAGE({ catalog_items: 2, sold_catalog_items: 0, used_stems: 150, florist_issues: 1, stock_movements: 2 })))
+      .toEqual([
+        { label: "Katalog", value: "2 ta" },
+        { label: "Ketgan gul", value: "150 dona" },
+        { label: "Floristga chiqarilgan", value: "1 ta" },
+        { label: "Sklad harakati", value: "2 ta" },
+      ]);
+  });
+  it("usage yo'q → bo'sh", () => expect(variantUsageLines(null)).toEqual([]));
+});

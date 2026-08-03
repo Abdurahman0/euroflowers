@@ -1,4 +1,4 @@
-import type { ArrangementType, CatalogKind, CatalogVolume, FloristStockIssueKind, FloristVolumeRate, MovementType, PackagingType, RoundingSide, SalarySource, StaffType, StockBatch, StockDelivery, VolumeRateInput } from "./types";
+import type { ArrangementType, BatchUsage, CatalogKind, CatalogVolume, FloristStockIssueKind, FloristVolumeRate, MovementType, PackagingType, RoundingSide, SalarySource, StaffType, StockBatch, StockDelivery, VolumeRateInput } from "./types";
 
 /**
  * Sklad/florist bo'limlari uchun MARKAZLASHGAN o'zbekcha yorliqlar,
@@ -259,6 +259,61 @@ export const batchVariantLocked = (b: { received_stems?: number; remaining_stems
 
 /** Serverning nav qulfi matni (400) — AYNAN nusxa. */
 export const VARIANT_LOCKED_HINT = "Bu partiyadan gul ishlatilgan, navni almashtirib bo'lmaydi";
+
+/* ===== NAVNI ALMASHTIRISH (change-variant) ===== */
+
+/**
+ * ⚠️ NOTO'G'RI ISHLATISH OGOHLANTIRISHI — spec «Qachon ishlatmaslik kerak».
+ * Tizim ikki holatni FARQLAY OLMAYDI, shuning uchun sabab majburiy.
+ */
+export const VARIANT_CHANGE_MISUSE =
+  "Bu amal FAQAT «nav boshidanoq xato yozilgan» holat uchun — ya'ni o'sha buketlarda haqiqatan shu yangi nav bo'lgan, faqat yorlig'i noto'g'ri edi. " +
+  "Agar partiya ROSTDAN eski nav bo'lgan va siz qatorni boshqa gul uchun qayta ishlatmoqchi bo'lsangiz — ALMASHTIRMANG, yangi partiya kiriting: " +
+  "aks holda o'tgan buketlar noto'g'ri gul bilan qolib ketadi. Tizim bu ikkisini farqlay olmaydi.";
+
+/** Nima o'zgaradi / nima o'zgarmaydi — operator pulga tegadi deb o'ylamasin. */
+export const VARIANT_CHANGE_EFFECT =
+  "Ishlatilgan joylarda gul NOMI yangi navga o'zgaradi (sotilgan tarix ham). Narxlar, sonlar va foyda O'ZGARMAYDI.";
+
+/** ⚠️ Orqaga qaytarish yo'li YO'Q (OpenAPI'da teskari endpoint yo'q). */
+export const VARIANT_CHANGE_IRREVERSIBLE = "Qaytarib bo'lmaydi";
+
+/**
+ * Tasdiq oynasi KERAKMI — serverning `is_used` hukmiga qaraymiz, o'z taxminimizga EMAS.
+ * `is_used: false` → oddiy PATCH yetarli (tarix yo'q).
+ */
+export const variantChangeNeedsDialog = (u: Pick<BatchUsage, "is_used"> | null | undefined): boolean => !!u?.is_used;
+
+/**
+ * POST change-variant/ payload. `reason` MAJBURIY (audit jurnaliga yoziladi).
+ * Ayni nav tanlansa `null` — «Bu nav allaqachon tanlangan» 400'ini UI darajasida oldini olamiz.
+ */
+export function buildVariantChangePayload(
+  variantId: number, reason: string, currentVariantId: number,
+): { variant: number; reason: string } | null {
+  const r = (reason ?? "").trim();
+  if (!(variantId > 0) || variantId === currentVariantId || r === "") return null;
+  return { variant: variantId, reason: r };
+}
+
+/** Tasdiq oynasida ko'rsatiladigan qatorlar — FAQAT nolga teng bo'lmaganlari. */
+export function variantUsageLines(u: BatchUsage | null | undefined): { label: string; value: string }[] {
+  if (!u) return [];
+  const out: { label: string; value: string }[] = [];
+  if (u.catalog_items > 0) {
+    out.push({
+      label: "Katalog",
+      value: u.sold_catalog_items > 0
+        ? `${u.catalog_items} ta (${u.sold_catalog_items} tasi SOTILGAN)`
+        : `${u.catalog_items} ta`,
+    });
+  }
+  if (u.used_stems > 0) out.push({ label: "Ketgan gul", value: `${u.used_stems.toLocaleString("ru")} dona` });
+  if (u.florist_issues > 0) out.push({ label: "Floristga chiqarilgan", value: `${u.florist_issues} ta` });
+  if (u.lead_usages > 0) out.push({ label: "Buyurtmada", value: `${u.lead_usages} ta` });
+  if (u.stock_movements > 0) out.push({ label: "Sklad harakati", value: `${u.stock_movements} ta` });
+  return out;
+}
 
 /**
  * POCHKADAGI DONA o'zgarganda dona narxlari qayta hisoblanadi:

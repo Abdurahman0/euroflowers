@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Archive, Lock, Truck } from "lucide-react";
+import { AlertTriangle, Archive, Lock, Repeat2, Truck } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
-import { useStore } from "@/lib/store";
+import { useStore, usePerm } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import DatePicker from "./DatePicker";
 import Select from "./Select";
@@ -13,8 +13,9 @@ import FreeBatchToggle from "./FreeBatchToggle";
 import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import { Icon } from "./icons";
 import { fmt, fmtDate } from "@/lib/format";
-import { DELIVERY, perStemFromBunch, roundingNote, buildBatchEditPayload, batchEditIsRetroactive, formatStemsAndBunches, receivedEditConsequence, batchVariantLocked, VARIANT_LOCKED_HINT, spbPriceRecompute, describeBatchDeleteResult, type BatchEditForm, type BatchEditOriginal } from "@/lib/inventory";
-import type { FlowerVariant, StockBatch, StockDelivery, Supplier } from "@/lib/types";
+import { DELIVERY, perStemFromBunch, roundingNote, buildBatchEditPayload, batchEditIsRetroactive, formatStemsAndBunches, receivedEditConsequence, batchVariantLocked, VARIANT_LOCKED_HINT, variantChangeNeedsDialog, spbPriceRecompute, describeBatchDeleteResult, type BatchEditForm, type BatchEditOriginal } from "@/lib/inventory";
+import VariantChangeModal from "./VariantChangeModal";
+import type { BatchUsage, FlowerVariant, StockBatch, StockDelivery, Supplier } from "@/lib/types";
 
 const num = (n: string | number | undefined | null) => (n == null || n === "" ? "" : String(Math.round(+n)));
 const formFrom = (b: StockBatch): BatchEditForm => ({
@@ -56,6 +57,9 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
   onSaved: (b: StockBatch) => void;
 }) {
   const { showToast } = useStore();
+  const { canControl } = usePerm();
+  // 403 oldini olish: adjust/close-issue bilan BIR XIL darvoza
+  const canManage = canControl("inventory");
   const [f, setF] = useState<BatchEditForm>(() => formFrom(batch));
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
@@ -79,6 +83,24 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
   const variantLocked = batchVariantLocked(batch) || serverLocked;
   const [confirmDel, setConfirmDel] = useState(false);
   const [delBusy, setDelBusy] = useState(false);
+  // ⚠️ NAVNI ALMASHTIRISH — usage/ AVVAL chaqiriladi, raqamlar TAXMIN qilinmaydi.
+  const [usage, setUsage] = useState<BatchUsage | null>(null);
+  const [usageBusy, setUsageBusy] = useState(false);
+  const [cvOpen, setCvOpen] = useState(false);
+  const openVariantChange = async () => {
+    setUsageBusy(true); setUsage(null);
+    try {
+      const u = await api.batchUsage(batch.id);
+      setUsage(u);
+      // `is_used: false` → tasdiq oynasi KERAK EMAS, oddiy PATCH yetarli (spec).
+      if (!variantChangeNeedsDialog(u)) {
+        setServerLocked(false);
+        showToast("Bu partiya hali ishlatilmagan — navni shu yerdan tanlab saqlayvering");
+      } else setCvOpen(true);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "Ishlatilgan joylarni o'qib bo'lmadi");
+    } finally { setUsageBusy(false); }
+  };
   const orig: BatchEditOriginal = batch;
   const v = batch.variant_detail;
   const spb = +f.stems_per_bunch || batch.stems_per_bunch || 20;
@@ -197,10 +219,14 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
               <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>
                 {VARIANT_LOCKED_HINT}
               </span>
-              {/* SPEC muqobili: arxivlab, to'g'ri nav bilan yangisini kiritish */}
-              <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>
-                Nav xato bo&apos;lsa: partiyani <b>arxivlang</b> va to&apos;g&apos;ri nav bilan yangisini kiriting.
-              </span>
+              {/* ⚠️ ARXIVLASH endi CHORA EMAS — alohida «change-variant» amali bor. */}
+              {canManage && (
+                <button type="button" onClick={openVariantChange} disabled={usageBusy}
+                  className="mt-1.5 flex items-center gap-1.5 rounded-[10px] border-[1.5px] px-2.5 py-1.5 text-[12px] font-bold disabled:opacity-60"
+                  style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
+                  <Repeat2 size={13} strokeWidth={2.1} /> {usageBusy ? "Tekshirilmoqda…" : "Navni almashtirish"}
+                </button>
+              )}
             </>
           ) : (
             <>
@@ -212,6 +238,16 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
             </>
           )}
           <Err k="variant" />
+          {/* ⚠️ SERVER RAD ETDI — bizning zaif tekshiruv «tegilmagan» degan edi.
+              Jonli auditda 14 ta shunday partiyadan 2 tasi aslida is_used=true chiqdi.
+              Foydalanuvchini tupikda qoldirmaymiz: amalni SHU YERDA taklif qilamiz. */}
+          {errs.variant && canManage && (
+            <button type="button" onClick={openVariantChange} disabled={usageBusy}
+              className="mt-1.5 flex items-center gap-1.5 rounded-[10px] border-[1.5px] px-2.5 py-1.5 text-[12px] font-bold disabled:opacity-60"
+              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
+              <Repeat2 size={13} strokeWidth={2.1} /> {usageBusy ? "Tekshirilmoqda…" : "«Navni almashtirish» amalini ochish"}
+            </button>
+          )}
         </Field>
         <Field label="Qaysi yukka" span>
           <Select value={f.delivery} onChange={(vv) => setF((p) => ({ ...p, delivery: +vv }))} searchable placeholder="Yukni tanlang"
@@ -421,6 +457,16 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
           style={{ color: "var(--danger-ink)" }}>
           <Archive size={13} strokeWidth={2.1} /> Partiyani arxivlash / o&apos;chirish
         </button>
+      )}
+
+      {cvOpen && (
+        <VariantChangeModal
+          batch={batch}
+          usage={usage}
+          variants={variants}
+          onClose={() => setCvOpen(false)}
+          onDone={(upd) => { setCvOpen(false); onSaved(upd); onClose(); }}
+        />
       )}
 
       <ModalFooter>

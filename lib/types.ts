@@ -293,6 +293,9 @@ export type StockBatch = {
   cost_per_bunch?: string | null;
   /** ⚠️ ANIQ dona tannarxi (4 xona) — FAQAT KO'RSATISH UCHUN. Hech qanday hisobga KIRMAYDI. */
   cost_per_stem_exact?: string | null;
+  /** ⚠️ NAV ALMASHTIRILGANDA javobga qo'shiladi (POST change-variant/).
+      OpenAPI'da E'LON QILINMAGAN — javob sxemasi oddiy StockBatch (LIST 2). */
+  variant_change?: VariantChangeResult;
   /** TEKIN GUL — postavshik tekinga qo'shib bergan. Tannarx MAJBURIY EMAS va 0 bo'ladi
       (server yuborilgan tannarxni ham 0 qiladi). Sotuv narxi MAJBURIY bo'lib qoladi.
       ⚠️ Postavshikning «Umumiy sotib olingan»iga (purchase_total) QO'SHILMAYDI — 0 so'm to'lanadi.
@@ -543,6 +546,35 @@ export type CatalogProfit = {
   total_potential_profit?: string | null;
   sold_quantity?: number | null;
   realized_profit?: string | null;
+};
+
+/* ===== PARTIYA NAVINI ALMASHTIRISH (GET usage/ + POST change-variant/) ===== */
+
+/** GET /api/stock-batches/{id}/usage/ — partiya qayerda ishlatilgan.
+    ⚠️ OpenAPI'da javob sxemasi E'LON QILINMAGAN (faqat tavsif) — LIST 2. */
+export type BatchUsage = {
+  batch: number;
+  batch_number?: string;
+  /** «Atirgul · Prut · Oq» — tayyor yorliq */
+  variant?: string;
+  /** ⚠️ SERVERNING hukmi. Bizdagi `remaining !== received` — ZAIF taxmin:
+      jonli auditda 14 ta «tegilmagan» partiyadan 2 tasi (#174, #175) aslida
+      is_used=true bo'lib chiqdi (sklad harakatlari bor edi). */
+  is_used: boolean;
+  catalog_items: number;
+  sold_catalog_items: number;
+  florist_issues: number;
+  lead_usages: number;
+  stock_movements: number;
+  used_stems: number;
+};
+
+/** POST change-variant/ javobidagi qo'shimcha blok. */
+export type VariantChangeResult = {
+  old_variant?: string;
+  new_variant?: string;
+  usage?: Partial<BatchUsage>;
+  history_rows_updated?: number;
 };
 
 /** To'lov turi — katalog sotuvida.

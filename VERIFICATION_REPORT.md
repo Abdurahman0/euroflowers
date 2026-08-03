@@ -1939,3 +1939,159 @@ cc. **`DELETE /api/stock-batches/{id}/` OpenAPI'da chala.** Sxema faqat `204` ni
    `200` javob sxemasi e'lon qilinsin. Qo'shimcha: arxivlangan partiyani QAYTARISH
    (`is_active=true`) qo'llab-quvvatlanadimi? Biz «Faol partiya» belgisi orqali PATCH
    yuboramiz — tasdiqlansin.
+
+---
+
+# ISHLATILGAN PARTIYADA NAVNI ALMASHTIRISH (2026-08-03)
+
+## §0 — Audit
+
+**Biz nima yuborgan edik (`9af59e1`):** qulflangan nav maydoni ostida
+«Nav xato bo'lsa: partiyani **arxivlang** va to'g'ri nav bilan yangisini kiriting» matni.
+**Bu chora endi ESKIRDI** — o'rniga «Navni almashtirish» tugmasi qo'yildi.
+Arxivlash/o'chirish amali **o'zi qoldi** (u DELETE=arxiv oqimi, o'z vazifasi bor) — faqat
+nav muammosining yechimi sifatida REKLAMA QILINMAYDI.
+
+**OpenAPI tasdig'i:**
+```
+GET  /api/stock-batches/{id}/usage/           → 200, javob sxemasi E'LON QILINMAGAN
+POST /api/stock-batches/{id}/change-variant/  → StockBatchVariantChange
+                                                 required: ["reason", "variant"]
+                                                 javob: StockBatch (variant_change E'LON QILINMAGAN)
+```
+
+### ⚠️ ZAIF TEKSHIRUV — JONLI ISBOT
+
+Bizdagi `remaining !== received` taxminini serverning `is_used` hukmi bilan solishtirdim
+(14 ta «tegilmagan» partiya):
+
+```
+⚠️ #174 №01:00 — qoldiq = kelgan, used_stems 0, LEKIN is_used = TRUE (3 ta sklad harakati)
+⚠️ #175 №01:00 — qoldiq = kelgan, used_stems 0, LEKIN is_used = TRUE (3 ta sklad harakati)
+   tekshirildi 14 ta — NOMUVOFIQ: 2 ta
+```
+
+Ya'ni bizning tekshiruv **14 tadan 2 tasida yanglishadi**: UI ochiq Select ko'rsatadi,
+PATCH esa 400 oladi. Shuning uchun:
+
+- Zaif tekshiruv **FAQAT qaysi UI ko'rsatilishini** hal qiladi, HECH QACHON ruxsatni emas.
+- 400 kelganda matn AYNAN ko'rsatiladi, maydon qulflanadi VA **o'sha yerda
+  «Navni almashtirish» tugmasi taklif qilinadi** — foydalanuvchi tupikda qolmaydi.
+- Tasdiq oynasi ochilishini **serverning `is_used`i** hal qiladi (`variantChangeNeedsDialog`),
+  bizning taxminimiz emas.
+
+## §1 — Oqim
+
+1. Qulflangan nav yonida **«Navni almashtirish»** tugmasi (ruxsat: `canControl("inventory")`).
+2. Bosilganda **AVVAL `GET usage/`** — raqamlar hech qachon taxmin qilinmaydi.
+3. `is_used: false` → oyna OCHILMAYDI, «bu partiya hali ishlatilmagan, shu yerdan tanlab
+   saqlayvering» deyiladi (oddiy PATCH yo'li ishlashda qoladi).
+4. `is_used: true` → tasdiq oynasi:
+   - eski nav → yangi nav (searchable Select; **joriy nav ro'yxatdan CHIQARILGAN**, shuning
+     uchun «Bu nav allaqachon tanlangan» 400'i UI orqali umuman qo'zg'atilmaydi)
+   - ishlatilgan joylar — **faqat nolga teng bo'lmaganlari** (`variantUsageLines`)
+   - «Ishlatilgan joylarda gul NOMI yangi navga o'zgaradi (sotilgan tarix ham).
+     Narxlar, sonlar va foyda O'ZGARMAYDI.»
+   - ⚠️ **NOTO'G'RI ISHLATISH ogohlantirishi — sabab maydonidan YUQORIDA**, qizil blokda,
+     tooltipda EMAS
+   - «Sabab» majburiy
+
+**Sabab bo'sh bo'lsa:** so'rov YUBORILMAYDI (payload `null`), lekin tugma «o'lik» emas —
+bosilganda maydon ostida «Sabab majburiy — audit jurnaliga yoziladi» chiqadi. Tugma faqat
+nav tanlanmaganda o'chiq turadi.
+
+**Muvaffaqiyatda:** serverning `variant_change` xulosasi ko'rsatiladi (eski → yangi,
+`history_rows_updated`), so'ng partiya/ro'yxat yangilanadi va `notifyReportDataChanged()`
+chaqiriladi — pul siljimasligi kerak, lekin buni TAXMIN qilmay qayta yuklab ko'rsatamiz.
+
+## §2 — Orqaga qaytarish YO'Q
+
+Butun OpenAPI bo'ylab teskari amal qidirildi (`revert|undo|restore|rollback`) — topilgani
+faqat `/api/catalog/{id}/restore-flowers/`, u boshqa narsa. Ya'ni **nav almashtirishning
+bekor qilish yo'li YO'Q**.
+
+⚠️ **Ikkinchi marta eski navga qaytarish «undo» EMAS**: bu yana bitta `change-variant`
+amali bo'lib, audit jurnalida **IKKITA yozuv** qoladi va «xato bo'ldi» degani hech qayerda
+ko'rinmaydi. Shuning uchun operatorga bu «tuzatish yo'li» sifatida TAKLIF QILINMAYDI —
+oynada faqat «Qaytarib bo'lmaydi» deyiladi.
+
+## §3 — Verify
+
+### Jonli `usage/` (read-only GET; change-variant HECH QACHON chaqirilmadi)
+
+```
+GET /api/stock-batches/138/usage/ → 200      ← ISHLATILGAN
+{ "batch": 138, "batch_number": "01:00", "variant": "Atirgul · Jumilia · Pushti",
+  "is_used": true, "catalog_items": 2, "sold_catalog_items": 0, "florist_issues": 1,
+  "lead_usages": 0, "stock_movements": 2, "used_stems": 150 }
+
+GET /api/stock-batches/117/usage/ → 200      ← ISHLATILGAN
+{ "batch": 117, "variant": "Atirgul · Alfalob · To'q Pushti", "is_used": true,
+  "catalog_items": 1, "sold_catalog_items": 0, "florist_issues": 1,
+  "lead_usages": 0, "stock_movements": 2, "used_stems": 75 }
+
+GET /api/stock-batches/173/usage/ → 200      ← TEGILMAGAN
+{ "batch": 173, "variant": "Atirgul · Alfalob · To'q Pushti", "is_used": false,
+  "catalog_items": 0, "sold_catalog_items": 0, "florist_issues": 0,
+  "lead_usages": 0, "stock_movements": 1, "used_stems": 0 }
+
+GET /api/stock-batches/170/usage/ → 200      ← TEGILMAGAN
+{ "batch": 170, "variant": "Atirgul · Luchiana · pushti", "is_used": false,
+  ... "stock_movements": 1, "used_stems": 0 }
+```
+
+⚠️ Diqqat: **tegilmagan partiyada ham `stock_movements: 1`** (kirim harakati) — shuning
+uchun «harakat bor = ishlatilgan» deb hisoblab bo'lmaydi, `is_used` ni server hal qiladi.
+
+Jonli hisob: 86 partiyadan **31 ishlatilgan, 55 tegilmagan** — ikkala yo'l ham real
+ma'lumotda sinaladi. **Sotilgan katalogi bor partiya hozircha yo'q** (hamma
+`sold_catalog_items: 0`), shuning uchun «(N tasi SOTILGAN)» qatori jonli ma'lumotda
+ko'rinmadi — test va skrinshotda spec misolidagi raqamlar (1 ta / 1 sotilgan) ishlatildi.
+
+`tsc` toza · **359/359 Vitest** (15 tasi shu ish uchun) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `rul-variant-locked-*` (qulf + tugma),
+`rul-variant-change-dialog-*` (haqiqiy raqamlar + noto'g'ri ishlatish ogohi),
+`rul-variant-change-no-reason-*` (sababsiz validatsiya), `rul-variant-change-success-*`.
+
+## LIST 1 — SB7 ALMASHTIRILDI
+
+~~SB7 (eski): arxivlab yangisini kiritish~~ — **bekor qilindi**, quyidagi bilan almashtirildi:
+
+SB7. **🔒 Nav qulfi + almashtirish.** Ishlatilgan partiyani (#138: 475/325, yoki #117: 125/50)
+     tahrirlang — «Gul navi» qulflangan bo'lishi va yonida **«Navni almashtirish»** tugmasi
+     turishi kerak. Bosing: `usage/` raqamlari (katalog, ketgan gul, florist, harakat)
+     HAQIQIY sonlar bilan chiqsin. **READ (tugmani bosish — GET, xavfsiz).**
+SB7a. **⚠️ ALMASHTIRISH — QAYTMAS.** Yangi navni tanlang, sababni yozing, tasdiqlang.
+     Tekshiring: (1) partiya navi o'zgardi, (2) shu partiyadan yasalgan **katalog tarkibida**
+     yangi nav ko'rinadi, (3) **katalog tannarxi va hisob-kitob O'ZGARMADI**, (4) sotuv
+     tarixidagi eski nom ham yangilandi, (5) audit jurnalida sabab bilan yozuv bor.
+     **⚠️ QAYTARIB BO'LMAYDI — teskari amal YO'Q.** Test partiyasida sinang.
+SB7b. **Sabab majburiy.** Sababsiz tasdiqlashga urinib ko'ring — bloklanishi kerak. **READ.**
+SB7c. **Tegilmagan partiya oynasiz.** #173 (50/50) da «Navni almashtirish» bosilsa oyna
+     OCHILMASLIGI va oddiy tanlash taklif qilinishi kerak. **READ.**
+SB7d. **⚠️ ZAIF QULF.** #174 yoki #175 (qoldiq = kelgan, lekin `is_used: true`) da navni
+     oddiy tahrirdan o'zgartiring — **400** kelishi, matni ko'rinishi va o'sha yerda
+     «Navni almashtirish» tugmasi paydo bo'lishi kerak. **READ.**
+
+## LIST 2
+
+- **YOPILDI (oldingi spec savoli): nav tahririning oqibati.** Javob berildi — narxlar
+  partiyada saqlanadi, navda emas; shuning uchun almashtirish tannarx/foydaga tegmaydi,
+  faqat ko'rinadigan nom o'zgaradi va sotuv tarixidagi muzlatilgan nusxa ham yangilanadi.
+- **YOPILDI: «arxivlab yangisini kiritish» chorasi** — endi kerak emas.
+
+### Yangi savollar
+
+dd. ⚠️ **Nav almashtirishni QAYTARISH yo'li yo'q.** OpenAPI'da teskari amal umuman yo'q.
+   Xato almashtirilsa nima qilinadi? Ikkinchi marta qaytarish auditda ikkita yozuv
+   qoldiradi va «bu tuzatish edi» degani ko'rinmaydi. SETTLE: (1) `change-variant` uchun
+   bekor qilish/undo rejalashtirilganmi? (2) Bo'lmasa, auditda «tuzatish» belgisi
+   (masalan `is_correction`) qo'shilsinmi, toki ikkita yozuv juftlik ekani bilinsin?
+ee. **`usage/` va `variant_change` OpenAPI'da e'lon qilinmagan.** `usage/` javobida sxema
+   yo'q (faqat tavsif), `change-variant` javobi esa oddiy `StockBatch` deb ko'rsatilgan —
+   `variant_change` bloki hujjatsiz. Ikkalasi ham e'lon qilinsin (bu `paid_from_debt` va
+   DELETE-200 bilan bir xil naqsh — javoblar hujjatdan oldinda ketmoqda).
+
+## Untested write paths (added — READ-ONLY, none fired)
+
+- `POST /api/stock-batches/{id}/change-variant/` `{variant, reason}` — nav almashtirish
