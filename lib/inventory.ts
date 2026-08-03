@@ -622,3 +622,64 @@ export function compareDeliveryNewestFirst(
 ): number {
   return compareBatchNewestFirst(a, b);
 }
+
+/**
+ * KATALOG tartibi — «oxirgi qo'shilgan BIRINCHI» (chapdan o'ngga).
+ *
+ * ⚠️ Nega klientda: server `?ordering=-created_at` ni QABUL QILADI, ammo bir XIL
+ * `created_at` li yozuvlar tartibi BARQAROR EMAS — jonli tekshiruvda
+ * `2026-08-02T12:00:00` bo'lgan beshta katalog 147,148,146,145,149 tartibida keldi.
+ * Bu tasodifiy emas: ORQAGA SANALGAN katalog `lib/backdate.ts` bo'yicha DOIM 12:00 ga
+ * qo'yiladi, ya'ni bir kunga surilgan hamma katalog bir xil vaqtga tushadi va
+ * har so'rovda joyini almashtiraveradi.
+ *
+ * Shuning uchun oxirgi kalit — `id` (kiritilish tartibining yagona ishonchli belgisi).
+ */
+export function compareCatalogNewestFirst(
+  a: { id: number; created_at?: string | null },
+  b: { id: number; created_at?: string | null },
+): number {
+  const ca = a.created_at ?? "";
+  const cb = b.created_at ?? "";
+  if (ca !== cb) return cb.localeCompare(ca);           // yaratilgan vaqt ↓
+  return b.id - a.id;                                   // BARQAROR yakuniy kalit
+}
+
+/**
+ * PARTIYA QIDIRUVI — ko'p so'zli, BO'YNI ham qamrab oladi.
+ *
+ * «prut 40» kabi so'rov ikki bo'lakdan iborat: gul nomi VA bo'yi. Ilgari butun
+ * so'rov bitta maydonga mos kelishi kerak edi, shuning uchun «prut 40» hech narsa
+ * topmasdi. Endi so'rov so'zlarga bo'linadi va HAR BIR so'z biror maydonga mos
+ * kelishi kerak (so'zlar orasida VA, maydonlar orasida YOKI).
+ *
+ * Qidiriladigan maydonlar: gul nomi, nav, rang, partiya raqami, BO'YI (40 / «40 sm»).
+ */
+export function batchMatchesQuery(
+  b: {
+    batch_number?: string | null;
+    height_cm?: number | null;
+    height_label?: string | null;
+    variant_detail?: {
+      name_uz?: string | null;
+      color_uz?: string | null;
+      flower_detail?: { name_uz?: string | null } | null;
+    } | null;
+  },
+  query: string,
+): boolean {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const v = b.variant_detail;
+  const fields = [
+    v?.flower_detail?.name_uz,
+    v?.name_uz,
+    v?.color_uz,
+    b.batch_number,
+    b.height_label,
+    // bo'yi raqam sifatida ham («40»), «sm» bilan ham («40 sm») topilsin
+    b.height_cm != null ? String(b.height_cm) : null,
+    b.height_cm != null ? `${b.height_cm} sm` : null,
+  ].map((x) => (x ?? "").toLowerCase());
+  return tokens.every((t) => fields.some((f) => f.includes(t)));
+}

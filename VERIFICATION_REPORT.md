@@ -1746,3 +1746,60 @@ bb. **`by-customer` jamilarining turi.** Bo'sh holatda `unpaid_total: 0.0` (NUMB
 - `POST /api/catalog/{id}/sell/` `{payment_type:"debt", sale_price, discount_reason, …}` — chegirmali qarz
 - `POST /api/debts/{id}/pay/` `{method}` — qarzni to'lash
 - `POST /api/debts/{id}/pay/` `{method, paid_at}` — tarixiy to'lov (+05:00)
+
+---
+
+# SKLAD QIDIRUVI (BO'Y BILAN) + KATALOG TARTIBI (2026-08-03)
+
+## 1. «prut 40» — ko'p so'zli qidiruv
+
+Ilgari qidiruv BUTUN so'rovni bitta maydonga solishtirardi
+(`[gul, nav, rang, partiya_raqami].some(includes(q))`), shuning uchun **«prut 40»
+hech narsa topmasdi** — hech bir maydonda «prut 40» degan matn yo'q.
+
+Endi `batchMatchesQuery` so'rovni **so'zlarga bo'ladi**: har bir so'z biror maydonga mos
+kelishi kerak (so'zlar orasida **VA**, maydonlar orasida **YOKI**). Qidiriladigan
+maydonlar: gul nomi · nav · rang · partiya raqami · **bo'y** (`40` ham, `40 sm` ham).
+
+Tekshirilgan (uchta partiya: Prut 40, Prut 60, Atirgul 40):
+
+| So'rov | Natija |
+|---|---|
+| `prut 40` | **faqat B-301** (Prut · 40 sm) |
+| `prut` | B-301 + B-302 (ikkala Prut) |
+| `40` | B-301 + B-303 (ikkala 40 sm) |
+| `40 prut` | B-301 — so'z tartibi ahamiyatsiz |
+
+Eski xatti-harakat saqlangan: nav (`freedom`), rang (`qizil`), partiya raqami (`b-0501`)
+bo'yicha qidiruv ilgarigidek ishlaydi.
+
+## 2. Katalog — oxirgi qo'shilgan CHAPDA birinchi
+
+⚠️ **Bu haqiqiy nosozlik edi, faqat tartib xohishi emas.** Jonli tekshiruv:
+
+```
+GET /api/catalog/?ordering=-created_at&page_size=8
+   id 147  created 2026-08-02T12:00:00     ← aralash!
+   id 148  created 2026-08-02T12:00:00
+   id 146  created 2026-08-02T12:00:00
+   id 145  created 2026-08-02T12:00:00
+   id 149  created 2026-08-02T12:00:00
+   id 130  created 2026-08-01T21:14:13
+```
+
+Server `-created_at` ni **qabul qiladi**, ammo bir XIL `created_at` da tartib
+**BARQAROR EMAS**. Va bu tasodifiy hol emas: `lib/backdate.ts` bo'yicha orqaga sanalgan
+yozuv DOIM **12:00** ga qo'yiladi, ya'ni bir kunga surilgan HAMMA katalog aynan bir xil
+vaqtga tushadi va har so'rovda o'rnini almashtiraveradi.
+
+`compareCatalogNewestFirst` (vaqt ↓ → **id ↓**) buni barqarorlashtiradi. `id` — kiritilish
+tartibining yagona ishonchli belgisi (orqaga sanash unga ta'sir qilmaydi).
+
+Tekshirilgan: server `[147,148,146,145,149]` bergan holda ekranda
+**`[149,148,147,146,145]`** chiqdi, qayta saralashda tartib o'zgarmadi.
+
+⚠️ Eslatma: `sklad` dagi partiyalar uchun bu allaqachon hal qilingan edi
+(`compareBatchNewestFirst`) — katalogda o'sha muammo qolib ketgan ekan.
+
+**Tekshiruv:** tsc toza · **322/322 Vitest** (15 tasi shu ish uchun) · konsol xatosi yo'q ·
+skrinshotlar dark + light (`srch-sklad-prut40-*`, `srch-katalog-order-*`).

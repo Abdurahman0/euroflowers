@@ -377,3 +377,91 @@ describe("⚠️ remaining_stems payload'ga FAQAT ataylab qo'shiladi", () => {
     expect(buildBatchEditPayload(O, FORM({ received_stems: "100" }))).toEqual({});
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARTIYA QIDIRUVI — bo'y bilan («prut 40»)
+// ─────────────────────────────────────────────────────────────────────────────
+import { batchMatchesQuery, compareCatalogNewestFirst } from "./inventory";
+describe("batchMatchesQuery — ko'p so'zli qidiruv, BO'Y ham qamrab olinadi", () => {
+  const B = (flower: string, variant: string, cm: number, extra: Record<string, unknown> = {}) => ({
+    batch_number: "B-0501",
+    height_cm: cm,
+    height_label: `${cm} sm`,
+    variant_detail: { name_uz: variant, color_uz: "Qizil", flower_detail: { name_uz: flower } },
+    ...extra,
+  });
+  const prut40 = B("Prut", "Yashil", 40);
+  const prut60 = B("Prut", "Yashil", 60);
+  const atirgul40 = B("Atirgul", "Freedom", 40);
+
+  it("⚠️ ASOSIY HOLAT: «prut 40» → faqat 40 sm li Prut", () => {
+    expect(batchMatchesQuery(prut40, "prut 40")).toBe(true);
+    expect(batchMatchesQuery(prut60, "prut 40")).toBe(false);
+    expect(batchMatchesQuery(atirgul40, "prut 40")).toBe(false);
+  });
+  it("bitta so'z — ilgarigidek ishlaydi (gul nomi)", () => {
+    expect(batchMatchesQuery(prut60, "prut")).toBe(true);
+    expect(batchMatchesQuery(atirgul40, "prut")).toBe(false);
+  });
+  it("faqat bo'y bo'yicha ham topiladi", () => {
+    expect(batchMatchesQuery(prut40, "40")).toBe(true);
+    expect(batchMatchesQuery(prut60, "40")).toBe(false);
+  });
+  it("«40 sm» yozilsa ham topiladi", () => {
+    expect(batchMatchesQuery(prut40, "40 sm")).toBe(true);
+  });
+  it("so'zlar tartibi AHAMIYATSIZ — «40 prut» ham ishlaydi", () => {
+    expect(batchMatchesQuery(prut40, "40 prut")).toBe(true);
+  });
+  it("nav va rang bo'yicha ham (eski xatti-harakat saqlangan)", () => {
+    expect(batchMatchesQuery(atirgul40, "freedom")).toBe(true);
+    expect(batchMatchesQuery(atirgul40, "qizil")).toBe(true);
+    expect(batchMatchesQuery(atirgul40, "b-0501")).toBe(true);
+  });
+  it("katta-kichik harf farqi yo'q", () => {
+    expect(batchMatchesQuery(prut40, "PRUT 40")).toBe(true);
+  });
+  it("ortiqcha bo'shliqlar zarar qilmaydi", () => {
+    expect(batchMatchesQuery(prut40, "  prut   40  ")).toBe(true);
+  });
+  it("bo'sh so'rov → hammasi mos", () => {
+    expect(batchMatchesQuery(prut40, "")).toBe(true);
+    expect(batchMatchesQuery(prut40, "   ")).toBe(true);
+  });
+  it("mos kelmaydigan so'z butun natijani rad etadi (so'zlar orasida VA)", () => {
+    expect(batchMatchesQuery(prut40, "prut 40 yoq")).toBe(false);
+  });
+  it("bo'y yo'q bo'lsa yiqilmaydi", () => {
+    expect(batchMatchesQuery({ variant_detail: { flower_detail: { name_uz: "Prut" } } }, "prut")).toBe(true);
+    expect(batchMatchesQuery({ variant_detail: { flower_detail: { name_uz: "Prut" } } }, "prut 40")).toBe(false);
+  });
+});
+
+describe("compareCatalogNewestFirst — oxirgi qo'shilgan BIRINCHI", () => {
+  it("yangi created_at oldinga", () => {
+    const a = { id: 1, created_at: "2026-08-01T10:00:00+05:00" };
+    const b = { id: 2, created_at: "2026-08-02T10:00:00+05:00" };
+    expect([a, b].sort(compareCatalogNewestFirst).map((x) => x.id)).toEqual([2, 1]);
+  });
+  it("⚠️ BIR XIL created_at (orqaga sanalganlar 12:00 da) → id ↓ bilan BARQAROR", () => {
+    const same = "2026-08-02T12:00:00+05:00";
+    const rows = [
+      { id: 147, created_at: same }, { id: 148, created_at: same }, { id: 146, created_at: same },
+      { id: 145, created_at: same }, { id: 149, created_at: same },
+    ];
+    // jonli serverdan AYNAN shu aralash tartib kelgan edi
+    expect(rows.slice().sort(compareCatalogNewestFirst).map((x) => x.id)).toEqual([149, 148, 147, 146, 145]);
+  });
+  it("qayta-qayta saralash tartibni O'ZGARTIRMAYDI (barqarorlik)", () => {
+    const same = "2026-08-02T12:00:00+05:00";
+    const rows = [{ id: 3, created_at: same }, { id: 1, created_at: same }, { id: 2, created_at: same }];
+    const once = rows.slice().sort(compareCatalogNewestFirst).map((x) => x.id);
+    const twice = rows.slice().sort(compareCatalogNewestFirst).sort(compareCatalogNewestFirst).map((x) => x.id);
+    expect(once).toEqual([3, 2, 1]);
+    expect(twice).toEqual(once);
+  });
+  it("created_at yo'q bo'lsa ham yiqilmaydi", () => {
+    const rows = [{ id: 5 }, { id: 9 }];
+    expect(rows.slice().sort(compareCatalogNewestFirst).map((x) => x.id)).toEqual([9, 5]);
+  });
+});

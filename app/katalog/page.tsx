@@ -11,7 +11,7 @@ import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtTime, initials } from "@/lib/format";
-import { catalogWaiting } from "@/lib/inventory";
+import { catalogWaiting, compareCatalogNewestFirst } from "@/lib/inventory";
 import { catalogHasCostData } from "@/lib/branch";
 import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
@@ -168,7 +168,13 @@ export default function KatalogPage() {
     return items.filter(isAvailableForSale); // sotuvda (default)
   }, [items, statusView]);
   const undistribCount = statusFiltered.filter(isUndistributed).length;
-  const shownItems = undistribOnly ? statusFiltered.filter(isUndistributed) : statusFiltered;
+  // ⚠️ OXIRGI QO'SHILGAN BIRINCHI (chapdan). Server `?ordering=-created_at` ni qabul
+  // qiladi, lekin bir XIL created_at da tartib BEQAROR — orqaga sanalgan kataloglar
+  // hammasi 12:00 ga tushgani uchun har so'rovda joyini almashtirardi. Barqaror
+  // taqqoslagich (vaqt ↓ → id ↓) buni tuzatadi.
+  const shownItems = (undistribOnly ? statusFiltered.filter(isUndistributed) : statusFiltered)
+    .slice()
+    .sort(compareCatalogNewestFirst);
 
   // ?item=<id> — bildirishnomadan («Sizga yangi katalog ishi biriktirildi»)
   // to'g'ridan-to'g'ri katalog kartasini ochamiz (ro'yxatda bo'lmasa ham).

@@ -25,7 +25,7 @@ import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
-import { DELIVERY, MATERIAL_DELIVERY, MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL, compareBatchNewestFirst, compareDeliveryNewestFirst } from "@/lib/inventory";
+import { DELIVERY, MATERIAL_DELIVERY, MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL, compareBatchNewestFirst, compareDeliveryNewestFirst, batchMatchesQuery } from "@/lib/inventory";
 import type { FloristStockIssue, FlowerVariant, MaterialDelivery, MaterialMovement, PackagingType, StockBatch, StockDelivery, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
@@ -262,13 +262,8 @@ export default function SkladPage() {
   }, []);
 
   const q = search.trim().toLowerCase();
-  const searched = q
-    ? batches.filter((b) => {
-        const v = b.variant_detail;
-        return [v?.flower_detail?.name_uz, v?.name_uz, v?.color_uz, b.batch_number]
-          .some((x) => (x ?? "").toLowerCase().includes(q));
-      })
-    : batches;
+  // ko'p so'zli qidiruv + BO'YI («prut 40» → Prut navi, 40 sm) — lib/inventory
+  const searched = q ? batches.filter((b) => batchMatchesQuery(b, q)) : batches;
   // qoldig'i yetarli bo'lmagan partiyalar YUQORIGA suriladi (restock diqqati):
   //   0 — kam qoldi (hali sotiladi, tugash arafasida), 1 — tugadi, 2 — normal
   const stockRank = (b: StockBatch) =>
