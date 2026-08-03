@@ -9,6 +9,8 @@ import { isBranchUser } from "@/lib/branch";
 import Modal, { ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
+import BackdateField from "./BackdateField";
+import { backdatePayload, backdateEditPayload } from "@/lib/backdate";
 import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
@@ -40,6 +42,10 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [florist, setFlorist] = useState<number>(item?.florist ?? 0);
   // OFORMLENIYA floristi — yasagandan ALOHIDA, ixtiyoriy. Haq = decoration_fee × quantity_total (backend yozadi).
   const [decorationFlorist, setDecorationFlorist] = useState<number>(item?.decoration_florist ?? 0);
+  // ORQAGA SANA — create'da yig'iq (sukut bugun); TAHRIRda doim ochiq (mavjud sanadan boshlanadi).
+  // ⚠️ Bu KATALOG YARATILGAN sana (created_at). SOTUV sanasi (sold_at) — ALOHIDA maydon, sotish oynasida.
+  const [dateOn, setDateOn] = useState(false);
+  const [createdAt, setCreatedAt] = useState(item ? (item.created_at ?? "").slice(0, 10) : "");
   // ⚠️ FILIAL — TO'G'RIDAN-TO'G'RI filial katalogi (spec FILIAL_UCHUN_KATALOG_QOSHISH).
   // 0 = asosiy filial (branch yuborilmaydi). Faqat ASOSIY foydalanuvchi + YANGI item'da.
   const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
@@ -360,6 +366,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       // MIJOZ — FAQAT CUSTOM'da (standartda bo'lim olib tashlandi; mijoz sotuv paytida biriktiriladi).
       // existing→{customer}, new→{customer_name,customer_phone}, tozalash→{customer:null}
       ...(kind === "custom" ? (customerPayload(cust, hadCustomer) ?? {}) : {}),
+      // ⚠️ SANA — create: bugun bo'lsa kalit YO'Q; tahrir: FAQAT o'zgargan bo'lsa
+      ...(item ? backdateEditPayload(item.created_at, createdAt) : backdatePayload(dateOn ? createdAt : "")),
     };
     // maxsus: mijoz do'konda tanladi → sotilgan sifatida yoziladi; to'lov turi shu paytda
     if (kind === "custom" && !item) { payload.status = "sold"; payload.payment_type = payment; }
@@ -615,6 +623,19 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           {f.note.length > 0 && (
             <span className="mt-0.5 block text-right text-[11px] font-medium" style={{ color: f.note.length >= 500 ? "var(--danger-ink)" : "var(--muted)" }}>{f.note.length}/500</span>
           )}
+        </Field>
+
+        {/* ⚠️ SANA (created_at) — katalog YARATILGAN kun. Sotuv sanasi EMAS (u sotish oynasida, sold_at).
+            Tahrirda doim ochiq: mavjud sana ko'rinib tursin va o'zgartirilsa oqibati aytilsin. */}
+        <Field label="Sana" span>
+          <BackdateField
+            value={createdAt} onChange={setCreatedAt} open={dateOn} onOpenChange={setDateOn}
+            always={!!item}
+            label="Sana" toggleTitle="Boshqa sana (ish qolib ketgan bo'lsa)"
+            retroNote={item
+              ? "Katalog, tarix yozuvi VA floristning ish haqi sanasi birga siljiydi. Sotuv sanasi (sold_at) o'zgarmaydi."
+              : "Katalog, tarix yozuvi VA floristning ish haqi sanasi o'sha kunga tushadi. Sotuv sanasi (sold_at) alohida."}
+          />
         </Field>
       </div>
 

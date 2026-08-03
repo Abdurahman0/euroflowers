@@ -63,6 +63,7 @@ export default function DatePicker({
   onChange,
   placeholder = "Sana tanlang",
   disablePast = false,
+  maxDate,
   withTime = false,
   ariaLabel,
 }: {
@@ -71,6 +72,9 @@ export default function DatePicker({
   onChange: (v: string) => void;
   placeholder?: string;
   disablePast?: boolean;
+  /** eng kech tanlanadigan kun "YYYY-MM-DD" — undan keyingilari o'chiriladi
+      (orqaga sana qo'yishda kelajak bloklanadi) */
+  maxDate?: string;
   withTime?: boolean;
   ariaLabel?: string;
 }) {
@@ -154,7 +158,7 @@ export default function DatePicker({
               {Array.from({ length: firstOffset }).map((_, i) => <span key={`e${i}`} />)}
               {Array.from({ length: daysInMonth }, (_, i) => {
                 const dstr = ymd(new Date(y, m, i + 1));
-                const disabled = disablePast && dstr < todayS;
+                const disabled = (disablePast && dstr < todayS) || (!!maxDate && dstr > maxDate);
                 const sel = dstr === selDay;
                 return (
                   <button

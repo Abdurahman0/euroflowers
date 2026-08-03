@@ -1282,3 +1282,62 @@ t. **`is_free` PATCH'da — hal qilindi, lekin xatti-harakati emas.** `PatchedSt
 u. **Teskari yo'nalish:** `is_free: true` → `false` qilinganda tannarx qayerdan olinadi? Biz
    formada saqlangan qiymatni qayta yuboramiz, lekin server 0 bo'lib qolgan tannarxni tiklay
    oladimi yoki operator qo'lda kiritishi shartmi — tasdiqlansin.
+
+---
+
+# BACKDATING — created_at (2026-08-03)
+
+## §2 Consistency table — every date input in the app
+
+| Where | Field | Component | `+05:00`? | Omits when unchanged? | Blocks future? |
+|---|---|---|---|---|---|
+| Sell dialog | `sold_at` | own toggle + `DatePicker withTime` | ❌ → **FIXED** (`withTashkentOffset`) | ✅ | ❌ → **FIXED** (`maxDate`) |
+| Batch movement | `created_at` | own toggle + `DatePicker withTime` | ❌ → **FIXED** | ✅ | ⚠️ still open (see below) |
+| Flower delivery | `received_at` | `DatePicker` (date-only) | n/a — date field | ✅ | ⚠️ open |
+| Material delivery | `received_at` | `DatePicker` (date-only) | n/a | ✅ | ⚠️ open |
+| Batch edit | `received_at` | `DatePicker` (date-only) | n/a | ✅ changed-keys | ⚠️ open |
+| Supplier payment | `paid_at` | `DatePicker` (date-only) | n/a | always sent (create form) | ⚠️ open |
+| **Florist issue / bulk** | `created_at` | **`BackdateField`** | ✅ | ✅ | ✅ |
+| **Return / waste** | `created_at` | **`BackdateField`** | ✅ | ✅ | ✅ |
+| **Catalog create** | `created_at` | **`BackdateField`** | ✅ | ✅ | ✅ |
+| **Catalog edit** | `created_at` | **`BackdateField`** (always open) | ✅ | ✅ only if changed | ✅ |
+| Material receive | — | **no date field exists** | — | — | — |
+
+**The odd one out was not one field — it was all of them.** `DatePicker withTime` emits
+`"YYYY-MM-DDTHH:mm"` with **no offset**, and `+05:00` appeared nowhere in application code. A
+`sold_at` of `23:30` was therefore liable to be read as UTC and stored on the **following day**.
+Fixed at the two datetime call sites via `withTashkentOffset()`; the date-only fields (`received_at`,
+`paid_at`) are unaffected because they carry no time component.
+
+**Deliberately not changed:** future-date blocking on deliveries / `paid_at` / batch movement.
+A delivery or a payment legitimately *can* be dated forward (scheduled arrival, post-dated
+payment), so blocking there is a product decision, not a bug fix. Flagged rather than assumed.
+
+## LIST 1 — append
+
+BD1. **Orqaga sanali chiqim.** Floristlarga chiqarilgan → «Skladdan chiqarish» → florist va gul
+     tanlang → «Boshqa chiqim sanasi» belgisini yoqing → o'tgan kunni tanlang. Sariq ogohlantirish
+     chiqishi shart. Saqlang, so'ng **Sklad → Kirim-chiqim jurnali** da yozuv **o'sha kunda**
+     turganini tekshiring (bugungi kunda EMAS). **⚠️ REV lekin RETROAKTIV** — o'sha kunlik
+     hisobotlar (florist kunlik, davr filtrlari) o'zgaradi.
+BD2. **Orqaga sanali katalog.** Katalog → «Katalogga qo'shish» → florist + hajm + gul → «Boshqa
+     sana» → o'tgan kun. Saqlagach **Floristlar → o'sha florist → kunlik grafik** da ish haqi
+     **o'sha kunga** tushganini tekshiring. **⚠️ RETROAKTIV** — florist kunlik hisoboti o'zgaradi.
+BD3. **Sanani keyin tuzatish.** Shu katalogni tahrirlang, «Sana»ni boshqa kunga o'zgartiring.
+     Katalog, tarix yozuvi VA ish haqi sanasi BIRGA siljishi kerak. Sana tegilmasa payload'da
+     `created_at` BO'LMASLIGI kerak. **⚠️ RETROAKTIV, ikki marta siljiydi.**
+BD4. **Kelajak sana bloklanishi.** Kalendarda bugundan keyingi kunlar **bosilmaydi** (o'chirilgan).
+     **READ.**
+BD5. **Sotuv sanasi ALOHIDA.** Orqaga sanali katalogni soting — sotuv sanasi BUGUN bo'lib qoladi
+     (`sold_at` boshqa maydon). Yaratilish sanasi sotuvni orqaga surmaydi. **READ.**
+
+## LIST 2 — append
+v. **bulk-issue xato semantikasi hamon HUJJATLASHTIRILMAGAN.** OpenAPI faqat `200` javobini
+   e'lon qiladi (`PaginatedFloristStockIssueList`); 400 ning shakli yo'q. Biz uni «hammasi yoki
+   hech biri» deb qabul qilamiz (barcha qatorlar saqlanadi, server `detail` matni ichidan partiya
+   raqamiga qarab aybdor qator belgilanadi). SETTLE: (1) qisman muvaffaqiyat bo'lishi mumkinmi?
+   (2) 400 tanasi qaysi qator xato ekanini MASHINA O'QIY OLADIGAN shaklda beradimi (masalan
+   `items[i]` indeksi bilan)? Hozircha matnga qarab taxmin qilamiz.
+w. **Kelajak sana:** yetkazib berish (`received_at`), to'lov (`paid_at`) va partiya harakati
+   uchun kelajak sana ATAYLAB bloklanmadi (rejalashtirilgan yuk / kechiktirilgan to'lov qonuniy
+   bo'lishi mumkin). Tasdiqlansin — bloklash kerakmi?

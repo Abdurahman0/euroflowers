@@ -12,6 +12,7 @@ import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
 import { paymentProgress } from "@/lib/reservation";
+import { withTashkentOffset, todayTashkent } from "@/lib/backdate";
 import type { CatalogItem, FloristProfile, Packaging, PaymentType, Reservation } from "@/lib/types";
 
 type SaleMat = { packaging: number; qty: string };
@@ -170,7 +171,9 @@ export default function KatalogSellModal({
         quantity: qty,
         payment_type: payment,
         ...(discountOn ? { sale_price: salePrice.toFixed(2), discount_reason: reason.trim() || undefined } : {}),
-        ...(dateOn && soldAt ? { sold_at: soldAt } : {}),
+        // ⚠️ DatePicker offsetsiz "YYYY-MM-DDTHH:mm" beradi — server uni UTC deb o'qib
+        // 23:30 ni ERTANGI kunga tashlab yuborishi mumkin. Offset ANIQ yoziladi.
+        ...(dateOn && soldAt ? { sold_at: withTashkentOffset(soldAt) } : {}),
         ...(resv ? { reservation: resv.id } : {}),
         // §4: quantity PER 1 sotuv dona (backend × quantity qiladi — oldindan ko'paytirmang).
         ...(validSaleMats.length ? { materials: validSaleMats.map((m) => ({ packaging: m.packaging, quantity: +m.qty })) } : {}),
@@ -431,7 +434,7 @@ export default function KatalogSellModal({
       </label>
       {dateOn && (
         <div className="mt-2.5">
-          <DatePicker value={soldAt} onChange={setSoldAt} withTime placeholder="Sotuv sanasi va vaqti" ariaLabel="Sotuv sanasi" />
+          <DatePicker value={soldAt} onChange={setSoldAt} withTime maxDate={todayTashkent()} placeholder="Sotuv sanasi va vaqti" ariaLabel="Sotuv sanasi" />
         </div>
       )}
 

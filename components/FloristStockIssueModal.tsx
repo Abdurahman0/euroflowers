@@ -4,6 +4,8 @@ import { PackagePlus, Plus, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
+import BackdateField from "./BackdateField";
+import { backdatePayload } from "@/lib/backdate";
 import Select from "./Select";
 import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import StockLine, { lineFromStockBatch } from "./StockLine";
@@ -41,6 +43,9 @@ export default function FloristStockIssueModal({
   const [florist, setFlorist] = useState(initialFlorist);
   const [rows, setRows] = useState<Row[]>([{ batch: 0, mode: "bunches", qty: "" }]);
   const [reason, setReason] = useState("");
+  // ORQAGA SANA — yig'iq; belgilanmasa kalit umuman yuborilmaydi
+  const [dateOn, setDateOn] = useState(false);
+  const [issuedAt, setIssuedAt] = useState("");
   const [busy, setBusy] = useState(false);
   // ALL-OR-NOTHING: server matnida partiya raqami bo'lsa o'sha qatorga (batch id → matn) bog'laymiz
   const [rowErr, setRowErr] = useState<Record<number, string>>({});
@@ -109,7 +114,7 @@ export default function FloristStockIssueModal({
     setBusy(true); setRowErr({}); setFormErr(null);
     try {
       // ⚠️ BITTA TRANZAKSIYA — bitta gulda qoldiq yetmasa HECH BIRI chiqmaydi (all-or-nothing).
-      await api.floristStockBulkIssue({ florist, items: validRows.map((r) => ({ batch: r.batch, quantity_stems: stemsOf(r) })), reason: reason.trim() || undefined });
+      await api.floristStockBulkIssue({ florist, items: validRows.map((r) => ({ batch: r.batch, quantity_stems: stemsOf(r) })), reason: reason.trim() || undefined, ...backdatePayload(dateOn ? issuedAt : "") });
       showToast(`✓ ${validRows.length} ta gul chiqarildi`);
       onDone(); // balanslar + partiya qoldiqlari qayta yuklanadi
       onClose();
@@ -176,6 +181,14 @@ export default function FloristStockIssueModal({
 
       <Field label="Izoh (ixtiyoriy — hamma gulga)" span>
         <input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Masalan: Ertangi buketlar uchun" />
+        </Field>
+        {/* ⚠️ BITTA sana — bulk-issue hamma qatorni SHU kunga yozadi */}
+        <Field label="Chiqim sanasi" span>
+          <BackdateField
+            value={issuedAt} onChange={setIssuedAt} open={dateOn} onOpenChange={setDateOn}
+            label="Chiqim sanasi" toggleTitle="Boshqa chiqim sanasi (ish qolib ketgan bo'lsa)"
+            retroNote="Chiqim yozuvi VA sklad harakati o'sha kunga tushadi."
+          />
       </Field>
 
       {/* XULOSA — nechta gul, jami dona, tannarx qiymati + ALL-OR-NOTHING eslatmasi */}

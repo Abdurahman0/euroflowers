@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import BackdateField from "./BackdateField";
+import { backdatePayload } from "@/lib/backdate";
 import { AlertTriangle, RotateCcw, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
@@ -34,6 +36,8 @@ export default function FloristStockReturnDrawer({
   const [mode, setMode] = useState<QtyMode>(() => defaultQtyMode(balance.batch_detail?.stems_per_bunch));
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
+  const [dateOn, setDateOn] = useState(false);
+  const [returnedAt, setReturnedAt] = useState("");
   const [confirmWaste, setConfirmWaste] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -53,7 +57,7 @@ export default function FloristStockReturnDrawer({
     setBusy(true);
     try {
       // ⚠️ kind DOIM yuboriladi
-      await api.floristStockReturn({ florist: balance.florist, batch: balance.batch, quantity_stems: stems, kind, reason: reason.trim() || undefined });
+      await api.floristStockReturn({ florist: balance.florist, batch: balance.batch, quantity_stems: stems, kind, reason: reason.trim() || undefined, ...backdatePayload(dateOn ? returnedAt : "") });
       showToast(isWaste ? `✓ Chiqit yozildi: ${stems} dona` : `✓ Skladga qaytdi: ${stems} dona`);
       onDone();
       onClose();
@@ -113,6 +117,15 @@ export default function FloristStockReturnDrawer({
           <input className="inp" value={reason} onChange={(e) => setReason(e.target.value)}
             placeholder={isWaste ? "Masalan: so'lib qoldi, sindi" : "Masalan: ortib qoldi"}
             style={isWaste ? { borderColor: "color-mix(in srgb, var(--danger-ink) 45%, var(--border))" } : undefined} />
+        </Field>
+
+        {/* ORQAGA SANA — qaytarish/chiqit ham o'tgan kunga yozilishi mumkin */}
+        <Field label="Sana" span>
+          <BackdateField
+            value={returnedAt} onChange={setReturnedAt} open={dateOn} onOpenChange={setDateOn}
+            label="Sana" toggleTitle="Boshqa sana (ish qolib ketgan bo'lsa)"
+            retroNote="Yozuv va sklad harakati o'sha kunga tushadi."
+          />
         </Field>
 
         {isWaste && confirmWaste && (

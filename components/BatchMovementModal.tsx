@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { withTashkentOffset } from "@/lib/backdate";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
@@ -48,7 +49,7 @@ export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBat
     if (below) return showToast(`Qoldiq yetarli emas: bor-yo'g'i ${stems(before)}`);
     setBusy(true);
     try {
-      await api.batchMovement(batch.id, { movement_type: type, ...qtyPayload(mode, qty), reason: reason.trim(), ...(dateOn && movedAt ? { created_at: movedAt } : {}) });
+      await api.batchMovement(batch.id, { movement_type: type, ...qtyPayload(mode, qty), reason: reason.trim(), ...(dateOn && movedAt ? { created_at: withTashkentOffset(movedAt) } : {}) });
       // javob shakli kafolatlanmagan — partiyani qayta o'qiymiz
       const fresh = await api.stockBatch(batch.id).catch(() => null);
       showToast("✓ Harakat qayd etildi");
