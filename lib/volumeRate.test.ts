@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { volumeArrangementMatch, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, buildVolumeRatesPayload, volumeLabel, VOLUMES, type RateCell } from "./inventory";
+import { volumeArrangementMatch, rateSalaryForCatalog, catalogRateMissing, rateToCatalogSalary, catalogSalaryPayload, buildVolumeRatesPayload, volumeLabel, VOLUMES, type RateCell } from "./inventory";
 import type { FloristVolumeRate } from "./types";
 
 describe("volumeLabel — YAGONA hajm yorlig'i (API small/medium/large + S/M/L; null → Belgilanmagan)", () => {
@@ -116,5 +116,42 @@ describe("buildVolumeRatesPayload — full-replace safety (only filled cells sen
 describe("VOLUMES is the single source of truth", () => {
   it("is exactly the three API values in order", () => {
     expect(VOLUMES).toEqual(["small", "medium", "large"]);
+  });
+});
+
+// ── §3 (KATALOG_TAHRIR_MATERIAL_VA_CHIQIM): STANDART katalog tarifsiz SAQLANMAYDI.
+// Jonli audit 2026-08-03: 10 floristdan 6 tasida faol tarif YO'Q (4 tasi SHOGIRD — ularning
+// tariflari kunlik haq sababli avtomatik nofaol). Server 400 beradi ({volume: [...]}) —
+// shuning uchun klientda BLOKLAYMIZ.
+describe("catalogRateMissing — standart katalogda hajm tarifi majburiy", () => {
+  const RATES = [rate({ florist: 4, arrangement_type: "bouquet", volume: "medium" })];
+
+  it("STANDART + tarif BOR → bloklanmaydi", () => {
+    expect(catalogRateMissing("standard", 4, "medium", "bouquet", RATES)).toBe(false);
+  });
+  it("STANDART + tarif YO'Q (boshqa hajm) → BLOKLANADI", () => {
+    expect(catalogRateMissing("standard", 4, "large", "bouquet", RATES)).toBe(true);
+  });
+  it("STANDART + tarifsiz florist (Abubakir/shogirdlar holati) → BLOKLANADI", () => {
+    expect(catalogRateMissing("standard", 5, "medium", "bouquet", RATES)).toBe(true);
+    expect(catalogRateMissing("standard", 9, "medium", "bouquet", [])).toBe(true);
+  });
+  it("STANDART + boshqa tur (savat) tarifi yo'q → BLOKLANADI", () => {
+    expect(catalogRateMissing("standard", 4, "medium", "basket", RATES)).toBe(true);
+  });
+  it("⚠️ CUSTOM — tarif SHART EMAS (haq qo'lda kiritiladi), hech qachon bloklanmaydi", () => {
+    expect(catalogRateMissing("custom", 5, "medium", "bouquet", [])).toBe(false);
+    expect(catalogRateMissing("custom", 4, "large", "basket", RATES)).toBe(false);
+  });
+  it("florist tanlanmagan → bloklanmaydi (oylik yozilmaydi)", () => {
+    expect(catalogRateMissing("standard", 0, "medium", "bouquet", RATES)).toBe(false);
+    expect(catalogRateMissing("standard", null, "medium", "bouquet", RATES)).toBe(false);
+  });
+  it("hajm tanlanmagan → hali bloklamaymiz (avval hajm so'raladi)", () => {
+    expect(catalogRateMissing("standard", 4, "", "bouquet", RATES)).toBe(false);
+  });
+  it("tariflar hali yuklanmagan (null/undefined) → xavfsiz tomon: bloklanadi", () => {
+    expect(catalogRateMissing("standard", 4, "medium", "bouquet", null)).toBe(true);
+    expect(catalogRateMissing("standard", 4, "medium", "bouquet", undefined)).toBe(true);
   });
 });

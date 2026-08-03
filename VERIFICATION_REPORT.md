@@ -1154,3 +1154,48 @@ q. **Manfiy qoldiq himoyasi serverda bormi?** `remaining_stems` da `min 0` bor, 
    `received_stems` kamaytirilganda server rad etadimi, 0 ga qisadimi yoki manfiyga yo'l qo'yadimi —
    aniqlanmadi. Klientda qat'iy bloklandi (500 ko'rmaslik uchun), ammo boshqa klient/skript orqali
    yozilishi mumkin. Backend serializer darajasida validatsiya qo'shsin.
+
+---
+
+# STANDARD CATALOG — VOLUME-RATE GATE (2026-08-03)
+
+## Live audit (read-only): who can actually create a standard catalog
+
+`GET /api/florists/` + `GET /api/florist-volume-rates/?page_size=300` — 10 florists, 24 active rates.
+
+| Florist | staff_type | active rates | standard catalog? |
+|---|---|---|---|
+| Abror (#4), Bekzod (#6), Isroil (#7), Fatxulloh (#8) | florist | 6 each (bouquet+basket × small/medium/large) | ✅ any size |
+| **Abubakir (#5)** | florist | 0 | ❌ blocked — **real gap, needs rates** |
+| **Location Test (#14)** | florist | 0 | ❌ blocked (test account) |
+| Zafar (#9), Azimjon (#10), Abror (#11), ShoxAkbar (#12) | **apprentice** | 0 | ❌ blocked **by design** |
+
+**6 of 10 blocked, but only 2 are genuine gaps.** The four apprentices are structurally excluded:
+per FRONTEND_FLORIST_VOLUME_RATES.md, changing `staff_type` to `apprentice` deactivates all their
+rates (apprentices are on daily pay). Consequence worth deciding on: **an apprentice can never be
+the florist on a standard catalog.** If apprentices are expected to assemble standard bouquets,
+that is a backend/product decision, not a frontend one.
+
+Also structural: `FloristVolumeRate.arrangement_type` enum is `bouquet|basket` only — **`box` can
+never have a rate**, so a box + florist standard catalog is impossible by construction. The
+composer already hides `box` in florist mode, so this is consistent, not a new bug.
+
+## What the UI does now
+- `catalogRateMissing(kind, florist, volume, arrangement, rates)` — pure, tested. **Standard only**;
+  custom never blocks (its salary is entered by hand, spec §3).
+- Save is **blocked client-side** — no POST is issued (asserted in the screenshot run), so the
+  operator never meets the server's `{volume: [...]}` 400.
+- The warning names the florist and the size, links straight to that florist's rates
+  (`/floristlar/{id}#rates`), and adds an apprentice-specific explanation when relevant.
+- §3's other half: for **standard**, "Florist ish haqi" is now read-only text from the tariff
+  ("Hajm tarifidan — qo'lda o'zgartirilmaydi"); **custom** keeps the editable input.
+
+## LIST 2 — append
+r. **Apprentices cannot be assigned standard catalogs at all** (rates auto-deactivated + §3 gate).
+   Confirm this is intended. If apprentices do assemble standard items, either allow rates for
+   apprentices or give standard catalogs a fallback salary source.
+s. **Does the backend still ignore `florist_salary_amount` on standard?** Spec §3 says it is
+   ignored and the tariff value is returned, but the code carries a later contradicting comment
+   ("HAR IKKI rejimda AYNAN yuboriladi — backend tarif bilan bosib o'tmaydi"). We kept **sending**
+   it (harmless either way, and it already equals the tariff since we auto-fill from it) but made
+   the input read-only. Confirm which is true so the key can be dropped for standard.

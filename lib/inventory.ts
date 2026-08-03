@@ -421,6 +421,26 @@ export function rateSalaryForCatalog(
   return rates.find((r) => r.florist === florist && volumeArrangementMatch(r, volume, arrangement));
 }
 
+/**
+ * STANDART katalog + florist + hajm tanlangan bo'lsa HAJM TARIFI MAJBURIY.
+ * Backend 400 beradi (KATALOG_TAHRIR_MATERIAL_VA_CHIQIM §3):
+ *   { "volume": ["<Florist> uchun bu hajm tarifi belgilanmagan. Avval floristga hajm narxini kiriting."] }
+ * Shuning uchun SAQLASHNI KLIENTDA bloklaymiz — operator 400 ni kashf qilmasin.
+ *
+ * ⚠️ CUSTOM katalogda tarif SHART EMAS — u yerda haq qo'lda kiritiladi (spec §3), shuning uchun
+ * bloklamaymiz. Tarifsiz floristlar (jonli audit 2026-08-03: 10 dan 6 tasi, ulardan 4 tasi
+ * SHOGIRD — shogirdning tariflari kunlik haq sababli avtomatik nofaol) faqat standart
+ * katalogda to'siladi.
+ */
+export const catalogRateMissing = (
+  kind: CatalogKind,
+  florist: number | null | undefined,
+  volume: CatalogVolume | "" | null | undefined,
+  arrangement: ArrangementType | "" | null | undefined,
+  rates: FloristVolumeRate[] | null | undefined,
+): boolean =>
+  kind === "standard" && !!florist && !!volume && !rateSalaryForCatalog(rates, florist, volume, arrangement);
+
 /** ⚠️ NOM TUZOG'I xaritasi — YAGONA joy:
     tarifning `florist_fee` (florist ISH HAQI) → katalogning `florist_salary_amount`.
     Katalogning O'ZINING `florist_fee` (mijozdan xizmat haqi) bilan ARALASHTIRMANG. */

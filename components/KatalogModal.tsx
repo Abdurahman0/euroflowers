@@ -13,7 +13,7 @@ import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
-import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, batchDeliveryTag, buildFloristComposition, catalogClosed } from "@/lib/inventory";
+import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, catalogRateMissing, rateToCatalogSalary, catalogSalaryPayload, batchDeliveryTag, buildFloristComposition, catalogClosed } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
 import FloristCompositionPicker from "./FloristCompositionPicker";
 import type { ArrangementType, Branch, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
@@ -219,7 +219,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   // florist+hajm tanlangan, lekin mos FAOL tarif yo'q — operatorga aniq aytamiz + matritsaga yo'l.
   // ⚠️ Endi tarif YARATISHDA BLOKLAYDI (server volume 400): default_stems taqsimot og'irligi.
   const currentRate = rateFor(volume, f.arrangement_type);
-  const rateMissing = !!florist && !!volume && !currentRate;
+  // ⚠️ FAQAT STANDART bloklanadi — custom'da haq qo'lda kiritiladi (spec §3)
+  const rateMissing = catalogRateMissing(kind, florist, volume, f.arrangement_type, rates);
   // Florist haqi ENDI TAHRIRLANADI (har ikki rejim). effectiveSalary DOIM forma maydonidan.
   const effectiveSalary = +f.florist_salary_amount || 0;
   const selectedFlorist = florists.find((fp) => fp.id === florist);
@@ -285,6 +286,13 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     if (floristMode && !volume) {
       setErrs((x) => ({ ...x, volume: "Florist katalogida hajmni tanlash kerak — gul shu bo'yicha taqsimlanadi" }));
       return showToast("Hajmni tanlang");
+    }
+    // ⚠️ §3 HAJM TARIFI YO'Q — backend 400 beradi ({volume: [...]}), shuning uchun SHU YERDA to'xtatamiz.
+    if (rateMissing) {
+      const who = selectedFlorist ? floristName(selectedFlorist) : "Bu florist";
+      const vol = VOLUME_LABEL[volume as CatalogVolume] ?? volume;
+      setErrs((x) => ({ ...x, volume: `${who} uchun «${vol}» hajm tarifi belgilanmagan — avval tarifni kiriting` }));
+      return showToast(`${who} uchun «${vol}» hajm tarifi yo'q`);
     }
     // FLORIST katalogi: gul MAJBURIY (kutayotgan/yangi holatda; yopilgan read-only). Soni EMAS.
     if (floristMode && !isFloristClosed && floristBatches.filter((id) => id > 0).length === 0) {
@@ -683,7 +691,17 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           {rateMissing && (
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-[12px] px-3 py-2.5 text-[12px] font-semibold" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>
               {/* ⚠️ §0b: tarif YARATISHDA bloklaydi (server volume 400). Florist+hajmni ATAB, matritsaga yo'l. */}
-              <span><b>{selectedFlorist ? floristName(selectedFlorist) : "Bu florist"}</b> uchun <b>{VOLUME_LABEL[volume as CatalogVolume] ?? volume}</b> hajm tarifi belgilanmagan — katalog saqlanmaydi. Avval shu hajm narxini kiriting.</span>
+              <span>
+                <b>{selectedFlorist ? floristName(selectedFlorist) : "Bu florist"}</b> uchun <b>{VOLUME_LABEL[volume as CatalogVolume] ?? volume}</b> hajm tarifi belgilanmagan — katalog saqlanmaydi. Avval shu hajm narxini kiriting.
+                {/* ⚠️ SHOGIRD — tariflari kunlik haq sababli avtomatik nofaol; sababini aytamiz, aks holda
+                    operator tarif qo'shib ham nega ishlamayotganini tushunmaydi. */}
+                {selectedFlorist?.staff_type === "apprentice" && (
+                  <span className="mt-1 block font-medium">
+                    Bu xodim <b>shogird</b> — shogird kunlik haq oladi va hajm tariflari nofaol bo&apos;ladi.
+                    Standart katalogni tarifi bor floristga yozing, yoki uni floristga o&apos;tkazib tarif kiriting.
+                  </span>
+                )}
+              </span>
               <button type="button" onClick={() => { if (typeof window !== "undefined") window.location.assign(`/floristlar/${florist}#rates`); }} className="shrink-0 rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--danger-ink)" }}>Tarif qo&apos;shish →</button>
             </div>
           )}
@@ -825,16 +843,24 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
           </Field>
         )}
 
-        {/* FLORIST HAQI — TAHRIRLANADI (har ikki rejim). Auto-fill hajm tarifidan; operator ustidan yozadi. */}
+        {/* ⚠️ §3 FLORIST HAQI — STANDART: faqat KO'RSATILADI (hajm tarifidan; backend qo'lda kiritilganni
+            qabul qilmaydi). CUSTOM: tahrirlanadi (ish hajmi oldindan noma'lum, operator kiritadi). */}
         {(kind === "custom" || florist > 0) && (
-          <Field label="Florist ish haqi (oylikka)">
-            <input
-              className="inp"
-              type="number"
-              value={f.florist_salary_amount}
-              onChange={(e) => { setSalaryTouched(true); setF({ ...f, florist_salary_amount: e.target.value }); }}
-              placeholder="Masalan: 50000"
-            />
+          <Field label={kind === "custom" ? "Florist ish haqi (oylikka)" : "Florist ish haqi (tarifdan)"}>
+            {kind === "custom" ? (
+              <input
+                className="inp"
+                type="number"
+                value={f.florist_salary_amount}
+                onChange={(e) => { setSalaryTouched(true); setF({ ...f, florist_salary_amount: e.target.value }); }}
+                placeholder="Masalan: 50000"
+              />
+            ) : (
+              // O'ZGARTIRIB BO'LMAYDIGAN MATN — tarifdan keladi; yozib bo'lmasligi darrov ko'rinsin
+              <div className="inp flex items-center" style={{ background: "var(--surface-2)", color: currentRate ? "var(--text)" : "var(--muted)" }}>
+                {currentRate ? fmt(+f.florist_salary_amount || 0) : "— tarif belgilanmagan"}
+              </div>
+            )}
             {/* holat qatori: Tarifdan olindi / Qo'lda kiritilgan (+ Tarifga qaytarish) / tarif yo'q */}
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-semibold">
               {!florist ? (
@@ -843,6 +869,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                 <span style={{ color: "var(--muted)" }}>Hajmni tanlang — tarifdan olinadi</span>
               ) : !currentRate ? (
                 <span style={{ color: "var(--warning-ink, #8a6d1f)" }}>Bu florist uchun tarif yo&apos;q</span>
+              ) : kind === "standard" ? (
+                <span style={{ color: "var(--primary)" }}>Hajm tarifidan — qo&apos;lda o&apos;zgartirilmaydi</span>
               ) : salaryFromRate ? (
                 <span style={{ color: "var(--primary)" }}>Tarifdan olindi</span>
               ) : (
