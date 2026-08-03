@@ -14,6 +14,7 @@ import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
 import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, rateToCatalogSalary, catalogSalaryPayload, batchDeliveryTag, buildFloristComposition, catalogClosed } from "@/lib/inventory";
+import { usableInCatalog } from "@/lib/materialUnit";
 import FloristCompositionPicker from "./FloristCompositionPicker";
 import type { ArrangementType, Branch, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
 
@@ -110,7 +111,8 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       setBatches(bs);
       setComp((c) => c.map((r) => ({ ...r, stock_batch: r.stock_batch || usable[0]?.id || 0 })));
     }).catch(() => showToast("Sklad partiyalarini yuklab bo'lmadi"));
-    api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+    // ⚠️ §5: SARFLANADIGANLAR (Gupka/Lenta/Lak) katalogda ishlatilmaydi — tanlagichdan chiqarib tashlanadi.
+    api.materials({ is_active: true }).then((ms) => setMaterials(usableInCatalog(ms))).catch(() => {});
     api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
     // FILIALLAR — faqat asosiy foydalanuvchi + yangi item uchun (tanlagich shu holatda chiqadi).
     if (canPickBranch) api.branches({ is_main: false, is_active: true }).then(setBranches).catch(() => setBranches([]));

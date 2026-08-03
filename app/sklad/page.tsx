@@ -130,6 +130,9 @@ export default function SkladPage() {
   const [matDeliveries, setMatDeliveries] = useState<MaterialDelivery[] | null>(null);
   const [selMatDelivery, setSelMatDelivery] = useState<MaterialDelivery | null>(null);
   const [newMatDeliveryOpen, setNewMatDeliveryOpen] = useState(false);
+  // §1 material yuklari filtri — raqam bo'yicha qidiruv + postavshik (klientda; ro'yxat kichik)
+  const [mdSearch, setMdSearch] = useState("");
+  const [mdSupplier, setMdSupplier] = useState("");
   const [batches, setBatches] = useState<StockBatch[]>([]);
   const [moves, setMoves] = useState<StockMovement[]>([]);
   const [floristWaste, setFloristWaste] = useState<FloristStockIssue[]>([]);
@@ -278,6 +281,17 @@ export default function SkladPage() {
 
   if (tab === "yuklar") {
     const isGul = dSource === "gul";
+    // §1 material yuklari — postavshik variantlari + qidiruv/filtr natijasi (server ordering: eng yangi birinchi)
+    const mdSupplierOpts = [
+      { value: "", label: "Barcha postavshiklar" },
+      ...Array.from(new Map((matDeliveries ?? []).filter((d) => d.supplier_detail).map((d) => [d.supplier_detail!.id, d.supplier_detail!.name])).entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([id, name]) => ({ value: String(id), label: name })),
+    ];
+    const mdQ = mdSearch.trim().toLowerCase();
+    const shownMatDeliveries = (matDeliveries ?? []).filter((d) =>
+      (!mdQ || (d.number ?? "").toLowerCase().includes(mdQ) || (d.note ?? "").toLowerCase().includes(mdQ))
+      && (!mdSupplier || String(d.supplier ?? d.supplier_detail?.id ?? "") === mdSupplier));
     return (
       <>
         {tabBar}
@@ -302,8 +316,14 @@ export default function SkladPage() {
                 <Plus size={18} strokeWidth={1.75} /> {MATERIAL_DELIVERY.neu}
               </button>
             </div>
-            {matDeliveries === null ? <FlowerLoader /> : matDeliveries.length === 0 ? (
-              <EmptyState title="Hali material yuki yo'q" sub="«Yangi material yuki» orqali birinchi yukni oching, so'ng materiallarni kiriting." />
+            {/* §1 FILTRLAR — raqam bo'yicha qidiruv + postavshik (gul Yuklaridagi bilan bir xil his) */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <SearchInput value={mdSearch} onChange={setMdSearch} ariaLabel="Yuk raqami bo'yicha qidirish" placeholder="Yuk raqami…" />
+              {mdSupplierOpts.length > 1 && <FilterSelect value={mdSupplier} onChange={setMdSupplier} label={MATERIAL_DELIVERY.supplierWord} options={mdSupplierOpts} />}
+              <ClearFilters show={!!(mdSearch || mdSupplier)} onClear={() => { setMdSearch(""); setMdSupplier(""); }} />
+            </div>
+            {matDeliveries === null ? <FlowerLoader /> : shownMatDeliveries.length === 0 ? (
+              <EmptyState title={matDeliveries.length === 0 ? "Hali material yuki yo'q" : "Bu filtrda yuk topilmadi"} sub={matDeliveries.length === 0 ? "«Yangi material yuki» orqali birinchi yukni oching, so'ng materiallarni kiriting." : "Qidiruv yoki postavshik filtrini o'zgartiring."} />
             ) : (
               <section className="glass !rounded-[20px] p-2 sm:p-4">
                 <div className="overflow-x-auto">
@@ -320,18 +340,34 @@ export default function SkladPage() {
                     </thead>
                     <tbody>
                       {/* ⚠️ key = id (number TAKRORLANADI) */}
-                      {matDeliveries.map((dv) => (
+                      {shownMatDeliveries.map((dv) => {
+                        const fr = freshness(dv.received_at);
+                        return (
                         <tr key={dv.id} onClick={() => setSelMatDelivery(dv)} tabIndex={0} role="button"
                           onKeyDown={(e) => e.key === "Enter" && setSelMatDelivery(dv)}
                           className="cursor-pointer border-t transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--line2)" }}>
                           <td className="px-3 py-2.5 font-bold">{dv.number}</td>
-                          <td className="px-3 py-2.5 tabular-nums" style={{ color: "var(--text-2)" }}>{fmtDate(dv.received_at)}</td>
-                          <td className="px-3 py-2.5">{dv.supplier_detail?.name ?? "—"}</td>
+                          <td className="px-3 py-2.5 tabular-nums" style={{ color: "var(--text-2)" }}>
+                            {fmtDate(dv.received_at)}
+                            {/* YANGILIK chipi — gul partiyalaridagi bilan bir xil shkala */}
+                            <span className="ml-1.5 rounded-full px-1.5 py-px text-[10px] font-bold" style={{ background: `color-mix(in srgb, ${fr.hue} 14%, transparent)`, color: fr.hue }}>{fr.label}</span>
+                          </td>
+                          {/* POSTAVSHIK chipi — bosilganda postavshik sahifasiga (qator ochilishini to'xtatamiz) */}
+                          <td className="px-3 py-2.5">
+                            {dv.supplier_detail ? (
+                              <span role="link" tabIndex={0}
+                                onClick={(e) => { e.stopPropagation(); router.push(`/postavshiklar?supplier=${dv.supplier_detail!.id}`); }}
+                                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); router.push(`/postavshiklar?supplier=${dv.supplier_detail!.id}`); } }}
+                                className="cursor-pointer rounded-full px-2 py-0.5 text-[12px] font-semibold underline-offset-2 hover:underline"
+                                style={{ background: "var(--hover)", color: "var(--text-2)" }}>{dv.supplier_detail.name}</span>
+                            ) : "—"}
+                          </td>
                           <td className="px-3 py-2.5 text-right tabular-nums">{dv.item_count}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{dv.total_quantity.toLocaleString("ru")}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{fmt(dv.total_cost)}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

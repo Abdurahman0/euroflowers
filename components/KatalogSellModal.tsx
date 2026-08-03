@@ -10,6 +10,7 @@ import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL } from "@/lib/inventory";
+import { usableInCatalog } from "@/lib/materialUnit";
 import { paymentProgress } from "@/lib/reservation";
 import type { CatalogItem, FloristProfile, Packaging, PaymentType, Reservation } from "@/lib/types";
 
@@ -80,7 +81,8 @@ export default function KatalogSellModal({
   const [saleMats, setSaleMats] = useState<SaleMat[]>([]);
   const [saleDeco, setSaleDeco] = useState<number>(0);
   useEffect(() => {
-    api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+    // ⚠️ §5: SARFLANADIGANLAR (Gupka/Lenta/Lak) sotuvda qo'shilmaydi — tanlagichdan chiqarib tashlanadi.
+    api.materials({ is_active: true }).then((ms) => setMaterials(usableInCatalog(ms))).catch(() => {});
     api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
   }, []);
   const matOf = (id: number) => materials.find((m) => m.id === id);

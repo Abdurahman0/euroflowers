@@ -776,7 +776,29 @@ export type Packaging = {
   branch?: number;
   /** oxirgi kirim partiyasi (GET /api/materials/{id}/) — postavshik shundan */
   last_delivery?: LastDelivery | null;
+  /** ⚠️ O'LCHOV BIRLIGI — kirim shakli SHUNDAN aniqlanadi (yagona manba: lib/materialUnit.ts).
+      piece → quantity + cost_price;  bunch → bunches + cost_per_bunch (backend ko'paytiradi). */
+  unit?: MaterialUnit | null;
+  /** 1 pochkadagi dona soni — bunch kirimida MAJBURIY (quantity = bunches × units_per_bunch,
+      cost_price = cost_per_bunch ÷ units_per_bunch). Yo'q/1 bo'lsa bunch kirimini bloklaymiz. */
+  units_per_bunch?: number | null;
+  /** savat matereali (enum) — packaging_type="basket" uchun */
+  basket_material?: BasketMaterial | "" | null;
+  /** server tayyorlagan yorliqlar (faqat o'qish) */
+  unit_label?: string;
+  basket_material_label?: string;
+  quantity_label?: string;
+  packaging_type_label?: string;
+  /* ── FAQAT YOZISH (POST /api/materials/) — yangi materialni darrov yukka kirim qilish ── */
+  delivery?: number | null;
+  bunches?: number;
+  cost_per_bunch?: string;
 };
+
+/** Material o'lchov birligi (backend UnitEnum) — Dona / Pochka */
+export type MaterialUnit = "piece" | "bunch";
+/** Savat materiali (backend BasketMaterialEnum) */
+export type BasketMaterial = "wooden" | "plastic_handle" | "woven";
 
 /** Material sklad harakati (backend: /api/material-movements/, ichkarida Packaging) */
 export type MaterialMovement = {
@@ -813,14 +835,26 @@ export type MaterialDelivery = {
   created_by_detail?: User | null;
   created_at: string;
   updated_at: string;
-  /** server hisoblab beradi */
+  /** server hisoblab beradi. ⚠️ total_cost jonli javobda NUMBER keladi (boshqa pul maydonlari
+      string bo'lsa-da) — fmt() ikkalasini ham qabul qiladi, shuning uchun ikkalasini tiplaymiz. */
   item_count: number;
   total_quantity: number;
-  total_cost: string;
+  total_cost: string | number;
 };
 export type MaterialDeliveryInput = { number: string; received_at?: string; supplier?: number | null; note?: string };
-/** ⚠️ cost_price berilsa materialning tannarxini QAYTA YOZADI; berilmasa o'zgarmaydi (zero≠bo'sh). */
-export type MaterialReceiveInput = { packaging: number; quantity: number; cost_price?: string; reason?: string };
+/** ⚠️ cost_price berilsa materialning tannarxini QAYTA YOZADI; berilmasa o'zgarmaydi (zero≠bo'sh).
+    IKKI SHAKL (material `unit`iga qarab — lib/materialUnit.ts yagona manba):
+      piece → { quantity, cost_price? }
+      bunch → { bunches, cost_per_bunch? }  (backend: quantity = bunches × units_per_bunch,
+                                              cost_price = cost_per_bunch ÷ units_per_bunch) */
+export type MaterialReceiveInput = {
+  packaging: number;
+  quantity?: number;
+  cost_price?: string;
+  bunches?: number;
+  cost_per_bunch?: string;
+  reason?: string;
+};
 
 export type AuditLog = {
   id: number;

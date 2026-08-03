@@ -17,8 +17,9 @@ import useAutoRefresh from "@/lib/useAutoRefresh";
 import { useRouter } from "next/navigation";
 import { fmt, fmtDate, fmtTime, movementLeadId } from "@/lib/format";
 import { PACKAGING_LABEL, MATERIAL_DELIVERY } from "@/lib/inventory";
+import { MATERIAL_UNIT_LABEL, BASKET_MATERIAL_LABEL, UNIT_CONFIG, configFor, quantityDual, receivePreview } from "@/lib/materialUnit";
 import { Icon } from "./icons";
-import type { MaterialMovement, Packaging, PackagingType } from "@/lib/types";
+import type { BasketMaterial, MaterialDelivery, MaterialMovement, MaterialUnit, Packaging, PackagingType } from "@/lib/types";
 
 /**
  * Material sklad — Buket qog'ozi / Savat / Quti / Aksessuarlar bo'yicha bo'limlangan
@@ -33,35 +34,84 @@ const TYPE_LABEL = PACKAGING_LABEL;
 /** har qanday qiymatni backend enumiga tushiradi (eski "accessory" → "other") */
 const normType = (t: string): PackagingType => (GROUP_ORDER.includes(t as PackagingType) ? (t as PackagingType) : "other");
 
-export function MaterialModal({ material, onClose, onSaved }: { material: Packaging | null; onClose: () => void; onSaved: (m: Packaging) => void }) {
+/**
+ * MATERIAL yaratish/tahrirlash. §3: yangi material YARATILAYOTGANDA uni darrov bir yukka
+ * bog'lab kirim qilish mumkin (POST /api/materials/ `delivery` + birlikka mos maydonlar).
+ * `lockedDelivery` berilsa (yuk detalidan ochilgan) — yuk oldindan tanlangan va QULFLANGAN.
+ */
+export function MaterialModal({ material, onClose, onSaved, lockedDelivery = null }: {
+  material: Packaging | null;
+  onClose: () => void;
+  onSaved: (m: Packaging) => void;
+  lockedDelivery?: MaterialDelivery | null;
+}) {
   const { showToast } = useStore();
   const [f, setF] = useState({
     name_uz: material?.name_uz ?? "",
     name_ru: material?.name_ru ?? "",
     packaging_type: normType(material?.packaging_type ?? "wrap"),
     size: material?.size ?? "",
+    unit: (material?.unit === "bunch" ? "bunch" : "piece") as MaterialUnit,
+    units_per_bunch: material?.units_per_bunch ? String(material.units_per_bunch) : "",
+    basket_material: (material?.basket_material ?? "") as BasketMaterial | "",
     cost_price: material ? String(Math.round(+(material.cost_price ?? 0))) : "",
     sale_price: material ? String(Math.round(+(material.sale_price ?? 0))) : "",
     quantity: material ? String(material.quantity) : "",
   });
+  // §3 YUKGA BOG'LASH — faqat YANGI materialda (mavjudini yukka kiritish «Material kiritish» orqali)
+  const [linkOn, setLinkOn] = useState(!!lockedDelivery);
+  const [deliveries, setDeliveries] = useState<MaterialDelivery[]>([]);
+  const [deliveryId, setDeliveryId] = useState<number>(lockedDelivery?.id ?? 0);
+  const [recvQty, setRecvQty] = useState("");   // piece: dona · bunch: POCHKA
+  const [recvCost, setRecvCost] = useState(""); // piece: dona narxi · bunch: pochka narxi
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (material || lockedDelivery) return; // qulflangan yoki tahrir — ro'yxat kerak emas
+    api.materialDeliveries({ ordering: "-received_at", page_size: 50 }).then(setDeliveries).catch(() => {});
+  }, [material, lockedDelivery]);
+
+  const upb = Math.round(+f.units_per_bunch || 0);
+  const cfg = UNIT_CONFIG[f.unit];
+  // kirim preview — mavjud material qoldig'i 0 dan boshlanadi (yangi material)
+  const preview = linkOn && recvQty.trim() !== ""
+    ? receivePreview({ unit: f.unit, units_per_bunch: upb, quantity: 0, cost_price: "0" }, recvQty, recvCost)
+    : null;
 
   const save = async () => {
     if (!f.name_uz.trim()) return showToast("Nomini kiriting");
+    if (f.unit === "bunch" && upb <= 1) return showToast("Pochkadagi dona sonini (1 pochka = nechta dona) kiriting");
+    if (linkOn && !deliveryId) return showToast("Yukni tanlang");
+    if (linkOn && preview && !preview.ok) return showToast(preview.reason);
     setBusy(true);
     try {
-      const payload = {
+      const n = Math.floor(parseFloat(recvQty) || 0);
+      const payload: Record<string, unknown> = {
         name_uz: f.name_uz.trim(),
         name_ru: f.name_ru.trim() || f.name_uz.trim(),
         packaging_type: f.packaging_type,
         size: f.size.trim(),
-        cost_price: f.cost_price ? String(+f.cost_price) : "0",
+        unit: f.unit,
+        ...(f.unit === "bunch" ? { units_per_bunch: upb } : {}),
+        ...(f.packaging_type === "basket" && f.basket_material ? { basket_material: f.basket_material } : {}),
         sale_price: f.sale_price ? String(+f.sale_price) : "0",
-        ...(material ? {} : { quantity: +f.quantity || 0 }),
         is_active: true,
       };
+      if (!material) {
+        if (linkOn && deliveryId && n > 0) {
+          // ⚠️ YUKGA BOG'LAB KIRIM — birlikka mos shakl; backend qoldiq/tannarxni O'ZI hisoblaydi
+          payload.delivery = deliveryId;
+          if (f.unit === "bunch") { payload.bunches = n; if (recvCost.trim() !== "") payload.cost_per_bunch = String(+recvCost); }
+          else { payload.quantity = n; if (recvCost.trim() !== "") payload.cost_price = String(+recvCost); }
+        } else {
+          payload.quantity = +f.quantity || 0;
+          payload.cost_price = f.cost_price ? String(+f.cost_price) : "0";
+        }
+      } else {
+        payload.cost_price = f.cost_price ? String(+f.cost_price) : "0";
+      }
       const saved = material ? await api.updateMaterial(material.id, payload) : await api.createMaterial(payload);
-      showToast(material ? "✓ Material yangilandi" : "✓ Material qo'shildi");
+      showToast(material ? "✓ Material yangilandi" : linkOn ? `✓ Material qo'shildi va yukka kiritildi` : "✓ Material qo'shildi");
       onSaved(saved);
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : "Saqlab bo'lmadi");
@@ -84,21 +134,90 @@ export function MaterialModal({ material, onClose, onSaved }: { material: Packag
             options={GROUP_ORDER.map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
           />
         </Field>
+        {/* O'LCHOV BIRLIGI — kirim shakli SHUNDAN kelib chiqadi (dona vs pochka) */}
+        <Field label="O'lchov birligi">
+          <Select value={f.unit} onChange={(v) => setF({ ...f, unit: v as MaterialUnit })} options={(["piece", "bunch"] as const).map((u) => ({ value: u, label: MATERIAL_UNIT_LABEL[u] }))} />
+        </Field>
+        {f.unit === "bunch" && (
+          <Field label="1 pochka = nechta dona" span>
+            <input className="inp" inputMode="numeric" value={f.units_per_bunch} onChange={(e) => setF({ ...f, units_per_bunch: e.target.value.replace(/\D/g, "") })} placeholder="Masalan: 20" />
+            <span className="mt-0.5 block text-[11px]" style={{ color: upb > 1 ? "var(--muted)" : "var(--warning-ink, #8a6d1f)" }}>
+              {upb > 1 ? `Kirimda: pochka × ${upb} = dona; pochka narxi ÷ ${upb} = dona narxi` : "Pochkada kirim qilish uchun majburiy (1 dan katta)"}
+            </span>
+          </Field>
+        )}
+        {/* SAVAT materiali — faqat basket turida */}
+        {f.packaging_type === "basket" && (
+          <Field label="Savat materiali">
+            <Select value={f.basket_material} onChange={(v) => setF({ ...f, basket_material: v as BasketMaterial | "" })}
+              options={[{ value: "", label: "—" }, ...(["wooden", "plastic_handle", "woven"] as const).map((b) => ({ value: b, label: BASKET_MATERIAL_LABEL[b] }))]} />
+          </Field>
+        )}
         <Field label="O'lcham">
           <input className="inp" value={f.size} onChange={(e) => setF({ ...f, size: e.target.value })} placeholder="Masalan: M" />
         </Field>
-        <Field label="Tannarx (so'm)">
-          <input className="inp" type="number" value={f.cost_price} onChange={(e) => setF({ ...f, cost_price: e.target.value })} placeholder="Masalan: 8000" />
-        </Field>
+        {/* yukka bog'lanmaganda — qo'lda tannarx/boshlang'ich son (yukka bog'lansa backend yozadi) */}
+        {(!linkOn || material) && (
+          <Field label="Tannarx (so'm)">
+            <input className="inp" type="number" value={f.cost_price} onChange={(e) => setF({ ...f, cost_price: e.target.value })} placeholder="Masalan: 8000" />
+          </Field>
+        )}
         <Field label="Sotuv narxi (so'm)">
           <input className="inp" type="number" value={f.sale_price} onChange={(e) => setF({ ...f, sale_price: e.target.value })} placeholder="Masalan: 20000" />
         </Field>
-        {!material && (
+        {!material && !linkOn && (
           <Field label="Boshlang'ich soni">
             <input className="inp" type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} placeholder="Masalan: 50" />
           </Field>
         )}
       </div>
+
+      {/* ═══ §3 YUKGA BOG'LASH — yangi materialni darrov kirim qilish ═══ */}
+      {!material && (
+        <>
+          <Section>Yukga bog&apos;lash</Section>
+          {lockedDelivery ? (
+            <p className="mb-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>
+              {MATERIAL_DELIVERY.label(lockedDelivery.number, fmtDate(lockedDelivery.received_at))} — shu yukka kiritiladi
+            </p>
+          ) : (
+            <label className="mb-2 flex cursor-pointer items-center justify-between gap-3 rounded-[13px] border px-3.5 py-2.5" style={{ borderColor: linkOn ? "var(--primary)" : "var(--border)", background: linkOn ? "var(--primary-soft)" : undefined }}>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-bold">Yukka bog&apos;lab kirim qilish</span>
+                <span className="block text-[11.5px]" style={{ color: "var(--muted)" }}>Qoldiq va tannarx kirimdan yoziladi</span>
+              </span>
+              <input type="checkbox" checked={linkOn} onChange={(e) => setLinkOn(e.target.checked)} className="h-4 w-4 shrink-0 accent-[var(--primary)]" />
+            </label>
+          )}
+          {linkOn && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {!lockedDelivery && (
+                <Field label="Qaysi yuk" span>
+                  <Select value={deliveryId} onChange={(v) => setDeliveryId(+v)} placeholder="Yukni tanlang" searchable
+                    options={deliveries.map((d) => ({ value: d.id, label: MATERIAL_DELIVERY.label(d.number, fmtDate(d.received_at)), sub: d.supplier_detail?.name ?? "postavshiksiz" }))} />
+                </Field>
+              )}
+              <Field label={cfg.qtyLabel}>
+                <input className="inp" inputMode="numeric" value={recvQty} onChange={(e) => setRecvQty(e.target.value.replace(/\D/g, ""))} placeholder={cfg.qtyPlaceholder} />
+              </Field>
+              <Field label={cfg.costLabel}>
+                <input className="inp" inputMode="numeric" value={recvCost} onChange={(e) => setRecvCost(e.target.value.replace(/\D/g, ""))} placeholder={cfg.costPlaceholder} />
+              </Field>
+              {/* derivatsiya — receive formasidagi bilan AYNAN bir xil manba */}
+              {preview && (preview.ok ? (
+                <div className="col-span-full flex flex-col gap-1 rounded-[12px] px-3 py-2.5 text-[12.5px] font-semibold" style={{ background: "var(--surface-2)" }}>
+                  {preview.lines.map((l, i) => <div key={i} className="tabular-nums" style={{ color: "var(--text-2)" }}><span style={{ color: "var(--primary)" }}>=</span> {l}</div>)}
+                  <div className="flex items-center justify-between"><span style={{ color: "var(--text-2)" }}>Skladga</span><b className="tabular-nums" style={{ color: "var(--primary)" }}>{preview.quantity.toLocaleString("ru")} dona</b></div>
+                  {preview.total != null && <div className="flex items-center justify-between border-t pt-1" style={{ borderColor: "var(--line2)" }}><span style={{ color: "var(--text-2)" }}>Jami</span><b className="tabular-nums" style={{ color: "var(--acc)" }}>{fmt(preview.total)}</b></div>}
+                </div>
+              ) : (
+                <p className="col-span-full rounded-[10px] px-2.5 py-2 text-[12px] font-bold" style={{ background: "var(--danger-soft, rgba(160,74,74,.14))", color: "var(--danger-ink)" }}>{preview.reason}</p>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : material ? "Saqlash" : "Qo'shish"}</button>
@@ -169,16 +288,23 @@ function MaterialDetailModal({ material, onClose }: { material: Packaging; onClo
     const avg = costQty > 0 ? priced.reduce((s, m) => s + (m.quantity || 0) * +(m.unit_cost ?? 0), 0) / costQty : 0;
     return { totIn, totOut, avg };
   }, [moves]);
+  // §4 NARX TARIXI — narxi bor KIRIMlar, ESKIdan yangiga (movements -created_at bilan keladi → teskari)
+  const priceHist = useMemo(() => (moves ?? [])
+    .filter((m) => m.movement_type === "in" && m.unit_cost != null && +m.unit_cost > 0)
+    .map((m) => ({ date: m.created_at, cost: Math.round(+(m.unit_cost ?? 0)) }))
+    .reverse()
+    .slice(-12), [moves]); // oxirgi 12 kirim — mini-ko'rinish uchun yetarli
+  const priceMax = useMemo(() => priceHist.reduce((a, p) => Math.max(a, p.cost), 0), [priceHist]);
   return (
     <Modal onClose={onClose} width={520}>
-      <ModalHeader icon={<Icon name="sklad" size={20} />} title={material.name_uz || material.name_ru} sub={`${TYPE_LABEL[normType(material.packaging_type)]}${material.size ? ` · ${material.size}` : ""} · qoldiq ${material.quantity} dona`} onClose={onClose} />
+      <ModalHeader icon={<Icon name="sklad" size={20} />} title={material.name_uz || material.name_ru} sub={`${TYPE_LABEL[normType(material.packaging_type)]}${material.size ? ` · ${material.size.toUpperCase()}` : ""} · ${configFor(material).label} · qoldiq ${quantityDual(material)}`} onClose={onClose} />
 
       {/* STAT STRIP — jami olingan · sarflangan · qoldiq · o'rtacha narx */}
       <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
           { k: "Jami olingan", v: `${stat.totIn} dona`, hue: "var(--text)" },
           { k: "Sarflangan", v: `${stat.totOut} dona`, hue: "var(--text)" },
-          { k: "Qoldiq", v: `${material.quantity} dona`, hue: "var(--acc)" },
+          { k: "Qoldiq", v: quantityDual(material), hue: "var(--acc)" },
           { k: "O'rtacha narx", v: stat.avg > 0 ? `${fmt(stat.avg)}/dona` : "—", hue: "var(--text)" },
         ].map((c) => (
           <div key={c.k} className="rounded-[12px] border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -198,6 +324,40 @@ function MaterialDetailModal({ material, onClose }: { material: Packaging; onClo
         </div>
       ) : (
         <p className="text-[13px]" style={{ color: "var(--muted)" }}>Hali kirim bo&apos;lmagan — postavshik ma&apos;lumoti yo&apos;q.</p>
+      )}
+
+      {/* §4 NARX TARIXI — dona tannarxi vaqt bo'yicha (postavshik bilan savdolashish uchun).
+          FAQAT narxi bor kirimlar; eng eskisidan yangisiga. Bar balandligi eng qimmatiga nisbatan. */}
+      {priceHist.length > 1 && (
+        <>
+          <Section>Narx tarixi (dona tannarxi)</Section>
+          <div className="rounded-[13px] border p-3" style={{ borderColor: "var(--border)" }}>
+            <div className="flex items-end gap-1.5">
+              {priceHist.map((p, i) => {
+                // ⚠️ PIKSEL balandlik (foiz emas: flex-ustun ichida % ba'zan hal bo'lmaydi va chiziq ko'rinmay qoladi)
+                const px = priceMax > 0 ? Math.max(Math.round((p.cost / priceMax) * 48), 4) : 4;
+                const prev = i > 0 ? priceHist[i - 1].cost : null;
+                const up = prev != null && p.cost > prev;
+                const down = prev != null && p.cost < prev;
+                const hue = up ? "var(--danger-ink)" : down ? "var(--success-ink, #3d8a5f)" : "var(--primary)";
+                return (
+                  <div key={i} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${fmtDate(p.date)} · ${fmt(p.cost)}/dona`}>
+                    {/* yorliq: 1 250 → "1.25k" (hammasi "1k" bo'lib qolmasin) */}
+                    <span className="text-[9.5px] font-bold tabular-nums" style={{ color: hue }}>{p.cost >= 1000 ? `${(p.cost / 1000).toFixed(p.cost % 1000 === 0 ? 0 : 2).replace(/0$/, "")}k` : p.cost}</span>
+                    <div className="w-full rounded-t-[3px]" style={{ height: px, background: hue, opacity: 0.9 }} />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[11px]" style={{ color: "var(--muted)" }}>
+              <span>{fmtDate(priceHist[0].date)}</span>
+              <span className="font-semibold" style={{ color: priceHist[priceHist.length - 1].cost > priceHist[0].cost ? "var(--danger-ink)" : "var(--success-ink, #3d8a5f)" }}>
+                {priceHist[0].cost > 0 ? `${priceHist[priceHist.length - 1].cost > priceHist[0].cost ? "+" : ""}${Math.round(((priceHist[priceHist.length - 1].cost - priceHist[0].cost) / priceHist[0].cost) * 100)}%` : ""}
+              </span>
+              <span>{fmtDate(priceHist[priceHist.length - 1].date)}</span>
+            </div>
+          </div>
+        </>
       )}
 
       <Section>Kirim tarixi</Section>
@@ -294,8 +454,13 @@ function MaterialCard({ m, control, onEdit, onMove, onDetail }: { m: Packaging; 
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-bold" title={m.name_uz || m.name_ru}>{m.name_uz || m.name_ru}</div>
-          <div className="text-xs" style={{ color: "var(--mut)" }}>
-            {TYPE_LABEL[normType(m.packaging_type)]}{m.size ? ` · ${m.size}` : ""}
+          <div className="flex flex-wrap items-center gap-1 text-xs" style={{ color: "var(--mut)" }}>
+            <span>{TYPE_LABEL[normType(m.packaging_type)]}{m.size ? ` · ${m.size.toUpperCase()}` : ""}</span>
+            {/* O'LCHOV BIRLIGI chipi — pochka materiallari darrov ajralib tursin */}
+            <span className="rounded-full px-1.5 py-px text-[10px] font-bold" style={configFor(m).unit === "bunch"
+              ? { background: "color-mix(in srgb, var(--acc) 15%, transparent)", color: "var(--acc)" }
+              : { background: "var(--hover)", color: "var(--text-2)" }}>{configFor(m).label}</span>
+            {m.basket_material && <span className="rounded-full px-1.5 py-px text-[10px] font-bold" style={{ background: "var(--hover)", color: "var(--text-2)" }}>{BASKET_MATERIAL_LABEL[m.basket_material as BasketMaterial] ?? m.basket_material}</span>}
           </div>
         </div>
         {control && (
@@ -307,15 +472,17 @@ function MaterialCard({ m, control, onEdit, onMove, onDetail }: { m: Packaging; 
       <div className="flex items-end justify-between">
         <div>
           <div className="text-[12px]" style={{ color: "var(--mut)" }}>Qoldiq</div>
+          {/* IKKI BIRLIKDA — pochka materialida "100 dona · 5 pochka" */}
           <div className="text-sm font-bold">
-            {m.quantity} dona
+            {quantityDual(m)}
             {m.quantity === 0 && <span className="ml-1.5 rounded-full bg-rose px-2 py-0.5 text-[10.5px] font-bold text-roseink">TUGADI</span>}
             {low && <span className="ml-1.5 rounded-full bg-peach px-2 py-0.5 text-[10.5px] font-bold text-peachink">KAM</span>}
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[12px]" style={{ color: "var(--mut)" }}>Narxi</div>
-          <div className="text-sm font-bold" style={{ color: "var(--acc)" }}>{fmt(m.sale_price)}</div>
+          {/* ⚠️ TANNARX (oxirgi kirimdan) — materiallarda sotuv narxi 0, tannarx esa ma'noli */}
+          <div className="text-[12px]" style={{ color: "var(--mut)" }}>Tannarx / dona</div>
+          <div className="text-sm font-bold" style={{ color: "var(--acc)" }}>{+(m.cost_price ?? 0) > 0 ? fmt(m.cost_price) : "—"}</div>
         </div>
       </div>
       {/* ⚠️ OXIRGI POSTAVSHIK — last_delivery.supplier; null bo'lsa TOZA tire (bo'sh/crash emas) */}
@@ -342,6 +509,10 @@ export default function MaterialSklad() {
   const [group, setGroup] = useState<"" | PackagingType>("");
   // ⚠️ POSTAVSHIK filtri — material yetkazib beruvchisi oxirgi kirimdan (last_delivery.supplier) olinadi.
   const [supplierF, setSupplierF] = useState("");
+  // §4 YANGI filtrlar (spec: unit / basket_material / size) — klientda (ro'yxat to'liq keladi)
+  const [unitF, setUnitF] = useState("");
+  const [basketF, setBasketF] = useState("");
+  const [sizeF, setSizeF] = useState("");
   const [formM, setFormM] = useState<{ open: boolean; edit: Packaging | null }>({ open: false, edit: null });
   const [moveM, setMoveM] = useState<Packaging | null>(null);
   const [detailM, setDetailM] = useState<Packaging | null>(null); // batafsil + kirim tarixi
@@ -368,11 +539,19 @@ export default function MaterialSklad() {
     const names = Array.from(new Set((materials ?? []).map((m) => m.last_delivery?.supplier).filter((x): x is string => !!x))).sort();
     return [{ value: "", label: "Barcha postavshiklar" }, ...names.map((n) => ({ value: n, label: n }))];
   }, [materials]);
+  // o'lchamlar ro'yxati — mavjud qiymatlardan (seed: xs/s/m/l/xl, lekin erkin matn ham bo'lishi mumkin)
+  const sizeOpts = useMemo(() => {
+    const xs = Array.from(new Set((materials ?? []).map((m) => (m.size ?? "").trim()).filter(Boolean))).sort();
+    return [{ value: "", label: "Barcha o'lchamlar" }, ...xs.map((s) => ({ value: s, label: s.toUpperCase() }))];
+  }, [materials]);
   const searched = useMemo(
     () => (materials ?? []).filter((m) =>
       (!q || [m.name_uz, m.name_ru, m.size].some((x) => (x ?? "").toLowerCase().includes(q)))
-      && (!supplierF || m.last_delivery?.supplier === supplierF)),
-    [materials, q, supplierF]
+      && (!supplierF || m.last_delivery?.supplier === supplierF)
+      && (!unitF || configFor(m).unit === unitF)
+      && (!basketF || m.basket_material === basketF)
+      && (!sizeF || (m.size ?? "").trim() === sizeF)),
+    [materials, q, supplierF, unitF, basketF, sizeF]
   );
   const byGroup = useMemo(() => {
     const g = new Map<PackagingType, Packaging[]>();
@@ -396,7 +575,11 @@ export default function MaterialSklad() {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Material qidirish" />
           {supplierOpts.length > 1 && <FilterSelect value={supplierF} onChange={setSupplierF} label="Postavshik" options={supplierOpts} />}
-          <ClearFilters show={!!(search || group || supplierF)} onClear={() => { setSearch(""); setGroup(""); setSupplierF(""); }} />
+          {/* §4 spec filtrlari: unit / basket_material / size */}
+          <FilterSelect value={unitF} onChange={setUnitF} label="Birlik" options={[{ value: "", label: "Barcha birliklar" }, ...(["piece", "bunch"] as const).map((u) => ({ value: u, label: MATERIAL_UNIT_LABEL[u] }))]} />
+          <FilterSelect value={basketF} onChange={setBasketF} label="Savat materiali" options={[{ value: "", label: "Barcha savatlar" }, ...(["wooden", "plastic_handle", "woven"] as const).map((b) => ({ value: b, label: BASKET_MATERIAL_LABEL[b] }))]} />
+          {sizeOpts.length > 1 && <FilterSelect value={sizeF} onChange={setSizeF} label="O'lcham" options={sizeOpts} />}
+          <ClearFilters show={!!(search || group || supplierF || unitF || basketF || sizeF)} onClear={() => { setSearch(""); setGroup(""); setSupplierF(""); setUnitF(""); setBasketF(""); setSizeF(""); }} />
           {control && (
             <button onClick={() => setFormM({ open: true, edit: null })} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
               <Plus size={18} strokeWidth={1.75} /> Material qo&apos;shish

@@ -309,3 +309,26 @@ Verified live: a lead's `customer_detail` exposes `leads_count` (all-time) and `
   per piece; our only client "avg per item" (Hisob-kitob Section 5 = salary ÷ (standard+custom))
   now divides by pieces — consistent, provided the analytics production stats also moved to pieces
   (that endpoint is separate from `/stats/`; assumed per the spec, unverified on live data).
+
+## MATERIAL PURCHASES vs MATERIAL COST CONSUMED (2026-08-02) — PROPOSAL, NOT IMPLEMENTED
+Material deliveries now carry real cost (`/api/material-deliveries/` → `total_cost`), so we CAN
+show material purchasing in Hisob-kitob. We deliberately did **not** add it to Section 4.
+
+- **They are different things.** Section 4 "Materiallar tannarxi" is `Σ sale.material_cost` —
+  the cost of material **consumed by sales in the period** (part of COGS, already reconciled with
+  the server's `cost_total`). A material *delivery* is **stock bought** in the period — cash out,
+  not COGS. Buying 3 635 000 of paper that is still on the shelf must NOT reduce reported profit.
+- **Adding purchases to Section 4 would double-count** over an item's lifetime: once when bought,
+  again when the material is consumed in a sale.
+- **Proposed presentation (needs your go-ahead):** a separate row *outside* the COGS stacked bar,
+  in the same section but visually detached — "Material xaridi (sklad to'ldirish)" with the
+  period's `Σ total_cost` over material deliveries, an ⓘ reading *"Bu davrda sotib olingan
+  material — sklad zaxirasi. Sotuvlarga kirgan material tannarxi yuqorida alohida ko'rsatilgan;
+  ikkalasini qo'shmang."* Optionally a small delta chip (purchased vs consumed) to flag
+  over/under-buying — that is the genuinely useful managerial signal.
+- **Where it already lives:** Sklad → Material yuklari shows per-delivery `total_cost` and the
+  rollups, and each material's detail now has a **price-per-unit history** (last 12 priced
+  receipts, with % change) for supplier negotiation.
+- **Blocked dependency:** material suppliers' debt is NOT in `purchase_total` (see
+  MATERIALS_GAPS.md GAP 6) — so Section 1 still cannot show what we owe them. That is a backend
+  fix, not a frontend one; we do not synthesize the number.

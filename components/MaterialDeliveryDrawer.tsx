@@ -4,11 +4,13 @@ import { PackageOpen, Pencil, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import Modal, { ModalHeader } from "./Modal";
 import MaterialReceiveModal from "./MaterialReceiveModal";
+import { MaterialModal } from "./MaterialSklad";
+import { quantityDual } from "@/lib/materialUnit";
 import MaterialDeliveryModal from "./MaterialDeliveryModal";
 import EmptyState from "./EmptyState";
 import FlowerLoader from "./FlowerLoader";
 import { fmt, fmtDate, fmtTime } from "@/lib/format";
-import { MATERIAL_DELIVERY } from "@/lib/inventory";
+import { MATERIAL_DELIVERY, PACKAGING_LABEL } from "@/lib/inventory";
 import type { MaterialDelivery, MaterialMovement } from "@/lib/types";
 
 /**
@@ -24,6 +26,7 @@ export default function MaterialDeliveryDrawer({ delivery, onClose, onChanged }:
   const [d, setD] = useState<MaterialDelivery>(delivery);
   const [items, setItems] = useState<MaterialMovement[] | null>(null);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [newMatOpen, setNewMatOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
   const load = useCallback(() => {
@@ -54,11 +57,17 @@ export default function MaterialDeliveryDrawer({ delivery, onClose, onChanged }:
         </div>
 
         {/* MATERIALLAR + kiritish */}
-        <div className="mt-4 mb-2 flex items-center justify-between">
+        <div className="mt-4 mb-2 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-[14px] font-bold">Kiritilgan materiallar</h3>
-          <button onClick={() => setReceiveOpen(true)} className="btn-primary !flex-none rounded-[11px] px-3 py-1.5 text-[13px]">
-            <Plus size={16} strokeWidth={2} /> {MATERIAL_DELIVERY.receive}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* §3: yangi materialni SHU yukka bog'lab yaratish (yuk qulflangan holda ochiladi) */}
+            <button onClick={() => setNewMatOpen(true)} className="flex items-center gap-1.5 rounded-[11px] border px-3 py-1.5 text-[13px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
+              <Plus size={15} strokeWidth={2} /> Yangi material
+            </button>
+            <button onClick={() => setReceiveOpen(true)} className="btn-primary !flex-none rounded-[11px] px-3 py-1.5 text-[13px]">
+              <Plus size={16} strokeWidth={2} /> {MATERIAL_DELIVERY.receive}
+            </button>
+          </div>
         </div>
         {items === null ? <FlowerLoader /> : items.length === 0 ? (
           <EmptyState title="Bu yukka hali material kiritilmagan" sub="«Material kiritish» orqali shu yukka birinchi materialni kiriting." />
@@ -70,13 +79,22 @@ export default function MaterialDeliveryDrawer({ delivery, onClose, onChanged }:
               return (
                 <div key={it.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[13px] border p-2.5" style={{ borderColor: "var(--border)" }}>
                   <div className="min-w-0">
-                    <div className="truncate text-[13px] font-bold">{md?.name_uz || md?.name_ru || `Material #${it.packaging ?? "—"}`}</div>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span className="truncate text-[13px] font-bold">{md?.name_uz || md?.name_ru || `Material #${it.packaging ?? "—"}`}</span>
+                      {/* TUR chipi — qaysi guruh materiali ekani darrov ko'rinsin */}
+                      {md?.packaging_type && <span className="shrink-0 rounded-full px-1.5 py-px text-[10px] font-bold" style={{ background: "var(--hover)", color: "var(--text-2)" }}>{PACKAGING_LABEL[md.packaging_type as keyof typeof PACKAGING_LABEL] ?? md.packaging_type}</span>}
+                    </div>
                     <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>{fmtTime(it.created_at)}{it.reason ? ` · ${it.reason}` : ""}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[13px] font-bold tabular-nums">{it.quantity} dona</div>
+                    {/* IKKI BIRLIKDA — pochka materialida "100 dona · 5 pochka" */}
+                    <div className="text-[13px] font-bold tabular-nums">{md ? quantityDual({ ...md, quantity: it.quantity }) : `${it.quantity} dona`}</div>
                     {/* eski receive'da unit_cost bo'lmaydi — bo'shni ko'rsatmaymiz (null/tozalik) */}
-                    {it.unit_cost != null && +it.unit_cost > 0 && <div className="text-[11px]" style={{ color: "var(--muted)" }}>{fmt(it.unit_cost)}/dona</div>}
+                    {it.unit_cost != null && +it.unit_cost > 0 && (
+                      <div className="text-[11px]" style={{ color: "var(--muted)" }}>
+                        {fmt(it.unit_cost)}/dona · jami <b style={{ color: "var(--acc)" }}>{fmt(Math.round(+it.unit_cost) * it.quantity)}</b>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -94,6 +112,10 @@ export default function MaterialDeliveryDrawer({ delivery, onClose, onChanged }:
 
       {receiveOpen && (
         <MaterialReceiveModal delivery={d} onClose={() => setReceiveOpen(false)} onReceived={() => { load(); onChanged(); }} />
+      )}
+      {/* §3: yuk QULFLANGAN holda — yangi material darrov shu yukka kirim qilinadi */}
+      {newMatOpen && (
+        <MaterialModal material={null} lockedDelivery={d} onClose={() => setNewMatOpen(false)} onSaved={() => { setNewMatOpen(false); load(); onChanged(); }} />
       )}
       {editOpen && (
         <MaterialDeliveryModal delivery={d} onClose={() => setEditOpen(false)} onSaved={(upd) => { setD(upd); setEditOpen(false); onChanged(); }} />
