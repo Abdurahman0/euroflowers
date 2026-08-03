@@ -194,9 +194,13 @@ export type Supplier = {
   batches_count: number;
   total_received_stems: number;
   // hisob-kitob rollup'lari (backend 0082, read-only, ?ordering= bilan saralanadi)
-  purchase_total?: string;   // Σ received_stems × cost_per_stem
-  paid_total?: string;       // Σ SupplierPayment.amount
-  outstanding?: string;      // purchase_total − paid_total (qarz)
+  /** «Umumiy sotib olingan» — Σ received_stems × cost_per_stem.
+      ⚠️ TEKIN gul (is_free) tannarxi 0 → bu summaga KIRMAYDI: faqat haqiqatda pul to'langan gul. */
+  purchase_total?: string;
+  /** Yozib borilgan to'lovlar yig'indisi (/api/supplier-payments/). ⚠️ QARZ EMAS —
+      backend `outstanding` maydonini butunlay olib tashladi (har xarid to'liq to'lanadi),
+      shuning uchun buni purchase_total dan AYIRMANG. */
+  paid_total?: string;
   last_payment_at?: string | null;
   created_at?: string;
   updated_at?: string;

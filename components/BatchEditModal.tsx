@@ -1,19 +1,20 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Truck } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import DatePicker from "./DatePicker";
+import Select from "./Select";
 import ImageInput from "./ImageInput";
 import { PriceHint } from "./BatchPriceFields";
 import FreeBatchToggle from "./FreeBatchToggle";
 import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import { Icon } from "./icons";
 import { fmt, fmtDate } from "@/lib/format";
-import { perStemFromBunch, roundingNote, buildBatchEditPayload, batchEditIsRetroactive, formatStemsAndBunches, receivedEditConsequence, type BatchEditForm, type BatchEditOriginal } from "@/lib/inventory";
-import type { StockBatch } from "@/lib/types";
+import { DELIVERY, perStemFromBunch, roundingNote, buildBatchEditPayload, batchEditIsRetroactive, formatStemsAndBunches, receivedEditConsequence, type BatchEditForm, type BatchEditOriginal } from "@/lib/inventory";
+import type { FlowerVariant, StockBatch, StockDelivery } from "@/lib/types";
 
 const num = (n: string | number | undefined | null) => (n == null || n === "" ? "" : String(Math.round(+n)));
 const formFrom = (b: StockBatch): BatchEditForm => ({
@@ -21,7 +22,11 @@ const formFrom = (b: StockBatch): BatchEditForm => ({
   received_at: (b.received_at ?? "").slice(0, 10),
   height_cm: b.height_cm ? String(b.height_cm) : "",
   received_stems: b.received_stems != null ? String(b.received_stems) : "",
+  variant: b.variant ?? b.variant_detail?.id ?? 0,
+  delivery: b.delivery ?? 0,
   is_free: !!b.is_free,
+  remainingManual: false,
+  remaining_stems: b.remaining_stems != null ? String(b.remaining_stems) : "",
   stems_per_bunch: b.stems_per_bunch ? String(b.stems_per_bunch) : "",
   minimum_sale_stems: b.minimum_sale_stems ? String(b.minimum_sale_stems) : "",
   notes: b.notes ?? "",
@@ -54,6 +59,13 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
 
   // ⚠️ KELGAN MIQDOR — pochka sukut bo'yicha (create formadagi konvensiya)
   const [qtyMode, setQtyMode] = useState<QtyMode>(() => defaultQtyMode(batch.stems_per_bunch));
+  // §3 — nav va yuk tahriri uchun ro'yxatlar
+  const [variants, setVariants] = useState<FlowerVariant[]>([]);
+  const [deliveries, setDeliveries] = useState<StockDelivery[]>([]);
+  useEffect(() => {
+    api.flowerVariants({ is_active: true }).then(setVariants).catch(() => {});
+    api.stockDeliveries({ is_active: true, ordering: "-received_at" }).then(setDeliveries).catch(() => {});
+  }, []);
   const orig: BatchEditOriginal = batch;
   const v = batch.variant_detail;
   const spb = +f.stems_per_bunch || batch.stems_per_bunch || 20;
@@ -68,6 +80,13 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
 
   // OQIBAT — kelgan/ishlatilgan/qoldiq (sof funksiyadan; manfiy qoldiq → saqlash BLOKLANADI)
   const rc = receivedEditConsequence(batch.received_stems, batch.remaining_stems, f.received_stems);
+  // ⚠️ POCHKADA DONA o'zgarsa — dona narxi QAYTA hisoblanadi (pochka narxi / yangi spb).
+  const spbOrig = batch.stems_per_bunch || 0;
+  const spbChanged = spb !== spbOrig && spbOrig > 0;
+  const costPerStemOrig = perStemFromBunch(costBunch, spbOrig);
+  const salePerStemOrig = perStemFromBunch(saleBunch, spbOrig);
+  const deliveryChanged = f.delivery > 0 && f.delivery !== (batch.delivery ?? 0);
+  const nextDelivery = deliveries.find((d) => d.id === f.delivery);
   const payload = useMemo(() => buildBatchEditPayload(orig, f), [orig, f]);
   const changedKeys = Object.keys(payload);
   const retroactive = batchEditIsRetroactive(payload);
@@ -112,8 +131,40 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
         <Field label="Kelgan sana"><DatePicker value={f.received_at} onChange={(vv) => setF((p) => ({ ...p, received_at: vv }))} placeholder="Sana" ariaLabel="Kelgan sana" /></Field>
         <Field label="Minimal sotuv (dona)"><input className="inp" type="number" value={f.minimum_sale_stems} onChange={set("minimum_sale_stems")} placeholder="Masalan: 5" /></Field>
         <Field label="Pochkada dona"><input className="inp" type="number" value={f.stems_per_bunch} onChange={set("stems_per_bunch")} placeholder="Masalan: 25" /></Field>
+        <Field label="Gul navi" span>
+          <Select value={f.variant} onChange={(vv) => setF((p) => ({ ...p, variant: +vv }))} searchable placeholder="Navni tanlang"
+            options={variants.map((x) => ({ value: x.id, label: `${x.flower_detail?.name_uz ?? "Gul"} ${x.name_uz ?? ""}`.trim(), sub: x.color_uz || undefined }))} />
+          {f.variant !== (batch.variant ?? batch.variant_detail?.id ?? 0) && (
+            <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--warning-ink, #8a6d1f)" }}>
+              ⚠️ Nav o&apos;zgaradi — bu partiyadan yasalgan kataloglarda ham yangi nav ko&apos;rinadi.
+            </span>
+          )}
+        </Field>
+        <Field label="Qaysi yukka" span>
+          <Select value={f.delivery} onChange={(vv) => setF((p) => ({ ...p, delivery: +vv }))} searchable placeholder="Yukni tanlang"
+            options={deliveries.map((d) => ({ value: d.id, label: DELIVERY.label(d.number, fmtDate(d.received_at)), sub: d.supplier_detail?.name ?? "postavshiksiz" }))} />
+          {deliveryChanged && (
+            <span className="mt-1 block text-[11.5px] font-bold" style={{ color: "var(--danger-ink)" }}>
+              ⚠️ Partiya boshqa yukka ko&apos;chadi — yuk raqami, sanasi va <b>POSTAVSHIK</b> o&apos;zgaradi
+              ({batch.supplier_detail?.name ?? "postavshiksiz"} → {nextDelivery?.supplier_detail?.name ?? "postavshiksiz"}).
+              Shu bilan qaysi postavshikning «Umumiy sotib olingan» summasiga kirishi ham o&apos;zgaradi.
+            </span>
+          )}
+        </Field>
         <Field label="Izoh" span><input className="inp" value={f.notes} onChange={set("notes")} placeholder="Ixtiyoriy" /></Field>
       </div>
+
+      {/* ⚠️ POCHKADA DONA o'zgarsa dona narxi qayta hisoblanadi — submitdan OLDIN ko'rsatamiz */}
+      {spbChanged && (
+        <div className="mt-2 rounded-[12px] px-3.5 py-2.5 text-[12.5px] font-semibold" style={{ background: "color-mix(in srgb, #b3873a 12%, transparent)", color: "var(--warning-ink, #8a6d1f)" }}>
+          <div>Pochkada dona: {spbOrig} → <b>{spb}</b> — dona narxi qayta hisoblanadi:</div>
+          <div className="mt-1 flex flex-wrap gap-x-4 tabular-nums">
+            <span>Tannarx {fmt(costPerStemOrig)} → <b>{fmt(costPerStem)}</b>/dona</span>
+            <span>Sotuv {fmt(salePerStemOrig)} → <b>{fmt(salePerStem)}</b>/dona</span>
+          </div>
+          <div className="mt-0.5 font-medium">Dona↔pochka ko&apos;rsatkichlari ham qayta o&apos;lchanadi.</div>
+        </div>
+      )}
 
       {/* ⚠️ KELGAN MIQDORNI TO'G'RILASH — xato kiritishni tuzatish uchun. RETROAKTIV: partiya jami,
           yuk jamilari va tannarx raqamlari siljiydi. Ishlatilgandan kam qilib bo'lmaydi. */}
@@ -135,6 +186,11 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
         />
         <Err k="received_stems" />
         <Err k="received_bunches" />
+        {/* SPEC izohi — maydon ostida DOIM turadi (faqat o'zgarganda emas) */}
+        <p className="-mt-1 text-[11.5px]" style={{ color: "var(--muted)" }}>
+          Bu partiyadan <b style={{ color: "var(--text-2)" }}>{rc.used.toLocaleString("ru")} dona</b> ishlatilgan.
+          Kamida shuncha bo&apos;lishi kerak.
+        </p>
 
         {/* OQIBAT — submitdan OLDIN joriy qiymatlardan hisoblanadi */}
         {rc.changed && (
@@ -150,6 +206,31 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
               <span style={{ color: "var(--text-2)" }}>Qoldiq</span>
               <span className="tabular-nums">{rc.remainingFrom.toLocaleString("ru")} → <b style={{ color: rc.negative ? "var(--danger-ink)" : "var(--acc)" }}>{rc.remainingTo.toLocaleString("ru")}</b> dona</span>
             </div>
+          </div>
+        )}
+
+        {/* ⚠️ QOLDIQNI QO'LDA BELGILASH — inventarizatsiya uchun; SUKUT BO'YICHA O'CHIQ.
+            Yoqilmasa qoldiq payload'ga kirmaydi va SERVER uni o'zi qayta hisoblaydi. */}
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-[13px] border px-3.5 py-3"
+          style={f.remainingManual ? { borderColor: "var(--warning-ink, #8a6d1f)", background: "color-mix(in srgb, #b3873a 10%, transparent)" } : { borderColor: "var(--border)" }}>
+          <input type="checkbox" checked={f.remainingManual}
+            onChange={(e) => setF((p) => ({ ...p, remainingManual: e.target.checked, remaining_stems: e.target.checked ? String(batch.remaining_stems ?? 0) : "" }))}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--warning-ink,#8a6d1f)]" />
+          <span className="min-w-0">
+            <span className="block text-[13px] font-bold">Qoldiqni qo&apos;lda belgilash (inventarizatsiya)</span>
+            <span className="mt-0.5 block text-[11.5px]" style={{ color: "var(--muted)" }}>
+              {f.remainingManual
+                ? "⚠️ Server avtomatik hisobi BEKOR QILINADI — aynan siz yozgan son qo'yiladi."
+                : "Belgilanmasa qoldiqni server o'zi hisoblaydi (kelgan farqi qancha bo'lsa, qoldiq o'shancha siljiydi)."}
+            </span>
+          </span>
+        </label>
+        {f.remainingManual && (
+          <div>
+            <div className="mb-1 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>Qoldiq (dona)</div>
+            <input className="inp" inputMode="numeric" value={f.remaining_stems}
+              onChange={(e) => setF((p) => ({ ...p, remaining_stems: e.target.value.replace(/\D/g, "") }))} placeholder="Masalan: 65" />
+            <Err k="remaining_stems" />
           </div>
         )}
 

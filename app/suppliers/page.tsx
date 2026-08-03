@@ -144,11 +144,10 @@ export default function SuppliersPage() {
               <div className="flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold text-tintink">{s.batches_count} partiya</span>
                 <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold text-tintink">{stems(s.total_received_stems)}</span>
-                {s.outstanding != null && +s.outstanding > 0 && (
-                  <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold" style={{ background: "color-mix(in srgb, var(--danger-ink) 13%, transparent)", color: "var(--danger-ink)" }} title="To'lanmagan qarz (Hisob-kitobda to'lov qo'shiladi)">Qarz {fmt(s.outstanding)}</span>
-                )}
-                {s.outstanding != null && +s.outstanding <= 0 && +(s.purchase_total ?? 0) > 0 && (
-                  <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold" style={{ background: "color-mix(in srgb, var(--success-ink) 13%, transparent)", color: "var(--success-ink)" }} title="Qarz yo'q">To&apos;langan</span>
+                {/* ⚠️ QARZ USTUNI OLIB TASHLANDI — backend `outstanding`ni butunlay chiqarmaydi
+                    (har xarid to'liq to'lanadi). O'rniga neytral «Umumiy sotib olingan». */}
+                {+(s.purchase_total ?? 0) > 0 && (
+                  <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold text-tintink" title="Umumiy sotib olingan (tekin gul kirmaydi)">Sotib olingan {fmt(s.purchase_total)}</span>
                 )}
                 {!s.is_active && <span className="rounded-full bg-rose px-2.5 py-0.5 text-[12px] font-bold text-roseink">Nofaol</span>}
               </div>

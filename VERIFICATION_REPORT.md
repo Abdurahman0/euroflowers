@@ -1341,3 +1341,151 @@ v. **bulk-issue xato semantikasi hamon HUJJATLASHTIRILMAGAN.** OpenAPI faqat `20
 w. **Kelajak sana:** yetkazib berish (`received_at`), to'lov (`paid_at`) va partiya harakati
    uchun kelajak sana ATAYLAB bloklanmadi (rejalashtirilgan yuk / kechiktirilgan to'lov qonuniy
    bo'lishi mumkin). Tasdiqlansin — bloklash kerakmi?
+
+---
+
+# SUPPLIER DEBT REMOVAL + FULL BATCH EDITING (2026-08-03)
+
+## §1 — «Qarz» olib tashlandi: jonli audit
+
+Read-only GET `/api/suppliers/` (11 ta postavshik) va `/api/schema/?format=json`:
+
+- `outstanding` **hech bir javobda yo'q** (11/11) va OpenAPI `Supplier` sxemasida ham yo'q.
+  Ya'ni maydon endi umuman kelmaydi — bizdagi `Supplier.outstanding` o'lik tur edi.
+- `?ordering=outstanding` kod bazasida **ishlatilmagan edi** — olib tashlanadigan saralash yo'q.
+- `purchase_total` va `paid_total` joyida, `last_payment_at` ham. `/api/supplier-payments/` tegilmadi.
+
+### Nomlash (spec'dagi noaniqlik — qaror qabul qilindi)
+
+Spec `purchase_total` uchun «Umumiy sotib olingan» deydi, `paid_total` uchun nom bermaydi.
+Ikkalasi yonma-yon turgani uchun foydalanuvchi ularni **ayirishga** urinishi tabiiy — aynan shu
+qarz hisobi endi yo'q. Shuning uchun:
+
+| Maydon | Ko'rinadigan nom |
+|---|---|
+| `purchase_total` | **«Umumiy sotib olingan»** |
+| `paid_total` | **«Yozib borilgan to'lovlar»** («To'langan» EMAS — u ayirishga chorlaydi) |
+
+Ustiga Hisob-kitob sahifasida Tip: *«⚠️ Bu QARZ EMAS — qarz hisobi yuritilmaydi, shuning uchun
+sotib olingandan AYIRMANG.»*
+
+### Nima o'zgardi
+
+- `lib/types.ts` — `Supplier.outstanding` o'chirildi; `purchase_total`/`paid_total` izohlandi.
+- `app/suppliers/page.tsx` — qarz chiplari o'rniga neytral «Sotib olingan {summa}» chipi.
+- `app/hisob-kitob/page.tsx` — `debtTone` funksiyasi va **QARZ ustuni** o'chirildi; saralash
+  chiplari endi `Sotib olingan` / `Oxirgi to'lov`; jadval ostidagi jami «To'lovlar jami».
+- `lib/reportExports.ts` — `SupplierRow.debt` o'chirildi, eksport sarlavhalari yangilandi.
+
+`is_free` partiyalar tannarxi nol bo'lgani uchun `purchase_total` ga kirmaydi — bu **serverda**
+hal qilingan, frontend hech narsa ayirmaydi (jonli audit: 0 ta free partiya bor, ya'ni hozircha
+farq ko'rinmaydi).
+
+## §2 — Kelgan sonni tuzatish
+
+**Tuzatish (spec bizni noto'g'ri ayblagan joyi):** bizdagi tekshiruv **hech qachon blanket blok
+bo'lmagan**. U aynan `yangiKelgan < ishlatilgan` bo'lganda ishlaydi — bu spec talab qilgan
+«ishlatilgan» chegarasining o'zi va serverning 400 sharti bilan bir xil. Spec'ning uchala qatori
+ham bizda avvaldan to'g'ri ishlagan:
+
+| Spec qatori | Bizdagi natija |
+|---|---|
+| 100 → 120 (80 ishlatilgan) | ruxsat, oldindan ko'rsatish: qoldiq 20 → **40** |
+| 100 → 80 (kamaytirish) | **ruxsat** (bloklanmagan), qoldiq 20 → 0 |
+| 120 → 10 (80 ishlatilgan) | **bloklanadi** — serverning 400'i bilan bir xil shart |
+
+Qo'shilgani — **oqibatni oldindan ko'rsatish**, chunki ilgari foydalanuvchi qoldiq ham
+siljishini bilmasdi:
+
+```
+Kelgan miqdor  [ 90 ]
+Bu partiyadan 80 dona ishlatilgan. Kamida shuncha bo'lishi kerak.
+┌─────────────────────────────────┐
+│ Kelgan       100 → 90 dona      │
+│ Ishlatilgan       80 dona       │
+│ Qoldiq        20 → 10 dona      │
+└─────────────────────────────────┘
+```
+
+`lib/inventory.ts` → `receivedEditConsequence(received, remaining, next)` sof funksiya; ishlatilgan
+= `received − remaining`, yangi qoldiq = `next − ishlatilgan` (0 dan past emas).
+
+### Qo'lda qoldiq (inventarizatsiya)
+
+Spec `remaining_stems` ni aniq yuborish avtomatik hisobni **bekor qilishini** aytadi. Shuning uchun
+u tasodifan yuborilmaydi: alohida **«Qoldiqni qo'lda belgilash (inventarizatsiya)»** belgisi bor,
+belgilanmaguncha `remaining_stems` payload'ga **umuman tushmaydi**. Belgilanganda qizil ogohlantirish:
+*«Server avtomatik hisobi BEKOR QILINADI — aynan siz yozgan son qo'yiladi.»*
+
+## §3 — To'liq partiya tahriri: qaysi maydonlar
+
+OpenAPI `PatchedStockBatch` bo'yicha **yaratish formasidagi har bir maydon PATCH'da ham
+yoziladigan** — tahrirlab bo'lmaydigan create-maydoni **yo'q**. Qo'shilganlari:
+
+- **`variant`** (gul navi) — retroaktiv izoh bilan: avval yasalgan kataloglar tarkibi shu partiyaga
+  bog'langan, nav o'zgarsa ular ham boshqa gulni ko'rsatadi.
+- **`delivery`** (qaysi yuk) — postavshik **yuk orqali** aniqlanadi, shuning uchun yukni almashtirish
+  postavshikni ham almashtiradi; forma buni ochiq yozadi va yuk jamilarini (dona va tannarx) ikkala
+  tomonda qayta hisoblanishini eslatadi.
+- `stems_per_bunch` o'zgarganda **dona narxi oldindan ko'rsatiladi** (pochka narxi bo'linadi).
+
+**Umumiy forma ajratilmadi** (ataylab): create va edit haqiqatan ajralib ketgan — create yukka
+bog'langan va gul→nav kaskadi bor, edit'da esa o'zgarmas provenance sarlavhasi, kelgan sonni
+tuzatish, qo'lda qoldiq va retroaktiv ogohlantirishlar bor. Bitta formaga siqish shartlarni
+ko'paytirardi. Payload mantiqi esa **allaqachon umumiy** — `lib/inventory.ts` dagi
+`buildBatchEditPayload` (faqat o'zgargan kalitlar) va `batchEditIsRetroactive`.
+
+## §4 — Verify
+
+`tsc --noEmit` toza · **275/275 Vitest** o'tdi · konsol/sahifa xatosi yo'q (dark + light).
+
+Skrinshotlar (ikkala mavzu): postavshik ro'yxati va Hisob-kitob — qarz ustuni yo'q; partiya tahriri
+to'liq maydon to'plami bilan; kelgan-son izohi va oqibat bloki; qo'lda qoldiq affordansi.
+Tahrir oynasidagi maydonlar (skript o'qigan holda): Gul bo'yi · Kelgan sana · Minimal sotuv ·
+Pochkada dona · **Gul navi** · **Qaysi yukka** · Izoh · Kelgan miqdor · Qoldiqni qo'lda belgilash ·
+Tekin belgisi · Pochka tannarxi · Pochka sotuv narxi.
+
+Jonli misol (read-only GET): partiya **#62 №01:00** — `received=100, remaining=0` → ishlatilgan
+**100**, ya'ni bu partiyada kelgan sonni 100 dan past qilib bo'lmaydi.
+
+## LIST 1 — append (risk-annotated)
+
+SB1. **Postavshik qarzsiz.** Postavshiklar va Hisob-kitob → Postavshiklar: hech qayerda «Qarz»
+     ustuni/chipi bo'lmasligi kerak. «Umumiy sotib olingan» va «Yozib borilgan to'lovlar»
+     ko'rinadi. Eksport (CSV/PDF) da ham qarz ustuni yo'q. **READ.**
+SB2. **Kelgan sonni OSHIRISH.** Qisman ishlatilgan partiyani tahrirlang, kelgan sonni oshiring —
+     oyna ichidagi blok qoldiq qancha bo'lishini oldindan ko'rsatadi. Saqlang va qoldiq **aynan
+     shu songa** o'tganini, «Kirim-chiqim jurnali»dagi kirim yozuvi ham yangilanganini tekshiring.
+     **⚠️ RETROAKTIV** — partiya jami va yuk jamilari qayta hisoblanadi.
+SB3. **Kelgan sonni KAMAYTIRISH (yangilangan qadam).** Ishlatilgandan **ko'p** qiymatga kamaytirish
+     endi **ruxsat etiladi** — chegara ishlatilgan son. Masalan 100 kelgan / 80 ishlatilgan →
+     90 ga tushiring: qoldiq 20 → 10. So'ng 70 ga urinib ko'ring — forma bloklaydi (server ham
+     400 qaytaradi). **⚠️ RETROAKTIV.**
+SB4. **Qo'lda qoldiq.** «Qoldiqni qo'lda belgilash» ni yoqing, qoldiqni o'zingiz yozing va saqlang —
+     avtomatik hisob EMAS, aynan siz yozgan son qo'yilishi kerak. Belgini yoqmasangiz payload'da
+     `remaining_stems` **BO'LMASLIGI** kerak. **⚠️ XAVFLI — sklad sonini to'g'ridan-to'g'ri yozadi.**
+SB5. **Nav va yukni almashtirish.** Tahrirda «Gul navi» ni o'zgartiring — shu partiyadan yasalgan
+     eski kataloglar tarkibi ham yangi navni ko'rsatadimi? So'ng «Qaysi yukka» ni boshqa
+     postavshikning yukiga o'tkazing — ikkala yuk jamilari (dona va tannarx) qayta hisoblanadimi?
+     **⚠️ QAYTMAS EMAS lekin RETROAKTIV va POSTAVSHIK O'ZGARADI.** Test partiyasida sinang.
+SB6. **Faqat narx tahriri.** Faqat sotuv narxini o'zgartiring — qoldiqqa TEGILMASLIGI kerak va
+     payload'da `received_stems`/`remaining_stems` bo'lmasligi kerak. **READ.**
+
+## LIST 2 — javob berilgan
+
+- **p — JAVOB BERILDI.** Server `received_stems` o'zgarganda qoldiqni **farq qancha bo'lsa
+  o'shancha siljitadi** (100→120, 30 ishlatilgan ⇒ qoldiq 90) va **boshlang'ich kirim harakatini
+  ham yangi songa moslaydi**; chiqim yozuvlariga tegmaydi. Ya'ni (1)-variant. Frontend qoldiqni
+  o'zi hisoblab yubormaydi — faqat oldindan ko'rsatadi.
+- **q — JAVOB BERILDI.** Server ishlatilgandan kam qiymatni **400 bilan rad etadi** («Bu partiyadan
+  allaqachon N dona ishlatilgan…»), 0 ga qismaydi va manfiyga yo'l qo'ymaydi. Klientdagi bloklash
+  serverning shartiga aynan mos — dublikat emas, faqat 400 ni oldini oladi.
+- **Yangi:** qo'lda `remaining_stems` yuborilganda server avtomatik hisobni **bekor qiladi**
+  (spec §2). Shuning uchun frontend uni faqat aniq belgilangan inventarizatsiya rejimida yuboradi.
+
+## Untested write paths (added — READ-ONLY, none fired)
+
+- `PATCH /api/stock-batches/{id}/` `{ received_stems }` — kelgan sonni tuzatish
+- `PATCH /api/stock-batches/{id}/` `{ received_stems, remaining_stems }` — qo'lda inventarizatsiya
+- `PATCH /api/stock-batches/{id}/` `{ variant }` — nav almashtirish
+- `PATCH /api/stock-batches/{id}/` `{ delivery }` — yukni (va shu bilan postavshikni) almashtirish

@@ -29,8 +29,6 @@ import type { Accounting, AccountingByBranch, AccountingFigures, Analytics, Bran
 const METHOD_OPTS: { value: SupplierPaymentMethod; label: string }[] = [
   { value: "cash", label: "Naqd" }, { value: "card", label: "Karta" }, { value: "transfer", label: "O'tkazma" },
 ];
-/** qarz rangi: 0 → sage, qisman → amber, katta → rose */
-const debtTone = (outstanding: number, purchase: number) => outstanding <= 0 ? "var(--success-ink)" : (purchase > 0 && outstanding / purchase > 0.5) ? "var(--danger-ink)" : "var(--warning-ink)";
 
 /**
  * HISOB-KITOB — pulning YAGONA sahifasi (owner shu yerda "yashaydi").
@@ -144,7 +142,8 @@ export default function HisobKitobPage() {
   const [openFlo, setOpenFlo] = useState<number | null>(null);
   const [wasteOpen, setWasteOpen] = useState(false);
   const [includeTest, setIncludeTest] = useState(false); // dev-toggle: ZZZ_TEST_ yozuvlarni qo'shish
-  const [supSort, setSupSort] = useState<"outstanding" | "purchase" | "last">("outstanding");
+  // ⚠️ QARZ bo'yicha saralash OLIB TASHLANDI (maydon yo'q) — sukut: eng ko'p sotib olingan
+  const [supSort, setSupSort] = useState<"purchase" | "last">("purchase");
   const [payDrawer, setPayDrawer] = useState<{ supplierId: number; edit?: SupplierPayment } | null>(null);
   // FILIAL AJRATMASI — segmentli tanlov (Hammasi/Toshkent/<filial>). Filial foydalanuvchisiga
   // KO'RSATILMAYDI (server o'zi cheklaydi). Sarlavha branch_filter'dan (klient state'dan emas).
@@ -246,7 +245,7 @@ export default function HisobKitobPage() {
   }, [payments]);
 
   const supplierData = useMemo(() => {
-    // TUSHUM/FOYDA/CHIQIT — klient atributsiyasi (cost-share); XARID/TO'LOV/QARZ — SERVER rollup
+    // TUSHUM/FOYDA/CHIQIT — klient atributsiyasi (cost-share); SOTIB OLINGAN/TO'LOV — SERVER rollup
     const allocs = mainSales.flatMap((s) => saleLineAllocations(s, catalogById.get(s.catalog_id)));
     type Attr = { revenue: number; cost: number; wasteStems: number; wasteCost: number };
     const attr = new Map<number, Attr>();
@@ -258,14 +257,14 @@ export default function HisobKitobPage() {
       const profit = a.revenue - a.cost;
       return {
         id: s.id, name: s.name,
-        purchase: num(s.purchase_total), paid: num(s.paid_total), outstanding: num(s.outstanding), lastPaymentAt: s.last_payment_at ?? null,
+        purchase: num(s.purchase_total), paid: num(s.paid_total), lastPaymentAt: s.last_payment_at ?? null,
         revenue: a.revenue, cost: a.cost, profit, margin: a.revenue ? (profit / a.revenue) * 100 : 0,
         wasteStems: a.wasteStems, wasteCost: a.wasteCost,
       };
     });
-    rows.sort((x, y) => supSort === "purchase" ? y.purchase - x.purchase
-      : supSort === "last" ? (+new Date(y.lastPaymentAt ?? 0)) - (+new Date(x.lastPaymentAt ?? 0))
-      : y.outstanding - x.outstanding);
+    rows.sort((x, y) => supSort === "last"
+      ? (+new Date(y.lastPaymentAt ?? 0)) - (+new Date(x.lastPaymentAt ?? 0))
+      : y.purchase - x.purchase);
     return { rows, anySupplier: suppliers.length > 0 };
   }, [mainSales, catalogById, cleanWaste, suppliers, supSort]);
 
@@ -301,7 +300,7 @@ export default function HisobKitobPage() {
   const salaryByFlo = useMemo(() => { const m = new Map<number, FloristSalaryEntry[]>(); for (const e of salary) { const arr = m.get(e.florist) ?? []; arr.push(e); m.set(e.florist, arr); } return m; }, [salary]);
 
   // ── Excel eksport qatorlari ──────────────────────────────────────
-  const supplierExport = (): X.SupplierRow[] => supplierData.rows.map((r) => ({ name: r.name, receivedStems: 0, purchase: r.purchase, paid: r.paid, debt: r.outstanding, revenue: r.revenue, profit: r.profit, margin: Math.round(r.margin), wasteStems: r.wasteStems, wasteValue: r.wasteCost }));
+  const supplierExport = (): X.SupplierRow[] => supplierData.rows.map((r) => ({ name: r.name, receivedStems: 0, purchase: r.purchase, paid: r.paid, revenue: r.revenue, profit: r.profit, margin: Math.round(r.margin), wasteStems: r.wasteStems, wasteValue: r.wasteCost }));
   const catalogExport = (): X.CatalogProfitRow[] => catRows.map(({ s, p }) => ({ name: s.catalog_name, kind: KIND_LABEL[s.catalog_kind] ?? s.catalog_kind, arrangement: ARRANGEMENT_LABEL[s.arrangement_type as keyof typeof ARRANGEMENT_LABEL] ?? s.arrangement_type, volume: s.volume ? VOLUME_LABEL[s.volume] : "—", florist: s.florist_name, soldAt: fmtDate(s.sold_at), qty: s.quantity, sale: p.sale, cost: p.cost, discount: p.discount, net: p.net, margin: Math.round(p.margin) }));
   const variantExport = (): X.VariantRow[] => variantRows.map((r) => ({ name: r.name, purchasedStems: r.purchasedStems, purchaseSum: r.purchaseSum, soldStems: r.soldStems, wasteStems: r.wasteStems, wasteValue: r.wasteValue, revenue: r.revenue, profit: r.profit, margin: Math.round(r.margin) }));
   const floristExport = (): X.FloristRow[] => floristRows.map((r) => ({ name: r.name, staffType: r.staffType, standard: r.standard, custom: r.custom, productionValue: r.productionValue, salary: r.salary, avgPerItem: Math.round(r.avgPerItem), totalProfit: r.totalProfit }));
@@ -443,19 +442,19 @@ export default function HisobKitobPage() {
       )}
 
       {/* ═══ SECTION 1 — YETKAZIB BERUVCHILAR (to'lovlar bilan) ═══ */}
-      <SectionCard n={1} icon={<Package size={18} strokeWidth={2} />} title="Yetkazib beruvchilar" sub="qarz, to'lovlar, tushum va foyda — qatorni ochib to'lovlar tarixini ko'ring" onExport={supplierData.rows.length ? () => doExport("Yetkazib_beruvchilar", () => X.supplierSheet(supplierExport())) : undefined}>
+      <SectionCard n={1} icon={<Package size={18} strokeWidth={2} />} title="Yetkazib beruvchilar" sub="sotib olingan, to'lovlar, tushum va foyda — qatorni ochib to'lovlar tarixini ko'ring" onExport={supplierData.rows.length ? () => doExport("Yetkazib_beruvchilar", () => X.supplierSheet(supplierExport())) : undefined}>
         {hasBranchSales && <AttrNote />}
         {!supplierData.anySupplier ? (
           <div className="rounded-[14px] border border-dashed p-6 text-center" style={{ borderColor: "var(--border)" }}>
             <p className="text-[14px] font-bold">Yetkazib beruvchi yo&apos;q</p>
-            <p className="mx-auto mt-1 max-w-md text-[13px]" style={{ color: "var(--muted)" }}>Xarid, qarz va to&apos;lovlarni ko&apos;rish uchun avval yetkazib beruvchi qo&apos;shing va sklad partiyalariga biriktiring.</p>
+            <p className="mx-auto mt-1 max-w-md text-[13px]" style={{ color: "var(--muted)" }}>Sotib olingan summa va to&apos;lovlarni ko&apos;rish uchun avval yetkazib beruvchi qo&apos;shing va sklad partiyalariga biriktiring.</p>
             <Link href="/suppliers" className="mt-3 inline-block rounded-[11px] px-4 py-2 text-[13px] font-bold text-white" style={{ background: "var(--primary)" }}>Yetkazib beruvchilar →</Link>
           </div>
         ) : (
           <>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1 rounded-[11px] p-1" style={{ background: "var(--surface-2)" }}>
-                {([["outstanding", "Qarz"], ["purchase", "Xarid"], ["last", "Oxirgi to'lov"]] as [typeof supSort, string][]).map(([k, lbl]) => (
+                {([["purchase", "Sotib olingan"], ["last", "Oxirgi to'lov"]] as [typeof supSort, string][]).map(([k, lbl]) => (
                   <button key={k} onClick={() => setSupSort(k)} className="rounded-[8px] px-2.5 py-1 text-[12px] font-bold transition-colors" style={{ background: supSort === k ? "var(--surface-solid)" : "transparent", color: supSort === k ? "var(--primary)" : "var(--muted)" }}>{lbl}</button>
                 ))}
               </div>
@@ -468,9 +467,8 @@ export default function HisobKitobPage() {
                 <thead>
                   <tr className="text-left" style={{ color: "var(--muted)" }}>
                     <th className="px-2 py-2 font-semibold">Yetkazib beruvchi</th>
-                    <th className="px-2 py-2 text-right font-semibold">Xarid summasi</th>
-                    <th className="px-2 py-2 text-right font-semibold">To&apos;langan</th>
-                    <th className="px-2 py-2 text-right font-semibold">QARZ</th>
+                    <th className="px-2 py-2 text-right font-semibold">Umumiy sotib olingan<Tip text="Σ kelgan dona × dona tannarxi. Tekin gul (0 tannarx) bu summaga KIRMAYDI." /></th>
+                    <th className="px-2 py-2 text-right font-semibold">Yozib borilgan to&apos;lovlar<Tip text="Qayd etilgan to'lovlar yig'indisi. ⚠️ Bu QARZ EMAS — qarz hisobi yuritilmaydi, shuning uchun sotib olingandan AYIRMANG." /></th>
                     <th className="px-2 py-2 text-right font-semibold">Oxirgi to&apos;lov</th>
                     <th className="px-2 py-2 text-right font-semibold">Tushum<Tip text="Sotuv summasi har bir gul qatoriga tannarx ulushi bo'yicha taqsimlanadi." /></th>
                     <th className="px-2 py-2 text-right font-semibold">Foyda</th>
@@ -488,7 +486,6 @@ export default function HisobKitobPage() {
                           <td className="px-2 py-2.5 font-bold">{r.name}</td>
                           <td className="px-2 py-2.5 text-right"><Money v={r.purchase} /></td>
                           <td className="px-2 py-2.5 text-right" style={{ color: "var(--text-2)" }}><Money v={r.paid} /></td>
-                          <td className="px-2 py-2.5 text-right"><Money v={r.outstanding} tone={debtTone(r.outstanding, r.purchase)} bold /></td>
                           <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--muted)" }}>{r.lastPaymentAt ? fmtDate(r.lastPaymentAt) : "—"}</td>
                           <td className="px-2 py-2.5 text-right"><Money v={r.revenue} /></td>
                           <td className="px-2 py-2.5 text-right"><Money v={r.profit} tone={profitTone(r.profit, r.margin)} bold /> <span className="text-[11px]" style={{ color: "var(--muted)" }}>{r.revenue ? `${Math.round(r.margin)}%` : ""}</span></td>
@@ -520,8 +517,8 @@ export default function HisobKitobPage() {
                                 </div>
                               ))}
                               <div className="mt-1 flex items-center justify-between px-2.5 text-[12.5px] font-bold">
-                                <span>Qoldiq (qarz)</span>
-                                <span className="tabular-nums" style={{ color: debtTone(r.outstanding, r.purchase) }}>{fmt(r.outstanding)}</span>
+                                <span>To&apos;lovlar jami</span>
+                                <span className="tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(r.paid)}</span>
                               </div>
                             </div>
                           )}
@@ -881,7 +878,7 @@ function PaymentDrawer({ init, suppliers, onClose, onSaved, showToast }: {
       <div className="flex flex-col gap-3.5">
         <Field label="Yetkazib beruvchi">
           <Select value={supplier} onChange={(v) => setSupplier(+v)} placeholder="Tanlang" searchable
-            options={suppliers.map((s) => ({ value: s.id, label: s.name, hint: s.outstanding && +s.outstanding > 0 ? `qarz ${fmt(s.outstanding)}` : undefined }))} />
+            options={suppliers.map((s) => ({ value: s.id, label: s.name, hint: +(s.purchase_total ?? 0) > 0 ? `sotib olingan ${fmt(s.purchase_total)}` : undefined }))} />
           {errs.supplier && <p className="mt-1 text-[12px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.supplier}</p>}
         </Field>
         <Field label="Summa (so'm)">

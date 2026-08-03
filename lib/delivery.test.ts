@@ -130,12 +130,12 @@ describe("DR3 — roundingHint / deliveryRoundingHint (DISPLAY-ONLY, server numb
 import { buildBatchEditPayload, batchEditIsRetroactive, type BatchEditForm, type BatchEditOriginal } from "./inventory";
 
 const orig: BatchEditOriginal = {
-  batch_number: "EF-1", received_at: "2026-08-01", height_cm: 50, stems_per_bunch: 25,
+  batch_number: "EF-1", received_at: "2026-08-01", height_cm: 50, stems_per_bunch: 25, variant: 41, delivery: 3,
   minimum_sale_stems: 5, notes: "old", image_url: "img.jpg",
   cost_per_bunch: "25000.00", sale_price_per_bunch: "50000.00", cost_per_stem: "1000.00", sale_price_per_stem: "2000.00",
 };
 const baseForm: BatchEditForm = {
-  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", is_free: false, stems_per_bunch: "25",
+  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", variant: 41, delivery: 3, is_free: false, remainingManual: false, remaining_stems: "", stems_per_bunch: "25",
   minimum_sale_stems: "5", notes: "old", image_url: "img.jpg",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false,
@@ -187,11 +187,11 @@ const ORIG: BatchEditOriginal = {
   batch_number: "B-1", received_at: "2026-08-01", height_cm: 60, stems_per_bunch: 25,
   minimum_sale_stems: 1, notes: "", image_url: "",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
-  received_stems: 100, remaining_stems: 20, // ya'ni 80 dona ALLAQACHON ishlatilgan
+  received_stems: 100, remaining_stems: 20, variant: 41, delivery: 3, // ya'ni 80 dona ALLAQACHON ishlatilgan
 };
 const FORM = (over: Partial<BatchEditForm> = {}): BatchEditForm => ({
   batch_number: "B-1", received_at: "2026-08-01", height_cm: "60",
-  received_stems: "100", is_free: false, stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
+  received_stems: "100", variant: 41, delivery: 3, is_free: false, remainingManual: false, remaining_stems: "20", stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false, ...over,
 });
@@ -332,5 +332,48 @@ describe("compareBatchNewestFirst — BARQAROR «oxirgi qo'shilgan birinchi»", 
   it("sanasiz qatorlar oxiriga tushadi, lekin tartibi barqaror", () => {
     const xs = [b(1, ""), b(2, "2026-08-01"), b(3, "")].sort(compareBatchNewestFirst);
     expect(xs.map((x) => x.id)).toEqual([2, 3, 1]);
+  });
+});
+
+// ── SPEC jadvali (POSTAVSHIK_QARZ_VA_PARTIYA_TAHRIRI §2) — UCHALA qator AYNAN
+describe("received_stems — spec jadvalining uchala qatori", () => {
+  it("100 → 120 (30 ishlatilgan) → qoldiq 90, RUXSAT", () => {
+    expect(receivedEditConsequence(100, 70, 120)).toMatchObject({ used: 30, receivedTo: 120, remainingTo: 90, negative: false });
+  });
+  it("100 → 80 (30 ishlatilgan) → qoldiq 50, RUXSAT (KAMAYTIRISH bloklanmaydi)", () => {
+    expect(receivedEditConsequence(100, 70, 80)).toMatchObject({ used: 30, receivedTo: 80, remainingTo: 50, negative: false, decreasing: true });
+  });
+  it("120 → 10 (30 ishlatilgan) → qoldiq −20, BLOKLANADI (server 400 beradi)", () => {
+    expect(receivedEditConsequence(120, 90, 10)).toMatchObject({ used: 30, receivedTo: 10, remainingTo: -20, negative: true });
+  });
+  it("POL = ishlatilgan: aynan 30 ga tushirish RUXSAT (qoldiq 0)", () => {
+    expect(receivedEditConsequence(120, 90, 30)).toMatchObject({ remainingTo: 0, negative: false });
+  });
+  it("poldan 1 dona past → bloklanadi", () => {
+    expect(receivedEditConsequence(120, 90, 29)).toMatchObject({ remainingTo: -1, negative: true });
+  });
+});
+
+describe("⚠️ remaining_stems payload'ga FAQAT ataylab qo'shiladi", () => {
+  const O: BatchEditOriginal = { ...ORIG, received_stems: 100, remaining_stems: 20 };
+  it("kelgan o'zgardi, qo'lda qoldiq O'CHIQ → remaining_stems YO'Q (server o'zi hisoblaydi)", () => {
+    const p = buildBatchEditPayload(O, FORM({ received_stems: "120" }));
+    expect(p.received_stems).toBe(120);
+    expect("remaining_stems" in p).toBe(false);
+  });
+  it("qo'lda qoldiq YOQILGAN va o'zgargan → ikkalasi ham yuboriladi", () => {
+    const p = buildBatchEditPayload(O, FORM({ received_stems: "120", remainingManual: true, remaining_stems: "65" }));
+    expect(p).toMatchObject({ received_stems: 120, remaining_stems: 65 });
+  });
+  it("qo'lda qoldiq yoqilgan LEKIN qiymat o'zgarmagan → kalit yo'q", () => {
+    const p = buildBatchEditPayload(O, FORM({ remainingManual: true, remaining_stems: "20" }));
+    expect("remaining_stems" in p).toBe(false);
+  });
+  it("qo'lda qoldiq O'CHIQ bo'lsa, maydonda qiymat qolsa ham YUBORILMAYDI", () => {
+    const p = buildBatchEditPayload(O, FORM({ remainingManual: false, remaining_stems: "999" }));
+    expect("remaining_stems" in p).toBe(false);
+  });
+  it("hech narsa o'zgarmadi → BO'SH payload", () => {
+    expect(buildBatchEditPayload(O, FORM({ received_stems: "100" }))).toEqual({});
   });
 });

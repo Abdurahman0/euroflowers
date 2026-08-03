@@ -211,8 +211,19 @@ export type BatchEditForm = {
   height_cm: string;
   /** ⚠️ KELGAN MIQDOR — xato kiritishni to'g'rilash uchun (dona; forma pochkada ham kiritadi). */
   received_stems: string;
+  /** GUL NAVI — noto'g'ri nav tanlangan bo'lsa tuzatiladi (RETROAKTIV: bu partiyadan
+      yasalgan kataloglarning gul nomi/navi ham o'zgargandek ko'rinadi). */
+  variant: number;
+  /** YUK — boshqa yukka ko'chirish. ⚠️ raqam/sana/POSTAVSHIK birga o'zgaradi. */
+  delivery: number;
   /** TEKIN GUL — yoqilsa tannarx maydonlari yashiriladi va payload'ga tannarx QO'YILMAYDI. */
   is_free: boolean;
+  /** ⚠️ QOLDIQNI QO'LDA BELGILASH (inventarizatsiya) — sukut bo'yicha O'CHIQ.
+      Yoqilmasa `remaining_stems` payload'ga UMUMAN kirmaydi va server qoldiqni
+      O'ZI qayta hisoblaydi (kelgan farqi qancha bo'lsa qoldiq o'shancha siljiydi).
+      Yoqilsa server avtomatik hisobini BEKOR QILADI va aynan shu son qo'yiladi. */
+  remainingManual: boolean;
+  remaining_stems: string;
   stems_per_bunch: string;
   minimum_sale_stems: string;
   notes: string;
@@ -231,6 +242,7 @@ export type BatchEditOriginal = {
   /** kelgan/qolgan — «ishlatilgan»ni hisoblash uchun (received − remaining) */
   received_stems?: number; remaining_stems?: number;
   is_free?: boolean;
+  variant?: number; delivery?: number | null;
 };
 
 /**
@@ -307,8 +319,18 @@ export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditFo
     const c = receivedEditConsequence(orig.received_stems, orig.remaining_stems, raw);
     if (raw.trim() !== "" && c.changed && !c.negative) p.received_stems = c.receivedTo;
   }
+  // ⚠️ QOLDIQ — FAQAT operator «qo'lda belgilash»ni ATAYLAB yoqqanda yuboriladi.
+  // Tasodifan qo'shilsa serverning avtomatik qayta hisobi JIMGINA o'chib qoladi.
+  if (form.remainingManual) {
+    const rv = (form.remaining_stems ?? "").trim();
+    if (rv !== "" && Number.isFinite(+rv) && +rv !== orig.remaining_stems) p.remaining_stems = Math.max(Math.round(+rv), 0);
+  }
   if (+form.stems_per_bunch > 0 && +form.stems_per_bunch !== orig.stems_per_bunch) p.stems_per_bunch = +form.stems_per_bunch;
   if (+form.minimum_sale_stems > 0 && +form.minimum_sale_stems !== orig.minimum_sale_stems) p.minimum_sale_stems = +form.minimum_sale_stems;
+  if (form.variant > 0 && form.variant !== orig.variant) p.variant = form.variant;
+  // ⚠️ YUK almashtirilsa partiya boshqa yukka ko'chadi: raqam/sana/POSTAVSHIK va shu bilan
+  // qaysi postavshikning «Umumiy sotib olingan» summasiga kirishi ham o'zgaradi.
+  if (form.delivery > 0 && form.delivery !== orig.delivery) p.delivery = form.delivery;
   if (form.notes !== (orig.notes ?? "")) p.notes = form.notes;
   if (form.image_url !== (orig.image_url ?? "")) p.image_url = form.image_url;
   // ⚠️ TEKIN GUL — o'zgargan bo'lsa yuboriladi. TEKIN bo'lsa TANNARX KALITLARI QO'YILMAYDI
@@ -322,7 +344,7 @@ export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditFo
 /** RETROAKTIV o'zgarish bormi — tannarx/pochka-dona bo'linishi (avval yasalgan kataloglar tannarxiga ta'sir). */
 /** ⚠️ RETROAKTIV — tannarx/pochka-dona VA kelgan miqdor (partiya jami → yuk jamilari va tannarx raqamlari siljiydi). */
 export const batchEditIsRetroactive = (payload: Record<string, unknown>): boolean =>
-  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload || "received_stems" in payload || "is_free" in payload;
+  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload || "received_stems" in payload || "is_free" in payload || "variant" in payload;
 
 /* ===== yuborishdan oldin NORMALLASHTIRISH (katalog / social post) =====
    Bitta buket/savat = BITTA CatalogItem, ichida ko'p qatorli composition.
