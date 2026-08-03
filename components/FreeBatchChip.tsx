@@ -13,7 +13,7 @@ export default function FreeBatchChip({ className = "" }: { className?: string }
     <span
       className={`shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-bold leading-[1.5] ${className}`}
       style={{ background: "color-mix(in srgb, var(--acc) 16%, transparent)", color: "var(--acc)" }}
-      title="Postavshik tekinga qo'shib bergan — tannarx 0, qarzga qo'shilmagan"
+      title="Postavshik tekinga qo'shib bergan — tannarx 0, «Umumiy sotib olingan»ga qo'shilmagan"
     >
       TEKIN
     </span>

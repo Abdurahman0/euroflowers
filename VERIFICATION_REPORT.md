@@ -1489,3 +1489,12 @@ SB6. **Faqat narx tahriri.** Faqat sotuv narxini o'zgartiring — qoldiqqa TEGIL
 - `PATCH /api/stock-batches/{id}/` `{ received_stems, remaining_stems }` — qo'lda inventarizatsiya
 - `PATCH /api/stock-batches/{id}/` `{ variant }` — nav almashtirish
 - `PATCH /api/stock-batches/{id}/` `{ delivery }` — yukni (va shu bilan postavshikni) almashtirish
+
+### §1 follow-up — TEKIN matnlari «qarz» deyishdan to'xtatildi
+
+`outstanding` olib tashlangach, TEKIN ishidan qolgan uchta matn hamon «postavshik **qarziga**
+qo'shilmaydi» der edi — endi mavjud bo'lmagan tushunchaga havola. Uchalasi ham «Umumiy sotib
+olingan»ga o'tkazildi: `components/FreeBatchChip.tsx` (tooltip), `components/FreeBatchToggle.tsx`
+(yordamchi matn), `lib/types.ts` (`StockBatch.is_free` izohi). Boshqa `qarz` uchrashuvi —
+`app/bronlar/page.tsx` dagi «Qolgan qarz» — MIJOZ oldindan to'lovi, postavshikka aloqasi yo'q,
+tegilmadi.

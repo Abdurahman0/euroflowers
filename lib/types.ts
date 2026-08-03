@@ -295,7 +295,8 @@ export type StockBatch = {
   cost_per_stem_exact?: string | null;
   /** TEKIN GUL — postavshik tekinga qo'shib bergan. Tannarx MAJBURIY EMAS va 0 bo'ladi
       (server yuborilgan tannarxni ham 0 qiladi). Sotuv narxi MAJBURIY bo'lib qoladi.
-      ⚠️ Postavshik qarziga (purchase_total) QO'SHILMAYDI — 0 so'm to'lanadi. */
+      ⚠️ Postavshikning «Umumiy sotib olingan»iga (purchase_total) QO'SHILMAYDI — 0 so'm to'lanadi.
+      (Qarz tushunchasi yo'q — `outstanding` olib tashlangan, Supplier izohiga qarang.) */
   is_free?: boolean;
   /** ⚠️ YAXLITLANGAN dona sotuv narxi — hisob shu bilan. (FILIAL nested: null) */
   sale_price_per_stem?: string | null;

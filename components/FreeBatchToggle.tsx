@@ -35,7 +35,7 @@ export default function FreeBatchToggle({ checked, onChange, retroactive = false
         </span>
         <span className="mt-0.5 block text-[11.5px]" style={{ color: "var(--muted)" }}>
           {checked
-            ? "Tannarx yozilmaydi (0) va postavshik qarziga qo'shilmaydi. Sotuv narxi majburiy."
+            ? "Tannarx yozilmaydi (0) va postavshikning «Umumiy sotib olingan»iga qo'shilmaydi. Sotuv narxi majburiy."
             : "Belgilansa tannarx maydonlari yashiriladi — bu gul uchun pul to'lanmagan."}
         </span>
         {checked && retroactive && (
