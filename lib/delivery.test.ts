@@ -135,7 +135,7 @@ const orig: BatchEditOriginal = {
   cost_per_bunch: "25000.00", sale_price_per_bunch: "50000.00", cost_per_stem: "1000.00", sale_price_per_stem: "2000.00",
 };
 const baseForm: BatchEditForm = {
-  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", stems_per_bunch: "25",
+  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", is_free: false, stems_per_bunch: "25",
   minimum_sale_stems: "5", notes: "old", image_url: "img.jpg",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false,
@@ -191,7 +191,7 @@ const ORIG: BatchEditOriginal = {
 };
 const FORM = (over: Partial<BatchEditForm> = {}): BatchEditForm => ({
   batch_number: "B-1", received_at: "2026-08-01", height_cm: "60",
-  received_stems: "100", stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
+  received_stems: "100", is_free: false, stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false, ...over,
 });
@@ -246,5 +246,91 @@ describe("buildBatchEditPayload — received_stems FAQAT o'zgarganda va FAQAT xa
   it("received_stems RETROAKTIV deb belgilanadi (yuk jamilari/tannarx siljiydi)", () => {
     expect(batchEditIsRetroactive({ received_stems: 150 })).toBe(true);
     expect(batchEditIsRetroactive({ notes: "x" })).toBe(false);
+  });
+});
+
+// ── TEKIN GUL (is_free) — payload intizomi + barqaror tartib
+import { isFreeBatch, batchCostLabel, compareBatchNewestFirst } from "./inventory";
+
+describe("TEKIN GUL — buildBatchPayload (create)", () => {
+  const base = { variant: 31, heightCm: 60, stemsPerBunch: 25, deliveryId: 19, receivedStems: 100, salePerBunch: "50000" };
+  it("TEKIN: is_free yuboriladi, tannarx kalitlari UMUMAN yo'q", () => {
+    const p = buildBatchPayload({ ...base, isFree: true, costPerBunch: "99000", costPerStem: "4000" });
+    expect(p.is_free).toBe(true);
+    expect("cost_per_bunch" in p).toBe(false);
+    expect("cost_per_stem" in p).toBe(false);
+    expect(p.sale_price_per_bunch).toBe("50000"); // sotuv narxi QOLADI
+  });
+  it("PULLIK: is_free yuborilmaydi, tannarx odatdagidek ketadi", () => {
+    const p = buildBatchPayload({ ...base, costPerBunch: "25000" });
+    expect("is_free" in p).toBe(false);
+    expect(p.cost_per_bunch).toBe("25000");
+  });
+  it("TEKIN + tannarx qo'lda override — baribir yuborilmaydi (server tozalashiga tayanmaymiz)", () => {
+    const p = buildBatchPayload({ ...base, isFree: true, costPerStem: "4000" });
+    expect("cost_per_stem" in p).toBe(false);
+  });
+});
+
+describe("TEKIN GUL — buildBatchEditPayload (PATCH, faqat o'zgargan)", () => {
+  const O: BatchEditOriginal = { ...ORIG, is_free: false };
+  it("tekinga o'tkazildi → is_free:true, tannarx kalitlari yo'q", () => {
+    const p = buildBatchEditPayload(O, FORM({ is_free: true, cost_per_bunch: "99000" }));
+    expect(p.is_free).toBe(true);
+    expect("cost_per_bunch" in p).toBe(false);
+  });
+  it("tekindan pullikka qaytarildi → is_free:false va tannarx yana yuboriladi", () => {
+    const p = buildBatchEditPayload({ ...O, is_free: true }, FORM({ is_free: false, cost_per_bunch: "30000" }));
+    expect(p.is_free).toBe(false);
+    expect(p.cost_per_bunch).toBe("30000");
+  });
+  it("is_free tegilmagan → kalit yuborilmaydi", () => {
+    expect("is_free" in buildBatchEditPayload(O, FORM({}))).toBe(false);
+  });
+  it("is_free RETROAKTIV (tannarx asosini qayta yozadi)", () => {
+    expect(batchEditIsRetroactive({ is_free: true })).toBe(true);
+  });
+});
+
+describe("TEKIN GUL — ko'rsatish", () => {
+  it("isFreeBatch xavfsiz o'qiydi (maydon yo'q bo'lsa false)", () => {
+    expect(isFreeBatch({ is_free: true })).toBe(true);
+    expect(isFreeBatch({})).toBe(false);
+    expect(isFreeBatch(null)).toBe(false);
+  });
+  it("tekin tannarx «0 so'm · tekin» bo'lib o'qiladi (yalang 0 emas)", () => {
+    expect(batchCostLabel({ is_free: true }, "0 so'm")).toBe("0 so'm · tekin");
+    expect(batchCostLabel({ is_free: false }, "25 000 so'm")).toBe("25 000 so'm");
+  });
+});
+
+describe("compareBatchNewestFirst — BARQAROR «oxirgi qo'shilgan birinchi»", () => {
+  const b = (id: number, received_at: string, created_at?: string) => ({ id, received_at, created_at });
+  it("sana bo'yicha kamayish tartibida", () => {
+    const xs = [b(1, "2026-08-01"), b(2, "2026-08-03"), b(3, "2026-08-02")].sort(compareBatchNewestFirst);
+    expect(xs.map((x) => x.id)).toEqual([2, 3, 1]);
+  });
+  it("⚠️ BIR XIL SANA → created_at ↓ (server bu yerda beqaror)", () => {
+    const xs = [
+      b(10, "2026-08-02", "2026-08-03T08:00:00"),
+      b(11, "2026-08-02", "2026-08-03T12:00:00"),
+      b(12, "2026-08-02", "2026-08-03T10:00:00"),
+    ].sort(compareBatchNewestFirst);
+    expect(xs.map((x) => x.id)).toEqual([11, 12, 10]);
+  });
+  it("sana VA created_at bir xil → id ↓ (yakuniy barqaror kalit)", () => {
+    const xs = [b(5, "2026-08-02", "T"), b(9, "2026-08-02", "T"), b(7, "2026-08-02", "T")].sort(compareBatchNewestFirst);
+    expect(xs.map((x) => x.id)).toEqual([9, 7, 5]);
+  });
+  it("BARQAROR: kirish tartibi o'zgarsa ham natija BIR XIL (render'lar orasida sakramaydi)", () => {
+    const rows = [b(104, "2026-08-02", "2026-08-03T08:34"), b(109, "2026-08-02", "2026-08-03T12:11"), b(106, "2026-08-02", "2026-08-03T12:08")];
+    const a = [...rows].sort(compareBatchNewestFirst).map((x) => x.id);
+    const c = [...rows].reverse().sort(compareBatchNewestFirst).map((x) => x.id);
+    expect(a).toEqual(c);
+    expect(a).toEqual([109, 106, 104]);
+  });
+  it("sanasiz qatorlar oxiriga tushadi, lekin tartibi barqaror", () => {
+    const xs = [b(1, ""), b(2, "2026-08-01"), b(3, "")].sort(compareBatchNewestFirst);
+    expect(xs.map((x) => x.id)).toEqual([2, 3, 1]);
   });
 });

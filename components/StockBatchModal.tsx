@@ -9,6 +9,7 @@ import ImageInput from "./ImageInput";
 import DualQtyInput, { type QtyMode } from "./DualQtyInput";
 import DeliveryModal from "./DeliveryModal";
 import { PriceHint } from "./BatchPriceFields";
+import FreeBatchToggle from "./FreeBatchToggle";
 import { Icon } from "./icons";
 import { fmt, fmtDate } from "@/lib/format";
 import { DELIVERY, buildBatchPayload, perStemFromBunch, roundingNote } from "@/lib/inventory";
@@ -46,6 +47,8 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
   const [qty, setQty] = useState("");
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
+  // TEKIN GUL — yoqilsa tannarx maydonlari yashiriladi (qiymat formada saqlanadi)
+  const [isFree, setIsFree] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF({ ...f, [k]: e.target.value }); if (errs[k]) setErrs((x) => { const n = { ...x }; delete n[k]; return n; }); };
 
   useEffect(() => {
@@ -104,6 +107,7 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
         heightCm: +f.height_cm,
         stemsPerBunch: spb,
         ...(qtyMode === "bunches" ? { receivedBunches: +qty } : { receivedStems }),
+        isFree,
         costPerBunch: f.cost_per_bunch || null,
         costPerStem: costManual ? (f.cost_per_stem || null) : null,
         salePerBunch: f.sale_price_per_bunch || null,
@@ -180,12 +184,16 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
         {receivedStems > 0 && <p className="mt-2 text-[13px]" style={{ color: "var(--text-2)" }}>Jami kirim: <b>{receivedStems} dona</b></p>}
 
         <Section>Narx — pochkadan hisoblanadi</Section>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {/* TANNARX */}
+        {/* ⚠️ TEKIN GUL — NARX bo'limining TEPASIDA; yoqilsa tannarx ustuni CHIZILMAYDI */}
+        <FreeBatchToggle checked={isFree} onChange={setIsFree} />
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {/* TANNARX — tekin gulda umuman ko'rsatilmaydi */}
+          {!isFree && (
           <div>
             <Field label="Pochka tannarxi (so'm)"><input className="inp" type="number" value={f.cost_per_bunch} onChange={set("cost_per_bunch")} placeholder="Masalan: 25 000" /></Field>
             <PriceHint label="dona tannarxi" perStem={costPerStem} note={costNote} manual={costManual} manualVal={f.cost_per_stem} onManualToggle={() => setCostManual((m) => !m)} onManualChange={(v) => setF({ ...f, cost_per_stem: v })} />
           </div>
+          )}
           {/* SOTUV */}
           <div>
             <Field label="Pochka sotuv narxi (so'm)"><input className="inp" type="number" value={f.sale_price_per_bunch} onChange={set("sale_price_per_bunch")} placeholder="Masalan: 50 000" /></Field>
@@ -193,7 +201,12 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
           </div>
           <Field label="Minimal sotuv (dona)"><input className="inp" type="number" value={f.minimum_sale_stems} onChange={set("minimum_sale_stems")} placeholder={`Masalan: ${variant?.minimum_sale_stems ?? 5}`} /></Field>
         </div>
-        {margin !== 0 && costPerStem > 0 && (
+        {isFree && salePerStem > 0 && (
+          <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold" style={{ background: "color-mix(in srgb, var(--acc) 12%, transparent)", color: "var(--acc)" }}>
+            Tekin gul — tannarx 0. Bundan yasalgan katalogda gul tannarxi qo&apos;shilmaydi, foyda 100% ko&apos;rinadi (bu haqiqiy).
+          </p>
+        )}
+        {!isFree && margin !== 0 && costPerStem > 0 && (
           <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold" style={{ background: margin > 0 ? "var(--success-soft, rgba(61,138,95,.14))" : "var(--danger-soft, rgba(160,74,74,.12))", color: margin > 0 ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)" }}>
             Foyda: {margin > 0 ? "+" : ""}{fmt(margin)}/dona ({marginPct}%)
           </p>

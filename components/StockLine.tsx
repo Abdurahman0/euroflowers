@@ -1,6 +1,7 @@
 "use client";
 import { Flower2 } from "lucide-react";
 import type { ReactNode } from "react";
+import FreeBatchChip from "./FreeBatchChip";
 import type { FloristStockBatchDetail, StockBatch } from "@/lib/types";
 
 /** Ikki yo'nalishda BIR XIL o'qiladigan gul qatori — sklad→florist chiqarish formasi,
@@ -13,13 +14,15 @@ export type StockLineData = {
   color?: string;
   height?: string;
   batchNumber?: string;
+  /** TEKIN partiya — nom yonida «TEKIN» yorlig'i chiqadi (0 tannarx xato ko'rinmasin) */
+  isFree?: boolean;
 };
 
 /** Florist balansi/tarixidagi flat batch_detail → StockLineData. Himoyalangan:
     batch_detail yo'q bo'lsa ham QATOR portlamaydi — bo'sh grammatika qaytadi
     (StockLine "Gul" fallback + rasm o'rniga ikonka ko'rsatadi). */
 export const lineFromBatchDetail = (b: FloristStockBatchDetail | null | undefined): StockLineData =>
-  b ? { image: b.image_url, flower: b.flower, variant: b.variant, color: b.color, height: b.height_label, batchNumber: b.batch_number } : {};
+  b ? { image: b.image_url, flower: b.flower, variant: b.variant, color: b.color, height: b.height_label, batchNumber: b.batch_number, isFree: !!(b as { is_free?: boolean }).is_free } : {};
 /** Sklad partiyasi (nested variant_detail) → StockLineData. */
 export const lineFromStockBatch = (b: StockBatch): StockLineData => ({
   image: b.image_url || b.variant_detail?.image_url,
@@ -28,6 +31,7 @@ export const lineFromStockBatch = (b: StockBatch): StockLineData => ({
   color: b.variant_detail?.color_uz,
   height: b.height_label,
   batchNumber: b.batch_number,
+  isFree: !!b.is_free,
 });
 
 /** Bitta gul yozuvi — matnli qism (rasm + nomlar), o'ngda `right` sloti (miqdor/qiymat). */
@@ -45,7 +49,10 @@ export default function StockLine({ data, right, size = "md" }: { data: StockLin
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-bold" title={title}>{title}</div>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-[13px] font-bold" title={title}>{title}</span>
+          {data.isFree && <FreeBatchChip />}
+        </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px]" style={{ color: "var(--muted)" }}>
           {data.color && <span className="truncate">{data.color}</span>}
           {data.height && <><span aria-hidden>·</span><span>{data.height}</span></>}

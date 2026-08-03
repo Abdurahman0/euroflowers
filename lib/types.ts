@@ -289,6 +289,10 @@ export type StockBatch = {
   cost_per_bunch?: string | null;
   /** ⚠️ ANIQ dona tannarxi (4 xona) — FAQAT KO'RSATISH UCHUN. Hech qanday hisobga KIRMAYDI. */
   cost_per_stem_exact?: string | null;
+  /** TEKIN GUL — postavshik tekinga qo'shib bergan. Tannarx MAJBURIY EMAS va 0 bo'ladi
+      (server yuborilgan tannarxni ham 0 qiladi). Sotuv narxi MAJBURIY bo'lib qoladi.
+      ⚠️ Postavshik qarziga (purchase_total) QO'SHILMAYDI — 0 so'm to'lanadi. */
+  is_free?: boolean;
   /** ⚠️ YAXLITLANGAN dona sotuv narxi — hisob shu bilan. (FILIAL nested: null) */
   sale_price_per_stem?: string | null;
   sale_price_per_bunch?: string | null;

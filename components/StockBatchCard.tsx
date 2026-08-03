@@ -2,7 +2,8 @@
 import { ChevronRight, Pencil, Truck } from "lucide-react";
 import StemGauge from "./StemGauge";
 import { fmt } from "@/lib/format";
-import { bunches, freshness, stems, roundingHint } from "@/lib/inventory";
+import { bunches, freshness, stems, roundingHint, isFreeBatch, batchCostLabel } from "@/lib/inventory";
+import FreeBatchChip from "./FreeBatchChip";
 import type { StockBatch } from "@/lib/types";
 
 /**
@@ -25,7 +26,9 @@ export default function StockBatchCard({
   const v = batch.variant_detail;
   const fr = freshness(batch.received_at);
   // ⚠️ DISPLAY-ONLY: server rounding blokidan aniq hisob izohi (is_rounded=true bo'lganda)
-  const costHint = roundingHint(batch.rounding?.cost);
+  const free = isFreeBatch(batch);
+  // ⚠️ TEKIN partiyada yaxlitlash izohi MA'NOSIZ (tannarx 0) — ko'rsatilmaydi
+  const costHint = free ? null : roundingHint(batch.rounding?.cost);
   const saleHint = roundingHint(batch.rounding?.sale);
 
   return (
@@ -52,6 +55,7 @@ export default function StockBatchCard({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-tintink">№{batch.batch_number}</span>
+            {free && <FreeBatchChip />}
             {batch.supplier_detail && (
               <button
                 type="button"
@@ -75,7 +79,7 @@ export default function StockBatchCard({
 
       {/* narx qatori — yaxlitlangan; ostida aniq hisob (is_rounded bo'lganda, DISPLAY-ONLY) */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]" style={{ color: "var(--muted)" }}>
-        <span>Tannarx <b style={{ color: "var(--text-2)" }}>{fmt(batch.cost_per_stem)}</b>/dona{costHint && <span className="ml-1 text-[10.5px]" style={{ color: "var(--mut)" }}>({costHint})</span>}</span>
+        <span>Tannarx <b style={{ color: free ? "var(--acc)" : "var(--text-2)" }}>{batchCostLabel(batch, `${fmt(batch.cost_per_stem)}/dona`)}</b>{costHint && <span className="ml-1 text-[10.5px]" style={{ color: "var(--mut)" }}>({costHint})</span>}</span>
         <span>→ Sotuv <b style={{ color: "var(--acc)" }}>{fmt(batch.sale_price_per_stem)}</b>/dona{saleHint && <span className="ml-1 text-[10.5px]" style={{ color: "var(--mut)" }}>({saleHint})</span>}</span>
       </div>
       <div className="flex flex-wrap gap-1.5">

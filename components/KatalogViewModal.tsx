@@ -6,6 +6,7 @@ import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
 import { KIND_LABEL, catalogWaiting } from "@/lib/inventory";
 import { catalogHasCostData } from "@/lib/branch";
 import { api } from "@/lib/api";
+import FreeBatchChip from "./FreeBatchChip";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import type { CatalogHistory, CatalogHistoryAction, CatalogItem } from "@/lib/types";
 
@@ -187,9 +188,12 @@ export default function KatalogViewModal({
               const v = c.batch_detail?.variant_detail;
               return (
                 <div key={i} className="flex justify-between gap-3 text-[13px]">
-                  <span className="min-w-0 truncate">
-                    🌸 {v?.flower_detail?.name_uz ?? "Gul"} {v?.name_uz ?? ""}
-                    {v?.color_uz ? ` · ${v.color_uz}` : ""}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="min-w-0 truncate">
+                      🌸 {v?.flower_detail?.name_uz ?? "Gul"} {v?.name_uz ?? ""}
+                      {v?.color_uz ? ` · ${v.color_uz}` : ""}
+                    </span>
+                    {c.batch_detail?.is_free && <FreeBatchChip />}
                   </span>
                   <span className="shrink-0 font-semibold">{c.quantity_stems} dona</span>
                 </div>

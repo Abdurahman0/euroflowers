@@ -12,7 +12,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import EmptyState from "./EmptyState";
 import FlowerLoader from "./FlowerLoader";
 import { fmt, fmtDate } from "@/lib/format";
-import { DELIVERY, formatStemsAndBunches, roundingHint, deliveryRoundingHint } from "@/lib/inventory";
+import { DELIVERY, formatStemsAndBunches, roundingHint, deliveryRoundingHint, isFreeBatch, compareBatchNewestFirst } from "@/lib/inventory";
 import type { StockBatch, StockDelivery } from "@/lib/types";
 
 /**
@@ -34,7 +34,8 @@ export default function DeliveryDrawer({ delivery, onClose, onChanged }: {
   const [archiving, setArchiving] = useState(false);
 
   const load = useCallback(() => {
-    api.deliveryBatches(d.id, { ordering: "-created_at" }).then(setBatches).catch(() => setBatches([]));
+    // ⚠️ server -created_at ni e'tiborga olmaydi — klientda barqaror «yangi birinchi»
+    api.deliveryBatches(d.id, { ordering: "-received_at" }).then((bs) => setBatches([...bs].sort(compareBatchNewestFirst))).catch(() => setBatches([]));
     api.stockDelivery(d.id).then(setD).catch(() => {}); // jami ko'rsatkichlarni yangilaydi
   }, [d.id]);
   useEffect(() => { load(); }, [load]);
@@ -97,7 +98,7 @@ export default function DeliveryDrawer({ delivery, onClose, onChanged }: {
                   <StockLine data={lineFromStockBatch(b)} right={<span className="text-[13px] font-bold tabular-nums">{formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)}</span>} />
                   <div className="mt-2 flex flex-col gap-0.5 border-t pt-2 text-[12px]" style={{ borderColor: "var(--line2)" }}>
                     {b.cost_per_bunch && +b.cost_per_bunch > 0 && <PriceRow label="Pochka tannarxi" value={fmt(b.cost_per_bunch)} />}
-                    <PriceRow label="Dona tannarxi" value={`${fmt(b.cost_per_stem)}/dona`} hint={costHint} />
+                    <PriceRow label="Dona tannarxi" value={isFreeBatch(b) ? "0 so'm · tekin" : `${fmt(b.cost_per_stem)}/dona`} hint={isFreeBatch(b) ? null : costHint} />
                     <PriceRow label="Dona sotuv narxi" value={`${fmt(b.sale_price_per_stem)}/dona`} hint={saleHint} />
                   </div>
                 </div>

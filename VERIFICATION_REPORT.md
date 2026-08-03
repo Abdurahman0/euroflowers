@@ -1199,3 +1199,86 @@ s. **Does the backend still ignore `florist_salary_amount` on standard?** Spec �
    ("HAR IKKI rejimda AYNAN yuboriladi — backend tarif bilan bosib o'tmaydi"). We kept **sending**
    it (harmless either way, and it already equals the tariff since we auto-fill from it) but made
    the input read-only. Confirm which is true so the key can be dropped for standard.
+
+---
+
+# TEKIN GUL (is_free) + SKLAD ORDERING/FILTERS (2026-08-03)
+
+## Live GETs (read-only)
+
+### §1c — is_free audit
+```
+GET /api/stock-batches/?is_free=true   → count = 0
+GET /api/stock-batches/?is_free=false  → count = 87   (= all 87 batches)
+jami partiya: 87
+⚠️ cost_per_stem = 0 AMMO is_free = false: 0
+```
+**Nothing is currently free, and no batch has a zero cost without the flag** — so the confusing
+case ("0 cost that isn't deliberate") does not exist today. The TEKIN tag will therefore only ever
+appear on batches that really were gifted.
+
+### §4 — legacy batches with no delivery
+```
+GET /api/stock-batches/ → delivery = null bo'lganlar: 0 / 87
+```
+None exist. The supplier page still renders a **"Yuksiz partiyalar (eski yozuvlar)"** group
+(always last) so such rows can never be dropped silently if any appear later.
+
+### §2 — what the server can actually order by
+```
+?ordering=-id           → [62, 73, 74, 75, 76, 77, 79, 80]   (= unordered baseline → IGNORED)
+?ordering=-created_at   → [62, 73, 74, 75, 76, 77, 79, 80]   (IGNORED)
+?ordering=-received_at  → [107, 110, 105, 106, 108, 109, ...] (honoured)
+?ordering=-received_at,-id → identical to -received_at        (secondary key DROPPED)
+```
+Only `received_at` is an accepted ordering field, and it is a **DATE**: 46 batches share
+2026-08-02 and 21 share 2026-08-01. Worse, **two identical `-received_at` calls returned different
+within-day orders**, i.e. the server ordering is unstable inside a day.
+
+**Chosen approach:** ask the server for `?ordering=-received_at` (so pagination stays correct),
+then apply `compareBatchNewestFirst` on the client — `received_at ↓ → created_at ↓ → id ↓`.
+The client tiebreaker is safe here because `api.list()` de-paginates (follows `next` up to 5 pages),
+so the whole set is in memory before sorting. Same comparator is used for Partiyalar, Yuklar, the
+delivery detail's batch list and the supplier detail.
+
+### §3 / §1c filters
+`?variant=` (int), `?is_free=` (bool) and `?delivery=` (int) all exist and work.
+`?delivery=<id>` returns **exactly** the same rows as the nested
+`/api/stock-deliveries/{id}/batches/` (verified id 23 → identical 18 ids). It does **not**
+simplify existing code — `api.deliveryBatches()` is already a one-liner — so that call was left
+alone; the real value of `?delivery=` is that it composes with `is_free`/`variant`/`ordering` in a
+single request, which the nested route cannot.
+
+## LIST 1 — append
+
+TG1. **Tekin partiya yaratish.** Sklad → Yuklar → yuk → «Gul qo'shish». Narx bo'limi tepasidagi
+     «Postavshik tekinga qo'shib bergan» belgisini yoqing — **tannarx maydonlari YO'QOLADI**
+     (disable emas), sotuv narxi qoladi va majburiy. Saqlang. **REV** (partiyani tahrirlab
+     qaytarish mumkin), lekin ⚠️ tannarx asosini belgilaydi.
+TG2. **⚠️ POSTAVSHIK QARZI QIMIRLAMASLIGI KERAK.** TG1 dan oldin va keyin Yetkazib beruvchilar →
+     o'sha postavshik → `purchase_total` / qarzni yozib oling: **o'zgarmasligi shart** (tekin gul
+     uchun pul to'lanmaydi). Agar qarz oshsa — backend `is_free` ni hisobga olmayapti, DARHOL
+     xabar bering. **READ** (faqat solishtirish).
+TG3. **TEKIN yorlig'i hamma joyda.** Partiyalar ro'yxati, yuk detali, partiya drawer'i va
+     tanlagichlar (kompozitor, floristga chiqarish, chiqit, tuzatish) — hammasida nom yonida
+     `TEKIN`, tannarx esa «0 so'm · tekin» bo'lib o'qilishi kerak (yalang 0 EMAS). **READ.**
+TG4. **Tekin guldan katalog.** Tekin partiyadan katalog yasang: Hisob-kitob → 2-bo'lim qatorini
+     oching — tarkib qatorida `TEKIN` va «Tarkibida tekin gul bor — marja yuqori ko'rinadi»
+     izohi chiqadi. **Raqamlar o'zgartirilmagan**, faqat sabab aytilgan. **REV.**
+TG5. **Tartib.** Yangi partiya qo'shing — u ro'yxatning BOSHIDA (chap-yuqorida) turishi kerak.
+     Sahifani bir necha marta yangilang: tartib **sakramasligi** shart (barqaror tiebreaker).
+     ⚠️ Ilgari bu yerda «kam qoldiq yuqoriga» tartibi bor edi va u endi «Kam qolgan partiyalar»
+     chipiga ko'chdi. **READ.**
+TG6. **Filtrlar birga.** «Tekin» + «Gul navi» + «Tugagan partiyalar» — uchtasi bir-birini
+     tozalamasligi kerak; URL `?free=…&variant=…` bo'lib yangilanadi va sahifani yangilaganda
+     saqlanadi. **READ.**
+
+## LIST 2 — append
+t. **`is_free` PATCH'da — hal qilindi, lekin xatti-harakati emas.** `PatchedStockBatch.is_free`
+   yoziladi (readOnly EMAS), shuning uchun tahrirlashga ruxsat berdik va RETROAKTIV ogohlantirish
+   qo'ydik. **Ochiq savol:** mavjud partiyani `is_free: true` ga o'tkazganda server allaqachon
+   yasalgan kataloglarning `flower_cost`ini QAYTA hisoblaydimi, yoki faqat yangi sarflarga
+   ta'sir qiladimi? Bu javob «retroaktiv» so'zining ma'nosini belgilaydi.
+u. **Teskari yo'nalish:** `is_free: true` → `false` qilinganda tannarx qayerdan olinadi? Biz
+   formada saqlangan qiymatni qayta yuboramiz, lekin server 0 bo'lib qolgan tannarxni tiklay
+   oladimi yoki operator qo'lda kiritishi shartmi — tasdiqlansin.

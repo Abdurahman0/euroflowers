@@ -8,7 +8,8 @@ import BatchEditModal from "./BatchEditModal";
 import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtDate, fmtTime, movementRefLabel } from "@/lib/format";
-import { formatStemsAndBunches, roundingHint } from "@/lib/inventory";
+import { formatStemsAndBunches, roundingHint, isFreeBatch, batchCostLabel } from "@/lib/inventory";
+import FreeBatchChip from "./FreeBatchChip";
 import type { StockBatch, StockMovement } from "@/lib/types";
 
 /**
@@ -134,7 +135,7 @@ export default function BatchDrawer({
             <Meta label="Qabul qilingan" value={`${b.received_stems} dona`} />
             <Meta label="Dona narxi" value={fmt(b.sale_price_per_stem)} sub={roundingHint(b.rounding?.sale)} />
             <Meta label="Pochka narxi" value={fmt(b.sale_price_per_bunch)} />
-            <Meta label="Tannarx (dona)" value={fmt(b.cost_per_stem)} sub={roundingHint(b.rounding?.cost)} />
+            <Meta label="Tannarx (dona)" value={batchCostLabel(b, fmt(b.cost_per_stem))} sub={isFreeBatch(b) ? null : roundingHint(b.rounding?.cost)} />
             {b.cost_per_bunch && +b.cost_per_bunch > 0 && <Meta label="Tannarx (pochka)" value={fmt(b.cost_per_bunch)} />}
             <Meta label="Sklad qiymati" value={fmt(b.stock_value)} />
             <Meta label="Keldi" value={fmtDate(b.received_at)} />

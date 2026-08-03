@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import FreeBatchChip from "@/components/FreeBatchChip";
 import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown, BookmarkCheck, Info } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
@@ -937,12 +938,18 @@ function CatalogDetail({ sale, item, net }: { sale: import("@/lib/types").Accoun
         <>
           <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Tarkib (1 dona)</div>
           <div className="flex flex-col gap-1">
-            {item.composition.map((c) => (
+            {item.composition.map((c) => {
+              const free = !!c.batch_detail?.is_free;
+              return (
               <div key={c.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
-                <span className="min-w-0 truncate">{c.batch_detail?.variant_detail?.flower_detail?.name_uz} {c.batch_detail?.variant_detail?.name_uz} · №{c.batch_detail?.batch_number}</span>
-                <span className="shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{c.quantity_stems} dona × {fmt(c.batch_detail?.cost_per_stem)}/dona</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="min-w-0 truncate">{c.batch_detail?.variant_detail?.flower_detail?.name_uz} {c.batch_detail?.variant_detail?.name_uz} · №{c.batch_detail?.batch_number}</span>
+                  {free && <FreeBatchChip />}
+                </span>
+                <span className="shrink-0 tabular-nums" style={{ color: free ? "var(--acc)" : "var(--text-2)" }}>{c.quantity_stems} dona × {free ? "0 · tekin" : `${fmt(c.batch_detail?.cost_per_stem)}/dona`}</span>
               </div>
-            ))}
+              );
+            })}
             {(item.materials ?? []).map((m) => (
               <div key={m.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
                 <span className="min-w-0 truncate">Material: {m.packaging_detail?.name_uz}</span>
@@ -973,6 +980,12 @@ function CatalogDetail({ sale, item, net }: { sale: import("@/lib/types").Accoun
             )}
           </div>
         </div>
+      )}
+      {/* ⚠️ TEKIN GUL — marja «g'ayritabiiy» ko'rinadi va bu HAQIQIY. Raqam o'zgartirilmaydi, sabab aytiladi. */}
+      {(item?.composition ?? []).some((c) => c.batch_detail?.is_free) && (
+        <p className="mt-2 flex items-start gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[11.5px] font-semibold" style={{ background: "color-mix(in srgb, var(--acc) 12%, transparent)", color: "var(--acc)" }}>
+          <Info size={12} className="mt-px shrink-0" /> Tarkibida <b>tekin gul</b> bor — uning tannarxi 0, shuning uchun bu sotuvning marjasi yuqori ko&apos;rinadi. Raqam to&apos;g&apos;ri.
+        </p>
       )}
       {/* SERVER tannarx ajratmasi (butun sotuv bo'yicha, × {qty}). flower+material+fee === cost_total (kafolat). */}
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-[12.5px]" style={{ borderColor: "var(--line2)" }}>

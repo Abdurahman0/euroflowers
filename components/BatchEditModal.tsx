@@ -8,6 +8,7 @@ import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import DatePicker from "./DatePicker";
 import ImageInput from "./ImageInput";
 import { PriceHint } from "./BatchPriceFields";
+import FreeBatchToggle from "./FreeBatchToggle";
 import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import { Icon } from "./icons";
 import { fmt, fmtDate } from "@/lib/format";
@@ -20,6 +21,7 @@ const formFrom = (b: StockBatch): BatchEditForm => ({
   received_at: (b.received_at ?? "").slice(0, 10),
   height_cm: b.height_cm ? String(b.height_cm) : "",
   received_stems: b.received_stems != null ? String(b.received_stems) : "",
+  is_free: !!b.is_free,
   stems_per_bunch: b.stems_per_bunch ? String(b.stems_per_bunch) : "",
   minimum_sale_stems: b.minimum_sale_stems ? String(b.minimum_sale_stems) : "",
   notes: b.notes ?? "",
@@ -170,11 +172,16 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
       </div>
 
       <Section>Narx — pochkadan hisoblanadi</Section>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* ⚠️ TEKIN GUL — API PATCH'da ham yoziladi (is_free readOnly EMAS), shuning uchun tahrirlanadi;
+          mavjud partiyada RETROAKTIV (tannarx asosi qayta yoziladi) → ogohlantirish bilan. */}
+      <FreeBatchToggle checked={f.is_free} onChange={(v) => setF((p) => ({ ...p, is_free: v }))} retroactive={!batch.is_free} />
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {!f.is_free && (
         <div>
           <Field label="Pochka tannarxi (so'm)"><input className="inp" type="number" value={f.cost_per_bunch} onChange={set("cost_per_bunch")} placeholder="Masalan: 25 000" /></Field>
           <PriceHint label="dona tannarxi" perStem={costPerStem} note={costNote} manual={f.costManual} manualVal={f.cost_per_stem} onManualToggle={() => setF((p) => ({ ...p, costManual: !p.costManual }))} onManualChange={(vv) => setF((p) => ({ ...p, cost_per_stem: vv }))} />
         </div>
+        )}
         <div>
           <Field label="Pochka sotuv narxi (so'm)"><input className="inp" type="number" value={f.sale_price_per_bunch} onChange={set("sale_price_per_bunch")} placeholder="Masalan: 50 000" /></Field>
           <PriceHint label="dona sotuv narxi" perStem={salePerStem} note={saleNote} manual={f.saleManual} manualVal={f.sale_price_per_stem} onManualToggle={() => setF((p) => ({ ...p, saleManual: !p.saleManual }))} onManualChange={(vv) => setF((p) => ({ ...p, sale_price_per_stem: vv }))} />

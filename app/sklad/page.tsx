@@ -25,8 +25,8 @@ import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad from "@/components/MaterialSklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
-import { DELIVERY, MATERIAL_DELIVERY, MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL } from "@/lib/inventory";
-import type { FloristStockIssue, MaterialDelivery, MaterialMovement, PackagingType, StockBatch, StockDelivery, StockMovement, Supplier } from "@/lib/types";
+import { DELIVERY, MATERIAL_DELIVERY, MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL, compareBatchNewestFirst, compareDeliveryNewestFirst } from "@/lib/inventory";
+import type { FloristStockIssue, FlowerVariant, MaterialDelivery, MaterialMovement, PackagingType, StockBatch, StockDelivery, StockMovement, Supplier } from "@/lib/types";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "KIRIM", out: "CHIQIM", adjustment: "TUZATISH", waste: "CHIQIT", transfer_out: "O'TKAZMA →", transfer_in: "→ O'TKAZMA",
@@ -141,6 +141,10 @@ export default function SkladPage() {
   // dashboard alertidan chuqur havola: ?show=low (kam qolgan) | wilt (8+ kunlik)
   const [showFilter, setShowFilter] = useState<"" | "low" | "wilt">("");
   const [showDepleted, setShowDepleted] = useState(false); // tugagan (remaining_stems=0) partiyalarni ko'rsatish
+  // §1c TEKIN filtri (server ?is_free=) va §3 GUL NAVI filtri (server ?variant=) — URL'da saqlanadi
+  const [freeFilter, setFreeFilter] = useState<"" | "true" | "false">("");
+  const [variantFilter, setVariantFilter] = useState("");
+  const [variants, setVariants] = useState<FlowerVariant[]>([]);
   const [selBatch, setSelBatch] = useState<StockBatch | null>(null);
   const [editBatch, setEditBatch] = useState<StockBatch | null>(null); // kartadagi ikonkadan tahrirlash
   const [search, setSearch] = useState("");
@@ -158,7 +162,14 @@ export default function SkladPage() {
   const load = useCallback(async () => {
     try {
       const [bs, ms] = await Promise.all([
-        api.stockBatches({ is_active: true, ordering: "-received_at" }),
+        // ⚠️ TARTIB: server FAQAT received_at bo'yicha tartiblaydi (-id/-created_at e'tiborsiz) va bir
+        // kun ichida BEQAROR — shuning uchun klientda compareBatchNewestFirst bilan barqarorlashtiramiz.
+        api.stockBatches({
+          is_active: true,
+          ordering: "-received_at",
+          ...(freeFilter ? { is_free: freeFilter } : {}),
+          ...(variantFilter ? { variant: variantFilter } : {}),
+        }),
         // davr + tur filtri server tomonda
         api.stockMovements({
           ordering: "-created_at",
@@ -176,7 +187,7 @@ export default function SkladPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast, dateFilter, dateRange, moveType, moveSupplier]);
+  }, [showToast, dateFilter, dateRange, moveType, moveSupplier, freeFilter, variantFilter]);
 
   // yetkazib beruvchilar — jurnal filtri uchun (bir marta)
   useEffect(() => {
@@ -197,7 +208,8 @@ export default function SkladPage() {
 
   // YUKLAR — faqat shu tab ochilganda (server ordering: eng yangi birinchi)
   const loadDeliveries = useCallback(() => {
-    api.stockDeliveries({ is_active: true, ordering: "-received_at" }).then(setDeliveries).catch(() => setDeliveries([]));
+    // ⚠️ server bir kun ichida beqaror — klientda barqarorlashtiramiz (partiya bilan AYNAN bir qoida)
+    api.stockDeliveries({ is_active: true, ordering: "-received_at" }).then((ds) => setDeliveries([...ds].sort(compareDeliveryNewestFirst))).catch(() => setDeliveries([]));
   }, []);
   const loadMatDeliveries = useCallback(() => {
     api.materialDeliveries({ is_active: true, ordering: "-received_at" }).then(setMatDeliveries).catch(() => setMatDeliveries([]));
@@ -207,6 +219,7 @@ export default function SkladPage() {
     if (dSource === "gul") loadDeliveries(); else loadMatDeliveries();
   }, [tab, dSource, loadDeliveries, loadMatDeliveries]);
 
+  useEffect(() => { api.flowerVariants({ is_active: true }).then(setVariants).catch(() => {}); }, []);
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
 
@@ -219,6 +232,21 @@ export default function SkladPage() {
     window.addEventListener("ef:stock-changed", onStock);
     return () => window.removeEventListener("ef:stock-changed", onStock);
   }, [load, loadDeliveries]);
+
+  // §1c/§3 FILTRLARNI URL'da SAQLASH — yangilash yoki havola ulashishda saqlanadi
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    const fr = p.get("free"); if (fr === "true" || fr === "false") setFreeFilter(fr);
+    const va = p.get("variant"); if (va) setVariantFilter(va);
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const u = new URL(window.location.href);
+    freeFilter ? u.searchParams.set("free", freeFilter) : u.searchParams.delete("free");
+    variantFilter ? u.searchParams.set("variant", variantFilter) : u.searchParams.delete("variant");
+    window.history.replaceState(null, "", u);
+  }, [freeFilter, variantFilter]);
 
   // chuqur havola: ?tab=partiyalar&batch=N (suppliers'dan) yoki ?batch=N
   useEffect(() => {
@@ -252,7 +280,10 @@ export default function SkladPage() {
       // TUGAGAN (remaining_stems=0) partiyalar sukut bo'yicha yashiriladi (tanlash/ko'rish uchun) — toggle bilan qaytariladi.
       // Hisobotlar (Hisob-kitob/Analitika) accounting/harakatlar'ga tayanadi — bu filtr ularga TA'SIR QILMAYDI.
       : searched.filter((b) => showDepleted || b.remaining_stems > 0);
-  const fBatches = [...shown].sort((a, b) => stockRank(a) - stockRank(b));
+  // ⚠️ §2 SUKUT TARTIBI — «oxirgi qo'shilgan birinchi» (barqaror: sana ↓ → created_at ↓ → id ↓).
+  // Ilgari bu yerda stockRank (kam qoldiq yuqoriga) turardi va u yangilik tartibini BOSIB KETARDI;
+  // kam qoldiq diqqati «Kam qolgan partiyalar» chipi orqali saqlanib qoldi.
+  const fBatches = [...shown].sort(compareBatchNewestFirst);
   const depletedCount = searched.filter((b) => b.remaining_stems === 0).length;
   const total = batches.reduce((a, b) => a + b.remaining_stems, 0);
   const lows = batches.filter((b) => b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2);
@@ -643,9 +674,32 @@ export default function SkladPage() {
             </button>
           )}
           <SearchInput value={search} onChange={setSearch} ariaLabel="Partiya qidirish" />
+          {/* §3 GUL NAVI — server ?variant= (qidiriladigan; gul · nav · rang bilan) */}
+          <FilterSelect
+            value={variantFilter}
+            onChange={setVariantFilter}
+            label="Gul navi"
+            searchable
+            options={[{ value: "", label: "Barcha navlar" }, ...variants.map((v) => ({
+              value: String(v.id),
+              label: `${v.flower_detail?.name_uz ?? "Gul"} ${v.name_uz ?? ""}`.trim(),
+              sub: v.color_uz || undefined,
+            }))]}
+          />
+          {/* §1c TEKIN — server ?is_free= */}
+          <FilterSelect
+            value={freeFilter}
+            onChange={(v) => setFreeFilter(v as "" | "true" | "false")}
+            label="Tekin"
+            options={[
+              { value: "", label: "Hammasi" },
+              { value: "false", label: "Sotib olingan" },
+              { value: "true", label: "Tekin" },
+            ]}
+          />
           <ClearFilters
-            show={!!search || !!showFilter}
-            onClear={() => { setSearch(""); setShowFilter(""); }}
+            show={!!search || !!showFilter || !!freeFilter || !!variantFilter}
+            onClear={() => { setSearch(""); setShowFilter(""); setFreeFilter(""); setVariantFilter(""); }}
           />
           <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Yangi partiya

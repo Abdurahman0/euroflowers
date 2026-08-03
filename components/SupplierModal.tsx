@@ -1,12 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Package, Truck } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import StemGauge from "./StemGauge";
 import { fmtDate } from "@/lib/format";
-import { stems, freshness, MOVEMENT_LABEL } from "@/lib/inventory";
+import { stems, freshness, MOVEMENT_LABEL, DELIVERY, compareBatchNewestFirst, isFreeBatch } from "@/lib/inventory";
+import FreeBatchChip from "./FreeBatchChip";
 import type { MovementType, StockBatch, StockMovement, Supplier } from "@/lib/types";
 
 /** Yetkazib beruvchi — yaratish/tahrirlash (o'ng drawer). */
@@ -75,9 +76,26 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
   const [moves, setMoves] = useState<StockMovement[] | null>(null);
 
   useEffect(() => {
-    api.stockBatches({ supplier: supplier.id, ordering: "-received_at" }).then(setBatches).catch(() => setBatches([]));
+    // ⚠️ server bir kun ichida beqaror — klientda barqaror «yangi birinchi» (Partiyalar bilan bir qoida)
+    api.stockBatches({ supplier: supplier.id, ordering: "-received_at" }).then((bs) => setBatches([...bs].sort(compareBatchNewestFirst))).catch(() => setBatches([]));
     api.stockMovements({ supplier: supplier.id, ordering: "-created_at" }).then(setMoves).catch(() => setMoves([]));
   }, [supplier.id]);
+
+  // §4 YUK bo'yicha guruhlar — tartib partiya tartibidan meros (batches allaqachon saralangan)
+  const batchGroups = useMemo(() => {
+    const m = new Map<string, { key: string; title: string; rows: StockBatch[]; totalStems: number }>();
+    for (const b of batches ?? []) {
+      const dd = b.delivery_detail;
+      const key = dd ? `d${dd.id}` : "none";
+      const title = dd ? DELIVERY.label(dd.number, fmtDate(dd.received_at)) : "Yuksiz partiyalar (eski yozuvlar)";
+      const g = m.get(key) ?? { key, title, rows: [], totalStems: 0 };
+      g.rows.push(b);
+      g.totalStems += b.received_stems || 0;
+      m.set(key, g);
+    }
+    // «Yuksiz» guruh DOIM oxirida; qolganlari birinchi qatorining tartibini saqlaydi (yangi birinchi)
+    return Array.from(m.values()).sort((a, b) => (a.key === "none" ? 1 : b.key === "none" ? -1 : 0));
+  }, [batches]);
 
   return (
     <Modal onClose={onClose} width={560}>
@@ -114,21 +132,42 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
       </div>
 
       {tab === "batches" ? (
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="mt-3 flex flex-col gap-3">
           {batches == null && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
           {batches?.length === 0 && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Partiya yo&apos;q.</p>}
-          {batches?.map((b) => {
-            const fr = freshness(b.received_at);
-            return (
-              <button key={b.id} type="button" onClick={() => onOpenBatch?.(b)} className="rounded-[14px] border p-3 text-left transition-colors duration-150 hover:border-[color:var(--primary)]" style={{ borderColor: "var(--border)" }}>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="truncate text-[13px] font-bold">{b.variant_detail?.flower_detail?.name_uz} — {b.variant_detail?.name_uz}</span>
-                  <span className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: `color-mix(in srgb, ${fr.hue} 15%, transparent)`, color: fr.hue }}>{fr.label}</span>
-                </div>
-                <StemGauge batch={b} compact />
-              </button>
-            );
-          })}
+          {/* ⚠️ §4 YUK BO'YICHA GURUHLASH — yuk detali bilan AYNAN bir grammatika
+              (sarlavha: yuk raqami · sana · jamilar). Guruhlar ham «yangi birinchi».
+              Yuksiz (eski) partiyalar alohida guruhga tushadi — jimgina tushib qolmaydi. */}
+          {batchGroups.map((g) => (
+            <div key={g.key} className="rounded-[14px] border" style={{ borderColor: "var(--border)" }}>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Truck size={13} strokeWidth={2} style={{ color: "var(--primary)" }} />
+                  <span className="truncate text-[12.5px] font-bold">{g.title}</span>
+                </span>
+                <span className="shrink-0 text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>
+                  {g.rows.length} partiya · {stems(g.totalStems)}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2 p-2">
+                {g.rows.map((b: StockBatch) => {
+                  const fr = freshness(b.received_at);
+                  return (
+                    <button key={b.id} type="button" onClick={() => onOpenBatch?.(b)} className="rounded-[12px] border p-3 text-left transition-colors duration-150 hover:border-[color:var(--primary)]" style={{ borderColor: "var(--border)" }}>
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-[13px] font-bold">{b.variant_detail?.flower_detail?.name_uz} — {b.variant_detail?.name_uz}</span>
+                          {isFreeBatch(b) && <FreeBatchChip />}
+                        </span>
+                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: `color-mix(in srgb, ${fr.hue} 15%, transparent)`, color: fr.hue }}>{fr.label}</span>
+                      </div>
+                      <StemGauge batch={b} compact />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="mt-3 flex flex-col gap-1.5">

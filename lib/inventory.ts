@@ -168,6 +168,9 @@ export type BatchPayloadInput = {
   salePerStem?: string | null; // qo'lda override
   minimumSaleStems?: number | null;
   imageUrl?: string | null;
+  /** TEKIN GUL — true bo'lsa tannarx UMUMAN yuborilmaydi (server ham 0 qiladi, lekin
+      o'z payload'imizda server tozalashiga TAYANMAYMIZ). Sotuv narxi qoladi. */
+  isFree?: boolean;
 };
 export function buildBatchPayload(v: BatchPayloadInput): Record<string, unknown> {
   const p: Record<string, unknown> = { variant: v.variant, height_cm: v.heightCm, stems_per_bunch: v.stemsPerBunch };
@@ -181,9 +184,16 @@ export function buildBatchPayload(v: BatchPayloadInput): Record<string, unknown>
   }
   if (v.receivedBunches != null) p.received_bunches = v.receivedBunches.toFixed(2);
   else if (v.receivedStems != null) p.received_stems = v.receivedStems;
-  // narx: yuborilganini qo'yamiz — ikkalasi bo'lsa (override) ikkalasi ketadi, aks holda pochka only
-  if (v.costPerBunch) p.cost_per_bunch = v.costPerBunch;
-  if (v.costPerStem) p.cost_per_stem = v.costPerStem;
+  // ⚠️ TEKIN GUL: is_free yuboriladi va TANNARX KALITLARI UMUMAN QO'YILMAYDI.
+  // Server is_free bilan kelgan tannarxni 0 qilardi, ammo biz o'z payload'imizda
+  // server tozalashiga tayanmaymiz — noto'g'ri qiymat yo'lga chiqmasin.
+  if (v.isFree) {
+    p.is_free = true;
+  } else {
+    // narx: yuborilganini qo'yamiz — ikkalasi bo'lsa (override) ikkalasi ketadi, aks holda pochka only
+    if (v.costPerBunch) p.cost_per_bunch = v.costPerBunch;
+    if (v.costPerStem) p.cost_per_stem = v.costPerStem;
+  }
   if (v.salePerBunch) p.sale_price_per_bunch = v.salePerBunch;
   if (v.salePerStem) p.sale_price_per_stem = v.salePerStem;
   if (v.minimumSaleStems) p.minimum_sale_stems = v.minimumSaleStems;
@@ -201,6 +211,8 @@ export type BatchEditForm = {
   height_cm: string;
   /** ⚠️ KELGAN MIQDOR — xato kiritishni to'g'rilash uchun (dona; forma pochkada ham kiritadi). */
   received_stems: string;
+  /** TEKIN GUL — yoqilsa tannarx maydonlari yashiriladi va payload'ga tannarx QO'YILMAYDI. */
+  is_free: boolean;
   stems_per_bunch: string;
   minimum_sale_stems: string;
   notes: string;
@@ -218,6 +230,7 @@ export type BatchEditOriginal = {
   cost_per_bunch?: string | null; sale_price_per_bunch?: string | null; cost_per_stem?: string | null; sale_price_per_stem?: string | null;
   /** kelgan/qolgan — «ishlatilgan»ni hisoblash uchun (received − remaining) */
   received_stems?: number; remaining_stems?: number;
+  is_free?: boolean;
 };
 
 /**
@@ -298,14 +311,18 @@ export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditFo
   if (+form.minimum_sale_stems > 0 && +form.minimum_sale_stems !== orig.minimum_sale_stems) p.minimum_sale_stems = +form.minimum_sale_stems;
   if (form.notes !== (orig.notes ?? "")) p.notes = form.notes;
   if (form.image_url !== (orig.image_url ?? "")) p.image_url = form.image_url;
-  addPriceEdit(p, "cost", form.costManual, form.cost_per_bunch, form.cost_per_stem, orig.cost_per_bunch, orig.cost_per_stem);
+  // ⚠️ TEKIN GUL — o'zgargan bo'lsa yuboriladi. TEKIN bo'lsa TANNARX KALITLARI QO'YILMAYDI
+  // (server ularni 0 qilardi, lekin biz server tozalashiga tayanmaymiz).
+  const free = !!form.is_free;
+  if (free !== !!orig.is_free) p.is_free = free;
+  if (!free) addPriceEdit(p, "cost", form.costManual, form.cost_per_bunch, form.cost_per_stem, orig.cost_per_bunch, orig.cost_per_stem);
   addPriceEdit(p, "sale", form.saleManual, form.sale_price_per_bunch, form.sale_price_per_stem, orig.sale_price_per_bunch, orig.sale_price_per_stem);
   return p;
 }
 /** RETROAKTIV o'zgarish bormi — tannarx/pochka-dona bo'linishi (avval yasalgan kataloglar tannarxiga ta'sir). */
 /** ⚠️ RETROAKTIV — tannarx/pochka-dona VA kelgan miqdor (partiya jami → yuk jamilari va tannarx raqamlari siljiydi). */
 export const batchEditIsRetroactive = (payload: Record<string, unknown>): boolean =>
-  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload || "received_stems" in payload;
+  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload || "received_stems" in payload || "is_free" in payload;
 
 /* ===== yuborishdan oldin NORMALLASHTIRISH (katalog / social post) =====
    Bitta buket/savat = BITTA CatalogItem, ichida ko'p qatorli composition.
@@ -534,3 +551,52 @@ export const gaugeOf = (b: Pick<StockBatch, "remaining_stems" | "received_stems"
   if (pct < 0.2) return { pct, hue: "#b3873a", tone: "low" }; // amber
   return { pct, hue: "var(--primary)", tone: "ok" };
 };
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TEKIN GUL (is_free) — KO'RSATISH va TARTIB
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Partiya tekinmi (xavfsiz o'qish — maydon eski javoblarda bo'lmasligi mumkin). */
+export const isFreeBatch = (b: { is_free?: boolean } | null | undefined): boolean => !!b?.is_free;
+
+/** Tannarx yorlig'i: tekin partiyada 0 «yo'qolgan ma'lumot» kabi ko'rinmasin.
+    tekin → «0 so'm · tekin», aks holda odatdagi pul formati (chaqiruvchi fmt beradi). */
+export const batchCostLabel = (
+  b: { is_free?: boolean } | null | undefined,
+  formatted: string,
+): string => (isFreeBatch(b) ? "0 so'm · tekin" : formatted);
+
+/**
+ * PARTIYA TARTIBI — «oxirgi qo'shilgan birinchi».
+ *
+ * ⚠️ SERVER FAQAT `received_at` bo'yicha tartiblaydi (jonli tekshiruv 2026-08-03:
+ * `?ordering=-id` va `?ordering=-created_at` E'TIBORGA OLINMAYDI — natija tartibsiz
+ * bazaviy holat bilan bir xil; `-received_at,-id` ham ikkinchi kalitni tashlab yuboradi).
+ * `received_at` esa SANA — bir kunda 46 tagacha partiya bor va server ichki tartibi
+ * BEQAROR (ketma-ket ikki so'rov har xil ketma-ketlik qaytardi).
+ *
+ * Shuning uchun: serverdan `?ordering=-received_at` so'raymiz (sahifalash to'g'ri ishlashi
+ * uchun), so'ng klientda BARQAROR tiebreaker qo'llaymiz: created_at ↓, keyin id ↓.
+ * (api.list() barcha sahifalarni yig'adi, shuning uchun klient tartibi to'liq to'plamda ishlaydi.)
+ */
+export function compareBatchNewestFirst(
+  a: { id: number; received_at?: string | null; created_at?: string | null },
+  b: { id: number; received_at?: string | null; created_at?: string | null },
+): number {
+  const da = (a.received_at ?? "").slice(0, 10);
+  const db = (b.received_at ?? "").slice(0, 10);
+  if (da !== db) return db.localeCompare(da);           // sana ↓
+  const ca = a.created_at ?? "";
+  const cb = b.created_at ?? "";
+  if (ca !== cb) return cb.localeCompare(ca);           // yaratilgan vaqt ↓
+  return b.id - a.id;                                   // BARQAROR yakuniy kalit
+}
+
+/** Yuk tartibi — partiya bilan AYNAN bir qoida (sana ↓, keyin id ↓). */
+export function compareDeliveryNewestFirst(
+  a: { id: number; received_at?: string | null; created_at?: string | null },
+  b: { id: number; received_at?: string | null; created_at?: string | null },
+): number {
+  return compareBatchNewestFirst(a, b);
+}
