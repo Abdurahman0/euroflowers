@@ -447,6 +447,16 @@ export const api = {
     request<StockBatch>("/api/stock-batches/", { method: "POST", body: JSON.stringify(data) }),
   updateStockBatch: (id: number, data: Partial<StockBatch>) =>
     request<StockBatch>(`/api/stock-batches/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  /**
+   * PARTIYANI O'CHIRISH — aslida IKKI XIL tugaydi:
+   *   204 (tanasiz)                    → haqiqatan o'chdi (tegilmagan partiya)
+   *   200 {detail, is_active:false}    → sklad tarixi bor edi → ARXIVLANDI
+   * ⚠️ OpenAPI faqat `204` ni e'lon qiladi — 200 hujjatlashtirilmagan (LIST 2).
+   * `request()` 204 da `undefined` qaytargani uchun ikkalasini ajratsa bo'ladi;
+   * natijani `describeBatchDeleteResult()` talqin qiladi.
+   */
+  deleteStockBatch: (id: number) =>
+    request<{ detail?: string; is_active?: boolean } | undefined>(`/api/stock-batches/${id}/`, { method: "DELETE" }),
   /** kontrakt tavsiyasi: o'chirish o'rniga PATCH {is_active:false} */
   deactivateStockBatch: (id: number) =>
     request<StockBatch>(`/api/stock-batches/${id}/`, { method: "PATCH", body: JSON.stringify({ is_active: false }) }),

@@ -1803,3 +1803,139 @@ Tekshirilgan: server `[147,148,146,145,149]` bergan holda ekranda
 
 **Tekshiruv:** tsc toza · **322/322 Vitest** (15 tasi shu ish uchun) · konsol xatosi yo'q ·
 skrinshotlar dark + light (`srch-sklad-prut40-*`, `srch-katalog-order-*`).
+
+---
+
+# PARTIYA TAHRIRI QOIDALARI (2026-08-03)
+
+## §0a — Spec ro'yxati ↔ bizdagi modal
+
+| Spec ruxsat beradi | Bizda (avval) | Holat |
+|---|---|---|
+| `height_cm` | ✅ | — |
+| `height_from_cm`, `height_to_cm` | ❌ yo'q edi | **qo'shildi** |
+| `delivery` | ✅ | — |
+| `supplier` (yuksiz partiyada) | ❌ yo'q edi | **qo'shildi, SHARTLI** |
+| `received_at` | ⚠️ SHARTSIZ tahrirlanardi | **yuk bo'lsa read-only qilindi** |
+| `cost_*`, `sale_price_*` | ✅ | — |
+| `is_free`, `minimum_sale_stems`, `image_url`, `notes` | ✅ | — |
+| `is_active` | ❌ yo'q edi | **qo'shildi** |
+| `received_stems`, `stems_per_bunch` | ✅ | o'zgarmadi (TASK A qoidalari saqlandi) |
+| `variant` (ishlatilganda QULF) | ⚠️ SHARTSIZ tahrirlanardi | **QULFLANDI** |
+
+Bizda bor, spec ro'yxatida yo'q — **OpenAPI bilan tekshirildi, ikkalasi ham yoziladigan,
+shuning uchun QOLDIRILDI**: `batch_number` va qo'lda `remaining_stems` (sukut bo'yicha o'chiq).
+
+OpenAPI'da yoziladigan, ammo ATAYLAB ochilmagan: `cost_per_stem_exact`,
+`sale_price_per_stem_exact` (bizdagi qoida: FAQAT KO'RSATISH uchun) va `received_bunches`
+(DualQtyInput allaqachon donaga aylantiradi).
+
+## §0b — ⚠️ BU BIZNING XATOMIZ EDI
+
+TASK A da men `variant` ni «SAFE» deb tasnifladim va ogohlantirish yozdim:
+
+> «⚠️ Nav o'zgaradi — bu partiyadan yasalgan kataloglarda ham yangi nav ko'rinadi.»
+
+Bu jumla spec tasvirlagan BUZILISHNI (Prut → Alfalob) **xususiyat sifatida** taqdim etgan.
+Ishlatilgan partiyada nav almashtirish bizning UI'da MUMKIN edi. Endi:
+
+- `batchVariantLocked(b)` → `remaining_stems !== received_stems` bo'lsa maydon Select emas,
+  🔒 bilan o'qiladigan matn + spec izohi + **arxivlash chorasi**.
+- Payload darajasida ham ushlanadi: qulflangan partiyada `variant` payload'ga TUSHMAYDI.
+- ⚠️ **Bizning tekshiruv — ZAIF TAXMIN.** Server «ishlatilgan»ni kengroq biladi (katalog
+  tarkibi, floristga chiqarilgan, lead, har qanday harakat). Shuning uchun qulflanmagan
+  maydon RUXSAT degani EMAS: 400 kelsa matni AYNAN ko'rsatiladi va maydon **o'shandan keyin
+  qulflanadi** (`serverLocked`), nav esa asl qiymatiga qaytariladi.
+
+## §0c — `stems_per_bunch`: payload allaqachon TO'G'RI edi
+
+Tekshirildi va **o'zgartirilmadi**: `addPriceEdit` avto rejimda faqat pochka narxini
+yuboradi, dona narxini HECH QACHON qo'shmaydi; qo'lda rejimda esa dona narxini faqat
+**o'zgargan bo'lsa** yuboradi. Ya'ni tegilmagan dona narxi hech qachon `stems_per_bunch`
+bilan birga ketmaydi — spec ogohlantirgan «jimgina muzlatish» bizda yuz bermasdi.
+Endi bu uchta test bilan mixlab qo'yildi.
+
+Tuzatilgani — **preview**: ilgari tekin partiyada ham «arvoh» tannarx qatori chiqardi.
+`spbPriceRecompute(..., isFree)` endi tekin gulda dona tannarxini 0 da qoldiradi.
+
+Ekrandagi haqiqiy matn (25 → 50):
+```
+Pochkada dona: 25 → 50 — pochka narxi o'zgarmaydi, dona narxi qayta hisoblanadi:
+Dona tannarx 1 000 so'm → 500 so'm    Dona sotuv 2 000 so'm → 1 000 so'm
+Eng yaqin 100 ga yaxlitlanadi; aniq hisob ham yangilanadi.
+```
+— spec §2 jadvali bilan AYNAN bir xil.
+
+## §0d — O'chirish: bizda UMUMAN YO'Q EDI
+
+⚠️ Kutilganidan boshqacha topilma: **partiyani o'chirish oqimi kod bazasida yo'q edi** —
+`deleteStockBatch` ham, tugma ham. Ya'ni 200 ni noto'g'ri talqin qilish MUMKIN emas edi,
+chunki hech qachon chaqirilmagan. Endi qurildi.
+
+⚠️ **OpenAPI faqat `204` ni e'lon qiladi** — spec'dagi `200 {detail, is_active:false}`
+hujjatlashtirilmagan (LIST 2). Bizning `request()` 204 da `undefined`, 200 da tanani
+qaytaradi, shuning uchun ikkalasini ajratsa bo'ladi:
+
+```
+describeBatchDeleteResult(undefined)          → {archived:false}  «Partiya o'chirildi»
+describeBatchDeleteResult({detail, is_active}) → {archived:true}   serverning matni AYNAN
+```
+
+Tasdiq oynasi IKKALA natijani ham rostini aytadi va «qaysi biri bo'lgani saqlangandan
+keyin aytiladi» deydi. Toast **haqiqatda nima bo'lganini** aytadi — arxivlanganda
+«o'chirildi» deb ALDAMAYDI.
+
+## §2 — Verify
+
+Jonli (read-only GET, 86 ta partiya): **31 tasi ishlatilgan, 55 tasi tegilmagan** — ikkala
+holat ham real ma'lumotda mavjud.
+
+```
+QULF bo'ladiganlar (remaining ≠ received):
+  #138 №01:00 Atirgul · Jumilia   received=475 remaining=325
+  #117 №01:00 Atirgul · Alfalob   received=125 remaining=50
+  #134 №01:00 Atirgul · Alfalob   received=25  remaining=0
+
+OCHIQ qoladiganlar (remaining = received):
+  #173 №01:00 Atirgul · Alfalob   received=50  remaining=50
+  #170 №01:00 Atirgul · Luchiana  received=100 remaining=100
+  #169 №01:00 Atirgul · Jumilia   received=25  remaining=25
+```
+
+`tsc` toza · **344/344 Vitest** (22 tasi shu ish uchun) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `rul-variant-locked-*`, `rul-spb-recompute-*`,
+`rul-archive-confirm-*`, `rul-variant-unlocked-*`.
+
+## LIST 1 — yangilangan qadamlar
+
+SB7. **🔒 Nav qulfi.** Ishlatilgan partiyani (masalan #117: 125 kelgan / 50 qoldiq)
+     tahrirlang — «Gul navi» **tanlab bo'lmasligi**, 🔒 va «Bu partiyadan gul ishlatilgan,
+     navni almashtirib bo'lmaydi» izohi chiqishi kerak. **READ.**
+SB8. **Tegilmagan partiyada nav OCHIQ.** #173 (50/50) da nav almashtiriladi va saqlanadi.
+     **⚠️ QAYTMAS EMAS lekin diqqat**: faqat hali ishlatilmagan partiyada ruxsat.
+SB9. **⚠️ ZAIF QULF sinovi.** Qoldiq = kelgan, LEKIN partiya katalog tarkibida yoki
+     floristda bo'lgan holatni toping (bizning tekshiruv buni BILMAYDI). Nav almashtiring —
+     server **400** qaytarishi va UI o'sha matnni ko'rsatib maydonni qulflashi kerak. **READ.**
+SB10. **Pochkadagi dona qayta hisobi.** 25 → 50: preview «Dona tannarx 1 000 → 500 ·
+     Dona sotuv 2 000 → 1 000» ko'rsatsin, saqlagach server ham shu raqamlarni qo'ysin.
+     **⚠️ RETROAKTIV.** Tekin partiyada tannarx 0 da qolsin.
+SB11. **Arxivlash.** Tarixi BOR partiyani o'chiring → «arxivlandi» deb aytilsin va partiya
+     `is_active=false` bo'lsin (ro'yxatdan yo'qolsin, tarix qolsin). Tarixi YO'Q partiyada
+     esa «o'chirildi». **⚠️ QAYTMAS.**
+
+## LIST 2 — yopilgan savollar
+
+- **p (received_stems ↔ remaining_stems)** — allaqachon yopilgan edi (TASK A).
+- **q (manfiy qoldiq himoyasi)** — allaqachon yopilgan edi (TASK A).
+- **YANGI YOPILDI: nav tahririning oqibati.** Ilgari «nav o'zgarsa kataloglar nima bo'ladi?»
+  aniq emas edi — spec javob berdi: avval yasalgan buketlar tarkibi qayta yozilardi,
+  shuning uchun server endi bloklaydi.
+
+### LIST 2 — yangi savol
+
+cc. **`DELETE /api/stock-batches/{id}/` OpenAPI'da chala.** Sxema faqat `204` ni e'lon
+   qiladi, jonli xatti-harakat esa tarixi bor partiyada `200 {detail, is_active:false}`
+   qaytaradi. Biz tanasi bor-yo'qligiga qarab ajratamiz — bu ISHONCHLI kontrakt emas.
+   `200` javob sxemasi e'lon qilinsin. Qo'shimcha: arxivlangan partiyani QAYTARISH
+   (`is_active=true`) qo'llab-quvvatlanadimi? Biz «Faol partiya» belgisi orqali PATCH
+   yuboramiz — tasdiqlansin.

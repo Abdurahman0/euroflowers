@@ -135,7 +135,7 @@ const orig: BatchEditOriginal = {
   cost_per_bunch: "25000.00", sale_price_per_bunch: "50000.00", cost_per_stem: "1000.00", sale_price_per_stem: "2000.00",
 };
 const baseForm: BatchEditForm = {
-  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", variant: 41, delivery: 3, is_free: false, remainingManual: false, remaining_stems: "", stems_per_bunch: "25",
+  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", variant: 41, delivery: 3, height_from_cm: "", height_to_cm: "", supplier: 0, is_active: true, is_free: false, remainingManual: false, remaining_stems: "", stems_per_bunch: "25",
   minimum_sale_stems: "5", notes: "old", image_url: "img.jpg",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false,
@@ -191,7 +191,7 @@ const ORIG: BatchEditOriginal = {
 };
 const FORM = (over: Partial<BatchEditForm> = {}): BatchEditForm => ({
   batch_number: "B-1", received_at: "2026-08-01", height_cm: "60",
-  received_stems: "100", variant: 41, delivery: 3, is_free: false, remainingManual: false, remaining_stems: "20", stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
+  received_stems: "100", variant: 41, delivery: 3, height_from_cm: "", height_to_cm: "", supplier: 0, is_active: true, is_free: false, remainingManual: false, remaining_stems: "20", stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false, ...over,
 });
@@ -463,5 +463,130 @@ describe("compareCatalogNewestFirst — oxirgi qo'shilgan BIRINCHI", () => {
   it("created_at yo'q bo'lsa ham yiqilmaydi", () => {
     const rows = [{ id: 5 }, { id: 9 }];
     expect(rows.slice().sort(compareCatalogNewestFirst).map((x) => x.id)).toEqual([9, 5]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARTIYA TAHRIRI QOIDALARI (spec: PARTIYA_TAHRIRI_QOIDALARI.md)
+// ─────────────────────────────────────────────────────────────────────────────
+import { batchVariantLocked, spbPriceRecompute, describeBatchDeleteResult, VARIANT_LOCKED_HINT } from "./inventory";
+
+describe("batchVariantLocked — ishlatilgan partiyada nav QULFLANADI", () => {
+  it("tegilmagan (qoldiq = kelgan) → OCHIQ", () => {
+    expect(batchVariantLocked({ received_stems: 100, remaining_stems: 100 })).toBe(false);
+  });
+  it("⚠️ biror narsa ishlatilgan (qoldiq < kelgan) → QULF", () => {
+    expect(batchVariantLocked({ received_stems: 100, remaining_stems: 99 })).toBe(true);
+  });
+  it("butunlay tugagan → QULF", () => {
+    expect(batchVariantLocked({ received_stems: 25, remaining_stems: 0 })).toBe(true);
+  });
+  it("jonli misollar: #173 (50/50) ochiq, #117 (125/50) qulf", () => {
+    expect(batchVariantLocked({ received_stems: 50, remaining_stems: 50 })).toBe(false);
+    expect(batchVariantLocked({ received_stems: 125, remaining_stems: 50 })).toBe(true);
+  });
+  it("ma'lumot yo'q → qulflamaymiz (server baribir tekshiradi)", () => {
+    expect(batchVariantLocked({})).toBe(false);
+  });
+});
+
+describe("buildBatchEditPayload — nav qulfi payload darajasida ham ushlanadi", () => {
+  it("⚠️ ISHLATILGAN partiyada nav o'zgartirilsa ham payload'ga TUSHMAYDI", () => {
+    // ORIG: received 100 / remaining 20 → 80 ishlatilgan → QULF
+    const p = buildBatchEditPayload(ORIG, FORM({ variant: 99 }));
+    expect("variant" in p).toBe(false);
+  });
+  it("TEGILMAGAN partiyada nav o'zgaradi", () => {
+    const untouched: BatchEditOriginal = { ...ORIG, received_stems: 100, remaining_stems: 100 };
+    const p = buildBatchEditPayload(untouched, FORM({ received_stems: "100", remaining_stems: "100", variant: 99 }));
+    expect(p.variant).toBe(99);
+  });
+});
+
+describe("⚠️ stems_per_bunch o'zgarsa — TEGILMAGAN dona narxi YUBORILMAYDI", () => {
+  it("pochkada dona o'zgardi, dona narxlariga tegilmadi → faqat stems_per_bunch", () => {
+    const p = buildBatchEditPayload(ORIG, FORM({ stems_per_bunch: "50" }));
+    expect(p.stems_per_bunch).toBe(50);
+    // aynan shu narsa eski narxni JIMGINA muzlatib qo'yardi
+    expect("cost_per_stem" in p).toBe(false);
+    expect("sale_price_per_stem" in p).toBe(false);
+  });
+  it("qo'lda dona narxi ATAYLAB o'zgartirilsa — u ustun keladi (spec ruxsat beradi)", () => {
+    const p = buildBatchEditPayload(ORIG, FORM({ stems_per_bunch: "50", costManual: true, cost_per_stem: "700" }));
+    expect(p.stems_per_bunch).toBe(50);
+    expect(p.cost_per_stem).toBe("700");
+  });
+  it("qo'lda rejim YOQILGAN, lekin qiymat o'zgarmagan → yuborilmaydi (muzlatmaydi)", () => {
+    const p = buildBatchEditPayload(ORIG, FORM({ stems_per_bunch: "50", costManual: true, cost_per_stem: "1000" }));
+    expect("cost_per_stem" in p).toBe(false);
+  });
+});
+
+describe("spbPriceRecompute — spec §2 jadvali", () => {
+  it("25 → 50: pochka 25 000 / 50 000 o'zgarmaydi, dona 1 000→500 va 2 000→1 000", () => {
+    const r = spbPriceRecompute(25000, 50000, 25, 50);
+    expect(r.changed).toBe(true);
+    expect(r.costFrom).toBe(1000); expect(r.costTo).toBe(500);
+    expect(r.saleFrom).toBe(2000); expect(r.saleTo).toBe(1000);
+  });
+  it("100 ga yaxlitlanadi (mavjud helper bilan bir xil)", () => {
+    // 24 950 / 25 = 998 → 1 000
+    expect(spbPriceRecompute(24950, 0, 25, 25).costFrom).toBe(1000);
+  });
+  it("o'zgarmasa changed=false", () => {
+    expect(spbPriceRecompute(25000, 50000, 25, 25).changed).toBe(false);
+  });
+  it("⚠️ TEKIN partiyada dona TANNARXI 0 — arvoh hisob ko'rsatilmaydi", () => {
+    const r = spbPriceRecompute(25000, 50000, 25, 50, true);
+    expect(r.costFrom).toBe(0); expect(r.costTo).toBe(0);
+    expect(r.showCost).toBe(false);
+    // sotuv narxi tekin gulda ham qoladi
+    expect(r.saleTo).toBe(1000);
+  });
+});
+
+describe("describeBatchDeleteResult — 200 (arxiv) va 204 (o'chdi) farqi", () => {
+  it("204 → tana YO'Q → haqiqatan O'CHDI", () => {
+    const r = describeBatchDeleteResult(undefined);
+    expect(r.archived).toBe(false);
+    expect(r.message).toContain("o'chirildi");
+  });
+  it("⚠️ 200 + detail → ARXIVLANDI, serverning matni AYNAN ko'rsatiladi", () => {
+    const body = { detail: "Bu partiyada sklad tarixi bor. Partiya o'chirilmadi, is_active=false qilib arxivlandi.", is_active: false };
+    const r = describeBatchDeleteResult(body);
+    expect(r.archived).toBe(true);
+    expect(r.message).toBe(body.detail);
+  });
+  it("200 lekin detail'siz → baribir ARXIV deb qaraladi (o'chdi deb ALDAMAYMIZ)", () => {
+    const r = describeBatchDeleteResult({ is_active: false });
+    expect(r.archived).toBe(true);
+    expect(r.message).toContain("arxivlandi");
+  });
+});
+
+describe("qulf matni — spec bilan AYNAN", () => {
+  it("forma izohi", () => {
+    expect(VARIANT_LOCKED_HINT).toBe("Bu partiyadan gul ishlatilgan, navni almashtirib bo'lmaydi");
+  });
+});
+
+describe("yangi maydonlar — supplier faqat YUKSIZ partiyada", () => {
+  it("⚠️ yuk BOR → supplier payload'ga TUSHMAYDI (postavshik yukdan keladi)", () => {
+    const p = buildBatchEditPayload(ORIG, FORM({ supplier: 77 })); // ORIG.delivery = 3
+    expect("supplier" in p).toBe(false);
+  });
+  it("yuk YO'Q → supplier tahrirlanadi", () => {
+    const noDel: BatchEditOriginal = { ...ORIG, delivery: null, supplier: 23 };
+    const p = buildBatchEditPayload(noDel, FORM({ delivery: 0, supplier: 77 }));
+    expect(p.supplier).toBe(77);
+  });
+  it("is_active o'zgarsa yuboriladi (arxivlash/qaytarish)", () => {
+    const p = buildBatchEditPayload({ ...ORIG, is_active: true }, FORM({ is_active: false }));
+    expect(p.is_active).toBe(false);
+  });
+  it("bo'y oralig'i — bo'sh qolsa tegilmaydi", () => {
+    expect("height_from_cm" in buildBatchEditPayload(ORIG, FORM({}))).toBe(false);
+    expect(buildBatchEditPayload(ORIG, FORM({ height_from_cm: "40", height_to_cm: "60" })))
+      .toMatchObject({ height_from_cm: 40, height_to_cm: 60 });
   });
 });

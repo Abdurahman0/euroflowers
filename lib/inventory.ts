@@ -226,6 +226,13 @@ export type BatchEditForm = {
   remaining_stems: string;
   stems_per_bunch: string;
   minimum_sale_stems: string;
+  /** BO'Y ORALIG'I — «40–60 sm» partiyalar uchun (ixtiyoriy) */
+  height_from_cm: string;
+  height_to_cm: string;
+  /** ⚠️ POSTAVSHIK — FAQAT yuk tanlanmagan partiyada; yuk bo'lsa undan keladi va o'qish uchun. */
+  supplier: number;
+  /** FAOL — arxivdan qaytarish / arxivlash uchun (o'chirish emas) */
+  is_active: boolean;
   notes: string;
   image_url: string;
   cost_per_bunch: string;
@@ -235,8 +242,69 @@ export type BatchEditForm = {
   costManual: boolean;
   saleManual: boolean;
 };
+/**
+ * GUL NAVI QULFI — partiyadan biror narsa ishlatilgan bo'lsa nav o'zgartirilmaydi.
+ *
+ * ⚠️ NEGA: nav almashtirilsa shu partiyadan AVVAL yasalgan buketlar tarkibi ham
+ * qayta yoziladi — `Prut` dan yasalgan buket katalogda `Alfalob` bo'lib ko'rinardi.
+ *
+ * ⚠️ BU TEKSHIRUV — ZAIF TAXMIN. Server «ishlatilgan» ni KENGROQ tushunadi:
+ * qoldiq kam, YOKI katalog tarkibida, YOKI floristga chiqarilgan, YOKI leadda,
+ * YOKI biror chiqim/chiqit harakati bo'lgan. Ya'ni bu yerda «qulflanmagan» degani
+ * RUXSAT degani EMAS — server baribir 400 qaytarishi mumkin. Shuning uchun UI
+ * 400 ni AYNAN ko'rsatib, maydonni o'shandan keyin qulflashi kerak.
+ */
+export const batchVariantLocked = (b: { received_stems?: number; remaining_stems?: number }): boolean =>
+  b.received_stems != null && b.remaining_stems != null && b.remaining_stems !== b.received_stems;
+
+/** Serverning nav qulfi matni (400) — AYNAN nusxa. */
+export const VARIANT_LOCKED_HINT = "Bu partiyadan gul ishlatilgan, navni almashtirib bo'lmaydi";
+
+/**
+ * POCHKADAGI DONA o'zgarganda dona narxlari qayta hisoblanadi:
+ * pochka narxi O'ZGARMAYDI, dona narxi = pochka / yangi spb, 100 ga yaxlitlanadi.
+ * ⚠️ TEKIN partiyada (`is_free`) dona TANNARXI baribir 0 — «arvoh» hisob ko'rsatilmaydi.
+ */
+export function spbPriceRecompute(
+  costBunch: number, saleBunch: number, spbFrom: number, spbTo: number, isFree = false,
+): { changed: boolean; costFrom: number; costTo: number; saleFrom: number; saleTo: number; showCost: boolean } {
+  const changed = spbFrom > 0 && spbTo > 0 && spbFrom !== spbTo;
+  return {
+    changed,
+    costFrom: isFree ? 0 : perStemFromBunch(costBunch, spbFrom),
+    costTo: isFree ? 0 : perStemFromBunch(costBunch, spbTo),
+    saleFrom: perStemFromBunch(saleBunch, spbFrom),
+    saleTo: perStemFromBunch(saleBunch, spbTo),
+    showCost: !isFree,
+  };
+}
+
+/**
+ * PARTIYANI O'CHIRISH natijasi — DELETE ikki xil tugaydi:
+ *   204 (tanasiz)  → partiya haqiqatan O'CHDI (tegilmagan edi)
+ *   200 + {detail, is_active:false} → sklad tarixi bor edi, ARXIVLANDI
+ * ⚠️ OpenAPI faqat 204 ni e'lon qiladi — 200 hujjatlashtirilmagan (LIST 2).
+ * `request()` 204 da `undefined`, 200 da tanani qaytaradi — shundan ajratamiz.
+ */
+export function describeBatchDeleteResult(body: unknown): { archived: boolean; message: string } {
+  const detail = body && typeof body === "object" && "detail" in body
+    ? String((body as { detail: unknown }).detail) : "";
+  // is_active:false yoki umuman tana bo'lsa — ARXIVLANDI (o'chmadi)
+  const archived = !!body && typeof body === "object";
+  return {
+    archived,
+    message: archived
+      ? (detail || "Partiyada sklad tarixi bor — o'chirilmadi, arxivlandi (is_active=false).")
+      : "Partiya o'chirildi.",
+  };
+}
+
 export type BatchEditOriginal = {
   batch_number?: string; received_at?: string; height_cm?: number; stems_per_bunch?: number;
+  height_from_cm?: number | null; height_to_cm?: number | null;
+  /** ⚠️ postavshik — FAQAT yuksiz partiyada tahrirlanadi (yuk bo'lsa undan keladi) */
+  supplier?: number | null;
+  is_active?: boolean;
   minimum_sale_stems?: number; notes?: string; image_url?: string;
   cost_per_bunch?: string | null; sale_price_per_bunch?: string | null; cost_per_stem?: string | null; sale_price_per_stem?: string | null;
   /** kelgan/qolgan — «ishlatilgan»ni hisoblash uchun (received − remaining) */
@@ -327,7 +395,19 @@ export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditFo
   }
   if (+form.stems_per_bunch > 0 && +form.stems_per_bunch !== orig.stems_per_bunch) p.stems_per_bunch = +form.stems_per_bunch;
   if (+form.minimum_sale_stems > 0 && +form.minimum_sale_stems !== orig.minimum_sale_stems) p.minimum_sale_stems = +form.minimum_sale_stems;
-  if (form.variant > 0 && form.variant !== orig.variant) p.variant = form.variant;
+  // BO'Y ORALIG'I — bo'sh qoldirilsa tegilmaydi (null yuborilmaydi)
+  const hf = (form.height_from_cm ?? "").trim();
+  if (hf !== "" && +hf > 0 && +hf !== (orig.height_from_cm ?? 0)) p.height_from_cm = +hf;
+  const ht = (form.height_to_cm ?? "").trim();
+  if (ht !== "" && +ht > 0 && +ht !== (orig.height_to_cm ?? 0)) p.height_to_cm = +ht;
+  // ⚠️ POSTAVSHIK — FAQAT yuksiz partiyada. Yuk tanlangan bo'lsa postavshik YUKDAN keladi,
+  // uni alohida yuborish desync qilardi.
+  const hasDelivery = (form.delivery ?? 0) > 0 || (orig.delivery ?? 0) > 0;
+  if (!hasDelivery && (form.supplier ?? 0) > 0 && form.supplier !== (orig.supplier ?? 0)) p.supplier = form.supplier;
+  if (form.is_active !== undefined && !!form.is_active !== (orig.is_active ?? true)) p.is_active = !!form.is_active;
+  // ⚠️ GUL NAVI — ISHLATILGAN partiyada YUBORILMAYDI (server 400 beradi va bu to'g'ri:
+  // nav almashsa avval yasalgan buketlar tarkibi ham qayta yozilardi).
+  if (!batchVariantLocked(orig) && form.variant > 0 && form.variant !== orig.variant) p.variant = form.variant;
   // ⚠️ YUK almashtirilsa partiya boshqa yukka ko'chadi: raqam/sana/POSTAVSHIK va shu bilan
   // qaysi postavshikning «Umumiy sotib olingan» summasiga kirishi ham o'zgaradi.
   if (form.delivery > 0 && form.delivery !== orig.delivery) p.delivery = form.delivery;
