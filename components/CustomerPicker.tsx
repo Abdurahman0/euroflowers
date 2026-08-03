@@ -28,10 +28,16 @@ const MODES: { key: CustomerPick["mode"]; label: string }[] = [
   { key: "new", label: "Yangi mijoz" },
 ];
 
-export default function CustomerPicker({ value, onChange, label = "Mijoz (ixtiyoriy)" }: {
+export default function CustomerPicker({ value, onChange, label = "Mijoz (ixtiyoriy)", disabledModes, disabledReason, requirePhone = false }: {
   value: CustomerPick;
   onChange: (v: CustomerPick) => void;
   label?: string;
+  /** ⚠️ O'CHIRILGAN rejimlar — YASHIRILMAYDI, sababi bilan bosilmaydigan qilinadi
+      (qarzga sotishda «Biriktirmayman»). Berilmasa hamma rejim ochiq — eski xatti-harakat. */
+  disabledModes?: CustomerPick["mode"][];
+  disabledReason?: string;
+  /** Qarz rejimi: yangi mijoz uchun ISM VA TELEFON ikkalasi ham majburiy. */
+  requirePhone?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Customer[] | null>(null);
@@ -61,14 +67,17 @@ export default function CustomerPicker({ value, onChange, label = "Mijoz (ixtiyo
       <div className="mb-1.5 text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>{label}</div>
       {/* rejim segmenti */}
       <div className="mb-2.5 flex gap-1 rounded-[12px] p-1" style={{ background: "var(--surface-2)" }}>
-        {MODES.map((m) => (
-          <button key={m.key} type="button"
-            onClick={() => { onChange(m.key === "none" ? { mode: "none" } : m.key === "existing" ? { mode: "existing", id: value.mode === "existing" ? value.id : 0, detail: value.mode === "existing" ? value.detail : undefined } : { mode: "new", name: value.mode === "new" ? value.name : "", phone: value.mode === "new" ? value.phone : "" }); setOpen(false); setQ(""); }}
-            className="flex-1 rounded-[9px] py-1.5 text-[12.5px] font-bold transition-colors"
-            style={{ background: value.mode === m.key ? "var(--surface-solid)" : "transparent", color: value.mode === m.key ? "var(--primary)" : "var(--muted)" }}>
-            {m.label}
-          </button>
-        ))}
+        {MODES.map((m) => {
+          const off = !!disabledModes?.includes(m.key);
+          return (
+            <button key={m.key} type="button" disabled={off} title={off ? disabledReason : undefined}
+              onClick={() => { if (off) return; onChange(m.key === "none" ? { mode: "none" } : m.key === "existing" ? { mode: "existing", id: value.mode === "existing" ? value.id : 0, detail: value.mode === "existing" ? value.detail : undefined } : { mode: "new", name: value.mode === "new" ? value.name : "", phone: value.mode === "new" ? value.phone : "" }); setOpen(false); setQ(""); }}
+              className="flex-1 rounded-[9px] py-1.5 text-[12.5px] font-bold transition-colors disabled:cursor-not-allowed"
+              style={{ background: value.mode === m.key ? "var(--surface-solid)" : "transparent", color: value.mode === m.key ? "var(--primary)" : "var(--muted)", opacity: off ? 0.42 : 1 }}>
+              {m.label}
+            </button>
+          );
+        })}
       </div>
 
       {value.mode === "existing" && (
@@ -112,7 +121,16 @@ export default function CustomerPicker({ value, onChange, label = "Mijoz (ixtiyo
           <input className="inp" inputMode="tel" value={value.phone} onChange={(e) => onChange({ mode: "new", name: value.name, phone: e.target.value })} placeholder="Telefon (masalan: 90 111 22 33)" />
         </div>
       )}
-      {value.mode === "new" && <p className="mt-1 text-[11.5px]" style={{ color: "var(--muted)" }}>Telefon avtomatik normalizatsiya qilinadi; shu raqamli mijoz bo'lsa unga bog'lanadi.</p>}
+      {value.mode === "new" && (
+        <p className="mt-1 text-[11.5px]" style={{ color: requirePhone && !(value.name.trim() && value.phone.trim()) ? "var(--danger-ink)" : "var(--muted)" }}>
+          {requirePhone && !(value.name.trim() && value.phone.trim())
+            ? "Ism va telefon — IKKALASI ham kerak."
+            : "Telefon avtomatik normalizatsiya qilinadi; shu raqamli mijoz bo'lsa unga bog'lanadi."}
+        </p>
+      )}
+      {disabledModes?.length && disabledReason ? (
+        <p className="mt-1.5 text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>{disabledReason}</p>
+      ) : null}
     </div>
   );
 }

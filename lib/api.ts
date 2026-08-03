@@ -2,7 +2,7 @@
 import type {
   Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult,
   CloseIssuePreview, CloseIssueInput, CloseIssueResult,
-  AISettings, Analytics, AuditLog, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard,
+  AISettings, Analytics, AuditLog, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard, Debt, DebtByCustomer,
   Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
@@ -395,6 +395,19 @@ export const api = {
 
   customers: (p?: Params) => list<Customer>("/api/customers/", p),
   customer: (id: number) => request<Customer>(`/api/customers/${id}/`),
+
+  /* ===== QARZDORLAR (ruxsat: `crm`) ===== */
+  /** Mijoz bo'yicha guruhlangan qarzlar. ⚠️ Server ENG KATTA QARZDAN saralab beradi —
+      qayta saralamang, `totals` ni qayta hisoblamang. Sukut: faqat to'lanmaganlar. */
+  debtsByCustomer: (includePaid = false) =>
+    request<DebtByCustomer>(`/api/debts/by-customer/${includePaid ? "?include_paid=true" : ""}`),
+  /** Tekis ro'yxat — filtrlar SERVER tomonida (?is_paid=&customer=&paid_method=&search=&ordering=) */
+  debts: (p?: Params) => list<Debt>("/api/debts/", p),
+  /** Qarzni to'lash. `method` MAJBURIY (cash|card) — savdo shu ustunga tushadi.
+      `paid_at` berilmasa hozirgi vaqt. ⚠️ QAYTMAS: to'langan qarzni «to'lanmagan»ga
+      qaytarish yo'li OpenAPI'da YO'Q (is_paid/paid_at/paid_method — readOnly). */
+  payDebt: (id: number, data: Record<string, unknown>) =>
+    request<Debt>(`/api/debts/${id}/pay/`, { method: "POST", body: JSON.stringify(data) }),
   createCustomer: (data: Partial<Customer>) =>
     request<Customer>("/api/customers/", { method: "POST", body: JSON.stringify(data) }),
   updateCustomer: (id: number, data: Partial<Customer>) =>

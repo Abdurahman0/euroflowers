@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CalendarClock, ChevronDown, CreditCard, Info, Minus, Package, Plus, Sparkles, Tag, X } from "lucide-react";
+import { Banknote, CalendarClock, ChevronDown, CreditCard, HandCoins, Info, Minus, Package, Plus, Sparkles, Tag, X } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -8,6 +8,7 @@ import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
+import { debtSellPayload, debtCustomerReady, DEBT_CUSTOMER_REQUIRED, DEBT_NONE_DISABLED_REASON } from "@/lib/debt";
 import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
@@ -23,6 +24,8 @@ const custLabel = (r: Reservation) => r.customer_detail?.name || r.customer_name
 const PAYMENTS: { value: PaymentType; label: string; icon: typeof Banknote }[] = [
   { value: "cash", label: "Naqd", icon: Banknote },
   { value: "card", label: "Karta", icon: CreditCard },
+  // ⚠️ QARZ — to'lov turi emas, to'lovning KEYINGA SURILISHI: bugungi savdo o'zgarmaydi.
+  { value: "debt", label: "Qarz", icon: HandCoins },
 ];
 
 /**
@@ -74,6 +77,22 @@ export default function KatalogSellModal({
   // SOTUV SANASI — ixtiyoriy; yoqilib o'zgartirilsagina yuboriladi (aks holda backend: hozir)
   const [dateOn, setDateOn] = useState(false);
   const [soldAt, setSoldAt] = useState("");
+
+  // ===== QARZGA SOTISH =====
+  const isDebt = payment === "debt";
+  const [debtNote, setDebtNote] = useState("");
+  // Qarzda mijoz MAJBURIY: «Biriktirmayman»dan avtomatik chiqamiz (rejim o'chirilgan bo'ladi).
+  useEffect(() => {
+    if (isDebt && cust.mode === "none") setCust({ mode: "existing", id: 0, detail: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDebt]);
+  // ⚠️ Qarzda SOTUV SANASI ma'nosini yo'qotadi — `sold_at` ni backend TO'LOV kuniga
+  // qo'yadi, shuning uchun bu yerda sana tanlash chalg'ituvchi bo'lardi.
+  useEffect(() => {
+    if (isDebt && dateOn) { setDateOn(false); setSoldAt(""); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDebt]);
+  const debtBlocked = isDebt && !debtCustomerReady(cust);
 
   // §4 SOTUVDA QO'SHILGAN — ixtiyoriy qo'shimcha material + oformleniya (yig'ilmagan holda tez sotuv uchun).
   const [extraOpen, setExtraOpen] = useState(false);
@@ -148,12 +167,18 @@ export default function KatalogSellModal({
     const next: Record<string, string> = {};
     if (discountOn && (!price || salePrice <= 0)) next.sale_price = "Narxni kiriting";
     if (needsReason && !reason.trim()) next.discount_reason = "Chegirma sababini yozing";
+    // ⚠️ QARZ: mijoz majburiy — serverning 400'ini kutmasdan shu yerda to'xtatamiz
+    // (matn AYNAN serverникi, ikki xil ibora bo'lmasin).
+    const debtBody = debtSellPayload(isDebt, cust, debtNote);
+    if (debtBody === null) next.customer = DEBT_CUSTOMER_REQUIRED;
     if (Object.keys(next).length) return setErrs(next);
     setBusy(true);
     setErrs({});
-    // 1-QADAM: mijoz o'zgargan bo'lsa katalog itemni PATCH qilamiz (sell mijozni qabul qilmaydi).
-    //          Muvaffaqiyatsiz bo'lsa — sotuv YUBORILMAYDI.
-    const custBody = customerPayload(cust, hadCustomer);
+    // 1-QADAM: mijoz o'zgargan bo'lsa katalog itemni PATCH qilamiz.
+    //          ⚠️ QARZDA bu qadam O'TKAZIB YUBORILADI — sell endpoint mijoz maydonlarini
+    //          O'ZI qabul qiladi (CatalogSellRequest: customer / customer_name+customer_phone),
+    //          ya'ni bitta yozuv yetarli va yarim holat (mijoz ulandi, sotuv yo'q) bo'lmaydi.
+    const custBody = isDebt ? null : customerPayload(cust, hadCustomer);
     let patched: CatalogItem | null = null;
     if (custBody) {
       try {
@@ -178,14 +203,21 @@ export default function KatalogSellModal({
         // §4: quantity PER 1 sotuv dona (backend × quantity qiladi — oldindan ko'paytirmang).
         ...(validSaleMats.length ? { materials: validSaleMats.map((m) => ({ packaging: m.packaging, quantity: +m.qty })) } : {}),
         ...(saleDeco ? { decoration_florist: saleDeco } : {}),
+        // QARZ: customer | customer_name+customer_phone (+ debt_note). Qarz bo'lmasa — bo'sh.
+        ...debtBody,
       });
       // customer_detail — PATCH javobidan (backend mavjud mijozga ULAGAN bo'lsa ismi ko'rinsin)
       const linked = updated.customer_detail || patched?.customer_detail;
       const who = linked ? ` → ${linked.name}${linked.masked_phone ? ` (${linked.masked_phone})` : ""}` : "";
+      // ⚠️ QARZDA operator «savdo tushmadi» deb o'ylamasligi kerak — toast buni AYTADI
+      // va mijozni nomlaydi (kimdan undirish kerakligi darhol ko'rinsin).
+      const debtWho = linked?.name || (cust.mode === "new" ? cust.name.trim() : "") || "mijoz";
       showToast(
-        calc.totalDiscount > 0
-          ? `✓ ${qty} ta sotildi · chegirma ${fmt(calc.totalDiscount)}${who}`
-          : `✓ «${item.name_uz || item.name_ru}»: ${qty} ta sotildi${who}`
+        isDebt
+          ? `✓ Qarzga berildi → ${debtWho} · ${fmt(calc.totalSum)}. Bu summa QARZ TO'LANGAN kuni savdoga qo'shiladi.`
+          : calc.totalDiscount > 0
+            ? `✓ ${qty} ta sotildi · chegirma ${fmt(calc.totalDiscount)}${who}`
+            : `✓ «${item.name_uz || item.name_ru}»: ${qty} ta sotildi${who}`
       );
       onSold(updated);
     } catch (e) {
@@ -291,7 +323,7 @@ export default function KatalogSellModal({
 
       {/* TO'LOV TURI — naqd / karta */}
       <Field label="To'lov turi" span>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {PAYMENTS.map((p) => {
             const on = payment === p.value;
             const PIcon = p.icon;
@@ -301,7 +333,7 @@ export default function KatalogSellModal({
                 type="button"
                 onClick={() => setPayment(p.value)}
                 aria-pressed={on}
-                className={clsx("flex items-center justify-center gap-2 rounded-[13px] border-[1.5px] py-2.5 text-[13px] font-bold transition-colors duration-150", on ? "text-white" : "")}
+                className={clsx("flex items-center justify-center gap-1.5 rounded-[13px] border-[1.5px] py-2.5 text-[13px] font-bold transition-colors duration-150", on ? "text-white" : "")}
                 style={on ? { background: "var(--primary)", borderColor: "var(--primary)" } : { borderColor: "var(--border)", color: "var(--text-2)" }}
               >
                 <PIcon size={16} strokeWidth={2} /> {p.label}
@@ -309,6 +341,14 @@ export default function KatalogSellModal({
             );
           })}
         </div>
+        {/* ⚠️ ENG MUHIM JUMLA: qarz «yo'qolgan sotuv» EMAS — pul keyinroq keladi. */}
+        {isDebt && (
+          <p className="mt-2 flex items-start gap-1.5 rounded-[12px] px-3 py-2 text-[11.5px] font-semibold leading-[1.45]"
+            style={{ background: "var(--primary-soft)", color: "var(--text-2)" }}>
+            <Info size={13} strokeWidth={2.2} className="mt-px shrink-0" style={{ color: "var(--primary)" }} />
+            <span>Bugungi savdo o&apos;zgarmaydi. Bu summa <b>qarz to&apos;langan kuni</b>, to&apos;langan usul (naqd yoki karta) bilan savdoga qo&apos;shiladi. Gul esa <b>hozir</b> skladdan yechiladi.</span>
+          </p>
+        )}
       </Field>
 
       {/* CHEGIRMA — ixtiyoriy */}
@@ -350,10 +390,27 @@ export default function KatalogSellModal({
         </div>
       )}
 
-      {/* MIJOZ — ixtiyoriy (walk-in yoki mavjud) */}
+      {/* MIJOZ — odatda ixtiyoriy; QARZDA MAJBURIY («Biriktirmayman» o'chiriladi) */}
       <div className="mt-4">
-        <CustomerPicker value={cust} onChange={setCust} />
+        <CustomerPicker
+          value={cust}
+          onChange={setCust}
+          label={isDebt ? "Mijoz (majburiy)" : "Mijoz (ixtiyoriy)"}
+          disabledModes={isDebt ? ["none"] : undefined}
+          disabledReason={isDebt ? DEBT_NONE_DISABLED_REASON : undefined}
+          requirePhone={isDebt}
+        />
+        {errs.customer && <p className="mt-1.5 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.customer}</p>}
       </div>
+
+      {/* QARZ IZOHI — ixtiyoriy (debt_note) */}
+      {isDebt && (
+        <div className="mt-3">
+          <Field label="Izoh (ixtiyoriy)" span>
+            <input className="inp" value={debtNote} onChange={(e) => setDebtNote(e.target.value)} placeholder="Masalan: Juma kuni to'laydi" />
+          </Field>
+        </div>
+      )}
 
       {/* §4 SOTUVDA QO'SHILGAN — yig'iq (tez sotuv buzilmasin); qo'shimcha material + oformleniya */}
       <div className="mt-4 rounded-[14px] border" style={{ borderColor: extraOpen ? "var(--primary)" : "var(--border)" }}>
@@ -421,7 +478,14 @@ export default function KatalogSellModal({
         )}
       </div>
 
-      {/* SOTUV SANASI — ixtiyoriy; default hozir */}
+      {/* SOTUV SANASI — ixtiyoriy; default hozir.
+          ⚠️ QARZDA KO'RSATILMAYDI: `sold_at` ni backend TO'LOV kuniga qo'yadi, ya'ni bu yerda
+          tanlangan sana baribir ustidan yozilardi — chalg'itmaslik uchun butunlay yashiramiz. */}
+      {isDebt ? (
+        <p className="mt-4 rounded-[14px] border px-3.5 py-2.5 text-[11.5px] font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+          Sotuv sanasi qarzda tanlanmaydi — u <b>to&apos;lov kuni</b> bilan belgilanadi.
+        </p>
+      ) : (
       <label className="mt-4 flex cursor-pointer items-center justify-between gap-3 rounded-[14px] border px-3.5 py-3" style={{ borderColor: dateOn ? "var(--primary)" : "var(--border)", background: dateOn ? "var(--primary-soft)" : undefined }}>
         <span className="flex min-w-0 items-center gap-2">
           <CalendarClock size={16} strokeWidth={2} style={{ color: dateOn ? "var(--primary)" : "var(--muted)" }} />
@@ -432,7 +496,8 @@ export default function KatalogSellModal({
         </span>
         <input type="checkbox" checked={dateOn} onChange={(e) => { setDateOn(e.target.checked); if (!e.target.checked) setSoldAt(""); }} className="h-4 w-4 shrink-0 accent-[var(--primary)]" />
       </label>
-      {dateOn && (
+      )}
+      {dateOn && !isDebt && (
         <div className="mt-2.5">
           <DatePicker value={soldAt} onChange={setSoldAt} withTime maxDate={todayTashkent()} placeholder="Sotuv sanasi va vaqti" ariaLabel="Sotuv sanasi" />
         </div>
@@ -451,9 +516,13 @@ export default function KatalogSellModal({
           </div>
         )}
         <div className="mt-1.5 flex items-baseline justify-between gap-2 border-t pt-1.5" style={{ borderColor: "var(--border)" }}>
-          <span className="text-[13px] font-semibold">Mijoz to&apos;laydi</span>
-          <span className="text-[17px] font-bold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(calc.totalSum)}</span>
+          <span className="text-[13px] font-semibold">{isDebt ? "Qarz summasi" : "Mijoz to'laydi"}</span>
+          <span className="text-[17px] font-bold tabular-nums" style={{ color: isDebt ? "var(--danger-ink)" : "var(--acc)" }}>{fmt(calc.totalSum)}</span>
         </div>
+        {/* Chegirmali qarz: qarz CHEGIRMALI summa bo'ladi (spec §1) — ikkala qoida birga ishlaydi. */}
+        {isDebt && calc.totalDiscount > 0 && (
+          <p className="mt-1 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>Qarz — chegirmadan keyingi summa.</p>
+        )}
       </div>
 
       {errs.detail && (
@@ -464,8 +533,8 @@ export default function KatalogSellModal({
 
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
-        <button onClick={submit} disabled={busy} className={clsx("btn-primary disabled:opacity-60", busy && "btn-loading")}>
-          {qty} ta sotish
+        <button onClick={submit} disabled={busy || debtBlocked} title={debtBlocked ? DEBT_CUSTOMER_REQUIRED : undefined} className={clsx("btn-primary disabled:opacity-60", busy && "btn-loading")}>
+          {isDebt ? `${qty} ta qarzga berish` : `${qty} ta sotish`}
         </button>
       </ModalFooter>
     </Modal>

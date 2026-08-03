@@ -1498,3 +1498,251 @@ olingan»ga o'tkazildi: `components/FreeBatchChip.tsx` (tooltip), `components/Fr
 (yordamchi matn), `lib/types.ts` (`StockBatch.is_free` izohi). Boshqa `qarz` uchrashuvi —
 `app/bronlar/page.tsx` dagi «Qolgan qarz» — MIJOZ oldindan to'lovi, postavshikka aloqasi yo'q,
 tegilmadi.
+
+---
+
+# QARZDORLAR — QARZGA SOTISH (2026-08-03)
+
+## §5 — Jonli GET'lar (read-only, hech qanday yozuv yuborilmadi)
+
+```
+GET /api/debts/by-customer/                   → 200
+{"customers": [], "totals": {"customer_count": 0, "debt_count": 0,
+                             "unpaid_total": 0.0, "paid_total": 0.0}}
+
+GET /api/debts/                               → 200
+{"count": 0, "next": null, "previous": null, "results": []}
+
+GET /api/debts/?is_paid=false                 → 200   (count 0)
+GET /api/debts/by-customer/?include_paid=true → 200   (customers [])
+```
+
+**Hozircha bironta ham qarz YO'Q** — endpoint'lar tirik, ma'lumot bo'sh.
+
+⚠️ **Kontrakt nomuvofiqligi (spec vs jonli javob):** spec `unpaid_total` ni `"450000.00"`
+(STRING) deb ko'rsatadi, jonli server esa bo'sh holatda `0.0` (NUMBER) qaytardi. Ikkalasini
+ham xavfsiz o'qish uchun `debtNum()` yozildi (test bilan qoplangan).
+
+## §0 — BESH AUDIT
+
+### a) Parity — READ-ONLY TEKSHIRIB BO'LMAYDI (LIST 2, PRIORITET)
+
+Hozirgi jonli holat:
+
+| Manba | Maydon | Qiymat |
+|---|---|---|
+| `/api/accounting/` | `summary.total_sales` | `"7080000.00"` |
+| `/api/dashboard/` | `period_catalog_sales_revenue` | `7080000.0` |
+| `/api/analytics/` | `summary.catalog_sales_revenue` | `7080000.0` |
+
+Uchalasi **mos** — lekin serverda **0 ta qarz** bor, ya'ni bu qarzning chiqarib
+tashlanishi haqida HECH NARSA isbotlamaydi. Isbotlash uchun qarzga sotish kerak — bu YOZUV.
+
+Aniqlangani: accounting `by_payment` da faqat `cash`/`card`/`unknown` bor — **qarz uchun
+ustun YO'Q**, ya'ni to'lanmagan qarz butunlay chiqarib tashlanishi ehtimoli yuqori.
+Analytics javobida `debt` so'zi umuman uchramaydi. Va `/api/accounting/` OpenAPI'da
+`"200": {"description": "No response body"}` — javob **umuman hujjatlashtirilmagan**,
+ya'ni kontrakt kafolat bermaydi. Tuzatilmadi, LIST 2 ga yozildi.
+
+### b) `sold_at` — `paid_from_debt` FAQAT BITTA YUZADA BOR
+
+Jonli tekshiruv: `/api/accounting/` `history` massividagi **18/18 qatorda** `paid_from_debt`
+bor (hammasi hozir `false`). Ammo:
+
+| Yuza | `paid_from_debt` bormi | Belgi qo'yildimi |
+|---|---|---|
+| `/api/accounting/` `history` | ✅ **BOR** (jonli) | ✅ «qarzdan» chipi qo'shildi |
+| OpenAPI (istalgan sxema) | ❌ **E'LON QILINMAGAN** | — (shuning uchun ixtiyoriy maydon) |
+| Katalog itemning `history[]` qatorlari | ❌ yo'q | ❌ imkonsiz — maydon yo'q |
+| `/api/analytics/` | ❌ yo'q | ❌ imkonsiz |
+
+`sold_at` ning klientdagi HAMMA ishlatilishi ko'rib chiqildi:
+`lib/exports.ts:102` (kunlik guruhlash), `app/hisob-kitob` (saralash + jadval),
+`ClientModal`, `KatalogViewModal`, `app/analitika` (`last_sold_at`),
+`app/floristlar/[id]` (`last_sold_at`), `saleLineAllocations`.
+
+**HUKM: hech biri NOTO'G'RI raqam chiqarmaydi.** Kunlik guruhlash va saralash sotuvni
+to'lov kuniga qo'yadi — bu pul HAQIQATAN kelgan kun, ya'ni to'g'ri.
+`saleLineAllocations` sanaga bog'liq emas. Muammo faqat **odam o'qiganda**: ko'rsatilgan
+sana gul do'kondan chiqqan kun emas. Ya'ni **hayratlanarli, xato emas** → belgi yetarli.
+
+### c) Miqdor va pul — jadval
+
+| Yuza | Miqdor+pul juftmi | Ta'sirlanadimi |
+|---|---|---|
+| accounting `summary` (`total_quantity` / `total_sales`) | ha | **yo'q** — bitta qatorlar to'plami, butunlay chiqarib tashlanadi |
+| accounting `by_branch` (`sold_quantity` / `sold_revenue`) | ha | **yo'q** — o'sha manba |
+| accounting `by_payment` / `by_kind` / `by_volume` | ha | **yo'q** — o'sha manba |
+| analytics `catalog_sales_quantity` / `catalog_sales_revenue` | ha | **yo'q** — o'sha manba |
+| analytics `top_catalog_items` (`quantity` / `revenue`) | ha | **yo'q** |
+| `/api/branch-report/` (`sold_quantity` / `sold_revenue`) | ha | **noma'lum** — alohida endpoint, hujjatsiz |
+| **katalog `quantity_sold` ↔ istalgan tushum hisoboti** | manbalar ARO | **HA** — miqdor sotuv kuni, pul to'lov kuni |
+| **florist stats `sold_quantity` / `sale_revenue`** | ha | **ehtimol** — miqdor katalogdan, tushum accounting'dan bo'lsa |
+
+**Muhim xulosa:** qator BUTUNLAY chiqarib tashlangani uchun har bir hisobot O'Z ICHIDA
+izchil qoladi — ya'ni bitta endpoint ichidagi AOV **buzilmaydi**. Ajralish **manbalar
+ARO**: sklad tomonidagi hisoblagichlar (katalog `quantity_sold`, `quantity_stock_deducted`)
+va pul tomonidagi hisobotlar o'rtasida. Tuzatilmadi — bu topilma (LIST 2).
+
+### d) Mijoz tanlagich — nima o'zgardi
+
+`CustomerPicker` ga **uchta ixtiyoriy prop** qo'shildi; berilmasa xatti-harakat **AYNAN
+ilgarigidek** (naqd/karta va katalog kompozitori yo'llari tegilmagan):
+
+- `disabledModes` — rejim **YASHIRILMAYDI**, `disabled` + sabab bilan bosilmaydigan bo'ladi.
+- `disabledReason` — sababi (tooltip + ostidagi matn).
+- `requirePhone` — yangi mijozda ism+telefon ikkalasi kerakligini ko'rsatadi (bo'sh bo'lsa
+  matn qizil bo'ladi).
+
+⚠️ **Aniqlangan kamchilik:** umumiy `customerPayload` ism YOKI telefon bo'lsa ham yuboradi
+(ism-only o'tib ketardi). Qarz uchun bu YETARLI EMAS — shuning uchun qarz yo'li
+`customerPayload` ni ISHLATMAYDI, o'rniga `debtSellPayload` + `debtCustomerReady`
+(ikkalasini ham talab qiladi). Umumiy funksiya **o'zgartirilmadi** — boshqa chaqiruvchilar
+buzilmasin.
+
+### e) Ruxsat va joylashuv
+
+Sahifa ham, nav elementi ham `crm` da (inventory EMAS): `lib/branch.ts` NAV va
+`Shell.tsx` `ROUTE_PERM` — bitta mezon, URL orqali ham ochilmaydi.
+
+Natijaviy tartib (yuqori oltilik TEGILMAGAN): Dashboard · Sklad · Katalog · Floristlar ·
+Floristlarga chiqarilgan · Gullar · AI chatlar → **Analitika · Hisob-kitob · Filial hisoboti ·
+AI yordamchi · Buyurtmalar · Bronlar · Mijozlar · «Qarzdorlar» · Yetkazib beruvchilar ·
+Postlar · Bildirishnomalar · Xodimlar · Integratsiyalar · Audit jurnali · Sozlamalar.**
+
+⚠️ **Filial:** `Debt` sxemasida `branch` maydoni **YO'Q**, `by-customer` da `branch`
+parametri **YO'Q** — qarz filial bo'yicha ajratiladimi noma'lum (LIST 2). Sukut:
+ruxsat bergan joyda ko'rsatamiz (`branch.test.ts` shu qoidani qayd etadi).
+
+## Qurilgani
+
+- `lib/debt.ts` — sof mantiq: `debtCustomerReady`, `debtSellPayload`, `debtPayPayload`,
+  `canPayDebt`, `debtQtyLabel`, `debtNum` + server matnlarining AYNAN nusxasi.
+- `lib/debt.test.ts` — **32 ta test** (jami 307 ta o'tadi).
+- `components/DebtPayModal.tsx` — usul majburiy (sukut yo'q), oqibat matni, tarixiy sana
+  (`BackdateField`, +05:00), ikki marta to'lash to'sig'i, `notifyReportDataChanged()`.
+- `app/qarzdorlar/page.tsx` — guruhlangan (sukut) + tekis ro'yxat, `?tab=` konvensiyasi,
+  server filtrlari URL'da saqlanadi, `include_paid` toggle, rasmsiz qator degradatsiyasi.
+- `components/KatalogSellModal.tsx` — uchinchi «Qarz» segmenti + tushuntirish + mijoz bloki
+  + `debt_note` + toast.
+- `app/hisob-kitob/page.tsx` — sotuv sanasi yonida «qarzdan» chipi.
+
+### Qaror: qarzda SOTUV SANASI ko'rsatilmaydi
+
+Qarz tanlansa «Boshqa sotuv sanasi» affordansi **butunlay yashiriladi** va o'rniga izoh
+chiqadi. Sabab: `sold_at` ni backend TO'LOV kuniga qo'yadi — bu yerda tanlangan sana
+baribir ustidan yozilardi, ya'ni operatorni aldardi. (Spec bu haqda jim — bu bizning
+qarorimiz.)
+
+### Qaror: qarzda PATCH qadami o'tkazib yuboriladi
+
+⚠️ Modaldagi eski izoh «sell endpoint mijozni qabul qilmaydi» der edi — **endi ESKIRGAN**:
+`CatalogSellRequest` da `customer`, `customer_name`, `customer_phone`, `debt_note` BOR
+(OpenAPI bilan tasdiqlandi). Shuning uchun qarz yo'li bitta yozuv bilan ketadi (yarim
+holat bo'lmaydi). Naqd/karta yo'li **o'zgarmadi** — ilgarigidek avval PATCH, keyin sell.
+
+## §5 — Verify natijalari
+
+`tsc --noEmit` toza · **307/307 Vitest** · konsol/sahifa xatosi yo'q (light 0 ta; dark'da
+faqat bitta muvaffaqiyatsiz login urinishidan keyingi CORS xabari — skript artefakti).
+
+Skrinshotlar (dark + light): `dbt-sell-qarz-*`, `dbt-grouped-expanded-*`, `dbt-pay-confirm-*`,
+`dbt-pay-method-chosen-*`, `dbt-flat-list-*`.
+
+Skript o'qigan holat:
+```
+SELL DEBT MODE: {"explain":true,"mandatory":true,"noneDisabled":true,"izoh":true,
+                 "debtSum":true,"btn":{"text":"1 ta qarzga berish","disabled":true},"noDate":true}
+QARZDORLAR:     {"jami":true,"total":"650 000","aziz":true,"chips":true}
+EXPANDED:       {"items":true,"stems":true,"note":true,"payBtns":2,"imgs":1,"card":true}
+PAY (usulsiz):  {"title":true,"required":true,"consequence":true,"dateToggle":true,
+                 "submitDisabled":true}
+usul tanlangach submit disabled: false
+FLAT LIST:      {"rows":true,"paidMuted":true,"filters":true,"urlTab":true,"custLink":true}
+RASMSIZ qator:  {"savatVisible":true,"savatAmount":true}   ← rasm yo'q, qator TO'LIQ ko'rinadi
+```
+
+## LIST 1 — QARZ BLOKI (append; risk-annotated)
+
+⚠️ **BUTUN KETMA-KETLIK BITTA TEKSHIRUV** — qadamlarni ajratmang, ma'nosi shunda.
+
+QZ1. **Qarzga sotish.** Katalog → biror mahsulot → «Sotish» → to'lov turi **«Qarz»**.
+     «Biriktirmayman» **o'chirilgan** bo'lishi kerak. Mavjud mijoz tanlang (yoki yangi
+     mijozga ism VA telefon kiriting), ixtiyoriy izoh yozing → «qarzga berish».
+     **⚠️ QAYTMAS: sotuvning o'zi bekor qilinmaydi va gul SHU ZAHOTI skladdan yechiladi.**
+QZ2. **Mijozsiz bloklanadi.** Qarz tanlab mijozni tanlamang — tugma **bosilmaydi**.
+     Yangi mijozda faqat ism yozing (telefonsiz) — baribir bosilmaydi. **READ.**
+QZ3. **⚠️ SAVDO KO'CHMAGANINI TEKSHIRING (eng muhim qadam).** Sotgandan darhol keyin
+     Hisob-kitob va Dashboard'ni oching: **umumiy savdo O'ZGARMAGAN** bo'lishi kerak.
+     Sklad esa kamaygan bo'ladi. **READ.**
+     ⚠️ Shu yerda Dashboard/Analitika/Hisob-kitob raqamlari BIR-BIRIGA MOS ekanini ham
+     tekshiring — §0a bo'yicha bu read-only tekshirib bo'lmagan (LIST 2 p-priority).
+QZ4. **Qarzdorlar sahifasi.** Sahifada mijoz, telefon, qarz soni va summasi ko'rinsin;
+     ochilganda gul rasmi, «N ta · M gul», summa, sana va izoh chiqsin. **READ.**
+QZ5. **Karta bilan to'lash.** «To'landi» → usul tanlanmagan holda tugma **bosilmasin**
+     → «Karta» tanlang → tasdiqlang. **⚠️ QAYTMAS: OpenAPI'da qarzni «to'lanmagan»ga
+     QAYTARISH yo'li YO'Q** (pastga qarang).
+QZ6. **⚠️ SAVDO KO'CHGANINI TEKSHIRING.** To'lovdan keyin: umumiy savdo **+qarz summasi**
+     bo'lsin va u **KARTA ustuniga** tushsin, **to'lov kunida**. Hisob-kitob sotuvlar
+     jadvalida o'sha qator yonida **«qarzdan»** belgisi chiqsin. **READ.**
+QZ7. **Ikki marta to'lab bo'lmaydi.** To'langan qarzni yana to'lashga urinib ko'ring —
+     «Bu qarz allaqachon to'langan» chiqishi kerak. **READ.**
+QZ8. **Tarixiy to'lov.** «Boshqa to'lov sanasi» bilan o'tgan kunni tanlab to'lang —
+     savdo **o'sha kunga** tushsin. **⚠️ RETROAKTIV** — o'sha kunlik hisobotlar o'zgaradi.
+QZ9. **Chegirmali qarz.** «Arzonroq sotish» + «Qarz» birga: chegirma sababi majburiy
+     bo'lib qolsin va qarz **chegirmali** summa bo'lsin. **READ.**
+
+### ⚠️ Bekor qilish / qaytarish — OpenAPI bo'yicha ANIQ holat
+
+Spec hech qanday bekor qilish yo'lini nomlamaydi. **OpenAPI esa boshqacharoq ko'rsatadi** —
+to'liq ro'yxat:
+
+```
+GET/POST      /api/debts/
+GET/PATCH/PUT/DELETE  /api/debts/{id}/
+POST          /api/debts/{id}/pay/
+```
+
+Ya'ni: **`DELETE /api/debts/{id}/` MAVJUD** — qarz yozuvini butunlay o'chirish mumkin.
+Ammo `is_paid`, `paid_at`, `paid_method` — **readOnly**, shuning uchun **«to'langan»ni
+«to'lanmagan»ga PATCH bilan qaytarib bo'lmaydi**. Va qarz o'chirilsa sotuvning o'zi
+(gul chiqimi) qaytmaydi. UI'da bekor qilish **ATAYLAB qo'yilmadi** — oqibati aniq emas
+(savdoga tushgan pul nima bo'ladi?). LIST 2 ga savol yozildi.
+
+## LIST 2 — append (PRIORITET)
+
+x. ⚠️ **PARITET QARZ BILAN SAQLANADIMI? (PRIORITET — read-only hal qilinmadi.)**
+   Bizning qabul mezonimiz: Dashboard `period_catalog_sales_revenue` == Analitika
+   `catalog_sales_revenue` == Hisob-kitob `?branch=main` `total_sales`. Hozir uchalasi
+   `7 080 000` — MOS, lekin serverda 0 ta qarz bor, ya'ni sinov bo'lmadi.
+   SETTLE: to'lanmagan qarz **Dashboard va Analitika** dan ham chiqarib tashlanadimi
+   (accounting'dagidek), yoki faqat `/api/accounting/` dan? Agar faqat accounting bo'lsa —
+   birinchi qarz sotuvidayoq paritet BUZILADI va bu **bizning xatoimizdek** ko'rinadi.
+   Qo'shimcha: `/api/accounting/` javobi OpenAPI'da umuman e'lon qilinmagan
+   (`"200": {"description": "No response body"}`) — `paid_from_debt` ham shu sababli
+   hujjatsiz. E'lon qilinsin.
+y. **Miqdor va pul ajralishi (§0c).** Katalog `quantity_sold` sotuv kunida oshadi, tushum
+   esa to'lov kunida keladi. Bitta endpoint ichida izchillik saqlanadi (qator butunlay
+   chiqariladi), ammo **manbalar aro** — masalan katalog `quantity_sold` ↔ accounting
+   tushumi — ajralish bor. `/api/branch-report/` va florist statistikasi qaysi manbadan
+   olishini tasdiqlang: agar miqdor katalogdan, tushum accounting'dan bo'lsa, to'lovgacha
+   bo'lgan oraliqda «bir dona uchun tushum» ko'rsatkichi buziladi.
+z. **Qarz FILIAL bo'yicha ajratiladimi?** `Debt` sxemasida `branch` maydoni YO'Q,
+   `/api/debts/by-customer/` da `branch` parametri YO'Q. Filial foydalanuvchisi
+   BOSHQA filialning qarzlarini ko'radimi? Hozircha ruxsat (`crm`) bergan joyda
+   ko'rsatamiz — bu xavfsiz sukut emas, tasdiqlansin.
+aa. **Qarzni bekor qilish semantikasi.** `DELETE /api/debts/{id}/` bor, lekin: (1) qarz
+   o'chirilsa sotuv va gul chiqimi qaytadimi? (2) TO'LANGAN qarzni o'chirsa savdodan
+   pul ayriladimi? (3) `is_paid` readOnly bo'lgani uchun «noto'g'ri usul bilan to'ladim»
+   holatini tuzatish yo'li bormi? Aniq bo'lmagani uchun UI'da bekor qilish YO'Q.
+bb. **`by-customer` jamilarining turi.** Bo'sh holatda `unpaid_total: 0.0` (NUMBER)
+   qaytdi, spec'da esa `"450000.00"` (STRING). Ma'lumot bo'lganda qaysi biri keladi?
+   Biz ikkalasini ham o'qiymiz, lekin kontrakt bir xil bo'lgani ma'qul.
+
+## Untested write paths (added — READ-ONLY, none fired)
+
+- `POST /api/catalog/{id}/sell/` `{payment_type:"debt", customer, debt_note}` — bor mijozga qarz
+- `POST /api/catalog/{id}/sell/` `{payment_type:"debt", customer_name, customer_phone}` — yangi mijoz
+- `POST /api/catalog/{id}/sell/` `{payment_type:"debt", sale_price, discount_reason, …}` — chegirmali qarz
+- `POST /api/debts/{id}/pay/` `{method}` — qarzni to'lash
+- `POST /api/debts/{id}/pay/` `{method, paid_at}` — tarixiy to'lov (+05:00)

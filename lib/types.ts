@@ -545,8 +545,83 @@ export type CatalogProfit = {
   realized_profit?: string | null;
 };
 
-/** To'lov turi — katalog sotuvida (kontrakt: cash|card) */
-export type PaymentType = "cash" | "card";
+/** To'lov turi — katalog sotuvida.
+    ⚠️ `debt` UCHINCHI qiymat: sotuv o'sha kuni savdoga KIRMAYDI, qarz to'langan kuni
+    to'langan usul (cash|card) bilan tushadi. Qarz TO'LOVIning o'zida faqat cash|card
+    bo'ladi — shuning uchun `DebtPayMethod` alohida tur. */
+export type PaymentType = "cash" | "card" | "debt";
+/** Qarz to'lovi usuli — `debt` bo'lishi MUMKIN EMAS (OpenAPI: Method212Enum). */
+export type DebtPayMethod = "cash" | "card";
+
+/* ===== QARZDORLAR (backend: /api/debts/) =====
+   Katalog `payment_type: "debt"` bilan sotilganda qarz yozuvi ochiladi. */
+
+/** Qarz qatoridagi katalog tafsiloti — sahifa uchun kerakli HAMMASI shu ichida
+    (rasm, nom, tur, hajm, bir donadagi gul va jami gul). ⚠️ `image_url` BO'LMASLIGI
+    mumkin — qatorni bo'shatmang, rasmsiz chizing. */
+export type DebtCatalogDetail = {
+  id: number;
+  name_uz?: string;
+  image_url?: string | null;
+  arrangement_type?: string;
+  volume?: string | null;
+  catalog_kind?: string;
+  stems_per_item?: number | null;
+  stems_total?: number | null;
+};
+
+export type DebtCustomerDetail = { id: number; name?: string; phone?: string };
+
+/** ⚠️ `amount` — STRING decimal (kontrakt). `is_paid`/`paid_at`/`paid_method` READ-ONLY:
+    qarzni «to'lanmagan» holatga QAYTARIB bo'lmaydi (faqat POST /pay/ oldinga yo'nalishda). */
+export type Debt = {
+  id: number;
+  quantity: number;
+  amount: string;
+  note?: string;
+  is_paid: boolean;
+  paid_at: string | null;
+  paid_method: DebtPayMethod | "" | null;
+  paid_method_label?: string;
+  created_at: string;
+  updated_at?: string;
+  customer: number;
+  customer_detail?: DebtCustomerDetail;
+  catalog_item?: number;
+  catalog_detail?: DebtCatalogDetail;
+  catalog_history?: number;
+  created_by?: number | null;
+  created_by_detail?: unknown;
+  paid_by?: number | null;
+  paid_by_detail?: unknown;
+};
+
+/** GET /api/debts/by-customer/ — mijoz bo'yicha guruhlangan, ENG KATTA QARZDAN
+    boshlab tartiblangan. ⚠️ Qayta saralamang va jamilarni qayta hisoblamang. */
+export type DebtCustomerGroup = {
+  customer: number;
+  name?: string;
+  phone?: string;
+  debt_count: number;
+  /** ⚠️ Jonli server BO'SH holatda `0.0` (NUMBER) qaytardi, spec'da esa "450000.00" (STRING) —
+      ikkalasiga ham tayyor bo'ling (`num()` bilan o'qing). */
+  unpaid_total: string | number;
+  paid_total: string | number;
+  total: string | number;
+  first_debt_at?: string | null;
+  last_debt_at?: string | null;
+  items: Debt[];
+};
+
+export type DebtByCustomer = {
+  customers: DebtCustomerGroup[];
+  totals: {
+    customer_count: number;
+    debt_count: number;
+    unpaid_total: string | number;
+    paid_total: string | number;
+  };
+};
 
 /* ===== HISOB-KITOB (backend: GET /api/accounting/) — barcha pul maydonlari STRING ===== */
 export type AccountingPeriod = { date_from: string | null; date_to: string | null };
@@ -597,6 +672,11 @@ export type AccountingSale = {
   discount_amount: string; discount_percent: string; discount_reason: string; sold_by: string;
   // filial ajratmasi (0-spec) — history VA discounted_sales qatorlarida
   branch_id?: number | null; branch_name?: string; is_main_branch?: boolean; flower_stems?: number;
+  /** ⚠️ QARZDAN kelgan sotuv — bu qatorda `sold_at` SOTUV emas, TO'LOV sanasi
+      (gul avvalroq chiqib ketgan). Jonli javobda BOR, ammo OpenAPI'da e'lon
+      QILINMAGAN (accounting javobi umuman hujjatlashtirilmagan) — shuning uchun
+      ixtiyoriy va faqat ko'rsatish uchun ishlatiladi. */
+  paid_from_debt?: boolean;
 };
 export type Accounting = {
   period: AccountingPeriod;
@@ -1391,7 +1471,7 @@ export type InstagramEvent = {
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "crm" | "bronlar" | "mijozlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "floristStock" | "branchReport" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
+export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "crm" | "bronlar" | "mijozlar" | "qarzdorlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "floristStock" | "branchReport" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";
 /** Maxsus davr — YYYY-MM-DD (ikkalasi ham kiritilgan kun bilan) */
 export type DateRange = { from: string; to: string };

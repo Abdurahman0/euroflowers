@@ -18,11 +18,15 @@ describe("§1 — RUXSAT HUKM QILADI (filial allowlist olib tashlandi, 2026-08-0
   it("branch user with X,Y,Z sees EXACTLY X,Y,Z — parkent_admin real case", () => {
     const perms: PermissionPage[] = ["dashboard", "catalog", "crm", "customers", "notifications"];
     const v = visibleScreens(true, perms);
-    // dashboard → Dashboard + Analitika + Hisob-kitob + Filial hisoboti; crm → Buyurtmalar + Bronlar
+    // dashboard → Dashboard + Analitika + Hisob-kitob + Filial hisoboti;
+    // crm → Buyurtmalar + Bronlar + Qarzdorlar (qarz endpoint'lari ham `crm` talab qiladi)
     expect(new Set(v)).toEqual(new Set([
       "dashboard", "analitika", "hisob", "branchReport",
-      "katalog", "crm", "bronlar", "mijozlar", "bildirishnomalar",
+      "katalog", "crm", "bronlar", "qarzdorlar", "mijozlar", "bildirishnomalar",
     ]));
+    // ⚠️ Qarz FILIAL bo'yicha ajratiladimi — spec JIM, Debt'da `branch` maydoni YO'Q
+    // (LIST 2). Sukut: ruxsat bergan joyda ko'rsatamiz, yashirmaymiz.
+    expect(v).toContain("qarzdorlar");
     // ilgari yashiringan sahifalar endi KO'RINADI (ruxsat bergan)
     expect(v).toContain("mijozlar");
     expect(v).toContain("crm");

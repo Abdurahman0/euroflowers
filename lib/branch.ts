@@ -19,6 +19,8 @@ export const NAV: NavItem[] = [
   { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", pages: ["crm"] },
   { id: "bronlar", href: "/bronlar", label: "Bronlar", pages: ["crm"] },
   { id: "mijozlar", href: "/mijozlar", label: "Mijozlar", pages: ["customers"] },
+  // ⚠️ Qarzdorlar — ruxsat `crm` (inventory EMAS). Mijozlar yonida: ikkalasi ham «kim» haqida.
+  { id: "qarzdorlar", href: "/qarzdorlar", label: "Qarzdorlar", pages: ["crm"] },
   { id: "suppliers", href: "/suppliers", label: "Yetkazib beruvchilar", pages: ["suppliers", "inventory"] },
   { id: "postlar", href: "/postlar", label: "Postlar", pages: ["social_posts"] },
   { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", pages: ["notifications"] },
