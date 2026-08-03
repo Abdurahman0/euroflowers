@@ -213,10 +213,12 @@ export default function SkladPage() {
   // WS: supplier_stock (yangi partiya keldi) → sklad darhol yangilanadi.
   // Kesh ham tozalanadi (WS push invalidate qilmaydi) — mount holatida stale qolmasin.
   useEffect(() => {
-    const onStock = () => { invalidateReportCache(); load(); };
+    // ⚠️ YUKLAR HAM qayta yuklanadi: partiyaning `received_stems`i to'g'rilansa yukning
+    // JAMILARI (dona/tannarx) siljiydi — aks holda ro'yxat eskirgan raqam ko'rsatib turadi.
+    const onStock = () => { invalidateReportCache(); load(); loadDeliveries(); };
     window.addEventListener("ef:stock-changed", onStock);
     return () => window.removeEventListener("ef:stock-changed", onStock);
-  }, [load]);
+  }, [load, loadDeliveries]);
 
   // chuqur havola: ?tab=partiyalar&batch=N (suppliers'dan) yoki ?batch=N
   useEffect(() => {

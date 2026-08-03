@@ -135,7 +135,7 @@ const orig: BatchEditOriginal = {
   cost_per_bunch: "25000.00", sale_price_per_bunch: "50000.00", cost_per_stem: "1000.00", sale_price_per_stem: "2000.00",
 };
 const baseForm: BatchEditForm = {
-  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", stems_per_bunch: "25",
+  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", stems_per_bunch: "25",
   minimum_sale_stems: "5", notes: "old", image_url: "img.jpg",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false,
@@ -179,3 +179,72 @@ describe("DR4 — buildBatchEditPayload (changed-only)", () => {
 });
 
 // ── DR5 KO'CHIRILDI → lib/materialUnit.test.ts (unit-aware receive: dona + pochka)
+
+// ── KELGAN MIQDORNI TO'G'RILASH (received_stems) — oqibat hisobi + payload intizomi
+import { receivedEditConsequence } from "./inventory";
+
+const ORIG: BatchEditOriginal = {
+  batch_number: "B-1", received_at: "2026-08-01", height_cm: 60, stems_per_bunch: 25,
+  minimum_sale_stems: 1, notes: "", image_url: "",
+  cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
+  received_stems: 100, remaining_stems: 20, // ya'ni 80 dona ALLAQACHON ishlatilgan
+};
+const FORM = (over: Partial<BatchEditForm> = {}): BatchEditForm => ({
+  batch_number: "B-1", received_at: "2026-08-01", height_cm: "60",
+  received_stems: "100", stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
+  cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
+  costManual: false, saleManual: false, ...over,
+});
+
+describe("receivedEditConsequence — «ishlatilgan» va yangi qoldiq", () => {
+  it("ishlatilgan = kelgan − qoldiq (florist chiqimi/qaytarish/chiqit/katalog — hammasi qoldiqda)", () => {
+    expect(receivedEditConsequence(100, 20, 100).used).toBe(80);
+  });
+  it("OSHIRISH xavfsiz: 100 → 150 · qoldiq 20 → 70", () => {
+    const c = receivedEditConsequence(100, 20, 150);
+    expect(c).toMatchObject({ used: 80, receivedTo: 150, remainingTo: 70, changed: true, decreasing: false, negative: false });
+  });
+  it("XAVFSIZ kamaytirish: 100 → 90 · qoldiq 20 → 10", () => {
+    const c = receivedEditConsequence(100, 20, 90);
+    expect(c).toMatchObject({ receivedTo: 90, remainingTo: 10, decreasing: true, negative: false });
+  });
+  it("AYNAN ishlatilganga teng (100 → 80) — RUXSAT, qoldiq 0", () => {
+    const c = receivedEditConsequence(100, 20, 80);
+    expect(c).toMatchObject({ receivedTo: 80, remainingTo: 0, negative: false });
+  });
+  it("⚠️ ISHLATILGANDAN KAM (100 → 50) — qoldiq −30, BLOKLANADI", () => {
+    const c = receivedEditConsequence(100, 20, 50);
+    expect(c).toMatchObject({ used: 80, receivedTo: 50, remainingTo: -30, negative: true, decreasing: true });
+  });
+  it("o'zgarmasa changed=false", () => expect(receivedEditConsequence(100, 20, 100).changed).toBe(false));
+  it("hech narsa ishlatilmagan partiyada istalgan kamaytirish xavfsiz", () => {
+    expect(receivedEditConsequence(100, 100, 1)).toMatchObject({ used: 0, remainingTo: 1, negative: false });
+  });
+  it("buzuq/bo'sh kirish → asl qiymat (changed=false, blok yo'q)", () => {
+    expect(receivedEditConsequence(100, 20, "")).toMatchObject({ receivedTo: 100, changed: false, negative: false });
+    expect(receivedEditConsequence(100, 20, "abc")).toMatchObject({ receivedTo: 100, changed: false });
+  });
+});
+
+describe("buildBatchEditPayload — received_stems FAQAT o'zgarganda va FAQAT xavfsiz bo'lsa", () => {
+  it("tegilmagan → kalit YO'Q", () => {
+    expect("received_stems" in buildBatchEditPayload(ORIG, FORM())).toBe(false);
+  });
+  it("oshirilgan → yuboriladi", () => {
+    expect(buildBatchEditPayload(ORIG, FORM({ received_stems: "150" })).received_stems).toBe(150);
+  });
+  it("xavfsiz kamaytirilgan → yuboriladi", () => {
+    expect(buildBatchEditPayload(ORIG, FORM({ received_stems: "90" })).received_stems).toBe(90);
+  });
+  it("⚠️ ishlatilgandan KAM → kalit UMUMAN yuborilmaydi (server 500 ko'rmaydi)", () => {
+    expect("received_stems" in buildBatchEditPayload(ORIG, FORM({ received_stems: "50" }))).toBe(false);
+  });
+  it("boshqa maydonlar tegilmagan bo'lsa ular ham yuborilmaydi (faqat o'zgargan kalitlar)", () => {
+    const p = buildBatchEditPayload(ORIG, FORM({ received_stems: "150" }));
+    expect(Object.keys(p)).toEqual(["received_stems"]);
+  });
+  it("received_stems RETROAKTIV deb belgilanadi (yuk jamilari/tannarx siljiydi)", () => {
+    expect(batchEditIsRetroactive({ received_stems: 150 })).toBe(true);
+    expect(batchEditIsRetroactive({ notes: "x" })).toBe(false);
+  });
+});

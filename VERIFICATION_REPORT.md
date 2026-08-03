@@ -1110,3 +1110,47 @@ o. ⚠️ MATERIAL TANNARXI RETROAKTIV (PRIORITET) — material BITTA qatorli ta
    sotuv paytida `material_cost`ni SNAPSHOT qiladimi yoki so'rov paytida joriy material narxidan qayta
    hisoblaydimi? (2) qayta hisoblasa — o'tgan oydagi «O'rta savat»li katalog foydasi bugungi receive'da
    siljiydi. Transferred-stem teshigi bilan bir sinf. Backend qaror.
+
+---
+
+# BATCH received_stems CORRECTION (2026-08-03)
+
+## LIST 1 — append (risk-annotated)
+
+BR1. **Partiya «Kelgan miqdor»ni to'g'rilash — OSHIRISH.** Sklad → partiya kartasi → Tahrirlash →
+     «Kelgan miqdor — to'g'rilash». Dona/Pochka tugmasi create formadagidek (pochka sukut bo'yicha,
+     jonli konversiya). 100 → 150 qiling: oqibat bloki «Kelgan 100 → 150 · Ishlatilgan 80 ·
+     Qoldiq 20 → 70» ko'rsatadi, retroaktiv ogohlantirish chiqadi. Saqlang. **REV** (qayta
+     tahrirlab qaytarasiz), lekin **tannarx raqamlari siljiydi** — hisobotni keyin solishtiring.
+
+BR2. **XAVFSIZ kamaytirish.** Ishlatilgandan KO'P qiymatga kamaytiring (masalan ishlatilgan 80
+     bo'lsa 90 ga). Qoldiq 20 → 10 ko'rinadi, saqlanadi. **REV**, ammo ⚠️ **RETROAKTIV: partiya
+     jami va YUK jamilari (dona + tannarx) qayta hisoblanadi** — o'sha yukning hisobot raqamlari
+     o'zgaradi. Saqlangach Sklad → Yuklar ro'yxatida jami yangilanganini tekshiring.
+
+BR3. **BLOKLANGAN holat (asosiy tekshiruv).** Ishlatilgandan KAM qiymat kiriting (ishlatilgan 80,
+     siz 50 yozasiz). Kutilgan: qoldiq «20 → −30» qizil, «Bu partiyadan 80 dona allaqachon
+     ishlatilgan…» bloki muqobillari bilan (chiqitga yozish / harakatlarni to'g'rilash),
+     **«Saqlash» o'chirilgan**. Server'ga HECH NARSA ketmaydi. **READ** (hech qanday yozuv yo'q).
+
+BR4. **Faqat o'zgargan kalitlar.** Kelgan miqdorni tegmasdan boshqa maydonni (masalan Izoh)
+     o'zgartiring — payload'da `received_stems` BO'LMASLIGI kerak (modal ostidagi «Faqat o'zgargan
+     maydon(lar) saqlanadi: …» satri buni ko'rsatadi). **REV**.
+
+## LIST 2 — append (PRIORITET)
+
+p. ⚠️ **`received_stems` O'ZGARGANDA `remaining_stems` NIMA BO'LADI? (PRIORITET — read-only hal
+   qilinmadi.)** Jonli OpenAPI: `received_stems` VA `remaining_stems` IKKALASI ham PATCH'da
+   yoziladigan (readOnly EMAS, min 0); `remaining_bunches` esa readOnly (hosila). Ya'ni qoldiq
+   ALOHIDA saqlanadigan maydon — server `received_stems` o'zgarganda uni QAYTA HISOBLAMASLIGI
+   ehtimoli katta. SETTLE: `PATCH {received_stems: 150}` yuborilganda server (1) qoldiqni
+   received − consumed bo'yicha qayta hisoblaydimi, (2) boshlang'ich «Partiya kirimi» harakatini
+   to'g'rilaydimi, yoki (3) qoldiqni ESKIRGAN holda qoldiradimi? (3) bo'lsa — partiyani oshirish
+   qoldiqni oshirMAYDI va sklad jimgina noto'g'ri bo'lib qoladi; u holda frontend `remaining_stems`
+   ni ham hisoblab yuborishi kerakmi (xavfli) yoki backend buni o'zi qilishi kerakmi?
+   **Frontend hozircha faqat `received_stems` yuboradi va ishlatilgandan kam qiymatni bloklaydi.**
+
+q. **Manfiy qoldiq himoyasi serverda bormi?** `remaining_stems` da `min 0` bor, lekin
+   `received_stems` kamaytirilganda server rad etadimi, 0 ga qisadimi yoki manfiyga yo'l qo'yadimi —
+   aniqlanmadi. Klientda qat'iy bloklandi (500 ko'rmaslik uchun), ammo boshqa klient/skript orqali
+   yozilishi mumkin. Backend serializer darajasida validatsiya qo'shsin.

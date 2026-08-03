@@ -199,6 +199,8 @@ export type BatchEditForm = {
   batch_number: string;
   received_at: string; // "YYYY-MM-DD"
   height_cm: string;
+  /** ⚠️ KELGAN MIQDOR — xato kiritishni to'g'rilash uchun (dona; forma pochkada ham kiritadi). */
+  received_stems: string;
   stems_per_bunch: string;
   minimum_sale_stems: string;
   notes: string;
@@ -214,7 +216,56 @@ export type BatchEditOriginal = {
   batch_number?: string; received_at?: string; height_cm?: number; stems_per_bunch?: number;
   minimum_sale_stems?: number; notes?: string; image_url?: string;
   cost_per_bunch?: string | null; sale_price_per_bunch?: string | null; cost_per_stem?: string | null; sale_price_per_stem?: string | null;
+  /** kelgan/qolgan — «ishlatilgan»ni hisoblash uchun (received − remaining) */
+  received_stems?: number; remaining_stems?: number;
 };
+
+/**
+ * KELGAN MIQDORNI TO'G'RILASH — OQIBAT HISOBI (sof, testlanadi).
+ *
+ * «Ishlatilgan» = kelgan − qoldiq. Bu qiymat florist chiqimi, qaytarish, chiqit VA katalog
+ * sarfini QAMRAB OLADI, chunki ularning hammasi `remaining_stems` ni harakatlantiradi
+ * (jonli tekshirilgan: #62 kirim +100, chiqim −100, chiqim −25, qaytarish +25 → qoldiq 0).
+ *
+ * ⚠️ SERVER XATTI-HARAKATI NOMA'LUM (read-only aniqlab bo'lmadi): `remaining_stems` PATCH'da
+ * ALOHIDA yoziladigan maydon (readOnly EMAS) — ya'ni server `received_stems` o'zgarganda
+ * qoldiqni QAYTA HISOBLAMASLIGI ehtimoli katta. Shu bois KLIENT tomonda qat'iy bloklaymiz:
+ * ishlatilgandan kam qiymat YUBORILMAYDI (aks holda qoldiq manfiy yoki eskirgan bo'lib qoladi).
+ */
+export type ReceivedEditConsequence = {
+  /** ishlatilgan (kelgan − qoldiq); hech qachon manfiy emas */
+  used: number;
+  receivedFrom: number;
+  receivedTo: number;
+  remainingFrom: number;
+  /** yangi qoldiq = yangi kelgan − ishlatilgan (manfiy bo'lishi MUMKIN — shuni ko'rsatamiz) */
+  remainingTo: number;
+  /** o'zgardimi (aks holda blok/ogohlantirish ko'rsatilmaydi) */
+  changed: boolean;
+  /** kamaytirilyaptimi (xavfli yo'nalish) */
+  decreasing: boolean;
+  /** yangi qoldiq manfiy — SAQLASH BLOKLANADI */
+  negative: boolean;
+};
+
+export function receivedEditConsequence(
+  origReceived: number | null | undefined,
+  origRemaining: number | null | undefined,
+  nextReceived: number | string | null | undefined,
+): ReceivedEditConsequence {
+  const receivedFrom = Math.max(Math.round(+(origReceived ?? 0) || 0), 0);
+  const remainingFrom = Math.max(Math.round(+(origRemaining ?? 0) || 0), 0);
+  const used = Math.max(receivedFrom - remainingFrom, 0);
+  const raw = typeof nextReceived === "string" ? parseFloat(nextReceived) : nextReceived;
+  const receivedTo = Number.isFinite(raw as number) ? Math.max(Math.round(raw as number), 0) : receivedFrom;
+  const remainingTo = receivedTo - used;
+  return {
+    used, receivedFrom, receivedTo, remainingFrom, remainingTo,
+    changed: receivedTo !== receivedFrom,
+    decreasing: receivedTo < receivedFrom,
+    negative: remainingTo < 0,
+  };
+}
 const numEq = (a: string, b: string | number | undefined | null): boolean =>
   (parseFloat(a) || 0) === (b == null ? 0 : typeof b === "string" ? (parseFloat(b) || 0) : b);
 function addPriceEdit(p: Record<string, unknown>, kind: "cost" | "sale", manual: boolean, bunch: string, stem: string, origBunch?: string | null, origStem?: string | null) {
@@ -236,6 +287,13 @@ export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditFo
   const origDate = (orig.received_at ?? "").slice(0, 10);
   if (form.received_at && form.received_at.slice(0, 10) !== origDate) p.received_at = form.received_at.slice(0, 10);
   if (+form.height_cm > 0 && +form.height_cm !== orig.height_cm) p.height_cm = +form.height_cm;
+  // ⚠️ KELGAN MIQDOR — faqat O'ZGARGANDA va faqat XAVFSIZ bo'lsa (ishlatilgandan kam emas).
+  // Bloklanган holatda kalit UMUMAN yuborilmaydi (UI ham saqlashga yo'l qo'ymaydi).
+  {
+    const raw = form.received_stems ?? ""; // maydonsiz eski chaqiruvchilar uchun himoya
+    const c = receivedEditConsequence(orig.received_stems, orig.remaining_stems, raw);
+    if (raw.trim() !== "" && c.changed && !c.negative) p.received_stems = c.receivedTo;
+  }
   if (+form.stems_per_bunch > 0 && +form.stems_per_bunch !== orig.stems_per_bunch) p.stems_per_bunch = +form.stems_per_bunch;
   if (+form.minimum_sale_stems > 0 && +form.minimum_sale_stems !== orig.minimum_sale_stems) p.minimum_sale_stems = +form.minimum_sale_stems;
   if (form.notes !== (orig.notes ?? "")) p.notes = form.notes;
@@ -245,8 +303,9 @@ export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditFo
   return p;
 }
 /** RETROAKTIV o'zgarish bormi — tannarx/pochka-dona bo'linishi (avval yasalgan kataloglar tannarxiga ta'sir). */
+/** ⚠️ RETROAKTIV — tannarx/pochka-dona VA kelgan miqdor (partiya jami → yuk jamilari va tannarx raqamlari siljiydi). */
 export const batchEditIsRetroactive = (payload: Record<string, unknown>): boolean =>
-  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload;
+  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload || "received_stems" in payload;
 
 /* ===== yuborishdan oldin NORMALLASHTIRISH (katalog / social post) =====
    Bitta buket/savat = BITTA CatalogItem, ichida ko'p qatorli composition.
