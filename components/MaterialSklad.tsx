@@ -73,6 +73,9 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
 
   const upb = Math.round(+f.units_per_bunch || 0);
   const cfg = UNIT_CONFIG[f.unit];
+  // ⚠️ BUKET QOG'OZI (wrap): «O'lcham» va «Sotuv narxi» bu turga ma'nosiz — so'ralmaydi.
+  // Ikkalasi ham API'da IXTIYORIY (jonli OpenAPI: Packaging.required = [name_uz, packaging_type]).
+  const hidesSizeAndSale = f.packaging_type === "wrap";
   // kirim preview — mavjud material qoldig'i 0 dan boshlanadi (yangi material)
   const preview = linkOn && recvQty.trim() !== ""
     ? receivePreview({ unit: f.unit, units_per_bunch: upb, quantity: 0, cost_price: "0" }, recvQty, recvCost)
@@ -90,11 +93,13 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
         name_uz: f.name_uz.trim(),
         name_ru: f.name_ru.trim() || f.name_uz.trim(),
         packaging_type: f.packaging_type,
-        size: f.size.trim(),
         unit: f.unit,
         ...(f.unit === "bunch" ? { units_per_bunch: upb } : {}),
         ...(f.packaging_type === "basket" && f.basket_material ? { basket_material: f.basket_material } : {}),
-        sale_price: f.sale_price ? String(+f.sale_price) : "0",
+        // ⚠️ WRAP (buket qog'ozi): «O'lcham» va «Sotuv narxi» so'ralMAYDI va kalitlari
+        // UMUMAN YUBORILMAYDI (bo'sh satr/0 emas — zero-is-a-value intizomi). Mavjud wrap
+        // materialini tahrirlaganda saqlangan qiymatlar SHU SABABLI tegilmay qoladi.
+        ...(hidesSizeAndSale ? {} : { size: f.size.trim(), sale_price: f.sale_price ? String(+f.sale_price) : "0" }),
         is_active: true,
       };
       if (!material) {
@@ -153,18 +158,24 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
               options={[{ value: "", label: "—" }, ...(["wooden", "plastic_handle", "woven"] as const).map((b) => ({ value: b, label: BASKET_MATERIAL_LABEL[b] }))]} />
           </Field>
         )}
-        <Field label="O'lcham">
-          <input className="inp" value={f.size} onChange={(e) => setF({ ...f, size: e.target.value })} placeholder="Masalan: M" />
-        </Field>
+        {/* ⚠️ O'LCHAM — buket qog'ozida so'ralmaydi (o'lcham tushunchasi yo'q) */}
+        {!hidesSizeAndSale && (
+          <Field label="O'lcham">
+            <input className="inp" value={f.size} onChange={(e) => setF({ ...f, size: e.target.value })} placeholder="Masalan: M" />
+          </Field>
+        )}
         {/* yukka bog'lanmaganda — qo'lda tannarx/boshlang'ich son (yukka bog'lansa backend yozadi) */}
         {(!linkOn || material) && (
           <Field label="Tannarx (so'm)">
             <input className="inp" type="number" value={f.cost_price} onChange={(e) => setF({ ...f, cost_price: e.target.value })} placeholder="Masalan: 8000" />
           </Field>
         )}
-        <Field label="Sotuv narxi (so'm)">
-          <input className="inp" type="number" value={f.sale_price} onChange={(e) => setF({ ...f, sale_price: e.target.value })} placeholder="Masalan: 20000" />
-        </Field>
+        {/* ⚠️ SOTUV NARXI — buket qog'ozi sotilmaydi (faqat ishlatiladi) → so'ralmaydi */}
+        {!hidesSizeAndSale && (
+          <Field label="Sotuv narxi (so'm)">
+            <input className="inp" type="number" value={f.sale_price} onChange={(e) => setF({ ...f, sale_price: e.target.value })} placeholder="Masalan: 20000" />
+          </Field>
+        )}
         {!material && !linkOn && (
           <Field label="Boshlang'ich soni">
             <input className="inp" type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} placeholder="Masalan: 50" />

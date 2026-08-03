@@ -1,5 +1,6 @@
 "use client";
 import EmptyState from "@/components/EmptyState";
+import SharedDataNotice from "@/components/SharedDataNotice";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
 import ClearFilters from "@/components/ClearFilters";
@@ -585,6 +586,7 @@ export default function BuyurtmalarPage() {
 
   return (
     <>
+      <SharedDataNotice screen="crm" className="mb-3" />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
           Buyurtmalar ({total != null && total > fLeads.length ? `${fLeads.length} / ${total}` : fLeads.length}) — sudrab statusni o&apos;zgartiring

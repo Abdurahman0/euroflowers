@@ -1,5 +1,6 @@
 "use client";
 import FilterSelect from "@/components/FilterSelect";
+import SharedDataNotice from "@/components/SharedDataNotice";
 import ClearFilters from "@/components/ClearFilters";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -91,6 +92,7 @@ export default function BildirishnomalarPage() {
 
   return (
     <>
+      <SharedDataNotice screen="bildirishnomalar" className="mb-3" />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <FilterSelect
           value={type}

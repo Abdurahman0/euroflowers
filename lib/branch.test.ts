@@ -1,43 +1,79 @@
 import { describe, it, expect } from "vitest";
-import { visibleScreens, screenAllowedForBranch, pathAllowed, isBranchUser, buildUserBranchPayload, accountingBranchParam, accountingRowView, branchSplitParts, branchSplitLine } from "./branch";
+import { visibleScreens, showsSharedData, pathAllowed, isBranchUser, buildUserBranchPayload, accountingBranchParam, accountingRowView, branchSplitParts, branchSplitLine } from "./branch";
 import type { AccountingByBranch, AccountingFigures, PermissionPage } from "./types";
 
 const ALL: PermissionPage[] = ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "ai_settings", "integrations", "users", "audit"];
 
-describe("§1 — branch nav/route gating (pure)", () => {
-  it("main admin (not branch) with all perms sees the full permitted set incl. Sklad/CRM", () => {
+describe("§1 — RUXSAT HUKM QILADI (filial allowlist olib tashlandi, 2026-08-03)", () => {
+  it("main admin with all perms sees the full permitted set", () => {
     const v = visibleScreens(false, ALL);
     expect(v).toContain("sklad");
     expect(v).toContain("crm");
     expect(v).toContain("branchReport");
   });
-  it("branch user with FULL perms still sees ONLY Dashboard·Hisob·Katalog", () => {
-    const v = visibleScreens(true, ALL);
-    expect(new Set(v)).toEqual(new Set(["dashboard", "hisob", "katalog"]));
+  it("branch user with FULL perms now sees the SAME set as a main user (no allowlist)", () => {
+    expect(new Set(visibleScreens(true, ALL))).toEqual(new Set(visibleScreens(false, ALL)));
   });
-  it("branch user with fewer perms sees the intersection, never more", () => {
-    const v = visibleScreens(true, ["dashboard"]); // no catalog perm
-    expect(new Set(v)).toEqual(new Set(["dashboard", "hisob"])); // katalog dropped (no catalog perm)
-    expect(v).not.toContain("katalog");
+  // ⚠️ ASOSIY REGRESSIYA: parkent_admin'ning jonli ruxsatlari (can_view=true bo'lganlari)
+  it("branch user with X,Y,Z sees EXACTLY X,Y,Z — parkent_admin real case", () => {
+    const perms: PermissionPage[] = ["dashboard", "catalog", "crm", "customers", "notifications"];
+    const v = visibleScreens(true, perms);
+    // dashboard → Dashboard + Analitika + Hisob-kitob + Filial hisoboti; crm → Buyurtmalar + Bronlar
+    expect(new Set(v)).toEqual(new Set([
+      "dashboard", "analitika", "hisob", "branchReport",
+      "katalog", "crm", "bronlar", "mijozlar", "bildirishnomalar",
+    ]));
+    // ilgari yashiringan sahifalar endi KO'RINADI (ruxsat bergan)
+    expect(v).toContain("mijozlar");
+    expect(v).toContain("crm");
+    expect(v).toContain("bildirishnomalar");
+    // ruxsat BERILMAGANLARI baribir yo'q
     expect(v).not.toContain("sklad");
+    expect(v).not.toContain("floristlar");
+    expect(v).not.toContain("xodimlar");
   });
-  it("screenAllowedForBranch blocks non-branch screens for branch users only", () => {
-    expect(screenAllowedForBranch("sklad", true)).toBe(false);
-    expect(screenAllowedForBranch("sklad", false)).toBe(true);
-    expect(screenAllowedForBranch("katalog", true)).toBe(true);
+  it("branch user without a perm still does not see that screen", () => {
+    const v = visibleScreens(true, ["dashboard"]);
+    expect(v).not.toContain("katalog");
+    expect(v).not.toContain("mijozlar");
   });
 });
 
-describe("§1 — route guard (guard the routes, not just nav)", () => {
-  it("branch user hitting /sklad is NOT allowed (→ redirect to Dashboard)", () => {
-    expect(pathAllowed("/sklad", true, ALL)).toBe(false);
-    expect(pathAllowed("/floristlar", true, ALL)).toBe(false);
-    expect(pathAllowed("/filial-hisoboti", true, ALL)).toBe(false);
+describe("§1 — umumiy ma'lumot ogohlantirishi (yashirish o'rniga halol aytish)", () => {
+  it("filial foydalanuvchisiga bo'linMAGAN ekranlarda ko'rsatiladi", () => {
+    for (const id of ["crm", "bronlar", "mijozlar", "bildirishnomalar", "sklad", "floristlar"] as const) {
+      expect(showsSharedData(id, true)).toBe(true);
+    }
   });
-  it("branch user CAN reach Dashboard/Hisob/Katalog", () => {
-    expect(pathAllowed("/", true, ALL)).toBe(true);
-    expect(pathAllowed("/hisob-kitob", true, ALL)).toBe(true);
-    expect(pathAllowed("/katalog", true, ALL)).toBe(true);
+  it("serverda BO'LINGAN ekranlarda ko'rsatilMAYDI (dashboard · hisob · katalog)", () => {
+    for (const id of ["dashboard", "hisob", "katalog"] as const) {
+      expect(showsSharedData(id, false)).toBe(false);
+      expect(showsSharedData(id, true)).toBe(false);
+    }
+  });
+  it("asosiy filial foydalanuvchisiga HECH QACHON ko'rsatilmaydi", () => {
+    expect(showsSharedData("mijozlar", false)).toBe(false);
+    expect(showsSharedData("crm", false)).toBe(false);
+  });
+});
+
+describe("§1 — route guard NAV bilan AYNAN mos (ruxsat yagona mezon)", () => {
+  it("nav va route guard bir xil javob beradi — URL orqali yashirin sahifa yo'q", () => {
+    const perms: PermissionPage[] = ["dashboard", "catalog", "crm", "customers", "notifications"];
+    // ko'rinadigan har bir ekran route'i ham OCHIQ
+    expect(pathAllowed("/mijozlar", true, perms)).toBe(true);
+    expect(pathAllowed("/buyurtmalar", true, perms)).toBe(true);
+    expect(pathAllowed("/bronlar", true, perms)).toBe(true);
+    expect(pathAllowed("/bildirishnomalar", true, perms)).toBe(true);
+    expect(pathAllowed("/katalog", true, perms)).toBe(true);
+    // ruxsat yo'q → nav'da ham yo'q, route ham YOPIQ
+    expect(pathAllowed("/sklad", true, perms)).toBe(false);
+    expect(pathAllowed("/floristlar", true, perms)).toBe(false);
+    expect(pathAllowed("/xodimlar", true, perms)).toBe(false);
+  });
+  it("filial foydalanuvchisi endi /sklad'ga ruxsati BOR bo'lsa kira oladi (allowlist yo'q)", () => {
+    expect(pathAllowed("/sklad", true, ALL)).toBe(true);
+    expect(pathAllowed("/filial-hisoboti", true, ALL)).toBe(true);
   });
   it("main admin can reach any permitted route", () => {
     expect(pathAllowed("/sklad", false, ALL)).toBe(true);
@@ -45,7 +81,7 @@ describe("§1 — route guard (guard the routes, not just nav)", () => {
   it("unknown routes (e.g. /login) are not blocked", () => {
     expect(pathAllowed("/login", true, ALL)).toBe(true);
   });
-  it("isBranchUser: null = main (unrestricted), a branch id = restricted", () => {
+  it("isBranchUser: null = main, a branch id = branch (chip uchun ishlatiladi)", () => {
     expect(isBranchUser(null)).toBe(false);
     expect(isBranchUser(undefined)).toBe(false);
     expect(isBranchUser(2)).toBe(true);

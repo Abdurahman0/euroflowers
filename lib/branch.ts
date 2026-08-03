@@ -28,8 +28,27 @@ export const NAV: NavItem[] = [
   { id: "sozlamalar", href: "/sozlamalar", label: "Sozlamalar", pages: ["settings"] },
 ];
 
-/** Filial (non-main) foydalanuvchisi FAQAT shu ekranlarni ko'radi (spec §3). */
-export const BRANCH_SCREENS: ScreenId[] = ["dashboard", "hisob", "katalog"];
+/**
+ * ⚠️ 2026-08-03: FILIAL ALLOWLIST OLIB TASHLANDI.
+ * Ilgari filial foydalanuvchisi qattiq ["dashboard","hisob","katalog"] ro'yxati bilan
+ * cheklanardi va bu ruxsat bilan KESISHTIRILARDI — natijada unga BERILGAN ruxsat ham
+ * ko'rinmay qolardi (masalan Mijozlar, CRM, Bildirishnomalar). YANGI QOIDA: RUXSAT HUKM QILADI —
+ * filial foydalanuvchisi ham xuddi boshqalar kabi ruxsati bergan sahifalarni ko'radi.
+ *
+ * ⚠️ Buning O'RNIGA halol ogohlantirish: quyidagi ekranlarning MA'LUMOTI serverda
+ * filialga BO'LINMAGAN (FRONTEND_BRANCH_PARKENT.md §3 + jonli OpenAPI tekshiruvi:
+ * Lead / Customer / Reservation / Notification serializerlarida `branch` maydoni UMUMAN YO'Q).
+ * Ya'ni Parkent operatori bu ro'yxatlarda BARCHA filial ma'lumotini ko'radi — shuni aytamiz,
+ * yashirmaymiz. Serverda bo'lingani (dashboard · hisob-kitob · katalog) bu ro'yxatda YO'Q.
+ */
+export const GLOBAL_DATA_SCREENS: ScreenId[] = [
+  "crm", "bronlar", "mijozlar", "bildirishnomalar",
+  "sklad", "floristStock", "gullar", "floristlar", "suppliers", "postlar", "chat", "xodimlar", "audit",
+];
+
+/** Filial foydalanuvchisiga shu ekranda «umumiy ma'lumot» ogohlantirishi kerakmi. */
+export const showsSharedData = (id: ScreenId, branchUser: boolean): boolean =>
+  branchUser && GLOBAL_DATA_SCREENS.includes(id);
 
 /** Filial foydalanuvchisimi. Jonli kontrakt (tekshirilgan): asosiy filial
     `profile.branch = null` (integer, nullable, MAJBURIY EMAS); filial `= <id>`.
@@ -39,9 +58,6 @@ export const BRANCH_SCREENS: ScreenId[] = ["dashboard", "hisob", "katalog"];
     Kalit umuman yo'q bo'lsa (schema uni majburiy demaydi) — loadMe'da ogohlantiriladi. */
 export const isBranchUser = (branch: number | null | undefined): boolean => branch !== null && branch !== undefined;
 
-/** Ekran filial foydalanuvchisiga OCHIQmi (ruxsatdan ALOHIDA, ustiga qatlam). */
-export const screenAllowedForBranch = (id: ScreenId, branchUser: boolean): boolean =>
-  !branchUser || BRANCH_SCREENS.includes(id);
 
 /** Katalog javobida TANNARX/FOYDA/FLORIST maydonlari filial foydalanuvchisiga backend'da
     OLIB TASHLANADI (null). Ustun/blok CHIZILMASLIGI kerak — «0 so'm» EMAS, YO'Q ([[filial-narx-yashirish]]).
@@ -54,22 +70,21 @@ export const screenAllowedForBranch = (id: ScreenId, branchUser: boolean): boole
 export const catalogHasCostData = (item: { profit?: unknown } | null | undefined): boolean =>
   item != null && item.profit != null;
 
-/** PURE: (filial foydalanuvchisi?, ko'ra oladigan sahifalar) → ko'rinadigan ekranlar.
-    Ruxsat VA filial qatlami — ikkalasi ham o'tishi shart, hech qachon ko'proq emas. */
-export function visibleScreens(branchUser: boolean, viewablePages: PermissionPage[]): ScreenId[] {
-  return NAV
-    .filter((n) => n.pages.some((p) => viewablePages.includes(p)) && screenAllowedForBranch(n.id, branchUser))
-    .map((n) => n.id);
+/** PURE: ko'ra oladigan sahifalar → ko'rinadigan ekranlar. YAGONA mezon — RUXSAT
+    (filial qatlami olib tashlandi; `branchUser` argumenti moslik uchun qoldirilgan, e'tiborsiz). */
+export function visibleScreens(_branchUser: boolean, viewablePages: PermissionPage[]): ScreenId[] {
+  return NAV.filter((n) => n.pages.some((p) => viewablePages.includes(p))).map((n) => n.id);
 }
 
-/** Route guard: shu path filial foydalanuvchisiga (va ruxsatga) ochiqmi. Noma'lum
-    path (masalan /login) BLOKLANMAYDI. Eng uzun href mosligi olinadi. */
-export function pathAllowed(pathname: string, branchUser: boolean, viewablePages: PermissionPage[]): boolean {
+/** Route guard: shu path ruxsatga ochiqmi. Noma'lum path (masalan /login) BLOKLANMAYDI.
+    Eng uzun href mosligi olinadi. ⚠️ NAV bilan AYNAN bir mezon (ruxsat) — URL orqali
+    menyuda yo'q sahifaga kirib bo'lmaydi va menyudagi sahifa bloklanmaydi. */
+export function pathAllowed(pathname: string, _branchUser: boolean, viewablePages: PermissionPage[]): boolean {
   const item = NAV
     .filter((n) => pathname === n.href || (n.href !== "/" && pathname.startsWith(n.href)))
     .sort((a, b) => b.href.length - a.href.length)[0];
   if (!item) return true; // NAV'da yo'q route — bloklanmaydi
-  return item.pages.some((p) => viewablePages.includes(p)) && screenAllowedForBranch(item.id, branchUser);
+  return item.pages.some((p) => viewablePages.includes(p));
 }
 
 /** UserModal `branch` payload — ⚠️ ODAMNI JIMGINA ASOSIY FILIALGA KO'CHIRMASLIK uchun:

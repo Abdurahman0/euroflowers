@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import SharedDataNotice from "@/components/SharedDataNotice";
 import { Plus, Truck, Tag, CalendarClock } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
@@ -92,6 +93,7 @@ export default function BronlarPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <SharedDataNotice screen="bronlar" />
       {/* SARLAVHA + BOSH AMAL */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">

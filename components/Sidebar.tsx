@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { motion } from "framer-motion";
 import { usePerm, useStore } from "@/lib/store";
 import { Icon } from "./icons";
-import { NAV, isBranchUser, screenAllowedForBranch } from "@/lib/branch";
+import { NAV } from "@/lib/branch";
 
 /** NAV sahifalari backend ruxsat sahifalariga bog'langan (kontrakt: can_view).
     `pages` — bir nechtasidan BIRORTASI yetarli (backend florists/suppliers/
@@ -19,8 +19,6 @@ export default function Sidebar() {
   const router = useRouter();
   const { sideOpen, toggleSide, notifs } = useStore();
   const { canView } = usePerm();
-  // filial (non-main) foydalanuvchisi FAQAT Dashboard·Hisob·Katalog — ruxsat ustiga qatlam
-  const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
   const yangiLead = notifs.filter((n) => !n.is_read && n.notification_type === "lead").length;
 
   // tor ekranlarda avtomatik yig'iladi — kontent doim ustuvor
@@ -66,7 +64,9 @@ export default function Sidebar() {
 
       {/* nav */}
       <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
-        {NAV.filter((n) => canView(...n.pages) && screenAllowedForBranch(n.id, branchUser)).map((n, i, arr) => {
+        {/* ⚠️ RUXSAT HUKM QILADI — filial allowlist'i olib tashlandi (filial foydalanuvchisi ham
+            ruxsati bergan hamma sahifani ko'radi). Umumiy ma'lumot ogohlantirishi sahifa ichida. */}
+        {NAV.filter((n) => canView(...n.pages)).map((n, i, arr) => {
           const active = pathname === n.href;
           // tepa 6lik va qolganlari orasida yumshoq ajratgich — ALOHIDA element sifatida
           // (item wrapper'iga BIRIKTIRILMAYDI), shunda HAR bir tugma bir xil to'g'ridan-to'g'ri
