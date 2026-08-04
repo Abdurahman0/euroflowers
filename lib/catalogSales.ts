@@ -105,12 +105,19 @@ export function totalsView(t: CatalogSalesTotals | null | undefined) {
   };
 }
 
-/** Qator ko'rinishi: «300 000 + 20 000 dastafka = 320 000».
-    ⚠️ Dastafka 0 bo'lsa (aksariyat qator) — faqat summa, ortiqcha matn YO'Q. */
+/**
+ * Qator ko'rinishi — 2026-08-04 QOIDASI: «500 000 (shundan 50 000 dastafka) → tovar 450 000».
+ *
+ * ⚠️ MIJOZDAN OLINGAN pul — `received_total` (sotuvda kiritilgan summa).
+ * ⚠️ TOVAR SAVDOSI — `sale_total` = received − delivery. Server bergani AVTORITATIV;
+ * `sale_total` kelmasa AYIRIB olamiz (QO'SHMAYMIZ — dastafka summaning ichida).
+ * Dastafka 0 bo'lsa (aksariyat qator) — faqat summa, ortiqcha matn YO'Q.
+ */
 export function deliveryRowView(r: { sale_total?: string | number; delivery_amount?: string | number; received_total?: string | number }):
   { hasDelivery: boolean; goods: number; delivery: number; received: number } {
-  const goods = saleNum(r.sale_total);
   const delivery = saleNum(r.delivery_amount);
-  const received = saleNum(r.received_total) || goods + delivery;
+  // dastafkasiz eski qatorlarda `received_total` bo'lmasligi mumkin → sale_total ning o'zi
+  const received = saleNum(r.received_total) || saleNum(r.sale_total);
+  const goods = r.sale_total != null ? saleNum(r.sale_total) : Math.max(received - delivery, 0);
   return { hasDelivery: delivery > 0, goods, delivery, received };
 }

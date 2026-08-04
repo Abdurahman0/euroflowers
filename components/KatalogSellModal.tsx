@@ -9,7 +9,7 @@ import Select from "./Select";
 import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import { debtSellPayload, debtCustomerReady, DEBT_CUSTOMER_REQUIRED, DEBT_NONE_DISABLED_REASON } from "@/lib/debt";
-import { applyMixedEdit, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, mixedTarget, parseMoney, emptyMixed, type MixedState } from "@/lib/mixedPayment";
+import { applyMixedEdit, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage, parseMoney, emptyMixed, type MixedState } from "@/lib/mixedPayment";
 import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
@@ -172,8 +172,13 @@ export default function KatalogSellModal({
   const needsReason = discountOn && calc.unitDiscount > 0;
 
   // ⚠️ JAMI o'zgardi (dona / chegirma) → FAQAT tegilmagan maydon qayta hisoblanadi.
-  // ⚠️ ARALASH taqqoslash summasi = TOVAR + DASTAFKA (spec: 300 000 + 20 000 = 320 000)
-  const payTarget = mixedTarget(calc.totalSum, delivery);
+  // ⚠️ 2026-08-04 QOIDA O'ZGARDI: `sale_price` MIJOZDAN OLINADIGAN TO'LIQ pul bo'lib,
+  // dastafka uning ICHIDA. Shuning uchun taqqoslash summasi — sotuv summasining O'ZI;
+  // dastafkani qo'shish IKKI MARTA hisoblash bo'lardi.
+  const payTarget = calc.totalSum;
+  // TOVAR SAVDOSI — hosila (ko'rsatiladi, kiritilmaydi)
+  const goodsTotal = deliveryGoods(calc.totalSum, delivery);
+  const deliveryBad = deliveryTooLarge(calc.totalSum, delivery);
   useEffect(() => {
     if (!isMixed) return;
     setMixed((p) => recalcOnTotalChange(p, payTarget));
@@ -195,6 +200,8 @@ export default function KatalogSellModal({
     // (matn AYNAN serverникi, ikki xil ibora bo'lmasin).
     const debtBody = debtSellPayload(isDebt, cust, debtNote);
     if (debtBody === null) next.customer = DEBT_CUSTOMER_REQUIRED;
+    // ⚠️ DASTAFKA sotuv summasidan kichik bo'lishi SHART (server 400)
+    if (deliveryBad) next.delivery_amount = deliveryTooLargeMessage(calc.totalSum, delivery);
     // ⚠️ ARALASH — yig'indi jamiga TENG va ikkalasi ham > 0 bo'lmasa yuborilmaydi
     const mixedBody = mixedSellPayload(isMixed, mixed, payTarget);
     if (mixedBody === null) next.cash_amount = mixedV.message;
@@ -376,14 +383,13 @@ export default function KatalogSellModal({
         {isMixed && (
           <div className="mt-2 rounded-[13px] border p-3" style={{ borderColor: mixedV.ok ? "var(--acc)" : "var(--border)", background: "var(--surface-2)" }}>
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>
-                {deliveryNum > 0 ? "Mijozdan olinadi" : "Sotuv summasi"}
-              </span>
+              <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>Mijozdan olinadi</span>
               <span className="text-[14px] font-extrabold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(payTarget)}</span>
             </div>
+            {/* ⚠️ Dastafka summaning ICHIDA — naqd+karta baribir TO'LIQ summaga tenglashadi */}
             {deliveryNum > 0 && (
               <div className="text-[11px]" style={{ color: "var(--muted)" }}>
-                tovar {fmt(calc.totalSum)} + dastafka {fmt(deliveryNum)}
+                shundan {fmt(deliveryNum)} dastafka · tovar savdosi {fmt(goodsTotal)}
               </div>
             )}
             <div className="mt-2 grid grid-cols-2 gap-2">
@@ -581,14 +587,31 @@ export default function KatalogSellModal({
 
       {/* DASTAFKA — ixtiyoriy. ⚠️ TOVAR SAVDOSIGA KIRMAYDI va SOF FOYDAGA TA'SIR QILMAYDI. */}
       <div className="mt-4">
-        <Field label="Dastafka (ixtiyoriy)" span>
+        <Field label="Shundan dastafka (ixtiyoriy)" span>
           <input className="inp" inputMode="numeric" value={delivery} placeholder="0" aria-label="Dastafka summasi"
             onChange={(e) => { setDelivery(formatMoneyInput(e.target.value)); setErrs((x) => { const n = { ...x }; delete n.delivery_amount; delete n.detail; return n; }); }} />
+          {/* ⚠️ Server 400 beradi: dastafka sotuv summasidan QAT'IY kichik bo'lishi shart */}
+          {deliveryBad && (
+            <span className="mt-1 block text-[11.5px] font-bold" style={{ color: "var(--danger-ink)" }}>
+              {deliveryTooLargeMessage(calc.totalSum, delivery)}
+            </span>
+          )}
           {errs.delivery_amount && <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.delivery_amount}</span>}
         </Field>
         <p className="mt-1 text-[11.5px]" style={{ color: "var(--muted)" }}>
-          Yetkazib berish uchun olingan pul. <b>Tovar savdosiga kirmaydi</b> va sof foydaga ta&apos;sir qilmaydi.
+          Sotuv summasining <b>ichidan</b> kuryerga ketadigan pul — ustiga qo&apos;shilmaydi.
+          Tovar savdosiga kirmaydi va sof foydaga ta&apos;sir qilmaydi.
         </p>
+        {/* TOVAR SAVDOSI — HOSILA qiymat (kiritilmaydi) */}
+        {deliveryNum > 0 && !deliveryBad && (
+          <div className="mt-2 flex items-baseline justify-between gap-2 rounded-[12px] px-3 py-2"
+            style={{ background: "var(--surface-2)" }}>
+            <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>
+              Tovar savdosi <span className="font-medium" style={{ color: "var(--muted)" }}>(hisoblanadi)</span>
+            </span>
+            <span className="text-[13px] font-extrabold tabular-nums">{fmt(goodsTotal)}</span>
+          </div>
+        )}
       </div>
 
       {/* HISOB — jonli */}
@@ -607,12 +630,12 @@ export default function KatalogSellModal({
         {deliveryNum > 0 && (
           <>
             <div className="mt-1 flex items-baseline justify-between gap-2 text-[13px]">
-              <span style={{ color: "var(--text-2)" }}>Sotuv summasi</span>
-              <span className="tabular-nums font-semibold">{fmt(calc.totalSum)}</span>
+              <span style={{ color: "var(--text-2)" }}>Shundan dastafka</span>
+              <span className="tabular-nums font-semibold" style={{ color: "var(--muted)" }}>− {fmt(deliveryNum)}</span>
             </div>
             <div className="mt-1 flex items-baseline justify-between gap-2 text-[13px]">
-              <span style={{ color: "var(--text-2)" }}>Dastafka</span>
-              <span className="tabular-nums font-semibold">{fmt(deliveryNum)}</span>
+              <span style={{ color: "var(--text-2)" }}>Tovar savdosi</span>
+              <span className="tabular-nums font-semibold">{fmt(goodsTotal)}</span>
             </div>
           </>
         )}
@@ -634,7 +657,7 @@ export default function KatalogSellModal({
 
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
-        <button onClick={submit} disabled={busy || debtBlocked || mixedBlocked} title={debtBlocked ? DEBT_CUSTOMER_REQUIRED : mixedBlocked ? mixedV.message : undefined} className={clsx("btn-primary disabled:opacity-60", busy && "btn-loading")}>
+        <button onClick={submit} disabled={busy || debtBlocked || mixedBlocked || deliveryBad} title={debtBlocked ? DEBT_CUSTOMER_REQUIRED : mixedBlocked ? mixedV.message : undefined} className={clsx("btn-primary disabled:opacity-60", busy && "btn-loading")}>
           {isDebt ? `${qty} ta qarzga berish` : `${qty} ta sotish`}
         </button>
       </ModalFooter>

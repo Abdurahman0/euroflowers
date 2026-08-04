@@ -214,10 +214,11 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
                             {d.reason && <div className="text-[11px] italic" style={{ color: "var(--muted)" }}>«{d.reason}»</div>}
                           </>
                         ) : <b className="tabular-nums">{fmt(d.sold)}</b>}
-                        {/* DASTAFKA — faqat > 0 bo'lganda; aksariyat qator toza qoladi */}
+                        {/* ⚠️ DASTAFKA summaning ICHIDA (2026-08-04 qoidasi) — QO'SHILMAYDI, AYRILADI.
+                            Faqat > 0 bo'lganda chiziladi; aksariyat qator toza qoladi. */}
                         {(() => { const dv = deliveryRowView(r); return dv.hasDelivery ? (
                           <div className="text-[11px]" style={{ color: "var(--muted)" }}>
-                            + {fmt(dv.delivery)} dastafka = <b style={{ color: "var(--text-2)" }}>{fmt(dv.received)}</b>
+                            shundan {fmt(dv.delivery)} dastafka → tovar <b style={{ color: "var(--text-2)" }}>{fmt(dv.goods)}</b>
                           </div>
                         ) : null; })()}
                       </td>

@@ -612,7 +612,9 @@ export type CatalogSaleRow = {
   /** sotuvda yuklangan rasm — BO'SH bo'lishi mumkin */
   sale_image_url?: string;
   sold_by?: string;
-  /** DASTAFKA — dastafkasiz sotuvda 0; `received_total` = sale_total + delivery_amount. */
+  /** ⚠️ DASTAFKA — sotuv summasining ICHIDA (2026-08-04 qoidasi):
+      `sale_total` (TOVAR savdosi) = `received_total` − `delivery_amount`.
+      Dastafkasiz sotuvda 0 va `sale_total == received_total`. QO'SHMANG — ikki marta bo'ladi. */
   delivery_amount?: string | number;
   received_total?: string | number;
   /** ⚠️ ARALASH to'lov ajratmasi. ODDIY to'lovlarda `null` — bo'sh qavs chizmang. */

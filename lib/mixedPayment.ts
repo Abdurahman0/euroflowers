@@ -1,8 +1,10 @@
 /**
  * ARALASH TO'LOV (naqd + karta) — sof mantiq.
  *
- * ⚠️ TAQQOSLASH SUMMASI = CHEGIRMADAN KEYINGI tovar jami (`sale_price × quantity`)
- * + DASTAFKA. E'lon narxi EMAS. Sotuv oynasida: `mixedTarget(calc.totalSum, delivery)`.
+ * ⚠️ TAQQOSLASH SUMMASI = SOTUV SUMMASI (`sale_price × quantity`) — DASTAFKA BILAN BIRGA.
+ * 2026-08-04 da qoida O'ZGARDI (DASTAFKA_QOIDASI_OZGARDI.md): `sale_price` endi
+ * MIJOZDAN OLINADIGAN TO'LIQ pul, dastafka esa uning ICHIDA. Shu bois dastafkani
+ * yana qo'shish IKKI MARTA hisoblash bo'lardi.
  *
  * ⚠️ `mixed` va `debt` BIRGA BO'LMAYDI — `payment_type` bitta enum qiymat
  * (OpenAPI: cash | card | debt | mixed), shuning uchun ular tanlagichda
@@ -141,11 +143,24 @@ export function deliveryPayload(raw: string): Record<string, string> {
 }
 
 /**
- * ⚠️ ARALASH TAQQOSLASH SUMMASI = TOVAR (chegirmadan keyin) + DASTAFKA.
- * Dastafka chegirmadan KEYIN qo'shiladi va HECH QACHON chegirmaga tushmaydi.
+ * ⚠️ TOVAR SAVDOSI — hosila qiymat, KIRITMA EMAS: sotuv summasi − dastafka.
+ * Spec: 500 000 sotildi, 50 000 dastafka → tovar savdosi 450 000.
  */
-export const mixedTarget = (goodsTotal: number, deliveryRaw: string): number =>
-  Math.max(goodsTotal, 0) + Math.max(parseMoney(deliveryRaw), 0);
+export const deliveryGoods = (saleTotal: number, deliveryRaw: string | number): number =>
+  Math.max(Math.max(saleTotal, 0) - Math.max(parseMoney(deliveryRaw), 0), 0);
+
+/**
+ * ⚠️ DASTAFKA sotuv summasidan QAT'IY KICHIK bo'lishi shart (server 400 beradi).
+ * Teng bo'lsa ham NOTO'G'RI — tovar savdosi 0 bo'lib qolardi.
+ */
+export function deliveryTooLarge(saleTotal: number, deliveryRaw: string | number): boolean {
+  const d = parseMoney(deliveryRaw);
+  return d > 0 && saleTotal > 0 && d >= saleTotal;
+}
+
+/** Serverning yangi 400 matni (spec) — bizniki AYNAN shunga mos bo'lsin. */
+export const deliveryTooLargeMessage = (saleTotal: number, deliveryRaw: string | number): string =>
+  `Dastafka summasi sotuv summasidan kam bo'lishi kerak. Sotuv: ${formatMoneyInput(saleTotal)}, dastafka: ${formatMoneyInput(parseMoney(deliveryRaw))}`;
 
 /** Sotuv tarixidagi ko'rinish: «Aralash (150 000 naqd · 150 000 karta)».
     ⚠️ Oddiy to'lovda `payment_breakdown` NULL — bo'sh qavs CHIZILMAYDI. */

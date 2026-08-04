@@ -146,69 +146,77 @@ describe("paymentBreakdownLabel — oddiy to'lovda BO'SH QAVS chizilmaydi", () =
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DASTAFKA (spec: DASTAFKA_SUMMASI.md) — ARALASH TAQQOSLASH SUMMASINI O'ZGARTIRADI
+// ⚠️ DASTAFKA QOIDASI O'ZGARDI (DASTAFKA_QOIDASI_OZGARDI.md, 2026-08-04)
+// ESKI: sale_price = tovar, dastafka USTIGA qo'shilardi.
+// YANGI: sale_price = mijozdan olinadigan TO'LIQ pul, dastafka uning ICHIDA.
+// Eski qoidani kodlagan testlar O'CHIRILDI — ikkalasi qoldirilmadi.
 // ─────────────────────────────────────────────────────────────────────────────
-import { deliveryPayload, mixedTarget } from "./mixedPayment";
+import { deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage } from "./mixedPayment";
 
 describe("deliveryPayload — bo'sh bo'lsa kalit YUBORILMAYDI", () => {
   it("⚠️ BO'SH → kalit UMUMAN yo'q («0» ham yuborilmaydi)", () => {
     expect(deliveryPayload("")).toEqual({});
     expect(deliveryPayload("   ")).toEqual({});
   });
-  it("operator ATAYLAB «0» yozsa → yuboriladi (ongli tanlov)", () => {
+  it("operator ATAYLAB «0» yozsa → yuboriladi", () => {
     expect(deliveryPayload("0")).toEqual({ delivery_amount: "0" });
   });
-  it("qiymat → yuboriladi", () => {
-    expect(deliveryPayload("20 000")).toEqual({ delivery_amount: "20000" });
+  it("qiymat → yuboriladi", () => expect(deliveryPayload("50 000")).toEqual({ delivery_amount: "50000" }));
+});
+
+describe("deliveryGoods — TOVAR SAVDOSI = sotuv summasi − dastafka", () => {
+  it("⚠️ SPEC MISOLI: 500 000 sotildi, 50 000 dastafka → tovar 450 000", () => {
+    expect(deliveryGoods(500000, "50000")).toBe(450000);
   });
-  it("manfiy → 0 ga qisiladi (spec: noldan kichik bo'lmaydi)", () => {
-    expect(deliveryPayload("-5000")).toEqual({ delivery_amount: "5000" });
+  it("dastafkasiz → tovar = sotuv summasining O'ZI", () => {
+    expect(deliveryGoods(500000, "")).toBe(500000);
+    expect(deliveryGoods(500000, "0")).toBe(500000);
+  });
+  it("⚠️ ESKI qoida bo'lganda 550 000 chiqardi — endi 450 000 (QO'SHILMAYDI)", () => {
+    expect(deliveryGoods(500000, "50000")).not.toBe(550000);
+  });
+  it("dastafka summadan katta bo'lsa 0 dan pastga tushmaydi", () => {
+    expect(deliveryGoods(100000, "150000")).toBe(0);
   });
 });
 
-describe("mixedTarget — TOVAR + DASTAFKA", () => {
-  it("⚠️ SPEC MISOLI: 300 000 + 20 000 = 320 000", () => {
-    expect(mixedTarget(300000, "20000")).toBe(320000);
+describe("deliveryTooLarge — dastafka sotuv summasidan QAT'IY kichik", () => {
+  it("kichik → to'g'ri", () => expect(deliveryTooLarge(500000, "50000")).toBe(false));
+  it("⚠️ TENG → NOTO'G'RI (tovar savdosi 0 bo'lib qolardi)", () => {
+    expect(deliveryTooLarge(300000, "300000")).toBe(true);
   });
-  it("dastafkasiz → tovar summasining o'zi", () => {
-    expect(mixedTarget(300000, "")).toBe(300000);
-    expect(mixedTarget(300000, "0")).toBe(300000);
+  it("⚠️ KATTA → NOTO'G'RI", () => expect(deliveryTooLarge(300000, "400000")).toBe(true));
+  it("dastafkasiz → tekshiruv qo'zg'atilmaydi", () => {
+    expect(deliveryTooLarge(300000, "")).toBe(false);
+    expect(deliveryTooLarge(300000, "0")).toBe(false);
   });
-  it("⚠️ CHEGIRMADAN KEYIN qo'shiladi — dastafka HECH QACHON chegirmaga tushmaydi", () => {
-    // 2 × 250 000 (chegirmali) = 500 000, ustiga 20 000 dastafka
-    expect(mixedTarget(500000, "20000")).toBe(520000);
-  });
-  it("manfiy dastafka hisobga olinmaydi", () => {
-    expect(mixedTarget(300000, "-20000")).toBe(320000); // parseMoney manfiyni tashlaydi
+  it("xabar serverning 400 matni bilan bir xil shaklda", () => {
+    expect(deliveryTooLargeMessage(300000, "300000"))
+      .toBe("Dastafka summasi sotuv summasidan kam bo'lishi kerak. Sotuv: 300 000, dastafka: 300 000");
   });
 });
 
-describe("⚠️ ARALASH + DASTAFKA — spec misolini AYNAN takrorlash", () => {
-  const target = mixedTarget(300000, "20000"); // 320 000
-  it("100 000 + 220 000 = 320 000 → ✓ (spec)", () => {
-    const v = validateMixed(S({ cash: "100 000", card: "220 000" }), target);
-    expect(v.ok).toBe(true);
+describe("⚠️ ARALASH — jami SOTUV SUMMASINING O'ZI (dastafka QO'SHILMAYDI)", () => {
+  // spec: 300 000 olinadi, shundan 20 000 dastafka → naqd + karta = 300 000
+  const target = 300000;
+  it("SPEC MISOLI: 150 000 + 150 000 = 300 000 → ✓ (dastafka 20 000 ichida)", () => {
+    expect(validateMixed(S({ cash: "150 000", card: "150 000" }), target).ok).toBe(true);
   });
-  it("⚠️ ESKI qoida bo'yicha to'g'ri bo'lgan 300 000 endi NOTO'G'RI", () => {
-    // 150 000 + 150 000 = 300 000 — tovarga teng, LEKIN dastafka qoplanmagan
-    const v = validateMixed(S({ cash: "150 000", card: "150 000" }), target);
+  it("⚠️ ESKI qoida bo'yicha to'g'ri bo'lgan 320 000 endi NOTO'G'RI", () => {
+    const v = validateMixed(S({ cash: "150 000", card: "170 000" }), target);
     expect(v.ok).toBe(false);
-    expect(v.message).toBe("Farq: 20 000 so'm kam");
+    expect(v.message).toBe("Farq: 20 000 so'm ortiq");
   });
-  it("payload dastafkali jamiga qarab quriladi", () => {
-    expect(mixedSellPayload(true, S({ cash: "100 000", card: "220 000" }), target))
-      .toEqual({ cash_amount: "100000", card_amount: "220000" });
-    expect(mixedSellPayload(true, S({ cash: "150 000", card: "150 000" }), target)).toBeNull();
+  it("payload sotuv summasiga qarab quriladi", () => {
+    expect(mixedSellPayload(true, S({ cash: "150 000", card: "150 000" }), target))
+      .toEqual({ cash_amount: "150000", card_amount: "150000" });
   });
-  it("avtomatik to'ldirish ham dastafkani hisobga oladi", () => {
-    const r = applyMixedEdit(emptyMixed, "cash", "100000", target);
-    expect(r.card).toBe("220 000"); // 320 000 − 100 000
+  it("avtomatik to'ldirish ham sotuv summasidan (dastafkasiz)", () => {
+    expect(applyMixedEdit(emptyMixed, "cash", "100000", target).card).toBe("200 000");
   });
-  it("dastafka KEYIN kiritilsa — tegilmagan maydon qayta hisoblanadi", () => {
-    // naqd qo'lda 100 000, karta avtomatik 200 000 edi (dastafkasiz jami 300 000)
-    const before = S({ cash: "100 000", card: "200 000", cashTouched: true });
-    const after = recalcOnTotalChange(before, mixedTarget(300000, "20000"));
-    expect(after.cash).toBe("100 000");  // tegilmagan
-    expect(after.card).toBe("220 000");  // dastafka qo'shilgach qayta hisoblandi
+  it("⚠️ dastafka o'zgarsa aralash jami O'ZGARMAYDI (u summaning ichida)", () => {
+    // jami faqat sotuv summasi va donadan kelib chiqadi
+    expect(validateMixed(S({ cash: "150 000", card: "150 000" }), 300000).ok).toBe(true);
+    expect(deliveryGoods(300000, "20000")).toBe(280000); // faqat TOVAR o'zgaradi
   });
 });

@@ -88,24 +88,30 @@ describe("⚠️ DASTAFKA jamilari — server bergani AYNAN", () => {
     });
     expect(v.delivery).toBe(20000);
     expect(v.received).toBe(520000);
-    // ⚠️ naqd+karta = KASSAGA TUSHGAN (tovar savdosi EMAS)
+    // ⚠️ naqd+karta = KASSAGA TUSHGAN (tovar savdosi EMAS) — bu qoida O'ZGARMADI
     expect(v.cash + v.card).toBe(v.received);
     expect(v.revenue).toBe(500000);
   });
 });
 
-describe("deliveryRowView — qatorda faqat dastafka BOR bo'lsa ko'rsatiladi", () => {
-  it("dastafkali qator: 300 000 + 20 000 = 320 000", () => {
-    expect(deliveryRowView({ sale_total: 300000, delivery_amount: "20000.00", received_total: "320000.00" }))
-      .toEqual({ hasDelivery: true, goods: 300000, delivery: 20000, received: 320000 });
+describe("deliveryRowView — YANGI qoida: dastafka summaning ICHIDA", () => {
+  it("⚠️ JONLI qator (id 299): mijozdan 400 000, shundan 50 000 dastafka → tovar 350 000", () => {
+    expect(deliveryRowView({ sale_total: 350000, delivery_amount: "50000.00", received_total: "400000.00" }))
+      .toEqual({ hasDelivery: true, goods: 350000, delivery: 50000, received: 400000 });
+  });
+  it("spec misoli: 500 000 / 50 000 → tovar 450 000", () => {
+    expect(deliveryRowView({ sale_total: "450000.00", delivery_amount: "50000.00", received_total: "500000.00" }))
+      .toEqual({ hasDelivery: true, goods: 450000, delivery: 50000, received: 500000 });
   });
   it("⚠️ dastafkasiz qator → hasDelivery false (qator TOZA qoladi)", () => {
     expect(deliveryRowView({ sale_total: 300000, delivery_amount: "0", received_total: "300000" }).hasDelivery).toBe(false);
   });
-  it("received_total kelmasa — tovar + dastafka dan hisoblanadi", () => {
-    expect(deliveryRowView({ sale_total: 300000, delivery_amount: 20000 }).received).toBe(320000);
+  it("⚠️ sale_total kelmasa — AYIRIB olinadi (QO'SHILMAYDI)", () => {
+    const v = deliveryRowView({ received_total: 500000, delivery_amount: 50000 });
+    expect(v.goods).toBe(450000);
+    expect(v.received).toBe(500000);
   });
-  it("eski qator (maydonlarsiz) → yiqilmaydi", () => {
+  it("eski dastafkasiz qator (received yo'q) → yiqilmaydi", () => {
     expect(deliveryRowView({ sale_total: 150000 })).toEqual({ hasDelivery: false, goods: 150000, delivery: 0, received: 150000 });
   });
 });

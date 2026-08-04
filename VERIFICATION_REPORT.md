@@ -2989,3 +2989,130 @@ ss. **Jonli sinov ma'lumoti yo'q — endi TO'RTTA xususiyatda.** Qarz (0 ta), ar
    to'lov (0 ta), dastafka (0 ta) va rasxod (0 ta) — hech biri haqiqiy ma'lumotda
    tekshirilmadi. Barchasida faqat javob SHAKLI tasdiqlangan. Serverda kamida bittadan
    namuna yozuv qoldirilsa, frontend ularni haqiqatan tekshira olardi.
+
+---
+
+# DASTAFKA QOIDASI TESKARISIGA O'ZGARDI (2026-08-04)
+
+## §0 — Eski qoida qayerda yashagan
+
+⚠️ **Avval MUHIM aniqlik:** saqlangan uchta maydon MUNOSABATI O'ZGARMADI.
+`received = sale + delivery` va `sale = received − delivery` — bu AYNAN bir tenglama.
+O'zgargani — **operator qaysi raqamni yozishi**, maydonlar orasidagi bog'liqlik emas.
+
+| Joy | Eski | Yangi | O'zgardimi |
+|---|---|---|---|
+| **Sotuv oynasi `payTarget`** (`mixedTarget(calc.totalSum, delivery)`) | tovar + dastafka | `sale_price` dastafkani ALLAQACHON o'z ichiga oladi → qo'shish **IKKI MARTA** | ✅ **asl nosozlik** |
+| **Footer «Mijozdan olinadi»** = payTarget | tovar + dastafka | o'sha ikki marta hisob | ✅ |
+| **Aralash: jami / avto-to'ldirish / ✓ / farq** | tovar + dastafka | sotuv summasining O'ZI | ✅ |
+| `deliveryRowView` zaxirasi `goods + delivery` | received ni hosil qilardi | arifmetik to'g'ri, ammo endi TOVAR received'dan AYIRILADI | ✅ yo'nalish o'zgardi |
+| Sotuv qatori matni «300 000 + 20 000 dastafka = 320 000» | «ustiga qo'shildi» deb o'qilardi | «shundan» deb o'qilishi kerak | ✅ qayta nomlandi |
+| `lib/branch.ts` `received = total_sales + delivery_total` | accounting | **spec §3 buni SAQLAB QOLDI** | ❌ to'g'ri, tegilmadi |
+| `types.ts` `CatalogSaleRow` izohi | «received = sale + delivery» | yo'nalish teskari | ✅ izoh |
+| Hisob-kitob yorliqlari | tovar / dastafka / kassaga | ma'nolari o'zgarmadi | ❌ kerak emas |
+
+**Ikki marta hisoblash FAQAT sotuv oynasida edi** — u yerda `sale_price` endi dastafkani
+o'z ichiga oladi.
+
+## §3 — Eski sotuvlar TO'G'RI ko'rinadi (migratsiya muammosi YO'Q)
+
+Jonli holatda dastafkali BITTA sotuv bor:
+```
+id=299 «SUMKALI KOMPAZITSA»
+   sale_total 350 000 · delivery_amount 50 000 · received_total 400 000
+   YANGI (sale = received − delivery): 350 000 ✓
+   ESKI  (received = sale + delivery): 400 000 ✓
+```
+**Ikkalasiga ham mos** — chunki bu bitta tenglamaning ikki ko'rinishi. Ya'ni eski
+qatorlar noto'g'ri ko'rsatilmaydi va migratsiya talab qilinmaydi. Bu xavf
+RO'YOBGA CHIQMADI — shuni ochiq aytamiz.
+
+## §4 — Jonli invariantlar (yangi qoida ostida)
+
+```
+total_sales    2 650 000 + delivery_total 50 000 = received_total 2 700 000  ✓
+cash 1 600 000 + card 1 100 000 + 0 + 0          = received_total 2 700 000  ✓
+net_profit 651 450 = total_sales − tannarx − chiqit   (dastafka QATNASHMAYDI)
+sotuv tarixi totals: revenue 2 650 000 + delivery 50 000 = received 2 700 000 ✓
+```
+OpenAPI endi `delivery_amount` ni shunday hujjatlaydi:
+*«Sotuv summasining ichidagi yetkazib berish puli»* — ya'ni summaning ICHIDA.
+
+## §1 — Sotuv oynasi
+
+- «Sotuv summasi (mijozdan olinadi)» → `sale_price`; **«Shundan dastafka»** →
+  `delivery_amount`. «Shundan» so'zi — butun ma'no shunda.
+- Ostida HOSILA qator: **«Tovar savdosi (hisoblanadi) 250 000 so'm»** — kiritma emasligi
+  ochiq yozilgan.
+- Izoh: *«Sotuv summasining ICHIDAN kuryerga ketadigan pul — ustiga qo'shilmaydi.»*
+- Validatsiya: dastafka sotuv summasidan **QAT'IY kichik**; teng bo'lsa ham bloklanadi
+  (tovar savdosi 0 bo'lib qolardi). Xabar serverning yangi 400 matni bilan bir shaklda.
+- **Aralash jami REVERT QILINDI**: endi sotuv summasining o'zi. Jonli tekshiruv:
+  300 000 sotuv + 50 000 dastafka da naqd 100 000 kiritilsa karta **200 000** to'ladi
+  (eski qoidada 220 000 edi).
+
+### ⚠️ CHEGIRMA bilan o'zaro ta'sir — TOPILMA, taxmin emas
+
+`discount_reason` `sale_price < price` bo'lganda majburiy. Endi `sale_price` dastafkani
+o'z ichiga oladi, `price` esa TOVAR narxi — ya'ni **turli xil kattaliklar** solishtiriladi:
+
+- E'lon 450 000, tovar 450 000 + 50 000 dastafka → `sale_price` 500 000 > 450 000 →
+  chegirma DEB HISOBLANMAYDI (to'g'ri natija).
+- E'lon 450 000, tovar **400 000** + 50 000 dastafka → `sale_price` 450 000 = e'lon →
+  chegirma DEB HISOBLANMAYDI, holbuki tovar e'londan 50 000 PAST ketdi.
+
+Ikkinchi holat haqiqiy chegirmani JIMGINA yashiradi. Spec ham, OpenAPI ham server nimani
+solishtirishini aytmaydi — shuning uchun TAXMIN QILMADIM, LIST 2 ga yozdim.
+
+## Testlar
+
+Eski qoidani kodlagan testlar **O'CHIRILDI** (ikkalasi qoldirilmadi) va yangisi yozildi:
+`deliveryGoods` (500 000 − 50 000 = 450 000 va «550 000 EMAS»), `deliveryTooLarge`
+(teng ham noto'g'ri), aralash jami (150+150=300 000 ✓, 320 000 endi «20 000 ortiq»),
+`deliveryRowView` (jonli id 299 qatori bilan).
+
+`tsc` toza · **494/494 Vitest** · konsol xatosi yo'q · skrinshotlar dark + light:
+`rev-sell-delivery-*`, `rev-sell-ok-*`, `rev-sell-mismatch-*`, `rev-history-*`.
+
+Ekranda (300 000 sotuv, 50 000 dastafka):
+```
+Asl narx            300 000 so'm
+Shundan dastafka   − 50 000 so'm
+Tovar savdosi       250 000 so'm
+Mijozdan olinadi    300 000 so'm   ← 350 000 EMAS (ikki marta hisob yo'q)
+```
+
+## LIST 1 — DL1 QAYTA YOZILDI
+
+~~DL1 (eski): 300 000 + 20 000 dastafka = 320 000 olinadi~~ — **bekor**, o'rniga:
+
+DL1. **⚠️ DASTAFKA — BESH TOMONLAMA TEKSHIRUV (butun ma'nosi shu).** Hisob-kitobdan BESH
+     raqamni yozib oling: «Tovar savdosi», «Dastafka», «Kassaga tushgan», «Naqd» va
+     «Sof foyda». So'ng **500 000** ga soting, **shundan 50 000** dastafka, naqd bilan.
+     Formada «Tovar savdosi 450 000» ko'rinishi kerak. Saqlagach tekshiring:
+     - **«Tovar savdosi» +450 000** (dastafka KIRMAYDI)
+     - **«Dastafka» +50 000**
+     - **«Kassaga tushgan» +500 000**
+     - **«Naqd» +500 000** (mijoz to'lagan to'liq pul)
+     - **«Sof foyda» = 450 000 − tannarx** (dastafka QATNASHMAYDI)
+     Va `naqd + karta + qarz + noma'lum = Kassaga tushgan` tengligini tekshiring.
+     **⚠️ QAYTMAS.**
+DL2. **Aralash + dastafka (YANGI qoida).** 300 000 sotuv, shundan 20 000 dastafka:
+     naqd + karta **300 000** ga tenglashishi kerak (320 000 EMAS — bu eski qoida edi).
+     **READ.**
+DL3. **Dastafka juda katta.** Dastafkani sotuv summasiga TENG qilib qo'ying — bloklanishi
+     va «Dastafka summasi sotuv summasidan kam bo'lishi kerak…» chiqishi kerak. **READ.**
+DL4. **Tarixda uchala raqam.** Sotuvlar tabida qator «shundan 50 000 dastafka → tovar
+     450 000» ko'rinishida bo'lsin; dastafkasiz qatorlar toza qolsin. **READ.**
+DL5. **Eski dastafkali sotuv.** id 299 (400 000 / 50 000 / 350 000) hamon TO'G'RI
+     ko'rinishi kerak — migratsiya talab qilinmaydi. **READ.**
+
+## LIST 2 — append
+
+tt. ⚠️ **Chegirma tekshiruvi dastafka bilan buziladimi?** `discount_reason`
+   `sale_price < price` bo'lganda majburiy, lekin endi `sale_price` dastafkani o'z ichiga
+   oladi, `price` esa tovar narxi. Natijada tovar e'londan past ketgan bo'lsa ham
+   dastafka uni «yopib» chegirma aniqlanmay qolishi mumkin (misol yuqorida).
+   SETTLE: (1) server chegirmani `sale_price` bilanmi yoki `sale_price − delivery_amount`
+   (tovar) bilanmi solishtiradi? (2) Agar `sale_price` bo'lsa — bu ataylabmi?
+   Aks holda dastafkali sotuvlarda chegirma hisobotlari kam ko'rsatadi.
