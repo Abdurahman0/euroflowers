@@ -548,6 +548,66 @@ export type CatalogProfit = {
   realized_profit?: string | null;
 };
 
+/* ===== KATALOG SOTUV TARIXI (GET /api/catalog/sales/ + /api/catalog/{id}/sales/) =====
+   ⚠️ TANNARX/FOYDA maydonlari UMUMAN YO'Q — filial foydalanuvchisiga xavfsiz.
+   ⚠️ Jonli javobda tur ARALASH: `listed_total`/`sale_total` NUMBER kelyapti, ammo
+   OpenAPI ularni `string (decimal)` deb e'lon qiladi; unit narxlar esa STRING.
+   Shuning uchun hamma pul maydoni `string | number` — `num()` bilan o'qiladi. */
+export type CatalogSaleRow = {
+  /** ⚠️ Bu CatalogHistory id — katalog kartochkasidagi `history[].id` bilan AYNAN bir xil
+      (jonli tekshiruv: katalog 165 → history 238 «sold» ↔ sales row 238). */
+  id: number;
+  catalog_item: number;
+  catalog_name: string;
+  image_url?: string;
+  arrangement_type?: string;
+  volume?: string | null;
+  volume_label?: string;
+  catalog_kind?: string;
+  branch_name?: string;
+  florist_name?: string;
+  quantity: number;
+  listed_unit_price?: string | number;
+  sold_unit_price?: string | number;
+  listed_total?: string | number;
+  sale_total?: string | number;
+  discount_amount?: string | number;
+  discount_percent?: string | number;
+  discount_reason?: string;
+  payment_type?: string;
+  payment_label?: string;
+  /** sotuvda yuklangan rasm — BO'SH bo'lishi mumkin */
+  sale_image_url?: string;
+  sold_by?: string;
+  /** ⚠️ MAHALLIY vaqt, `+05:00` bilan. O'GIRMANG — `fmtLocalTime` bilan o'qing. */
+  created_at: string;
+};
+
+/** ⚠️ `totals` OpenAPI'da E'LON QILINMAGAN (PaginatedCatalogSaleRowList'da yo'q).
+    BUTUN FILTR bo'yicha hisoblanadi — ochiq sahifa bo'yicha EMAS. */
+export type CatalogSalesTotals = {
+  sales_count: number;
+  quantity: number;
+  revenue: string | number;
+  discount_total: string | number;
+  cash_total: string | number;
+  card_total: string | number;
+  debt_total: string | number;
+};
+
+export type CatalogSalesPage = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: CatalogSaleRow[];
+  totals: CatalogSalesTotals;
+  period?: { date_from: string | null; date_to: string | null };
+};
+
+/** ⚠️ Bitta katalog tarixi — SAHIFALANMAYDI: `{results, totals}` (count/next YO'Q),
+    OpenAPI esa uni Paginated deb e'lon qiladi (nomuvofiq — LIST 2). */
+export type CatalogSalesList = { results: CatalogSaleRow[]; totals: CatalogSalesTotals };
+
 /* ===== PARTIYA NAVINI ALMASHTIRISH (GET usage/ + POST change-variant/) ===== */
 
 /** GET /api/stock-batches/{id}/usage/ — partiya qayerda ishlatilgan.

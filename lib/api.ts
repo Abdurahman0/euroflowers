@@ -7,7 +7,7 @@ import type {
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   Reservation, ReservationInput, ReservationPayment, ReservationPaymentInput, CatalogRestoreFlowersInput, FloristStockBulkIssueInput,
-  SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
+  CatalogSalesPage, CatalogSalesList, SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
 import { dashboardDateTo, accountingDateTo } from "./format";
 
@@ -612,6 +612,15 @@ export const api = {
       }),
     }),
   catalogItem: (id: number) => request<CatalogItem>(`/api/catalog/${id}/`),
+  /**
+   * KATALOG SOTUV TARIXI — sahifalangan, `totals` BUTUN FILTR bo'yicha.
+   * ⚠️ O'Z FILIALI bilan chegaralangan (jonli: accounting?branch=main bilan AYNAN teng).
+   * ⚠️ Tannarx/foyda maydonlari YO'Q — filial foydalanuvchisiga xavfsiz.
+   * ⚠️ `totals` OpenAPI'da e'lon qilinmagan (LIST 2).
+   */
+  catalogSales: (p?: Params) => request<CatalogSalesPage>(`/api/catalog/sales/${qs(p)}`),
+  /** Bitta katalog sotuvlari — SAHIFALANMAYDI ({results, totals}); OpenAPI Paginated deydi (nomuvofiq). */
+  catalogItemSales: (id: number) => request<CatalogSalesList>(`/api/catalog/${id}/sales/`),
   /** quantity berilmasa sotilgan-u hali yechilmagan hamma son yechiladi */
   deductCatalogStock: (id: number, quantity?: number) =>
     request<CatalogItem>(`/api/catalog/${id}/deduct_stock/`, { method: "POST", body: JSON.stringify(quantity ? { quantity } : {}) }),

@@ -1,5 +1,6 @@
 "use client";
 import { Info, Pencil, Plus, Send, Sparkles, Trash2, User, X } from "lucide-react";
+import clsx from "clsx";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -21,6 +22,7 @@ import CatalogTransferDrawer from "@/components/CatalogTransferDrawer";
 import CatalogRestoreDrawer from "@/components/CatalogRestoreDrawer";
 import { usePerm } from "@/lib/store";
 import { isBranchUser } from "@/lib/branch";
+import CatalogSalesTab from "@/components/CatalogSalesTab";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 
 /** Florist ismi (user_detail'dan) — bo'lmasa bo'sh */
@@ -89,6 +91,12 @@ export default function KatalogPage() {
   // HOLAT KO'RINISHI — KLIENT filtri (Sotuvda default). Sotilgan/arxiv/soni-to'lgan sukut YASHIRINADI.
   // URL ?status= da saqlanadi (ulashiladi + refresh'dan omon qoladi). Server hammasini qaytaradi.
   const [statusView, setStatusView] = useState<StatusView>("sotuvda");
+  // ⚠️ ?tab= konvensiyasi — «Katalog» SUKUT, «Sotuvlar» ikkinchi tab
+  const [tab, setTab] = useState<"katalog" | "sotuvlar">("katalog");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("tab") === "sotuvlar") setTab("sotuvlar");
+  }, []);
   // florist va katalog turi — SERVER filtrlari (?florist= va ?catalog_kind= mavjud)
   const [floristFilter, setFloristFilter] = useState("");
   const [decorationFilter, setDecorationFilter] = useState("");
@@ -249,8 +257,38 @@ export default function KatalogPage() {
 
   if (loading) return <FlowerLoader />;
 
+  const tabBar = (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      {([["katalog", "Katalog"], ["sotuvlar", "Sotuvlar"]] as const).map(([k, lab]) => (
+        <button key={k} type="button" aria-pressed={tab === k}
+          onClick={() => {
+            setTab(k);
+            if (typeof window !== "undefined") {
+              const u = new URL(window.location.href);
+              k === "sotuvlar" ? u.searchParams.set("tab", "sotuvlar") : u.searchParams.delete("tab");
+              window.history.replaceState(null, "", u);
+            }
+          }}
+          className={clsx("rounded-full border-[1.5px] px-5 py-2 text-[13px] font-bold", tab === k ? "text-white" : "bg-sfc")}
+          style={tab === k ? { background: "var(--acc)", borderColor: "var(--acc)" } : { borderColor: "var(--line)", color: "var(--mut)" }}>
+          {lab}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab === "sotuvlar") {
+    return (
+      <>
+        {tabBar}
+        <CatalogSalesTab branchUser={branchUser} onOpenItem={(id) => { api.catalogItem(id).then((it) => { setTab("katalog"); setViewItem(it); }).catch(() => showToast("Katalog yozuvi topilmadi")); }} />
+      </>
+    );
+  }
+
   return (
     <>
+      {tabBar}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Katalog qidirish" placeholder="Nomi, mijoz ismi yoki telefoni…" />

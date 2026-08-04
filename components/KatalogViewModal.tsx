@@ -72,6 +72,17 @@ export default function KatalogViewModal({
 
   // faqat MA'NOLI tarix: sotuvlar va chegirmalar birinchi navbatda
   const history = (full.history ?? []).slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  // ⚠️ §0b: MAVJUD «Sotuv tarixi» bo'limini KENGAYTIRAMIZ — ikkinchi ro'yxat qo'shmaymiz.
+  // `/api/catalog/{id}/sales/` qatorining `id`si CatalogHistory `id`si bilan AYNAN bir xil
+  // (jonli tekshiruv: katalog 165 → history 238 «sold» ↔ sales row 238), shuning uchun
+  // to'lov turini shu bo'yicha ulaymiz. Yagona yetishmayotgan ma'lumot — TO'LOV.
+  const [payByHist, setPayByHist] = useState<Record<number, string>>({});
+  useEffect(() => {
+    if (!full.id) return;
+    api.catalogItemSales(full.id)
+      .then((d) => setPayByHist(Object.fromEntries((d.results ?? []).map((r) => [r.id, r.payment_label || ""]))))
+      .catch(() => {});
+  }, [full.id]);
   const sales = history.filter((h) => h.action === "sold");
 
   const Row = ({ k, v, hue }: { k: string; v: string; hue?: string }) => (
@@ -237,6 +248,12 @@ export default function KatalogViewModal({
                       <HIcon size={11} strokeWidth={2.2} /> {meta.label}
                     </span>
                     {!!h.quantity && <span className="text-[12.5px] font-semibold">{h.quantity} dona</span>}
+                    {payByHist[h.id] && (
+                      <span className="rounded-full px-2 py-[3px] text-[11px] font-bold leading-none"
+                        style={{ background: "var(--surface-2)", color: payByHist[h.id] === "Qarz" ? "var(--danger-ink)" : "var(--text-2)" }}>
+                        {payByHist[h.id]}
+                      </span>
+                    )}
                     <span className="ml-auto flex items-center gap-1.5 text-[12px]" style={{ color: "var(--muted)" }}>
                       <span className="avatar-lead flex h-[20px] w-[20px] items-center justify-center rounded-[7px] text-[9.5px] font-bold">{initials(actorOf(h))}</span>
                       {actorOf(h)} · {fmtTime(h.created_at)}

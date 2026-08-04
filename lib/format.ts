@@ -14,6 +14,42 @@ export const initials = (name: string): string =>
     .join("")
     .toUpperCase() || "?";
 
+/**
+ * ⚠️ SERVER YOZGAN VAQTNI AYNAN O'QISH — brauzer mintaqasidan QAT'I NAZAR.
+ *
+ * Backend `created_at` ni MAHALLIY vaqt sifatida `+05:00` bilan yuboradi
+ * (masalan `2026-08-03T22:10:39.551452+05:00`). `new Date(iso).getHours()` esa
+ * qiymatni BRAUZER mintaqasiga o'giradi — natijada:
+ *   TZ=Asia/Tashkent → 03.08 · 22:10  ✓
+ *   TZ=UTC           → 03.08 · 17:10  ✗
+ *   TZ=Asia/Tokyo    → 04.08 · 02:10  ✗ KUN SILJIDI
+ * Server allaqachon kerakli mintaqada yozgani uchun HECH QANDAY o'girish
+ * kerak emas — satrning o'zidan o'qiymiz. Offsetsiz/buzuq satrda `null`.
+ */
+export function readIsoParts(iso: string | null | undefined):
+  { y: number; mo: number; d: number; h: number; mi: number } | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(iso);
+  if (!m) return null;
+  return { y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5] };
+}
+
+const p2 = (n: number) => String(n).padStart(2, "0");
+
+/** "03.08 · 22:10" — server yozgan vaqt AYNAN (mintaqa o'girilmaydi). */
+export const fmtLocalTime = (iso: string | null | undefined): string => {
+  const p = readIsoParts(iso);
+  if (!p) return iso ? fmtTime(iso) : "—"; // buzuq satr → eski yo'l (xavfsiz zaxira)
+  return `${p2(p.d)}.${p2(p.mo)} · ${p2(p.h)}:${p2(p.mi)}`;
+};
+
+/** "03.08.2026" — server yozgan sana AYNAN. */
+export const fmtLocalDate = (iso: string | null | undefined): string => {
+  const p = readIsoParts(iso);
+  if (!p) return iso ? fmtDate(iso) : "—";
+  return `${p2(p.d)}.${p2(p.mo)}.${p.y}`;
+};
+
 /** ISO datetime → "13.07 · 14:05" (bugun bo'lsa faqat soat). */
 export const fmtTime = (iso: string | null | undefined): string => {
   if (!iso) return "—";

@@ -2095,3 +2095,172 @@ ee. **`usage/` va `variant_change` OpenAPI'da e'lon qilinmagan.** `usage/` javob
 ## Untested write paths (added — READ-ONLY, none fired)
 
 - `POST /api/stock-batches/{id}/change-variant/` `{variant, reason}` — nav almashtirish
+
+---
+
+# KATALOG SOTUV TARIXI (2026-08-04)
+
+## §0a — ⚠️ UCHINCHI «SAVDO RAQAMI» TUG'ILMADI: ro'yxat AYNAN mos keladi
+
+Jonli tekshiruv (bir xil davr, filtrsiz):
+
+| Manba | Tushum | Sotuv |
+|---|---|---|
+| `/api/catalog/sales/` `totals.revenue` | **7 430 000** | 20 |
+| `/api/accounting/?branch=main` `total_sales` | **7 430 000** | 20 |
+| `/api/dashboard/` `period_catalog_sales_revenue` | **7 430 000** | 20 |
+| `/api/accounting/` (filtrsiz, `mode: all`) | 11 645 000 | 45 |
+
+⚠️ 4 215 000 lik farq **QARZ EMAS**. Yetishmayotgan 25 qatorning HAMMASI —
+`branch_name: "Parkent filiali"`. Har bir `history_id` tekshirildi:
+
+```
+accounting'da BOR, catalog/sales'da YO'Q — 25 qator
+  filial bo'yicha: Counter({'Parkent filiali': 25})
+  paid_from_debt : Counter({False: 25})
+```
+
+**Xulosa:** `/api/catalog/sales/` — O'Z FILIALI bilan chegaralangan (xuddi `/api/catalog/`
+kabi), tannarx/foyda esa umuman yo'q. Asosiy filial foydalanuvchisi uchun u
+`accounting?branch=main` bilan SO'MMA-SO'M teng.
+
+Shu sababli sarlavha **«Sotuvlar bo'yicha»** (—«Savdo» EMAS) va ostida bitta qator izoh:
+*«Bu ro'yxat o'z filialingiz sotuvlarini ko'rsatadi; tannarx va foyda bu yerda yo'q.
+Tannarx, sof foyda va filiallar ajratmasi uchun — Hisob-kitob»* (havola bilan).
+Ya'ni farq **hisoblash uslubida emas, QAMROVDA** — buni ochiq aytamiz.
+
+### Qarz sotuvi — TEKSHIRIB BO'LMADI (LIST 2)
+
+`?payment_type=debt` → `count: 0`, `totals.debt_total: 0.0`. Serverda hamon **0 ta qarz**
+bor (TASK B dagi holat o'zgarmagan), shuning uchun qarz sotuvi bu ro'yxatda DARHOL
+chiqishini **empirik tasdiqlab bo'lmadi**. Bilsa bo'ladigani: `payment_type=debt` filtri
+QABUL QILINADI (200 qaytaradi) va `totals` da alohida `debt_total` kaliti bor — bu qarz
+qatorlari shu yerga tushishini bildiradi.
+
+`created_at` sotuv payti-mi yoki to'lov payti-mi: 45/45 accounting qatorida
+`sold_at == created_at`, ammo ularning HAMMASI qarzsiz sotuv — qarz qatori uchun bu
+hech narsani isbotlamaydi. → LIST 2.
+
+## §0b — Takrorlanish: KENGAYTIRILDI, yangi ro'yxat qo'shilmadi
+
+`KatalogViewModal` da **allaqachon** «Sotuv tarixi» bo'limi bor (`item.history`,
+`action === "sold"`): sana, dona, asl/sotilgan narx, chegirma, sabab. Yetishmayotgani —
+**TO'LOV TURI**.
+
+⚠️ Jonli tekshiruv: sotuv qatorining `id`si CatalogHistory `id`si bilan AYNAN bir xil —
+katalog 165 → `history: [(238,'sold'),(236,'created')]`, `/api/catalog/165/sales/` →
+`[(238, 1, 'Karta')]`. Shuning uchun `/api/catalog/{id}/sales/` dan FAQAT to'lov yorlig'i
+olinib, mavjud qatorlarga ulandi. Ikkinchi ro'yxat CHIZILMAYDI (skrinshot bilan
+tasdiqlangan: `onlyOneList: true`).
+
+Accounting jadvali va analitikadagi `top_catalog_items` boshqa savolga javob beradi
+(tannarx/foyda, agregat) — ular tegilmadi.
+
+## §0c — Filial xavfsizligi: TOZA
+
+Javobda `cost` / `profit` / `net_` / `margin` satrlari **umuman yo'q** (jonli blob
+tekshirildi). `CatalogSaleRow` 23 ta maydon e'lon qiladi, birortasi tannarxga aloqador
+emas. Klientda ham hech narsa hosil qilinmaydi — `listed_total` va `sale_total`
+ikkalasi ham sotuv tomonidagi raqamlar. Ruxsat `catalog` — ikkala Parkent
+foydalanuvchisida bor (`parkent_admin`, `parkent_sotuvchi`), demak ular BU ro'yxatni
+ko'radi. «Filial» ustuni esa ularga chizilmaydi (bitta takrorlanuvchi qiymat).
+
+## ⚠️ YO'L-YO'LAKAY TOPILGAN HAQIQIY NOSOZLIK — MINTAQA SILJISHI
+
+`fmtTime`/`fmtDate` qiymatni `new Date(iso).getDate()/getHours()` bilan o'qiydi — bular
+BRAUZER mintaqasiga o'giradi. Server esa `+05:00` bilan MAHALLIY vaqt yuboradi:
+
+```
+2026-08-03T22:10:39.551452+05:00
+  TZ=Asia/Tashkent      → 03.08 · 22:10   ✓
+  TZ=UTC                → 03.08 · 17:10   ✗ vaqt xato
+  TZ=Asia/Tokyo         → 04.08 · 02:10   ✗ KUN SILJIDI
+  TZ=America/New_York   → 03.08 · 13:10   ✗ vaqt xato
+```
+
+Ya'ni Toshkentga sozlanmagan qurilmada 22:10 dagi sotuv **ertangi kunda** ko'rinardi.
+Bu FAQAT shu ekranga emas, mavjud hamma ekranga tegishli edi.
+
+Tuzatildi: `readIsoParts` / `fmtLocalTime` / `fmtLocalDate` — satr komponentlarini
+TO'G'RIDAN-TO'G'RI o'qiydi, `Date` obyektiga umuman tegmaydi. Sinov 5 xil mintaqada
+o'tkazildi (UTC+14 gacha):
+
+```
+TZ=Asia/Tashkent → 27 passed    TZ=UTC → 27 passed    TZ=Asia/Tokyo → 27 passed
+TZ=America/New_York → 27 passed TZ=Pacific/Kiritimati (UTC+14) → 27 passed
+```
+
+## Kontrakt nomuvofiqliklari
+
+- ⚠️ **Tur aralashligi.** `listed_total` / `sale_total` OpenAPI'da `string (decimal)`
+  deb e'lon qilingan, jonli javobda esa **NUMBER** (`250000.0`). `listed_unit_price`,
+  `sold_unit_price`, `discount_amount`, `discount_percent` — STRING. `totals` ning
+  hammasi — NUMBER. Shuning uchun hamma pul maydoni `string | number` va `saleNum()`
+  bilan o'qiladi.
+- ⚠️ **`totals` e'lon qilinmagan** — `PaginatedCatalogSaleRowList` da faqat
+  `count/next/previous/results` bor.
+- ⚠️ **`/api/catalog/{id}/sales/` Paginated deb e'lon qilingan, lekin EMAS** — jonli
+  javob `{results, totals}`, `count`/`next`/`previous` YO'Q.
+- Spec'da yozilmagan, lekin ishlaydigan filtrlar: `arrangement_type`, `catalog_kind`,
+  `customer`, `florist`, `ordering`, `status`.
+
+## Qurilgani
+
+- `lib/catalogSales.ts` — `buildSalesQuery` (hamma filtr serverda, `page_size` 100 ga
+  qisiladi), `salesFiltersToParams` (URL), `salesPageCount`, `totalsView` (server
+  raqamlari AYNAN), `discountView`, `saleNum`.
+- `lib/format.ts` — `readIsoParts` / `fmtLocalTime` / `fmtLocalDate`.
+- `components/CatalogSalesTab.tsx` — jamilar + naqd/karta/qarz ajratmasi, «butun davr
+  bo'yicha, ochiq sahifa emas» izohi, Hisob-kitobga havola, sana/to'lov/qidiruv filtrlari
+  (URL'da saqlanadi), SERVER sahifalash, chegirmali qator, `sale_image_url` nishonchasi
+  (bosilsa yangi oynada), rasmsiz qator degradatsiyasi, bo'sh/yuklanish/xato holatlari.
+- `components/KatalogViewModal.tsx` — mavjud «Sotuv tarixi» qatorlariga TO'LOV chipi.
+- `app/katalog/page.tsx` — `?tab=` konvensiyasi, «Katalog» sukut.
+
+`tsc` toza · **386/386 Vitest** (27 tasi shu ish uchun) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `sal-tab-*`, `sal-empty-*`, `sal-drawer-*`.
+
+Skript o'qigan holat (ikkala mavzuda ham bir xil):
+```
+SOTUVLAR TAB: header ✓ totals ✓ split ✓ scopeNote ✓ reconcile ✓
+              time ✓ (03.08 · 22:10)  noNextDay ✓ (04.08 YO'Q)
+              discount ✓  debtChip ✓  volumes ✓  filters ✓
+BO'SH HOLAT : empty ✓ explains ✓
+KARTOCHKA   : section ✓ payChip ✓ qty ✓ prices ✓ reason ✓ onlyOneList ✓
+```
+
+## LIST 1 — append
+
+CS1. **Sotuv ro'yxatda chiqadimi.** QZ1 (yoki oddiy naqd/karta sotuv) dan keyin
+     Katalog → «Sotuvlar» tabini oching: sotuv eng yuqorida, TO'G'RI to'lov turi bilan
+     turishi kerak. **READ.**
+CS2. **⚠️ QARZ QATORI — ikki joyda tekshiring.** Qarzga sotgach:
+     (a) «Sotuvlar» tabida qator DARHOL chiqadimi va to'lov «Qarz» deb turadimi?
+     (b) Hisob-kitobda o'sha summa SAVDOGA QO'SHILMAGAN bo'lishi kerak (QZ3).
+     So'ng qarzni to'lang (QZ5) va yana ikkalasini solishtiring:
+     (c) «Sotuvlar» tabidagi qator sanasi/to'lov turi o'zgardimi?
+     (d) Hisob-kitobda savdo endi ko'chdimi? **READ.**
+     ⚠️ Bu qadam LIST 2 (ff) savoliga javob beradi — natijani yozib qo'ying.
+CS3. **Jamilar sahifadan mustaqil.** Filtr qo'ying, 2-sahifaga o'ting — yuqoridagi
+     jamilar O'ZGARMASLIGI kerak (ular butun filtr bo'yicha). **READ.**
+CS4. **Chegirmali qator.** Chegirma bilan sotilgan qatorda asl narx chizilgan, haqiqiy
+     narx qalin va sabab kursiv bo'lishi kerak. **READ.**
+CS5. **⚠️ KECH SOTUV.** Soat 22:00 dan keyin sotuv qiling — ro'yxatda O'SHA KUN
+     ko'rinishi kerak, ertangi kun EMAS. **READ.**
+
+## LIST 2 — append
+
+ff. ⚠️ **Qarz sotuvi bu ro'yxatda QACHON paydo bo'ladi va `created_at` nimani
+   bildiradi?** Serverda 0 ta qarz bo'lgani uchun tekshirib bo'lmadi.
+   SETTLE: (1) to'lanmagan qarz `/api/catalog/sales/` da DARHOL chiqadimi (biz shunday
+   deb faraz qilyapmiz, chunki `payment_type=debt` filtri va `debt_total` mavjud)?
+   (2) Chiqsa, `created_at` — SOTUV payti-mi yoki accounting'dagi `sold_at` kabi TO'LOV
+   payti-mi? (3) Qarz to'langach bu qator o'zgaradimi (sana/`payment_type`) yoki
+   o'zgarmay qoladimi? Bu javob bo'lmasa, ro'yxat va Hisob-kitob o'rtasidagi farqni
+   operatorga to'liq tushuntirib bo'lmaydi.
+gg. **`totals` va per-catalog javob shakli hujjatlashtirilmagan.** `totals`
+   `PaginatedCatalogSaleRowList` da yo'q; `/api/catalog/{id}/sales/` esa Paginated deb
+   e'lon qilingan bo'lsa-da aslida `{results, totals}` qaytaradi. Ikkalasi ham e'lon
+   qilinsin (bu `paid_from_debt`, DELETE-200 va `usage/` bilan bir xil naqsh).
+hh. **Pul maydonlari turi.** `listed_total`/`sale_total` NUMBER kelyapti, OpenAPI
+   `string (decimal)` deydi; qolgan pul maydonlari STRING. Bitta konvensiya tanlansin.
