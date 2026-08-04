@@ -3,7 +3,7 @@ import type {
   Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult,
   CloseIssuePreview, CloseIssueInput, CloseIssueResult,
   AISettings, Analytics, AuditLog, BatchUsage, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard, Debt, DebtByCustomer,
-  Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
+  Expense, ExpenseCategories, ExpenseSummary, Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   Reservation, ReservationInput, ReservationPayment, ReservationPaymentInput, CatalogRestoreFlowersInput, FloristStockBulkIssueInput,
@@ -395,6 +395,20 @@ export const api = {
 
   customers: (p?: Params) => list<Customer>("/api/customers/", p),
   customer: (id: number) => request<Customer>(`/api/customers/${id}/`),
+
+  /* ===== RASXODLAR (ruxsat: `expenses`) ===== */
+  expenses: (p?: Params) => request<Paginated<Expense>>(`/api/expenses/${qs(p)}`),
+  expense: (id: number) => request<Expense>(`/api/expenses/${id}/`),
+  createExpense: (data: Record<string, unknown>) =>
+    request<Expense>("/api/expenses/", { method: "POST", body: JSON.stringify(data) }),
+  updateExpense: (id: number, data: Record<string, unknown>) =>
+    request<Expense>(`/api/expenses/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  /** ⚠️ 204 qaytaradi — tasdiq oynasi FRONTENDDA. */
+  deleteExpense: (id: number) => request<void>(`/api/expenses/${id}/`, { method: "DELETE" }),
+  /** ⚠️ Ro'yxat bilan AYNAN bir xil filtr berilishi SHART (buildExpenseQuery). */
+  expenseSummary: (p?: Params) => request<ExpenseSummary>(`/api/expenses/summary/${qs(p)}`),
+  /** Tur va to'lov usuli ro'yxati — QATTIQ YOZILMAYDI, shundan olinadi. */
+  expenseCategories: () => request<ExpenseCategories>("/api/expenses/categories/"),
 
   /* ===== QARZDORLAR (ruxsat: `crm`) ===== */
   /** Mijoz bo'yicha guruhlangan qarzlar. ⚠️ Server ENG KATTA QARZDAN saralab beradi —

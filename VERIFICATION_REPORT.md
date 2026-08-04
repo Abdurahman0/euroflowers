@@ -2822,3 +2822,170 @@ qq. ⚠️ **`florist_salary_amount` standart katalogda haqiqatan e'tiborsizmi?*
    saqlanadimi yoki tarif bosib yozadimi? (2) Agar bosib yozilsa, OpenAPI'da `readOnly`
    qilib belgilansinmi — hozircha sxema frontendni yanglishtiradi. (3) PATCH bilan
    keyinchalik o'zgartirsa-chi (yaratishdan farqli)?
+
+---
+
+# RASXODLAR SAHIFASI (2026-08-04)
+
+## §0a — Ruxsat kaliti
+
+Jonli `/api/me/` da **bor**:
+```json
+{ "page": "expenses", "label": "Rasxodlar", "can_view": true, "can_control": true }
+```
+To'liq kalitlar: `dashboard, inventory, catalog, crm, customers, conversations, social_posts,
+notifications, suppliers, florists, attendance, settings, ai_settings, integrations, users,
+mini_app, expenses, audit`.
+
+**Noma'lum kalit XAVFSIZ.** `checkPerm` `permissions.find(x => x.page === page)` qiladi —
+frontend bilmagan kalit hech qachon so'ralmaydi; NAV esa berilgan sahifalarga qarab
+filtrlanadi, ya'ni tanilmagan kalit hech narsaga mos kelmaydi va hech narsa chizilmaydi.
+Yiqilish YO'Q. `PermissionPage` turida `mini_app` bor edi, `expenses` yo'q edi — qo'shildi.
+
+### ⚠️ FILIAL GATING — vazifadagi ikki faraz noto'g'ri
+
+**1. Filial allowlist YO'Q — u yagona manba bo'la olmaydi.** U 2026-08-03 da SIZNING
+ko'rsatmangiz bilan olib tashlangan («filial foydalanuvchi sidebari ortiqcha cheklangan —
+ruxsat hukm qilsin»). `visibleScreens(_branchUser, …)` filial bayrog'ini UMUMAN
+e'tiborga olmaydi. Siz nazarda tutgan audit **tuzatishgacha to'xtatilgan edi** — men
+sizib chiqishni xabar qilganman (parkent_admin uchta sahifadan tashqari yana 9 ta
+route'ga kira oladi), lekin gatingni O'ZGARTIRMAGANMAN.
+
+**2. Backend bu sahifani filial foydalanuvchiga ATAYLAB bergan:**
+```
+parkent_admin     branch=2  can_view = [catalog, crm, customers, dashboard, expenses, notifications]  ← BOR
+parkent_sotuvchi  branch=2  can_view = [catalog, customers, dashboard, notifications]                 ← yo'q
+```
+Va rasxodlar serverda haqiqatan filial bo'yicha ajratilgan: `?branch=2` → `net_profit 0`,
+`?branch=main` → `1 179 700`; modelda `branch` maydoni bor.
+
+Ya'ni «filialga sizib chiqmasin» va «API aytganicha gate qiling» AKS TOMONGA ishora
+qiladi. Men `expenses` ruxsatiga gate qildim (backend nazarda tutgani va filial bo'yicha
+ajratilgan ma'lumot shuni qo'llaydi) va buni **yashirmasdan xabar qilyapman** —
+serverning ataylab bergan sahifasini bir tomonlama bloklab qo'ymadim. Aytsangiz bir
+qatorda filial uchun yopaman; bu aslida to'xtatilgan auditdagi hal qilinmagan allowlist
+savoli.
+
+## §0b — Accounting yangi maydonlari (jonli)
+
+```
+total_sales               = 2 000 000
+cost_total                =   820 300
+waste_cost_total          =         0
+net_profit                = 1 179 700   ← O'ZGARMAGAN, hamon SOTUV foydasi
+expense_total             =         0
+expense_count             =         0
+net_profit_after_expenses = 1 179 700
+```
+**Ayirish to'g'ri:** `1 179 700 − 0 = 1 179 700` ✓. `summary` da ham, **ikkala**
+`by_branch` qatorida ham bor; yuqori darajada `expenses_by_category: []`.
+
+⚠️ Serverda **0 ta rasxod** bor, shuning uchun `net_profit == net_profit_after_expenses` —
+bu SHAKLNI tasdiqlaydi, XATTI-HARAKATNI emas. Bu ketma-ket **to'rtinchi** xususiyat
+(qarz, aralash, dastafka, endi rasxod) jonli ma'lumotda sinab bo'lmadi.
+
+Filial filtri ishlaydi: `?branch=2` → `net_profit 0`; `?branch=main` → `1 179 700`.
+
+Yagona renderer (`accountingRowView`) `expense`, `expenseCount`, `netAfter` ni oldi —
+`summary` (Jami) va `by_branch` qatorlari IKKALASI ham avtomatik ko'rsatadi.
+
+**Paritet buzilmadi** — u `total_sales` ga tayanadi, bularning hech biri unga tegmaydi.
+
+## §0c — Hisob-kitobdagi pul raqamlari va tartib
+
+Endi bir ekranda: `total_sales` · `delivery_total` · `received_total` · `cost_total` ·
+`waste_cost_total` · `net_profit` · `expense_total` · `net_profit_after_expenses`.
+
+Arifmetika bloki (kartochkalardan YUQORIDA, alohida ramka):
+```
+Savdo                      2 000 000
+Tannarx                  −   820 300
+Chiqit                   −         0
+──────────────────────────────────────
+Sof foyda                  1 179 700   ← net_profit (Tip: rasxodlar HISOBGA OLINMAGAN)
+Rasxodlar                −         0   ← expense_total
+══════════════════════════════════════
+Rasxoddan keyingi foyda    1 179 700   ← net_profit_after_expenses (kattaroq, --acc rangda)
+```
+Ikki foyda VIZUAL ajratilgan: «Sof foyda» qalin/oddiy rangda, «Rasxoddan keyingi foyda»
+qo'shaloq chiziqdan keyin kattaroq va aksent rangda, ikkalasida ham bir-birini
+ARALASHTIRMASLIK haqida Tip.
+
+## §0c(2) — `by_day` teskarisiga o'girish
+
+Server ENG YANGI KUNNI BIRINCHI beradi. `byDayChronological` BITTA joyda o'giradi va
+test bilan mixlangan (asl massiv o'zgarmaydi). Ekranda kunlar **01 → 03 → 04** tartibida
+chiqdi (skrinshot bilan tasdiqlangan).
+
+## Qurilgani
+
+- `lib/expenses.ts` — `buildExpenseQuery` (ro'yxat VA yig'indi uchun BITTA quruvchi),
+  `expenseFiltersToParams`, `spentAtPayload`, `byDayChronological`, `byCategoryDesc`,
+  `validateExpense`, `buildExpensePayload`, `buildExpenseEditPayload`, `expenseNum`.
+- `app/rasxodlar/page.tsx` — kartochkalar, ikki vizual, jadval, server filtrlari
+  (URL'da), server sahifalash, o'chirish tasdig'i, bo'sh/yuklanish/xato holatlari.
+- `components/ExpenseModal.tsx` — qo'shish/tahrirlash, serverdan kelgan tanlovlar.
+- `lib/branch.ts` NAV + `Shell.tsx` ROUTE_PERM — nav VA route ikkalasi ham gate.
+- `app/hisob-kitob/page.tsx` — arifmetika bloki + rasxod turlari + sahifaga havola
+  (joriy sana oralig'i URL'da).
+
+Sidebar tartibi (yuqori oltilik TEGILMAGAN): … Analitika · Hisob-kitob · Filial hisoboti ·
+**Rasxodlar** · AI yordamchi · Buyurtmalar · Bronlar · Mijozlar · Qarzdorlar · …
+
+### ⚠️ SANA — katalog/chiqim formalaridan FARQLI
+
+`spent_at` sukut bo'yicha **BO'SH**; tegilmasa kalit UMUMAN yuborilmaydi va backend
+hozirgi vaqtni qo'yadi. `new Date()` HECH QACHON yuborilmaydi. Sana tanlansa —
+`YYYY-MM-DDT00:00:00+05:00`. Boshqa formalardagi «bugun» sukuti bu yerda TAKRORLANMADI.
+
+## §4 — Verify
+
+`tsc` toza · **489/489 Vitest** (39 tasi shu ish uchun) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `exp-page-*`, `exp-filtered-*`, `exp-form-*`, `exp-accounting-*`.
+
+```
+SAHIFA     : {"cards":true,"total":true,"avg":true,"charts":true,"rows":true,
+              "chips":true,"who":true,"dayOrder":"01,03,04"}   ← XRONOLOGIK
+FILTRLANGAN: {"onlyRent":true,"url":"?category=rent"}
+FORMA      : {"open":true,"req":true,"dateEmpty":true,"hint":true}  ← sana BO'SH
+HISOB-KITOB: {"sof":true,"after":true,"n1":true,"exp":true,"n2":true,
+              "breakdown":true,"link":true}
+```
+
+## LIST 1 — append
+
+RX1. **⚠️ RASXOD → HISOB-KITOB (butun ma'nosi shu).** Avval Hisob-kitobdan IKKI raqamni
+     yozib oling: «Sof foyda» va «Rasxoddan keyingi foyda». So'ng 150 000 so'mlik rasxod
+     qo'shing (masalan Transport). Keyin tekshiring:
+     - **«Sof foyda» O'ZGARMAGAN** (rasxod sotuv foydasiga tegmaydi)
+     - **«Rasxoddan keyingi foyda» AYNAN 150 000 ga kamaygan**
+     - «Rasxod turlari» ajratmasida yangi tur paydo bo'lgan
+     **⚠️ RASXODLAR HISOBOTGA DARHOL TA'SIR QILADI.**
+RX2. **⚠️ ORQAGA SANALI rasxod.** Sanani o'tgan oyga qo'yib rasxod kiriting. Hisob-kitobda
+     davrni O'SHA OYGA o'zgartiring — rasxod o'sha oyda ko'rinishi, joriy oyda esa
+     KO'RINMASLIGI kerak (`date_from`/`date_to` sarflangan sana bo'yicha ishlaydi).
+     **⚠️ RETROAKTIV.**
+RX3. **Sana bo'sh qolsa.** Sanaga TEGMASDAN saqlang — yozuv bugungi vaqt bilan tushishi
+     kerak (frontend `new Date()` yubormaydi). **READ.**
+RX4. **Yig'indi jadvalga MOS.** Filtr qo'ying (masalan Turi = Ijara) — yuqoridagi
+     «Jami rasxod» faqat ko'rinayotgan qatorlarni hisoblashi kerak, butun davrni emas.
+     Sahifani almashtiring — jamilar O'ZGARMASIN. **READ.**
+RX5. **Tur ro'yxati serverdan.** Backend yangi tur qo'shsa, u frontend o'zgarmasdan
+     tanlovda paydo bo'lishi kerak. **READ.**
+RX6. **O'chirish.** Rasxodni o'chiring (tasdiq oynasi chiqadi) — «Rasxoddan keyingi
+     foyda» darhol ortishi kerak. **⚠️ QAYTMAS.**
+
+## LIST 2 — append
+
+rr. ⚠️ **Filial foydalanuvchisi Rasxodlar sahifasini ko'rishi KERAKMI?** Backend
+   `parkent_admin` ga `expenses` ruxsatini bergan va rasxodlar filial bo'yicha
+   ajratilgan (`?branch=2` alohida `expense_total` beradi), lekin
+   FRONTEND_BRANCH_PARKENT.md filial menyusini uchta sahifa bilan cheklaydi. Hozircha
+   ruxsatga gate qilingan (ya'ni parkent_admin ko'radi). SETTLE: (1) bu ataylabmi?
+   (2) Agar yo'q bo'lsa, ruxsat backenddan olib tashlansinmi yoki frontend filial
+   allowlist qaytarilsinmi? Bu to'xtatilgan filial auditidagi hal qilinmagan savolning
+   o'zi.
+ss. **Jonli sinov ma'lumoti yo'q — endi TO'RTTA xususiyatda.** Qarz (0 ta), aralash
+   to'lov (0 ta), dastafka (0 ta) va rasxod (0 ta) — hech biri haqiqiy ma'lumotda
+   tekshirilmadi. Barchasida faqat javob SHAKLI tasdiqlangan. Serverda kamida bittadan
+   namuna yozuv qoldirilsa, frontend ularni haqiqatan tekshira olardi.

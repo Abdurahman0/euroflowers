@@ -15,6 +15,8 @@ export const NAV: NavItem[] = [
   { id: "analitika", href: "/analitika", label: "Analitika", pages: ["dashboard"] },
   { id: "hisob", href: "/hisob-kitob", label: "Hisob-kitob", pages: ["dashboard"] },
   { id: "branchReport", href: "/filial-hisoboti", label: "Filial hisoboti", pages: ["dashboard"] },
+  // ⚠️ RASXODLAR — o'z ruxsat kaliti (`expenses`), pul sahifasi bo'lgani uchun Hisob-kitob yonida.
+  { id: "rasxodlar", href: "/rasxodlar", label: "Rasxodlar", pages: ["expenses"] },
   { id: "ai", href: "/ai", label: "AI yordamchi", pages: ["ai_settings"] },
   { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", pages: ["crm"] },
   { id: "bronlar", href: "/bronlar", label: "Bronlar", pages: ["crm"] },
@@ -124,6 +126,10 @@ export function accountingRowView(f: AccountingFigures) {
     mixedQuantity: f.mixed_quantity ?? 0,
     // ⚠️ DASTAFKA — TOVAR savdosidan tashqarida; naqd/karta ustunlari ICHIDA.
     // INVARIANT: cash + card + debt + unknown = received (total_sales EMAS).
+    // ⚠️ RASXOD — `net` (sotuv foydasi) ga TEGMAYDI; `netAfter` alohida ko'rsatiladi.
+    expense: num(f.expense_total),
+    expenseCount: f.expense_count ?? 0,
+    netAfter: num(f.net_profit_after_expenses),
     delivery: num(f.delivery_total),
     deliveryCount: f.delivery_count ?? 0,
     received: num(f.received_total) || num(f.total_sales) + num(f.delivery_total),

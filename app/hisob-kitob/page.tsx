@@ -126,6 +126,23 @@ function BranchRow({ fig, footer }: { fig: AccountingFigures; footer?: boolean }
   );
 }
 
+/** Arifmetika qatori — Savdo → … → Sof foyda → Rasxodlar → Rasxoddan keyingi foyda. */
+function Ari({ label, v, bold, strong, sub, tip }: { label: string; v: number; bold?: boolean; strong?: boolean; sub?: string; tip?: string }) {
+  const neg = v < 0;
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className={strong ? "font-extrabold" : bold ? "font-bold" : ""} style={{ color: strong || bold ? "var(--text)" : "var(--text-2)" }}>
+        {label}{tip ? <Tip text={tip} /> : null}
+        {sub ? <span className="ml-1 text-[11px]" style={{ color: "var(--muted)" }}>({sub})</span> : null}
+      </span>
+      <span className={clsx("tabular-nums", strong ? "text-[16px] font-extrabold" : bold ? "font-extrabold" : "font-semibold")}
+        style={{ color: strong ? "var(--acc)" : bold ? "var(--text)" : neg ? "var(--danger-ink)" : "var(--text-2)" }}>
+        {neg ? "− " : ""}{fmt(Math.abs(v))}
+      </span>
+    </div>
+  );
+}
+
 type SortKey = "net" | "margin" | "date";
 
 export default function HisobKitobPage() {
@@ -421,7 +438,46 @@ export default function HisobKitobPage() {
           { label: "Skidka", v: fmt(s.discount_total), sub: `${s.discounted_sales_count} sotuvda`, splitField: "discount_total" },
           { label: "Sof foyda", v: fmt(s.net_profit), sub: `tannarx ${fmt(s.cost_total)}`, hue: profitTone(num(s.net_profit), num(s.total_sales) ? (num(s.net_profit) / num(s.total_sales)) * 100 : 0), splitField: "net_profit" },
         ];
+        // ⚠️ IKKI FOYDA — «Sof foyda» (sotuvdan) va «Rasxoddan keyingi foyda». Ular
+        // ARALASHTIRILMASLIGI uchun arifmetika bloki alohida chiziladi.
+        const arith = (
+          <div className="mb-3 rounded-[16px] border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-solid)" }}>
+            <div className="grid gap-1 text-[13px]" style={{ maxWidth: 420 }}>
+              <Ari label="Savdo" v={num(s.total_sales)} />
+              <Ari label="Tannarx" v={-num(s.cost_total)} />
+              <Ari label="Chiqit" v={-num(s.waste_cost_total)} />
+              <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
+              <Ari label="Sof foyda" v={num(s.net_profit)} bold
+                tip="Sotuv foydasi — rasxodlar HISOBGA OLINMAGAN (eski maydon, o'zgarmadi)." />
+              <Ari label="Rasxodlar" v={-num(s.expense_total)} sub={(s.expense_count ?? 0) > 0 ? `${s.expense_count} ta` : undefined} />
+              <div className="my-1 border-t-2" style={{ borderColor: "var(--border-strong, var(--border))" }} />
+              <Ari label="Rasxoddan keyingi foyda" v={num(s.net_profit_after_expenses)} strong
+                tip="Sof foyda − rasxodlar. Yuqoridagi «Sof foyda» bilan ARALASHTIRMANG." />
+            </div>
+            {(acc.expenses_by_category?.length ?? 0) > 0 && (
+              <div className="mt-3 border-t pt-2.5" style={{ borderColor: "var(--line2, var(--border))" }}>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Rasxod turlari</span>
+                  <a href={`/rasxodlar?date_from=${from}&date_to=${to}`}
+                    className="text-[11.5px] font-bold underline underline-offset-2" style={{ color: "var(--primary)" }}>
+                    Rasxodlar sahifasi →
+                  </a>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
+                  {(acc.expenses_by_category ?? []).map((c) => (
+                    <span key={c.category} style={{ color: "var(--text-2)" }}>
+                      {c.label} <b className="tabular-nums">{fmt(c.total)}</b>
+                      <span style={{ color: "var(--muted)" }}> · {c.count}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
         return (
+          <>
+          {arith}
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
             {cards.map((k) => {
               const sp = k.splitField ? split(k.splitField) : null;
@@ -435,6 +491,7 @@ export default function HisobKitobPage() {
               );
             })}
           </div>
+          </>
         );
       })()}
 

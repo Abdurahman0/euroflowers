@@ -7,7 +7,7 @@ export type PermissionPage =
   | "dashboard" | "inventory" | "catalog" | "crm" | "customers" | "conversations"
   | "social_posts" | "notifications" | "suppliers" | "florists" | "attendance"
   | "settings" | "ai_settings" | "integrations"
-  | "users" | "mini_app" | "audit";
+  | "users" | "mini_app" | "expenses" | "audit";
 
 export type PagePermission = {
   id?: number;
@@ -548,6 +548,39 @@ export type CatalogProfit = {
   realized_profit?: string | null;
 };
 
+/* ===== RASXODLAR (GET/POST /api/expenses/) ===== */
+export type ExpenseCategoryOption = { value: string; label: string };
+export type ExpenseCategories = { categories: ExpenseCategoryOption[]; payment_methods: ExpenseCategoryOption[] };
+
+export type Expense = {
+  id: number;
+  /** ⚠️ STRING decimal ("150000.00") — ko'rsatishdan oldin formatlang, TAQQOSLASHDA parse qiling. */
+  amount: string;
+  category: string;
+  category_label?: string;
+  destination: string;
+  note?: string;
+  payment_method: string;
+  payment_method_label?: string;
+  /** ⚠️ +05:00 bilan keladi — o'girmang (fmtLocalTime). */
+  spent_at: string;
+  branch?: number | null;
+  branch_name?: string;
+  created_by?: number | null;
+  created_by_detail?: { id: number; username?: string; first_name?: string; last_name?: string } | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ExpenseSummary = {
+  period: { date_from: string | null; date_to: string | null };
+  totals: { expense_count: number; total: string | number; average: string | number };
+  by_category: { category: string; label: string; count: number; total: string | number }[];
+  by_payment_method: { payment_method: string; label: string; count: number; total: string | number }[];
+  /** ⚠️ ENG YANGI KUN BIRINCHI keladi — grafik uchun TESKARISIGA o'giriladi. */
+  by_day: { date: string; count: number; total: string | number }[];
+};
+
 /* ===== KATALOG SOTUV TARIXI (GET /api/catalog/sales/ + /api/catalog/{id}/sales/) =====
    ⚠️ TANNARX/FOYDA maydonlari UMUMAN YO'Q — filial foydalanuvchisiga xavfsiz.
    ⚠️ Jonli javobda tur ARALASH: `listed_total`/`sale_total` NUMBER kelyapti, ammo
@@ -748,6 +781,10 @@ export type AccountingFigures = {
       = sales_count tengligi saqlanadi. Ya'ni bularni JAMLAMANG — «shundan aralash» deb
       ko'rsating. (⚠️ `debt_count` jonli javobda YO'Q — LIST 2.) */
   mixed_count?: number; mixed_quantity?: number;
+  /** ⚠️ RASXOD — `net_profit` ga TEGMAYDI (u sotuv foydasi bo'lib qoladi).
+      `net_profit_after_expenses` = net_profit − expense_total. Ikkalasini ARALASHTIRMANG. */
+  expense_total?: string | number; expense_count?: number;
+  net_profit_after_expenses?: string | number;
   /** ⚠️ DASTAFKA — TOVAR SAVDOSIGA KIRMAYDI va SOF FOYDAGA TA'SIR QILMAYDI
       (kuryerga berilgani uchun kirib-chiqib ketadi).
       ⚠️ INVARIANT: cash_total + card_total + debt_total + unknown_total = received_total
@@ -804,6 +841,8 @@ export type Accounting = {
   by_payment: AccountingByPayment[];
   by_volume: AccountingByVolume[];
   discounted_sales: AccountingSale[];
+  /** ⚠️ TOP-LEVEL (summary ichida EMAS) — rasxod turlari ajratmasi. */
+  expenses_by_category?: { category: string; label: string; count: number; total: string | number }[];
   history: AccountingSale[];
   /** ⚠️ BRON to'lovlari — ALOHIDA cashflow (sotuv EMAS). Sotuv full narxda savdoga kiradi;
       zaklad/oldindan to'lov shu yerda ko'rinadi. Server dinamik qo'shadi (OpenAPI'da yo'q). */
@@ -1588,7 +1627,7 @@ export type InstagramEvent = {
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "crm" | "bronlar" | "mijozlar" | "qarzdorlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "floristStock" | "branchReport" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
+export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "crm" | "bronlar" | "mijozlar" | "qarzdorlar" | "rasxodlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "floristStock" | "branchReport" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";
 /** Maxsus davr — YYYY-MM-DD (ikkalasi ham kiritilgan kun bilan) */
 export type DateRange = { from: string; to: string };

@@ -25,6 +25,7 @@ const ROUTE_PERM: Record<string, PermissionPage> = {
   "/": "dashboard",
   "/analitika": "dashboard",
   "/hisob-kitob": "dashboard",
+  "/rasxodlar": "expenses",
   "/chat": "conversations",
   "/ai": "ai_settings",
   "/crm": "crm",
