@@ -92,13 +92,16 @@ export const breakdownSheet = (rows: CostBreakdownRow[]): SheetDef => ({ name: "
 const branchCols: SheetCol[] = [
   { header: "Filial", key: "filial", type: "text" }, { header: "Sotuv", key: "sotuv", type: "int" },
   { header: "Buket", key: "buket", type: "int" }, { header: "Gul donasi", key: "stems", type: "int" },
-  { header: "Savdo", key: "savdo", type: "money" }, { header: "Naqd", key: "naqd", type: "money" },
+  { header: "Tovar savdosi", key: "savdo", type: "money" },
+  { header: "Dastafka", key: "dastafka", type: "money" },
+  { header: "Kassaga tushgan", key: "kassaga", type: "money" },
+  { header: "Naqd", key: "naqd", type: "money" },
   { header: "Karta", key: "karta", type: "money" }, { header: "Skidka", key: "skidka", type: "money" },
   { header: "Tannarx", key: "tannarx", type: "money" }, { header: "Sof foyda", key: "foyda", type: "money" },
   { header: "Ulush %", key: "ulush", type: "text" },
 ];
 export const branchSheet = (rows: AccountingByBranch[], summary: AccountingFigures): SheetDef => {
-  const toRow = (f: AccountingFigures, jami = false) => { const v = accountingRowView(f); return { filial: jami ? "Jami" : v.name, sotuv: v.salesCount, buket: v.buket, stems: v.stems, savdo: v.sales, naqd: v.cash, karta: v.card, skidka: v.discount, tannarx: v.cost, foyda: v.net, ulush: `${v.share}%` }; };
+  const toRow = (f: AccountingFigures, jami = false) => { const v = accountingRowView(f); return { filial: jami ? "Jami" : v.name, sotuv: v.salesCount, buket: v.buket, stems: v.stems, savdo: v.sales, dastafka: v.delivery, kassaga: v.received, naqd: v.cash, karta: v.card, skidka: v.discount, tannarx: v.cost, foyda: v.net, ulush: `${v.share}%` }; };
   return { name: "Filiallar", cols: branchCols, rows: rows.map((r) => toRow(r)), totals: toRow(summary, true) };
 };
 

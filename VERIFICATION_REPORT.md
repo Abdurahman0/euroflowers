@@ -2430,3 +2430,158 @@ jj. **`debt_count` `summary` da YO'Q.** Spec invarianti
    qarz sotuvidayoq javobdan tenglikni tekshirib bo'lmay qoladi. Qo'shilsinmi?
 kk. **`catalog/sales.totals` da `mixed_quantity` yo'q** (accounting'da bor). Ikkala
    joyda bir xil bo'lgani ma'qul.
+
+---
+
+# DASTAFKA SUMMASI (2026-08-04)
+
+## §0a — Aralash taqqoslash summasi O'ZGARDI: tovar → tovar + dastafka
+
+`calc.totalSum` 10 joyda o'qiladi; ulardan **beshtasi** taqqoslash summasi bo'lgani uchun
+`mixedTarget(calc.totalSum, delivery)` ga o'tkazildi:
+
+| Joy | Vazifasi | Holat |
+|---|---|---|
+| `recalcOnTotalChange(...)` | tegilmagan maydonni qayta hisoblash | ✅ |
+| `validateMixed(...)` | ✓ / «Farq» xabari | ✅ |
+| `mixedSellPayload(...)` | submit qulfi | ✅ |
+| `applyMixedEdit(... "cash")` | avtomatik qoldiq | ✅ |
+| `applyMixedEdit(... "card")` | avtomatik qoldiq | ✅ |
+| ajratma qutisi sarlavhasi | ko'rsatiladigan jami | ✅ «Mijozdan olinadi» + «tovar X + dastafka Y» |
+
+Qasddan TEGILMAGANLARI (ular tovar summasi bo'lib qolishi kerak): qarz toasti, bron
+farqi qatori. Footer «Mijoz to'laydi» esa «Mijozdan olinadi» ga aylandi va endi
+tovar/dastafka/jami uchta qator ko'rsatadi.
+
+`payTarget` `useEffect` bog'lanishida — ya'ni **dastafka o'zgargan zahoti** qayta
+hisoblanadi (faqat dona/chegirmada emas). Jonli tekshirildi: naqd 100 000 qo'lda
+yozilgan, dastafka keyin kiritilgan → karta avtomatik **220 000** bo'ldi.
+
+## §0b — Uchinchi raqam: qayerda nima ko'rsatiladi
+
+| Joy | Ilgari | Endi |
+|---|---|---|
+| Hisob-kitob kartochkasi | «Umumiy savdo» = `total_sales` | **«Tovar savdosi»** = `total_sales` |
+| — yangi — | — | **«Dastafka»** = `delivery_total` (+ `delivery_count`) |
+| — yangi — | — | **«Kassaga tushgan»** = `received_total` |
+| «Naqd»/«Karta» kartochkalari | `cash_total`/`card_total` | o'sha qiymat + izoh «dastafka ham ichida» |
+| `by_branch` jadvali | Savdo · Naqd · Karta | **Tovar savdosi · Dastafka · Kassaga tushgan** · Naqd · Karta |
+| Excel eksport | Savdo/Naqd/Karta | + Dastafka, + Kassaga tushgan (yagona renderer orqali) |
+
+⚠️ **INVARIANT jonli holatda TEKSHIRILDI, lekin HOZIRCHA DEGENERAT:**
+```
+naqd 5 980 000 + karta 13 965 000 + qarz 0 + noma'lum 0 = 19 945 000
+received_total                                          = 19 945 000  ✓ MOS
+total_sales                                             = 19 945 000
+delivery_total                                          = 0
+```
+Ya'ni `received_total == total_sales` bo'lgani uchun bu tekshiruv ikkalasini hali
+AJRATA OLMAYDI — shaklni tasdiqlaydi, xatti-harakatni emas.
+
+⚠️ **Spec farazini tuzatish:** §3 «spec 2 ta sotuvda dastafka bor deydi, shuning uchun
+buni HOZIR tekshirsa bo'ladi» — **tekshirib bo'lmadi**. Jonli serverda
+`delivery_count: 0`, `delivery_total: 0`, sotuv qatorlarining birortasida dastafka yo'q.
+Spec'ning o'z misoli (19 545 000 / 40 000) ham jonli raqamlarga mos kelmaydi
+(`total_sales` = 19 945 000). Sinov ma'lumoti tozalangan — qarz va aralash bilan bir xil.
+
+**Paritet hukmi:** `accounting?branch=main total_sales` = dashboard = analytics =
+**15 730 000** — uchalasi mos. Ammo `delivery_total = 0` bo'lgani uchun bu ularning
+dastafkani CHIQARIB TASHLASHINI isbotlamaydi. Bayroqlandi, tuzatilmadi (LIST 2).
+
+**Sof foyda toza:** `saleProfit` `netClient = sale_total − cost_total` ni hisoblab
+serverning `net_profit` iga solishtiradi; accounting qatorida `delivery_amount`
+ALOHIDA maydon, `sale_total` esa tovar bo'lib qoladi. Klientda hech narsa dastafkani
+foydaga qo'shmaydi — qo'shsa, mavjud `reconcile` nomuvofiqlik nuqtasi yonardi.
+
+## §0c — Yorliqlar
+
+Sizning taklifingiz o'zgarishsiz qabul qilindi: **«Tovar savdosi»** · **«Dastafka»** ·
+**«Kassaga tushgan»**. Naqd/karta kartochkalari ostiga **«dastafka ham ichida»** izohi
+qo'shildi — ularsiz ular «Tovar savdosi» bilan ko'z bilan solishtirilmay qolardi.
+`by_branch` sarlavhalarida Tip: *«Naqd va Karta ustunlari AYNAN «Kassaga tushgan»ni
+bo'ladi — «Tovar savdosi»ni emas.»*
+
+⚠️ Dastafka umuman bo'lmasa (`delivery_total = 0` va `delivery_count = 0`) qo'shimcha
+kartochkalar va izohlar **CHIZILMAYDI** — ekran toza qoladi.
+
+## §1 — Sotuv oynasi
+
+Bitta ixtiyoriy «Dastafka» maydoni (sukut bo'yicha bo'sh, ≥ 0). To'ldirilsa footer
+uchta qator ko'rsatadi: Sotuv summasi · Dastafka · **Mijozdan olinadi**.
+
+Payload: `delivery_amount` **bo'sh bo'lsa YUBORILMAYDI** («0» ham emas); operator
+ataylab «0» yozsa — yuboriladi. Testlangan.
+
+**Chegirma tartibi tasdiqlandi:** `calc.totalSum` allaqachon chegirmadan keyingi jami
+(`salePrice × qty`), dastafka esa uning USTIGA qo'shiladi — ya'ni dastafka hech qachon
+chegirmaga tushmaydi. Test: 2 × 250 000 (chegirmali) + 20 000 = 520 000.
+
+⚠️ **QARZ + DASTAFKA — API'dan aniqlanmadi.** Qarz summasi dastafkani o'z ichiga
+oladimi yoki faqat tovarni — serverda 0 ta qarz bo'lgani uchun tekshirib bo'lmadi va
+OpenAPI ham aytmaydi. Hozircha oynada qarz summasi **`payTarget`** (tovar + dastafka)
+deb ko'rsatilyapti, chunki mijozdan olinadigan summa shu. → LIST 2 (ll).
+
+## §2 — Ko'rinish
+
+Sotuv tarixi qatori: **«300 000 so'm + 20 000 so'm dastafka = 320 000 so'm»** —
+FAQAT `delivery_amount > 0` bo'lganda; dastafkasiz qatorlar toza qoladi (skrinshotda
+ikkinchi qator shunday). Jamilar sarlavhasiga `delivery_total` va `received_total`
+qo'shildi (ular ham faqat dastafka bo'lganda).
+
+## §3 — Verify
+
+`tsc` toza · **438/438 Vitest** (18 tasi shu ish uchun) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `dlv-sell-delivery-*`, `dlv-sell-ok-*`, `dlv-sell-mismatch-*`,
+`dlv-history-*`, `dlv-accounting-*`.
+
+```
+DASTAFKA (naqd)  : {"line":true,"sum320":true,"goods":true,"dastafka":true}
+ARALASH ochildi  : {"target":true,"blocked":true}
+avtomatik        : {"dastafka":"20 000","cash":"100 000","card":"220 000"}  ← 320 000 dan
+NOMUVOFIQ        : {"diff":true,"diffText":"Farq: 170 000 so'm kam","blocked":true}
+TO'G'RI (100/220): {"noDiff":true,"enabled":true}
+SOTUV TARIXI     : {"deliveryRow":true,"totalsDelivery":true,"plainNoParens":true}
+HISOB-KITOB      : {"tovarSavdosi":true,"dastafkaCard":true,"kassaga":true,"cashNote":true}
+```
+
+Yo'l-yo'lakay: uchala pul maydoniga `aria-label` qo'shildi («Naqd summasi», «Karta
+summasi», «Dastafka summasi») — ular bir xil `placeholder="0"` bilan farqlanmas edi.
+
+## LIST 1 — append
+
+DL1. **⚠️ DASTAFKA — TO'RT TOMONLAMA TEKSHIRUV (butun ma'nosi shu).** Avval Hisob-kitobdan
+     TO'RT raqamni yozib oling: «Tovar savdosi», «Kassaga tushgan», «Naqd» (yoki «Karta»)
+     va «Sof foyda». So'ng 300 000 so'mlik katalogni **20 000 dastafka** bilan naqdga
+     soting. Keyin tekshiring:
+     - **«Tovar savdosi» +300 000** (dastafka KIRMAYDI)
+     - **«Kassaga tushgan» +320 000**
+     - **«Naqd» +320 000** (dastafka ICHIDA)
+     - **«Sof foyda» +(300 000 − tannarx)** — dastafka QATNASHMAYDI
+     Va `cash + card + qarz + noma'lum = Kassaga tushgan` tengligi saqlanganini
+     tekshiring. **⚠️ QAYTMAS.**
+DL2. **Aralash + dastafka.** Aralash rejimda 300 000 tovar + 20 000 dastafka: naqd/karta
+     yig'indisi **320 000** ga tenglashishi kerak. 150 000 + 150 000 kiritib ko'ring —
+     endi «Farq: 20 000 so'm kam» chiqishi shart (ilgari bu to'g'ri edi). **READ.**
+DL3. **Dastafkani KEYIN kiritish.** Aralashda avval naqdni yozing, so'ng dastafka
+     qo'shing — karta (tegilmagan maydon) avtomatik qayta hisoblanishi kerak. **READ.**
+DL4. **Chegirma + dastafka tartibi.** Chegirma bilan soting va dastafka qo'shing —
+     dastafka chegirmaga TUSHMASLIGI, chegirmadan KEYIN qo'shilishi kerak. **READ.**
+DL5. **Dastafkasiz sotuv toza qoladi.** Oddiy sotuvda tarix qatorida dastafka satri
+     BO'LMASLIGI va Hisob-kitobda qo'shimcha kartochkalar chiqmasligi kerak. **READ.**
+
+## LIST 2 — append
+
+ll. ⚠️ **QARZ dastafkani o'z ichiga oladimi?** `payment_type: "debt"` + `delivery_amount`
+   bo'lsa, Qarzdorlar sahifasidagi qarz summasi TOVAR (300 000) mi yoki TOVAR+DASTAFKA
+   (320 000) mi? Serverda 0 ta qarz bo'lgani uchun tekshirib bo'lmadi, OpenAPI ham
+   aytmaydi. Hozircha oynada 320 000 ko'rsatilyapti (mijozdan olinadigan summa).
+   Bu Qarzdorlar sahifasi nimani ko'rsatishini ham hal qiladi.
+mm. ⚠️ **Dashboard/Analitika dastafkani chiqarib tashlaydimi?** Uchala manba hozir
+   mos (15 730 000), lekin `delivery_total = 0` bo'lgani uchun bu isbot emas. Birinchi
+   dastafkali sotuvdan keyin paritet buzilsa, u BIZNING xatoimizdek ko'rinadi.
+   Tasdiqlansin: `period_catalog_sales_revenue` va `catalog_sales_revenue` —
+   TOVAR savdosimi (`total_sales`) yoki kassaga tushganmi (`received_total`)?
+nn. **Jonli sinov ma'lumoti yo'q.** Spec «2 ta sotuvda dastafka bor» deydi, jonli
+   serverda esa `delivery_count: 0`. Xuddi qarz (0 ta) va aralash (0 ta) kabi —
+   frontend bu uchala xususiyatni ham HAQIQIY ma'lumotda tekshira olmayapti.
+   Demo ma'lumot qoldirilsa yaxshi bo'lardi.

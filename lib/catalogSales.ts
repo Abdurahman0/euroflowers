@@ -100,5 +100,17 @@ export function totalsView(t: CatalogSalesTotals | null | undefined) {
     cash: saleNum(t?.cash_total),
     card: saleNum(t?.card_total),
     debt: saleNum(t?.debt_total),
+    delivery: saleNum(t?.delivery_total),
+    received: saleNum(t?.received_total),
   };
+}
+
+/** Qator ko'rinishi: «300 000 + 20 000 dastafka = 320 000».
+    ⚠️ Dastafka 0 bo'lsa (aksariyat qator) — faqat summa, ortiqcha matn YO'Q. */
+export function deliveryRowView(r: { sale_total?: string | number; delivery_amount?: string | number; received_total?: string | number }):
+  { hasDelivery: boolean; goods: number; delivery: number; received: number } {
+  const goods = saleNum(r.sale_total);
+  const delivery = saleNum(r.delivery_amount);
+  const received = saleNum(r.received_total) || goods + delivery;
+  return { hasDelivery: delivery > 0, goods, delivery, received };
 }

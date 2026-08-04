@@ -13,7 +13,7 @@ import FlowerLoader from "@/components/FlowerLoader";
 import DatePicker from "@/components/DatePicker";
 import {
   buildSalesQuery, salesFiltersToParams, salesPageCount, totalsView, discountView, isDiscounted,
-  saleNum, PAYMENT_FILTERS, SALES_PAGE_SIZE,
+  saleNum, deliveryRowView, PAYMENT_FILTERS, SALES_PAGE_SIZE,
 } from "@/lib/catalogSales";
 import { paymentBreakdownLabel } from "@/lib/mixedPayment";
 import type { CatalogSalesPage } from "@/lib/types";
@@ -106,6 +106,12 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
           <span>naqd <b className="tabular-nums">{fmt(t.cash)}</b></span>
           <span>karta <b className="tabular-nums">{fmt(t.card)}</b></span>
           <span>qarz <b className="tabular-nums">{fmt(t.debt)}</b></span>
+          {t.delivery > 0 && (
+            <>
+              <span>dastafka <b className="tabular-nums">{fmt(t.delivery)}</b></span>
+              <span>kassaga tushgan <b className="tabular-nums">{fmt(t.received)}</b></span>
+            </>
+          )}
           {t.discount > 0 && <span style={{ color: "var(--warning-ink, #8a6d1f)" }}>chegirma <b className="tabular-nums">{fmt(t.discount)}</b></span>}
           {/* ⚠️ Sahifalash jamilarni O'ZGARTIRMAYDI — buni ochiq aytamiz */}
           <span style={{ color: "var(--muted)" }}>
@@ -208,6 +214,12 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
                             {d.reason && <div className="text-[11px] italic" style={{ color: "var(--muted)" }}>«{d.reason}»</div>}
                           </>
                         ) : <b className="tabular-nums">{fmt(d.sold)}</b>}
+                        {/* DASTAFKA — faqat > 0 bo'lganda; aksariyat qator toza qoladi */}
+                        {(() => { const dv = deliveryRowView(r); return dv.hasDelivery ? (
+                          <div className="text-[11px]" style={{ color: "var(--muted)" }}>
+                            + {fmt(dv.delivery)} dastafka = <b style={{ color: "var(--text-2)" }}>{fmt(dv.received)}</b>
+                          </div>
+                        ) : null; })()}
                       </td>
                       <td className="px-2 py-2.5">
                         <span className="rounded-full px-2 py-0.5 text-[11px] font-bold"

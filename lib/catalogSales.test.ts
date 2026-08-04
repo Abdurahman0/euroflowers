@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildSalesQuery, salesFiltersToParams, salesPageCount, totalsView,
-  discountView, isDiscounted, saleNum, SALES_PAGE_SIZE_MAX,
+  discountView, isDiscounted, saleNum, deliveryRowView, SALES_PAGE_SIZE_MAX,
 } from "./catalogSales";
 import { fmtLocalTime, fmtLocalDate, readIsoParts } from "./format";
 import type { CatalogSaleRow } from "./types";
@@ -72,10 +72,41 @@ describe("totalsView — server bergani AYNAN, qayta hisoblanmaydi", () => {
     expect(totalsView({
       sales_count: 20, quantity: 21, revenue: 7430000.0, discount_total: 200000.0,
       cash_total: 3480000.0, card_total: 3950000.0, debt_total: 0.0,
-    })).toEqual({ count: 20, quantity: 21, revenue: 7430000, discount: 200000, cash: 3480000, card: 3950000, debt: 0 });
+    })).toEqual({ count: 20, quantity: 21, revenue: 7430000, discount: 200000, cash: 3480000, card: 3950000, debt: 0, delivery: 0, received: 0 });
   });
   it("jamilar yo'q → nollar (yiqilmaydi)", () => {
-    expect(totalsView(null)).toEqual({ count: 0, quantity: 0, revenue: 0, discount: 0, cash: 0, card: 0, debt: 0 });
+    expect(totalsView(null)).toEqual({ count: 0, quantity: 0, revenue: 0, discount: 0, cash: 0, card: 0, debt: 0, delivery: 0, received: 0 });
+  });
+});
+
+describe("⚠️ DASTAFKA jamilari — server bergani AYNAN", () => {
+  it("dastafkali jamilar o'qiladi", () => {
+    const v = totalsView({
+      sales_count: 2, quantity: 2, revenue: 500000, discount_total: 0,
+      cash_total: 320000, card_total: 200000, debt_total: 0,
+      delivery_total: 20000, received_total: 520000,
+    });
+    expect(v.delivery).toBe(20000);
+    expect(v.received).toBe(520000);
+    // ⚠️ naqd+karta = KASSAGA TUSHGAN (tovar savdosi EMAS)
+    expect(v.cash + v.card).toBe(v.received);
+    expect(v.revenue).toBe(500000);
+  });
+});
+
+describe("deliveryRowView — qatorda faqat dastafka BOR bo'lsa ko'rsatiladi", () => {
+  it("dastafkali qator: 300 000 + 20 000 = 320 000", () => {
+    expect(deliveryRowView({ sale_total: 300000, delivery_amount: "20000.00", received_total: "320000.00" }))
+      .toEqual({ hasDelivery: true, goods: 300000, delivery: 20000, received: 320000 });
+  });
+  it("⚠️ dastafkasiz qator → hasDelivery false (qator TOZA qoladi)", () => {
+    expect(deliveryRowView({ sale_total: 300000, delivery_amount: "0", received_total: "300000" }).hasDelivery).toBe(false);
+  });
+  it("received_total kelmasa — tovar + dastafka dan hisoblanadi", () => {
+    expect(deliveryRowView({ sale_total: 300000, delivery_amount: 20000 }).received).toBe(320000);
+  });
+  it("eski qator (maydonlarsiz) → yiqilmaydi", () => {
+    expect(deliveryRowView({ sale_total: 150000 })).toEqual({ hasDelivery: false, goods: 150000, delivery: 0, received: 150000 });
   });
 });
 

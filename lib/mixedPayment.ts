@@ -1,8 +1,8 @@
 /**
  * ARALASH TO'LOV (naqd + karta) — sof mantiq.
  *
- * ⚠️ TAQQOSLASH SUMMASI — CHEGIRMADAN KEYINGI jami: `sale_price × quantity`.
- * E'lon narxi EMAS. Sotuv oynasidagi `calc.totalSum` aynan shu (tekshirildi).
+ * ⚠️ TAQQOSLASH SUMMASI = CHEGIRMADAN KEYINGI tovar jami (`sale_price × quantity`)
+ * + DASTAFKA. E'lon narxi EMAS. Sotuv oynasida: `mixedTarget(calc.totalSum, delivery)`.
  *
  * ⚠️ `mixed` va `debt` BIRGA BO'LMAYDI — `payment_type` bitta enum qiymat
  * (OpenAPI: cash | card | debt | mixed), shuning uchun ular tanlagichda
@@ -128,6 +128,24 @@ export function mixedSellPayload(
   if (!v.ok) return null;
   return { cash_amount: String(v.cash), card_amount: String(v.card) };
 }
+
+/**
+ * DASTAFKA payload qoidasi: BO'SH bo'lsa kalit UMUMAN yuborilmaydi ("0" ham emas).
+ * Operator ATAYLAB "0" yozsa — yuboriladi (u ongli tanlov).
+ */
+export function deliveryPayload(raw: string): Record<string, string> {
+  const t = (raw ?? "").trim();
+  if (t === "") return {};
+  const n = parseMoney(t);
+  return { delivery_amount: String(Math.max(n, 0)) };
+}
+
+/**
+ * ⚠️ ARALASH TAQQOSLASH SUMMASI = TOVAR (chegirmadan keyin) + DASTAFKA.
+ * Dastafka chegirmadan KEYIN qo'shiladi va HECH QACHON chegirmaga tushmaydi.
+ */
+export const mixedTarget = (goodsTotal: number, deliveryRaw: string): number =>
+  Math.max(goodsTotal, 0) + Math.max(parseMoney(deliveryRaw), 0);
 
 /** Sotuv tarixidagi ko'rinish: «Aralash (150 000 naqd · 150 000 karta)».
     ⚠️ Oddiy to'lovda `payment_breakdown` NULL — bo'sh qavs CHIZILMAYDI. */

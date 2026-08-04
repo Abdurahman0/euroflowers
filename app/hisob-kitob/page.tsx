@@ -110,6 +110,12 @@ function BranchRow({ fig, footer }: { fig: AccountingFigures; footer?: boolean }
       <td className="px-2 py-2.5 text-right tabular-nums">{v.buket}</td>
       <td className="px-2 py-2.5 text-right tabular-nums">{v.stems.toLocaleString("ru")}</td>
       <td className="px-2 py-2.5 text-right"><Money v={v.sales} bold /></td>
+      {/* ⚠️ DASTAFKA tovar savdosidan TASHQARIDA; naqd/karta esa «Kassaga tushgan»ni bo'ladi */}
+      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: v.delivery > 0 ? "var(--text-2)" : "var(--muted)" }}>
+        {v.delivery > 0 ? fmt(v.delivery) : "—"}
+        {v.deliveryCount > 0 && <span className="block text-[10.5px]" style={{ color: "var(--muted)" }}>{v.deliveryCount} sotuvda</span>}
+      </td>
+      <td className="px-2 py-2.5 text-right tabular-nums font-semibold">{fmt(v.received)}</td>
       <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(v.cash)}</td>
       <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(v.card)}</td>
       <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: v.discount > 0 ? "var(--warning-ink)" : "var(--muted)" }}>{v.discount > 0 ? fmt(v.discount) : "—"}</td>
@@ -392,16 +398,26 @@ export default function HisobKitobPage() {
         const showSplit = branchMode === "all" && byBranch.length > 1;
         const moneyShort = (v: number) => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
         const split = (field: keyof AccountingFigures) => (showSplit ? branchSplitLine(byBranch, field, moneyShort) : null);
+        // dastafka umuman bo'lmasa qo'shimcha kartochka/izohlar CHIZILMAYDI (toza qoladi)
+        const hasDelivery = num(s.delivery_total) > 0 || (s.delivery_count ?? 0) > 0;
         const cards: { label: string; v: string; sub: string; hue?: string; splitField?: keyof AccountingFigures }[] = [
-          { label: "Umumiy savdo", v: fmt(s.total_sales), sub: `${s.sales_count ?? s.total_quantity} sotuv · ${s.total_quantity} buket`, splitField: "total_sales" },
+          // ⚠️ UCHTA ALOHIDA RAQAM: tovar · dastafka · kassaga tushgan.
+          // total_sales — FAQAT tovar; naqd/karta ustunlari esa dastafkani HAM o'z ichiga oladi.
+          { label: "Tovar savdosi", v: fmt(s.total_sales), sub: `${s.sales_count ?? s.total_quantity} sotuv · ${s.total_quantity} buket`, splitField: "total_sales" },
+          ...((num(s.delivery_total) > 0 || (s.delivery_count ?? 0) > 0) ? [
+            { label: "Dastafka", v: fmt(s.delivery_total ?? 0), sub: `${s.delivery_count ?? 0} sotuvda · savdoga kirmaydi`, splitField: "delivery_total" as const },
+            { label: "Kassaga tushgan", v: fmt(s.received_total ?? 0), sub: "tovar + dastafka", splitField: "received_total" as const },
+          ] : []),
           // ⚠️ «shundan aralash» — sales_count ICHIDA (qo'shilmaydi): aralash sotuv KATTA
           // ulush qaysi usulda bo'lsa o'sha bucketga BIR MARTA yozilgan.
           { label: "Sotuvlar soni", v: String(s.sales_count ?? s.total_quantity),
             sub: (s.mixed_count ?? 0) > 0 ? `shundan aralash: ${s.mixed_count} (${s.mixed_quantity ?? 0} dona)` : "marta sotildi" },
           { label: "Sotilgan buket", v: String(s.total_quantity), sub: `${s.standard_quantity} std · ${s.custom_quantity} maxsus` },
           { label: "Sotilgan gul donasi", v: `${(s.flower_stems ?? 0).toLocaleString("ru")} dona`, sub: "gul sarfi" },
-          { label: "Naqd", v: fmt(s.cash_total), sub: `${s.cash_count ?? 0} sotuv`, splitField: "cash_total" },
-          { label: "Karta", v: fmt(s.card_total), sub: `${s.card_count ?? 0} sotuv`, splitField: "card_total" },
+          // ⚠️ naqd/karta = KASSAGA TUSHGAN pul (dastafka ICHIDA) — shuning uchun ular
+          // «Tovar savdosi» bilan ko'z bilan solishtirilmaydi; izohda aytamiz.
+          { label: "Naqd", v: fmt(s.cash_total), sub: hasDelivery ? `${s.cash_count ?? 0} sotuv · dastafka ham ichida` : `${s.cash_count ?? 0} sotuv`, splitField: "cash_total" },
+          { label: "Karta", v: fmt(s.card_total), sub: hasDelivery ? `${s.card_count ?? 0} sotuv · dastafka ham ichida` : `${s.card_count ?? 0} sotuv`, splitField: "card_total" },
           { label: "Skidka", v: fmt(s.discount_total), sub: `${s.discounted_sales_count} sotuvda`, splitField: "discount_total" },
           { label: "Sof foyda", v: fmt(s.net_profit), sub: `tannarx ${fmt(s.cost_total)}`, hue: profitTone(num(s.net_profit), num(s.total_sales) ? (num(s.net_profit) / num(s.total_sales)) * 100 : 0), splitField: "net_profit" },
         ];
@@ -436,7 +452,9 @@ export default function HisobKitobPage() {
                 <th className="px-2 py-2 text-right font-semibold">Sotuv</th>
                 <th className="px-2 py-2 text-right font-semibold">Buket</th>
                 <th className="px-2 py-2 text-right font-semibold">Gul donasi</th>
-                <th className="px-2 py-2 text-right font-semibold">Savdo</th>
+                <th className="px-2 py-2 text-right font-semibold">Tovar savdosi<Tip text="FAQAT buket/savatdan tushgan pul — dastafka kirmaydi." /></th>
+                <th className="px-2 py-2 text-right font-semibold">Dastafka</th>
+                <th className="px-2 py-2 text-right font-semibold">Kassaga tushgan<Tip text="Tovar savdosi + dastafka. ⚠️ Naqd va Karta ustunlari AYNAN shu summani bo'ladi — «Tovar savdosi»ni emas." /></th>
                 <th className="px-2 py-2 text-right font-semibold">Naqd</th>
                 <th className="px-2 py-2 text-right font-semibold">Karta</th>
                 <th className="px-2 py-2 text-right font-semibold">Skidka</th>

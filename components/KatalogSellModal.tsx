@@ -9,7 +9,7 @@ import Select from "./Select";
 import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import { debtSellPayload, debtCustomerReady, DEBT_CUSTOMER_REQUIRED, DEBT_NONE_DISABLED_REASON } from "@/lib/debt";
-import { applyMixedEdit, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, emptyMixed, type MixedState } from "@/lib/mixedPayment";
+import { applyMixedEdit, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, mixedTarget, parseMoney, emptyMixed, type MixedState } from "@/lib/mixedPayment";
 import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
@@ -97,6 +97,10 @@ export default function KatalogSellModal({
   }, [isDebt]);
   const debtBlocked = isDebt && !debtCustomerReady(cust);
 
+  // ===== DASTAFKA — ixtiyoriy; TOVAR SAVDOSIGA KIRMAYDI, foydaga ta'sir qilmaydi =====
+  const [delivery, setDelivery] = useState("");
+  const deliveryNum = parseMoney(delivery);
+
   // ===== ARALASH TO'LOV (naqd + karta) =====
   // ⚠️ `mixed` va `debt` BIRGA BO'LMAYDI — payment_type bitta enum qiymat.
   const isMixed = payment === "mixed";
@@ -168,11 +172,13 @@ export default function KatalogSellModal({
   const needsReason = discountOn && calc.unitDiscount > 0;
 
   // ⚠️ JAMI o'zgardi (dona / chegirma) → FAQAT tegilmagan maydon qayta hisoblanadi.
+  // ⚠️ ARALASH taqqoslash summasi = TOVAR + DASTAFKA (spec: 300 000 + 20 000 = 320 000)
+  const payTarget = mixedTarget(calc.totalSum, delivery);
   useEffect(() => {
     if (!isMixed) return;
-    setMixed((p) => recalcOnTotalChange(p, calc.totalSum));
-  }, [isMixed, calc.totalSum]);
-  const mixedV = validateMixed(mixed, calc.totalSum);
+    setMixed((p) => recalcOnTotalChange(p, payTarget));
+  }, [isMixed, payTarget]);
+  const mixedV = validateMixed(mixed, payTarget);
   const mixedBlocked = isMixed && !mixedV.ok;
 
   // §4 SOTUVDA QO'SHILGAN iqtisodi: material qoldiqni × qty (server ko'paytiradi), tannarx va oformleniya haqi.
@@ -190,7 +196,7 @@ export default function KatalogSellModal({
     const debtBody = debtSellPayload(isDebt, cust, debtNote);
     if (debtBody === null) next.customer = DEBT_CUSTOMER_REQUIRED;
     // ⚠️ ARALASH — yig'indi jamiga TENG va ikkalasi ham > 0 bo'lmasa yuborilmaydi
-    const mixedBody = mixedSellPayload(isMixed, mixed, calc.totalSum);
+    const mixedBody = mixedSellPayload(isMixed, mixed, payTarget);
     if (mixedBody === null) next.cash_amount = mixedV.message;
     if (Object.keys(next).length) return setErrs(next);
     setBusy(true);
@@ -228,6 +234,8 @@ export default function KatalogSellModal({
         ...debtBody,
         // ARALASH: cash_amount + card_amount. Boshqa rejimda kalitlar UMUMAN yo'q.
         ...mixedBody,
+        // DASTAFKA: bo'sh bo'lsa kalit UMUMAN yuborilmaydi ("0" ham emas).
+        ...deliveryPayload(delivery),
       });
       // customer_detail — PATCH javobidan (backend mavjud mijozga ULAGAN bo'lsa ismi ko'rinsin)
       const linked = updated.customer_detail || patched?.customer_detail;
@@ -368,19 +376,26 @@ export default function KatalogSellModal({
         {isMixed && (
           <div className="mt-2 rounded-[13px] border p-3" style={{ borderColor: mixedV.ok ? "var(--acc)" : "var(--border)", background: "var(--surface-2)" }}>
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>Sotuv summasi</span>
-              <span className="text-[14px] font-extrabold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(calc.totalSum)}</span>
+              <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>
+                {deliveryNum > 0 ? "Mijozdan olinadi" : "Sotuv summasi"}
+              </span>
+              <span className="text-[14px] font-extrabold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(payTarget)}</span>
             </div>
+            {deliveryNum > 0 && (
+              <div className="text-[11px]" style={{ color: "var(--muted)" }}>
+                tovar {fmt(calc.totalSum)} + dastafka {fmt(deliveryNum)}
+              </div>
+            )}
             <div className="mt-2 grid grid-cols-2 gap-2">
               <div>
                 <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Naqd</div>
-                <input className="inp" inputMode="numeric" value={mixed.cash} placeholder="0"
-                  onChange={(e) => { setMixed((p) => applyMixedEdit(p, "cash", e.target.value, calc.totalSum)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
+                <input className="inp" inputMode="numeric" value={mixed.cash} placeholder="0" aria-label="Naqd summasi"
+                  onChange={(e) => { setMixed((p) => applyMixedEdit(p, "cash", e.target.value, payTarget)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
               </div>
               <div>
                 <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Karta</div>
-                <input className="inp" inputMode="numeric" value={mixed.card} placeholder="0"
-                  onChange={(e) => { setMixed((p) => applyMixedEdit(p, "card", e.target.value, calc.totalSum)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
+                <input className="inp" inputMode="numeric" value={mixed.card} placeholder="0" aria-label="Karta summasi"
+                  onChange={(e) => { setMixed((p) => applyMixedEdit(p, "card", e.target.value, payTarget)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
               </div>
             </div>
             <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2" style={{ borderColor: "var(--line2, var(--border))" }}>
@@ -564,6 +579,18 @@ export default function KatalogSellModal({
         </div>
       )}
 
+      {/* DASTAFKA — ixtiyoriy. ⚠️ TOVAR SAVDOSIGA KIRMAYDI va SOF FOYDAGA TA'SIR QILMAYDI. */}
+      <div className="mt-4">
+        <Field label="Dastafka (ixtiyoriy)" span>
+          <input className="inp" inputMode="numeric" value={delivery} placeholder="0" aria-label="Dastafka summasi"
+            onChange={(e) => { setDelivery(formatMoneyInput(e.target.value)); setErrs((x) => { const n = { ...x }; delete n.delivery_amount; delete n.detail; return n; }); }} />
+          {errs.delivery_amount && <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.delivery_amount}</span>}
+        </Field>
+        <p className="mt-1 text-[11.5px]" style={{ color: "var(--muted)" }}>
+          Yetkazib berish uchun olingan pul. <b>Tovar savdosiga kirmaydi</b> va sof foydaga ta&apos;sir qilmaydi.
+        </p>
+      </div>
+
       {/* HISOB — jonli */}
       <div className="mt-4 rounded-[16px] border px-4 py-3" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-baseline justify-between gap-2 text-[13px]">
@@ -576,9 +603,22 @@ export default function KatalogSellModal({
             <span className="tabular-nums font-semibold" style={{ color: "var(--danger-ink)" }}>−{fmt(calc.totalDiscount)}</span>
           </div>
         )}
+        {/* ⚠️ DASTAFKA chegirmadan KEYIN qo'shiladi — hech qachon chegirmaga tushmaydi */}
+        {deliveryNum > 0 && (
+          <>
+            <div className="mt-1 flex items-baseline justify-between gap-2 text-[13px]">
+              <span style={{ color: "var(--text-2)" }}>Sotuv summasi</span>
+              <span className="tabular-nums font-semibold">{fmt(calc.totalSum)}</span>
+            </div>
+            <div className="mt-1 flex items-baseline justify-between gap-2 text-[13px]">
+              <span style={{ color: "var(--text-2)" }}>Dastafka</span>
+              <span className="tabular-nums font-semibold">{fmt(deliveryNum)}</span>
+            </div>
+          </>
+        )}
         <div className="mt-1.5 flex items-baseline justify-between gap-2 border-t pt-1.5" style={{ borderColor: "var(--border)" }}>
-          <span className="text-[13px] font-semibold">{isDebt ? "Qarz summasi" : "Mijoz to'laydi"}</span>
-          <span className="text-[17px] font-bold tabular-nums" style={{ color: isDebt ? "var(--danger-ink)" : "var(--acc)" }}>{fmt(calc.totalSum)}</span>
+          <span className="text-[13px] font-semibold">{isDebt ? "Qarz summasi" : "Mijozdan olinadi"}</span>
+          <span className="text-[17px] font-bold tabular-nums" style={{ color: isDebt ? "var(--danger-ink)" : "var(--acc)" }}>{fmt(payTarget)}</span>
         </div>
         {/* Chegirmali qarz: qarz CHEGIRMALI summa bo'ladi (spec §1) — ikkala qoida birga ishlaydi. */}
         {isDebt && calc.totalDiscount > 0 && (

@@ -579,6 +579,9 @@ export type CatalogSaleRow = {
   /** sotuvda yuklangan rasm — BO'SH bo'lishi mumkin */
   sale_image_url?: string;
   sold_by?: string;
+  /** DASTAFKA — dastafkasiz sotuvda 0; `received_total` = sale_total + delivery_amount. */
+  delivery_amount?: string | number;
+  received_total?: string | number;
   /** ⚠️ ARALASH to'lov ajratmasi. ODDIY to'lovlarda `null` — bo'sh qavs chizmang. */
   payment_breakdown?: { cash?: string | number; card?: string | number } | null;
   /** ⚠️ MAHALLIY vaqt, `+05:00` bilan. O'GIRMANG — `fmtLocalTime` bilan o'qing. */
@@ -597,6 +600,9 @@ export type CatalogSalesTotals = {
   debt_total: string | number;
   /** ⚠️ cash/card bilan KESISHADI (yuqoridagi izohga qarang). `mixed_quantity` bu yerda YO'Q. */
   mixed_count?: number;
+  /** DASTAFKA — tovar savdosidan TASHQARIDA. `received_total` = revenue + delivery_total. */
+  delivery_total?: string | number;
+  received_total?: string | number;
 };
 
 export type CatalogSalesPage = {
@@ -742,6 +748,13 @@ export type AccountingFigures = {
       = sales_count tengligi saqlanadi. Ya'ni bularni JAMLAMANG — «shundan aralash» deb
       ko'rsating. (⚠️ `debt_count` jonli javobda YO'Q — LIST 2.) */
   mixed_count?: number; mixed_quantity?: number;
+  /** ⚠️ DASTAFKA — TOVAR SAVDOSIGA KIRMAYDI va SOF FOYDAGA TA'SIR QILMAYDI
+      (kuryerga berilgani uchun kirib-chiqib ketadi).
+      ⚠️ INVARIANT: cash_total + card_total + debt_total + unknown_total = received_total
+      (`total_sales` EMAS — naqd/karta ustunlari dastafkani ham o'z ichiga oladi). */
+  delivery_total?: string | number; delivery_count?: number;
+  /** = total_sales + delivery_total (kassaga tushgan jami) */
+  received_total?: string | number;
   discount_total: string; discounted_sales_count: number; discounted_quantity: number;
   cost_total: string;
   // backend tannarxni ajratib beradi (0082/0083): flower+material+fee === cost_total (aniq).
@@ -774,6 +787,8 @@ export type AccountingSale = {
   discount_amount: string; discount_percent: string; discount_reason: string; sold_by: string;
   // filial ajratmasi (0-spec) — history VA discounted_sales qatorlarida
   branch_id?: number | null; branch_name?: string; is_main_branch?: boolean; flower_stems?: number;
+  /** DASTAFKA — bu qatorda alohida; `sale_total` TOVAR summasi bo'lib qoladi. */
+  delivery_amount?: string | number;
   /** ⚠️ QARZDAN kelgan sotuv — bu qatorda `sold_at` SOTUV emas, TO'LOV sanasi
       (gul avvalroq chiqib ketgan). Jonli javobda BOR, ammo OpenAPI'da e'lon
       QILINMAGAN (accounting javobi umuman hujjatlashtirilmagan) — shuning uchun

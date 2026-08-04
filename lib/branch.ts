@@ -122,6 +122,11 @@ export function accountingRowView(f: AccountingFigures) {
     // Jamlashga yaroqsiz; «shundan aralash» sifatida ko'rsatiladi.
     mixedCount: f.mixed_count ?? 0,
     mixedQuantity: f.mixed_quantity ?? 0,
+    // ⚠️ DASTAFKA — TOVAR savdosidan tashqarida; naqd/karta ustunlari ICHIDA.
+    // INVARIANT: cash + card + debt + unknown = received (total_sales EMAS).
+    delivery: num(f.delivery_total),
+    deliveryCount: f.delivery_count ?? 0,
+    received: num(f.received_total) || num(f.total_sales) + num(f.delivery_total),
     buket: f.total_quantity ?? 0,
     stems: f.flower_stems ?? 0,
     sales: num(f.total_sales),
