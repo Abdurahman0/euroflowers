@@ -2716,3 +2716,109 @@ oo. ⚠️ **`GET /api/florist-volume-rates/` `?florist=` filtrini QO'LLAMAYDI.*
 pp. **`default_stems` hamma qatorda 0.** Matritsada «0» ko'rinadi. Bu ataylabmi (dona
    soni ishlatilmayaptimi) yoki to'ldirilmaganmi? Agar ishlatilmasa, ustunni yashirish
    mumkin.
+
+---
+
+# TEKSHIRUV: `florist_salary_amount` standart katalogda qabul qilinadimi? (2026-08-04)
+
+## HUKM: YO'Q — maydon QAYTA OCHILMADI
+
+### 1. OpenAPI — yoziladigan, LEKIN bu hech narsani hal qilmaydi
+
+```
+CatalogItem.florist_salary_amount        : {"type":"string","format":"decimal"}  readOnly: FALSE
+PatchedCatalogItem.florist_salary_amount : {"type":"string","format":"decimal"}  readOnly: FALSE
+POST  /api/catalog/      → CatalogItem
+PATCH /api/catalog/{id}/ → PatchedCatalogItem
+```
+
+Ya'ni kalit **qabul qilinadi**. Ammo bu faqat model maydoni ochiqligini bildiradi —
+serializer `create()`/`update()` ichida uni baribir ustidan yozishi mumkin. Sxemada
+standart/maxsus farqi haqida **hech narsa yo'q**: `"standard"`, `"volume rate"`, `"tarif"`
+so'zlari `CatalogItem` sxemasida umuman uchramaydi. Ya'ni OpenAPI spec aytgan qoidani
+IFODALAY OLMAYDI — u orqali javob berib bo'lmaydi.
+
+### 2. Jonli solishtirish — hammasi tarifga MOS
+
+Serverdagi 8 ta katalog (hammasi standart, florist va hajm bilan):
+
+| katalog | florist | tur · hajm | katalog salary | tarif | |
+|---|---|---|---|---|---|
+| 179 | 8 | bouquet · small | 10 000 | 10 000 | mos |
+| 180 | 8 | bouquet · medium | 15 000 | 15 000 | mos |
+| 181 | 8 | bouquet · small | 10 000 | 10 000 | mos |
+| 182 | 5 | basket · medium | 40 000 | 40 000 | mos |
+| 183 | 5 | bouquet · medium | 15 000 | 15 000 | mos |
+| 184 | 5 | bouquet · medium | 15 000 | 15 000 | mos |
+| 185 | 5 | bouquet · medium | 15 000 | 15 000 | mos |
+| **186** | 5 | bouquet · large | **100 000** | **50 000** | ⚠️ farqli |
+
+**8 tadan 7 tasi tarifga AYNAN teng.**
+
+⚠️ Yagona farqli qator (186) **override ishlayotganini ISBOTLAMAYDI** — aksincha:
+
+```
+katalog 186 created_at = 2026-08-03T12:00
+tarif   id=49 fee=50 000  updated_at = 2026-08-04T14:32   ← katalogdan KEYIN o'zgargan
+```
+
+Tarif katalog yaratilgandan **keyin** tahrirlangan. Katalogning eski 100 000 ni saqlab
+qolgani — «server yaratish paytidagi tarifni bosib qo'yadi» qoidasining AYNAN kutilgan
+natijasi. Ya'ni bu topilma override ishlayotganiga QARSHI dalil.
+
+### 3. ⚠️ Nega moslik ham hech narsani isbotlamaydi
+
+Bizning kompozitorimiz ish haqini **tarifdan avtomatik to'ldiradi** va shu qiymatni
+yuboradi. Shuning uchun «katalog salary == tarif» holati IKKALA farazga ham mos keladi:
+serverning bosib yozgani ham, bizning aynan o'sha qiymatni yuborganimiz ham.
+
+**Yagona hal qiluvchi sinov — BOSHQA qiymat yuborib, u saqlanadimi deb ko'rish. Bu YOZUV
+amali, read-only rejimda mumkin emas.**
+
+Qo'shimcha: serverda hozir **bironta ham `custom` katalog yo'q** (8 tasi ham standart),
+shuning uchun «maxsusda qabul qilinadi» degan qarama-qarshi holatni ham ko'rsatib
+bo'lmadi.
+
+### Xulosa
+
+Read-only dalillarning hech biri override ishlayotganini ko'rsatmaydi; eng kuchli signal
+(186 ning eski tarifni saqlab qolgani) esa teskarisiga ishora qiladi. Sizning
+ko'rsatmangiz bo'yicha — «qiymati jimgina yo'qoladigan input umuman yo'qidan battar» —
+maydon **qayta ochilmadi**.
+
+## Buning o'rniga: operator qayerga borishni bilsin
+
+`components/KatalogModal.tsx` — standart katalogda:
+
+- summa endi **«Tarifdan: 10 000 so'm»** deb ko'rsatiladi (ilgari shunchaki raqam edi —
+  qayerdan kelgani bilinmasdi);
+- ostida bir qator izoh: *«Summa hajm tarifidan olinadi va shu yerda o'zgartirilmaydi —
+  tarifni floristning tarif jadvalida tahrirlang»*;
+- **«Tarif jadvalini ochish →»** havolasi — o'sha floristning sahifasiga (`/floristlar/{id}`,
+  yangi oynada);
+- tarif yo'q holatda: «Bu florist uchun bu hajmda tarif yo'q» + **«Tarif belgilash →»**
+  havolasi (ilgari faqat ogohlantirish bor edi, yo'l ko'rsatilmasdi).
+
+Maxsus (custom) katalogdagi tahrirlanadigan maydon **tegilmadi**.
+
+## Tekshirish
+
+`tsc` toza · **450/450 Vitest** · konsol xatosi yo'q.
+
+**JONLI skrinshotlar** (mock YO'Q — `sal-composer-light.png`, `sal-composer-dark.png`),
+Fatxulloh + Buket + Kichik tanlangan holat:
+```
+{"tarifdan":true,"amount":"Tarifdan: 10 000 so'm","note":true,
+ "link":true,"linkHref":"/floristlar/8","noInput":true}
+```
+Ko'rsatilgan 10 000 — API'dagi Fatxullohning bouquet/small tarifi bilan AYNAN bir xil.
+
+## LIST 2 — append
+
+qq. ⚠️ **`florist_salary_amount` standart katalogda haqiqatan e'tiborsizmi?** OpenAPI uni
+   yoziladigan deb ko'rsatadi (`readOnly: false`), spec esa standartda e'tiborga
+   olinmasligini aytadi — ikkalasi ZIDDIYATDA. Read-only tekshiruv hal qila olmadi
+   (boshqa qiymat yuborish kerak). SETTLE: (1) standart katalogda yuborilgan qiymat
+   saqlanadimi yoki tarif bosib yozadimi? (2) Agar bosib yozilsa, OpenAPI'da `readOnly`
+   qilib belgilansinmi — hozircha sxema frontendni yanglishtiradi. (3) PATCH bilan
+   keyinchalik o'zgartirsa-chi (yaratishdan farqli)?

@@ -881,9 +881,13 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                 placeholder="Masalan: 50000"
               />
             ) : (
-              // O'ZGARTIRIB BO'LMAYDIGAN MATN — tarifdan keladi; yozib bo'lmasligi darrov ko'rinsin
+              // ⚠️ O'ZGARTIRIB BO'LMAYDIGAN MATN — summa TARIFDAN keladi va u YERDA o'zgartiriladi.
+              // Jonli tekshiruv (2026-08-04): OpenAPI `florist_salary_amount` ni yoziladigan deb
+              // ko'rsatadi, ammo standart katalogda server baribir hajm tarifidan qo'yadi —
+              // shuning uchun maydon QAYTA OCHILMADI (qiymati jimgina yo'qoladigan input —
+              // umuman yo'qidan battar).
               <div className="inp flex items-center" style={{ background: "var(--surface-2)", color: currentRate ? "var(--text)" : "var(--muted)" }}>
-                {currentRate ? fmt(+f.florist_salary_amount || 0) : "— tarif belgilanmagan"}
+                {currentRate ? `Tarifdan: ${fmt(+f.florist_salary_amount || 0)}` : "— tarif belgilanmagan"}
               </div>
             )}
             {/* holat qatori: Tarifdan olindi / Qo'lda kiritilgan (+ Tarifga qaytarish) / tarif yo'q */}
@@ -893,9 +897,23 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
               ) : !volume ? (
                 <span style={{ color: "var(--muted)" }}>Hajmni tanlang — tarifdan olinadi</span>
               ) : !currentRate ? (
-                <span style={{ color: "var(--warning-ink, #8a6d1f)" }}>Bu florist uchun tarif yo&apos;q</span>
+                <>
+                  <span style={{ color: "var(--warning-ink, #8a6d1f)" }}>Bu florist uchun bu hajmda tarif yo&apos;q</span>
+                  <a href={`/floristlar/${florist}`} target="_blank" rel="noopener"
+                    className="underline underline-offset-2" style={{ color: "var(--primary)" }}>
+                    Tarif belgilash →
+                  </a>
+                </>
               ) : kind === "standard" ? (
-                <span style={{ color: "var(--primary)" }}>Hajm tarifidan — qo&apos;lda o&apos;zgartirilmaydi</span>
+                <>
+                  <span style={{ color: "var(--text-2)" }}>
+                    Summa <b>hajm tarifidan</b> olinadi va shu yerda o&apos;zgartirilmaydi — tarifni floristning tarif jadvalida tahrirlang.
+                  </span>
+                  <a href={`/floristlar/${florist}`} target="_blank" rel="noopener"
+                    className="underline underline-offset-2" style={{ color: "var(--primary)" }}>
+                    Tarif jadvalini ochish →
+                  </a>
+                </>
               ) : salaryFromRate ? (
                 <span style={{ color: "var(--primary)" }}>Tarifdan olindi</span>
               ) : (
