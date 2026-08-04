@@ -2264,3 +2264,169 @@ gg. **`totals` va per-catalog javob shakli hujjatlashtirilmagan.** `totals`
    qilinsin (bu `paid_from_debt`, DELETE-200 va `usage/` bilan bir xil naqsh).
 hh. **Pul maydonlari turi.** `listed_total`/`sale_total` NUMBER kelyapti, OpenAPI
    `string (decimal)` deydi; qolgan pul maydonlari STRING. Bitta konvensiya tanlansin.
+
+---
+
+# ARALASH TO'LOV — NAQD + KARTA (2026-08-04)
+
+## §0a — To'rt rejim va ularning kombinatsiyalari
+
+`payment_type` — BITTA enum qiymat (OpenAPI: `['cash','card','debt','mixed']`), shuning
+uchun **`mixed` va `debt` BIRGA BO'LA OLMAYDI** — tanlagichda o'zaro istisno, qo'shimcha
+qulf shart emas. Rejimdan chiqilganda ajratma tozalanadi (eski summa qolib ketmasin).
+
+| Kombinatsiya | Yaroqli | Talab qilinadigan maydonlar |
+|---|---|---|
+| har qanday rejim + chegirma | ✅ | `sale_price`; past bo'lsa `discount_reason` MAJBURIY |
+| har qanday rejim + dona > 1 | ✅ | jami = `sale_price × quantity` |
+| har qanday rejim + mijoz | ✅ ixtiyoriy | **qarz**da MAJBURIY |
+| har qanday rejim + tarixiy sana | ✅ | **qarz**da YASHIRILADI (server `sold_at` ni to'lov kuniga qo'yadi) |
+| **mixed + debt** | ❌ imkonsiz | bitta enum qiymat |
+| **mixed** | ✅ | `cash_amount` VA `card_amount`, ikkalasi ham > 0, yig'indi AYNAN teng |
+
+⚠️ **Spec farazini tuzatish:** sotuv oynasida **SOTUV RASMI maydoni YO'Q**.
+`sale_image_url` — sotuv tarixida faqat O'QISH uchun keladi; `CatalogSellRequest` da
+bunday maydon yo'q va bizning formada ham hech qachon bo'lmagan. Ya'ni «aralash + sotuv
+rasmi» degan kombinatsiya mavjud emas.
+
+## §0b — Taqqoslash summasi CHEGIRMADAN KEYINGI (tasdiqlandi)
+
+```js
+const salePrice = discountOn ? Math.round(+price || 0) : listPrice;
+totalSum: salePrice * qty
+```
+`calc.totalSum` allaqachon `useMemo([listPrice, salePrice, qty])` — ya'ni dona, sotuv
+narxi va chegirma tugmasi jamini DARHOL qayta hisoblaydi. Ajratma tekshiruvi AYNAN shu
+qiymatni o'qiydi, ikkinchi manba yaratilmadi.
+
+## §0c — Hisoblagichlar: jonli holat
+
+| Joy | `mixed_count` | `mixed_quantity` |
+|---|---|---|
+| `accounting.summary` | ✅ 0 | ✅ 0 |
+| `accounting.by_branch[]` (ikkala qator) | ✅ 0 | ✅ 0 |
+| `catalog/sales.totals` | ✅ 0 | ❌ **YO'Q** |
+| `CatalogSaleRow.payment_breakdown` | ✅ OpenAPI'da **E'LON QILINGAN** (object, readOnly) | — |
+
+Serverda hozircha **0 ta aralash sotuv** bor.
+
+Invariant jonli tasdiqlandi: `cash_count 16 + card_count 37 + unknown_count 0 = 53 =
+sales_count` ✓.
+
+⚠️ **`debt_count` javobda UMUMAN YO'Q.** Spec invariantda uni nomlaydi, jonli
+`summary` da esa faqat `cash_count`, `card_count`, `unknown_count`, `mixed_count`,
+`mixed_quantity` bor. Hozir tenglik saqlanyapti chunki qarz 0 ta. → LIST 2.
+
+**Kesishuv qanday ko'rsatildi (jamlanmaydi):**
+- Hisob-kitob «Sotuvlar soni» kartochkasi ostida: «shundan aralash: 1 (1 dona)»
+- `by_branch` jadvalida `sales_count` katakchasi ICHIDA kichik qator (alohida ustun
+  QILINMADI — aks holda kimdir jamlab yuborardi)
+- Yagona renderer `accountingRowView` ga `mixedCount`/`mixedQuantity` qo'shildi, shuning
+  uchun `summary` (Jami) va `by_branch` qatorlari IKKALASI ham avtomatik oldi.
+
+## ⚠️ JONLI TOPILGAN SERVER NOSOZLIGI — «mixed» filtri ISHLAMAYDI
+
+```
+payment_type=''            count=28   turlar=['card','cash']
+payment_type='cash'        count=10   turlar=['cash']
+payment_type='card'        count=18   turlar=['card']
+payment_type='debt'        count=0    turlar=[]
+payment_type='unknown'     count=0    turlar=[]
+payment_type='mixed'       count=28   turlar=['card','cash']   ← FILTRLANMAGAN
+payment_type='abrakadabra' count=28   turlar=['card','cash']   ← AYNAN bir xil
+```
+
+`mixed` — tanilmagan qiymat kabi ishlaydi: server BUTUN ro'yxatni qaytaradi. Agar uni
+shunchaki tanlagichga qo'shsak, «Aralash»ni tanlagan operator HAMMA sotuvni ko'rardi va
+jamilar ham butun davrniki bo'lardi — ya'ni hammasi aralashdek ko'rinardi.
+
+**Qaror:** variant qo'shildi (spec talab qiladi), ammo javobda aralash BO'LMAGAN qator
+bo'lsa ochiq ogohlantirish chiqadi:
+> ⚠️ Server «aralash» filtrini qo'llamadi — quyida BARCHA sotuvlar va butun davr jamilari
+> ko'rsatilyapti. Aralash sotuvlar to'lov ustunidan bilinadi.
+
+## §1 — Sotuv oynasi
+
+To'rtinchi tugma **Aralash**; tanlansa jami va ikkita summa maydoni ochiladi.
+Avtomatik to'ldirish qoidalari (hammasi testlangan):
+- ikkinchi maydon **QO'LDA tegilmagan** bo'lsagina to'ladi;
+- **manfiy qoldiq HECH QACHON yozilmaydi** — bo'sh qoladi, nomuvofiqlik ko'rsatiladi;
+- jami keyin o'zgarsa (dona/chegirma) **faqat tegilmagan** maydon qayta hisoblanadi;
+  ikkalasi ham tegilgan bo'lsa hech narsa o'zgarmaydi.
+
+Bloklash: yig'indi ≠ jami bo'lsa «Farq: N so'm kam/ortiq»; yig'indi to'g'ri lekin bittasi
+0 bo'lsa — «ikkala summa ham noldan katta bo'lishi kerak — bitta usul bo'lsa «Naqd» yoki
+«Karta»ni tanlang» (spec ikkalasini MAJBURIY qiladi).
+
+Payload: `cash_amount`/`card_amount` **FAQAT** aralash rejimda; qolgan uchta rejimda
+kalitlar umuman yo'q (to'rtala rejim ham testlangan). Taqqoslash **raqam bo'yicha**
+(`parseMoney`), formatlangan satr solishtirilmaydi.
+
+⚠️ **Test topgan haqiqiy nosozlik:** dastlabki `parseMoney` raqamdan boshqa hamma
+belgini tashlardi, shuning uchun serverning `payment_breakdown` decimal satri
+`"150000.00"` → **15 000 000** bo'lib ketardi. Onlik nuqta endi saqlanadi (test bilan
+qoplandi).
+
+## §2 — Ko'rinish
+
+- Sotuv tarixi qatori: «Aralash (150 000 naqd · 150 000 karta)». Oddiy to'lovda
+  `payment_breakdown` `null` → faqat «Naqd»/«Karta»/«Qarz», **bo'sh qavs CHIZILMAYDI**
+  (bo'sh obyekt va 0/0 holatlari ham testlangan).
+- To'lov turi filtriga «Aralash» qo'shildi (yuqoridagi ogohlantirish bilan).
+- To'lov nishonchasi mavjud oiladan: qarz — `--danger-ink`, aralash — `--acc`,
+  qolganlari — `--text-2`. Yangi rang KIRITILMADI.
+
+## §3 — Verify
+
+`tsc` toza · **420/420 Vitest** (34 tasi shu ish uchun) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `mix-sell-ok-*`, `mix-sell-mismatch-*`, `mix-history-*`,
+`mix-accounting-*`.
+
+Skript o'qigan holat (ikkala mavzuda bir xil):
+```
+ARALASH ochildi : {"target":true,"total300":true,"blocked":true}
+avtomatik       : {"cash":"100 000","card":"200 000"}   ← qoldiq to'g'ri
+NOMUVOFIQ       : {"diff":true,"diffText":"Farq: 150 000 so'm kam","blocked":true}
+TO'G'RI (150/150): {"noDiff":true,"enabled":true,"note":true}
+SOTUV TARIXI    : {"mixedRow":true,"plainNoParens":true}
+HISOB-KITOB     : {"counter":true,"text":"shundan aralash: 1 (1 dona)"}
+```
+
+## LIST 1 — append
+
+MX1. **⚠️ ARALASH SOTUV — BUTUN MA'NOSI SHU QADAMDA.** Avval Hisob-kitobdagi uchta
+     raqamni YOZIB OLING: umumiy savdo, naqd jami, karta jami va sotuvlar soni.
+     So'ng 300 000 so'mlik katalogni «Aralash» bilan soting: naqd 150 000 + karta 150 000.
+     Keyin tekshiring:
+     - umumiy savdo **+300 000**
+     - **naqd +150 000 VA karta +150 000** (ikkalasi ham!)
+     - **sotuvlar soni ATIGI +1** (ikki marta sanalmasin)
+     - «Sotuvlar soni» kartochkasi ostida «shundan aralash: N» paydo bo'lsin
+     **⚠️ QAYTMAS: sotuv bekor qilinmaydi.**
+MX2. **Avtomatik to'ldirish.** Naqdga 100 000 yozing — karta 200 000 bo'lib to'lsin.
+     So'ng kartani QO'LDA 50 000 qiling — naqd O'ZGARMASLIGI va «Farq: 150 000 so'm kam»
+     chiqishi kerak, tugma bloklangan. **READ.**
+MX3. **Chegirma bilan aralash.** «Arzonroq sotish» yoqib narxni o'zgartiring —
+     jami QAYTA hisoblanib, tegilmagan maydon yangilanishi kerak. 2 dona × 250 000 =
+     500 000 ni 200 000 + 300 000 qilib soting. **READ (sotuvgacha).**
+MX4. **Bitta usul 0 bo'lsa.** 300 000 + 0 kiritib ko'ring — yig'indi to'g'ri bo'lsa ham
+     bloklanishi va «Naqd yoki Karta»ga yo'naltirishi kerak. **READ.**
+MX5. **Tarixda ko'rinishi.** Sotuvlar tabida qator «Aralash (150 000 naqd · 150 000
+     karta)» deb chiqsin; oddiy sotuvlarda esa faqat «Naqd»/«Karta», bo'sh qavssiz.
+     **READ.**
+MX6. **⚠️ Filtr.** To'lov filtrida «Aralash»ni tanlang — hozircha server filtrni
+     QO'LLAMAYDI va sariq ogohlantirish chiqishi kerak. Backend tuzatgach bu qadam
+     haqiqiy filtrlashni tekshiradi. **READ.**
+
+## LIST 2 — append
+
+ii. ⚠️ **`?payment_type=mixed` FILTRLAMAYDI.** Jonli: `mixed` uchun 28 qator qaytdi —
+   filtrsiz so'rov va `abrakadabra` bilan AYNAN bir xil, holbuki `cash`/`card`/`debt`/
+   `unknown` to'g'ri filtrlaydi. Ya'ni qiymat tanilmayapti. Tuzatilsin; hozircha UI
+   ogohlantirish ko'rsatadi.
+jj. **`debt_count` `summary` da YO'Q.** Spec invarianti
+   `cash_count + card_count + debt_count + unknown_count = sales_count` — lekin javobda
+   `debt_count` umuman yo'q. Hozir 0 ta qarz bo'lgani uchun tenglik saqlanyapti; birinchi
+   qarz sotuvidayoq javobdan tenglikni tekshirib bo'lmay qoladi. Qo'shilsinmi?
+kk. **`catalog/sales.totals` da `mixed_quantity` yo'q** (accounting'da bor). Ikkala
+   joyda bir xil bo'lgani ma'qul.

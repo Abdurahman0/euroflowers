@@ -579,6 +579,8 @@ export type CatalogSaleRow = {
   /** sotuvda yuklangan rasm — BO'SH bo'lishi mumkin */
   sale_image_url?: string;
   sold_by?: string;
+  /** ⚠️ ARALASH to'lov ajratmasi. ODDIY to'lovlarda `null` — bo'sh qavs chizmang. */
+  payment_breakdown?: { cash?: string | number; card?: string | number } | null;
   /** ⚠️ MAHALLIY vaqt, `+05:00` bilan. O'GIRMANG — `fmtLocalTime` bilan o'qing. */
   created_at: string;
 };
@@ -593,6 +595,8 @@ export type CatalogSalesTotals = {
   cash_total: string | number;
   card_total: string | number;
   debt_total: string | number;
+  /** ⚠️ cash/card bilan KESISHADI (yuqoridagi izohga qarang). `mixed_quantity` bu yerda YO'Q. */
+  mixed_count?: number;
 };
 
 export type CatalogSalesPage = {
@@ -641,7 +645,7 @@ export type VariantChangeResult = {
     ⚠️ `debt` UCHINCHI qiymat: sotuv o'sha kuni savdoga KIRMAYDI, qarz to'langan kuni
     to'langan usul (cash|card) bilan tushadi. Qarz TO'LOVIning o'zida faqat cash|card
     bo'ladi — shuning uchun `DebtPayMethod` alohida tur. */
-export type PaymentType = "cash" | "card" | "debt";
+export type PaymentType = "cash" | "card" | "debt" | "mixed";
 /** Qarz to'lovi usuli — `debt` bo'lishi MUMKIN EMAS (OpenAPI: Method212Enum). */
 export type DebtPayMethod = "cash" | "card";
 
@@ -732,6 +736,12 @@ export type AccountingFigures = {
   cash_total: string; cash_count?: number; cash_quantity?: number;
   card_total: string; card_count?: number; card_quantity?: number;
   unknown_total: string; unknown_count?: number; unknown_quantity?: number;
+  /** ⚠️ ARALASH TO'LOV — cash/card BUCKETLARI BILAN KESISHADI, beshinchi kategoriya EMAS.
+      Bitta aralash sotuv KATTA ulush qaysi usulda bo'lsa o'sha `*_count` ga BIR MARTA
+      yoziladi, shuning uchun cash_count + card_count + debt_count + unknown_count
+      = sales_count tengligi saqlanadi. Ya'ni bularni JAMLAMANG — «shundan aralash» deb
+      ko'rsating. (⚠️ `debt_count` jonli javobda YO'Q — LIST 2.) */
+  mixed_count?: number; mixed_quantity?: number;
   discount_total: string; discounted_sales_count: number; discounted_quantity: number;
   cost_total: string;
   // backend tannarxni ajratib beradi (0082/0083): flower+material+fee === cost_total (aniq).

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CalendarClock, ChevronDown, CreditCard, HandCoins, Info, Minus, Package, Plus, Sparkles, Tag, X } from "lucide-react";
+import { Banknote, CalendarClock, Check, ChevronDown, CreditCard, HandCoins, Info, Minus, Package, Plus, Sparkles, Split, Tag, X } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -9,6 +9,7 @@ import Select from "./Select";
 import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import { debtSellPayload, debtCustomerReady, DEBT_CUSTOMER_REQUIRED, DEBT_NONE_DISABLED_REASON } from "@/lib/debt";
+import { applyMixedEdit, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, emptyMixed, type MixedState } from "@/lib/mixedPayment";
 import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
@@ -26,6 +27,8 @@ const PAYMENTS: { value: PaymentType; label: string; icon: typeof Banknote }[] =
   { value: "card", label: "Karta", icon: CreditCard },
   // ⚠️ QARZ — to'lov turi emas, to'lovning KEYINGA SURILISHI: bugungi savdo o'zgarmaydi.
   { value: "debt", label: "Qarz", icon: HandCoins },
+  // ⚠️ ARALASH — pul HAQIQATDA qayerga tushgan bo'lsa o'sha ustunga yoziladi
+  { value: "mixed", label: "Aralash", icon: Split },
 ];
 
 /**
@@ -94,6 +97,13 @@ export default function KatalogSellModal({
   }, [isDebt]);
   const debtBlocked = isDebt && !debtCustomerReady(cust);
 
+  // ===== ARALASH TO'LOV (naqd + karta) =====
+  // ⚠️ `mixed` va `debt` BIRGA BO'LMAYDI — payment_type bitta enum qiymat.
+  const isMixed = payment === "mixed";
+  const [mixed, setMixed] = useState<MixedState>(emptyMixed);
+  // rejimdan chiqilsa eski ajratma qolib ketmasin
+  useEffect(() => { if (!isMixed) setMixed(emptyMixed); }, [isMixed]);
+
   // §4 SOTUVDA QO'SHILGAN — ixtiyoriy qo'shimcha material + oformleniya (yig'ilmagan holda tez sotuv uchun).
   const [extraOpen, setExtraOpen] = useState(false);
   const [materials, setMaterials] = useState<Packaging[]>([]);
@@ -157,6 +167,14 @@ export default function KatalogSellModal({
 
   const needsReason = discountOn && calc.unitDiscount > 0;
 
+  // ⚠️ JAMI o'zgardi (dona / chegirma) → FAQAT tegilmagan maydon qayta hisoblanadi.
+  useEffect(() => {
+    if (!isMixed) return;
+    setMixed((p) => recalcOnTotalChange(p, calc.totalSum));
+  }, [isMixed, calc.totalSum]);
+  const mixedV = validateMixed(mixed, calc.totalSum);
+  const mixedBlocked = isMixed && !mixedV.ok;
+
   // §4 SOTUVDA QO'SHILGAN iqtisodi: material qoldiqni × qty (server ko'paytiradi), tannarx va oformleniya haqi.
   const validSaleMats = saleMats.filter((m) => m.packaging > 0 && +m.qty > 0);
   const extraMatCost = validSaleMats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+(p.cost_price ?? 0)) * (+m.qty || 0) * qty : 0); }, 0);
@@ -171,6 +189,9 @@ export default function KatalogSellModal({
     // (matn AYNAN serverникi, ikki xil ibora bo'lmasin).
     const debtBody = debtSellPayload(isDebt, cust, debtNote);
     if (debtBody === null) next.customer = DEBT_CUSTOMER_REQUIRED;
+    // ⚠️ ARALASH — yig'indi jamiga TENG va ikkalasi ham > 0 bo'lmasa yuborilmaydi
+    const mixedBody = mixedSellPayload(isMixed, mixed, calc.totalSum);
+    if (mixedBody === null) next.cash_amount = mixedV.message;
     if (Object.keys(next).length) return setErrs(next);
     setBusy(true);
     setErrs({});
@@ -205,6 +226,8 @@ export default function KatalogSellModal({
         ...(saleDeco ? { decoration_florist: saleDeco } : {}),
         // QARZ: customer | customer_name+customer_phone (+ debt_note). Qarz bo'lmasa — bo'sh.
         ...debtBody,
+        // ARALASH: cash_amount + card_amount. Boshqa rejimda kalitlar UMUMAN yo'q.
+        ...mixedBody,
       });
       // customer_detail — PATCH javobidan (backend mavjud mijozga ULAGAN bo'lsa ismi ko'rinsin)
       const linked = updated.customer_detail || patched?.customer_detail;
@@ -323,7 +346,7 @@ export default function KatalogSellModal({
 
       {/* TO'LOV TURI — naqd / karta */}
       <Field label="To'lov turi" span>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {PAYMENTS.map((p) => {
             const on = payment === p.value;
             const PIcon = p.icon;
@@ -341,6 +364,44 @@ export default function KatalogSellModal({
             );
           })}
         </div>
+        {/* ARALASH — ikkita summa; jami CHEGIRMADAN KEYINGI summaga teng bo'lishi shart */}
+        {isMixed && (
+          <div className="mt-2 rounded-[13px] border p-3" style={{ borderColor: mixedV.ok ? "var(--acc)" : "var(--border)", background: "var(--surface-2)" }}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>Sotuv summasi</span>
+              <span className="text-[14px] font-extrabold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(calc.totalSum)}</span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div>
+                <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Naqd</div>
+                <input className="inp" inputMode="numeric" value={mixed.cash} placeholder="0"
+                  onChange={(e) => { setMixed((p) => applyMixedEdit(p, "cash", e.target.value, calc.totalSum)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
+              </div>
+              <div>
+                <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Karta</div>
+                <input className="inp" inputMode="numeric" value={mixed.card} placeholder="0"
+                  onChange={(e) => { setMixed((p) => applyMixedEdit(p, "card", e.target.value, calc.totalSum)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
+              </div>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2" style={{ borderColor: "var(--line2, var(--border))" }}>
+              <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>Jami</span>
+              <span className="flex items-center gap-1.5 text-[13px] font-extrabold tabular-nums"
+                style={{ color: mixedV.ok ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)" }}>
+                {fmt(mixedV.sum)}
+                {mixedV.ok ? <Check size={14} strokeWidth={2.6} /> : null}
+              </span>
+            </div>
+            {!mixedV.ok && mixedV.message && (
+              <p className="mt-1.5 text-[11.5px] font-bold" style={{ color: "var(--danger-ink)" }}>{mixedV.message}</p>
+            )}
+            {errs.cash_amount && <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.cash_amount}</p>}
+            {errs.card_amount && <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.card_amount}</p>}
+            <p className="mt-1.5 text-[11px]" style={{ color: "var(--muted)" }}>
+              Pul haqiqatda qayerga tushgan bo&apos;lsa o&apos;sha ustunga yoziladi. Sotuv soni BIR MARTA sanaladi.
+            </p>
+          </div>
+        )}
+
         {/* ⚠️ ENG MUHIM JUMLA: qarz «yo'qolgan sotuv» EMAS — pul keyinroq keladi. */}
         {isDebt && (
           <p className="mt-2 flex items-start gap-1.5 rounded-[12px] px-3 py-2 text-[11.5px] font-semibold leading-[1.45]"
@@ -533,7 +594,7 @@ export default function KatalogSellModal({
 
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
-        <button onClick={submit} disabled={busy || debtBlocked} title={debtBlocked ? DEBT_CUSTOMER_REQUIRED : undefined} className={clsx("btn-primary disabled:opacity-60", busy && "btn-loading")}>
+        <button onClick={submit} disabled={busy || debtBlocked || mixedBlocked} title={debtBlocked ? DEBT_CUSTOMER_REQUIRED : mixedBlocked ? mixedV.message : undefined} className={clsx("btn-primary disabled:opacity-60", busy && "btn-loading")}>
           {isDebt ? `${qty} ta qarzga berish` : `${qty} ta sotish`}
         </button>
       </ModalFooter>

@@ -15,6 +15,7 @@ import {
   buildSalesQuery, salesFiltersToParams, salesPageCount, totalsView, discountView, isDiscounted,
   saleNum, PAYMENT_FILTERS, SALES_PAGE_SIZE,
 } from "@/lib/catalogSales";
+import { paymentBreakdownLabel } from "@/lib/mixedPayment";
 import type { CatalogSalesPage } from "@/lib/types";
 
 /**
@@ -133,6 +134,15 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
         )}
       </div>
 
+      {/* ⚠️ JONLI TEKSHIRUV: server `?payment_type=mixed` ni TANIMAYDI va filtrsiz
+          hammasini qaytaradi (abrakadabra bilan bir xil). Jimgina «hammasi aralash»
+          bo'lib ko'rinmasin — ochiq aytamiz. LIST 2. */}
+      {payment === "mixed" && rows.length > 0 && rows.some((r) => r.payment_type !== "mixed") && (
+        <p className="mb-3 rounded-[11px] px-3 py-2 text-[12px] font-semibold" style={{ background: "color-mix(in srgb, #b3873a 12%, transparent)", color: "var(--warning-ink, #8a6d1f)" }}>
+          ⚠️ Server «aralash» filtrini qo&apos;llamadi — quyida BARCHA sotuvlar va butun davr jamilari ko&apos;rsatilyapti.
+          Aralash sotuvlar to&apos;lov ustunidan bilinadi.
+        </p>
+      )}
       {err && <p className="mb-3 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>{err}</p>}
 
       {loading ? <FlowerLoader /> : rows.length === 0 ? (
@@ -201,8 +211,8 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
                       </td>
                       <td className="px-2 py-2.5">
                         <span className="rounded-full px-2 py-0.5 text-[11px] font-bold"
-                          style={{ background: "var(--surface-2)", color: r.payment_type === "debt" ? "var(--danger-ink)" : "var(--text-2)" }}>
-                          {r.payment_label || "—"}
+                          style={{ background: "var(--surface-2)", color: r.payment_type === "debt" ? "var(--danger-ink)" : r.payment_type === "mixed" ? "var(--acc)" : "var(--text-2)" }}>
+                          {paymentBreakdownLabel(r.payment_label, r.payment_breakdown)}
                         </span>
                       </td>
                       <td className="px-2 py-2.5" style={{ color: "var(--text-2)" }}>{r.volume_label || "—"}</td>

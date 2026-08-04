@@ -85,6 +85,8 @@ export const PAYMENT_FILTERS: { value: string; label: string }[] = [
   { value: "cash", label: "Naqd" },
   { value: "card", label: "Karta" },
   { value: "debt", label: "Qarz" },
+  // ⚠️ Server bu qiymatni hozircha TANIMAYDI (filtrsiz qaytaradi) — UI ogohlantiradi.
+  { value: "mixed", label: "Aralash" },
   { value: "unknown", label: "Aniqlanmagan" },
 ];
 

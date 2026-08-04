@@ -118,6 +118,10 @@ export function accountingRowView(f: AccountingFigures) {
     name: f.branch_name || "Jami",
     isMain: f.is_main ?? false,
     salesCount: f.sales_count ?? 0,
+    // ⚠️ ARALASH — cash/card bucketlari BILAN KESISHADI, beshinchi kategoriya EMAS.
+    // Jamlashga yaroqsiz; «shundan aralash» sifatida ko'rsatiladi.
+    mixedCount: f.mixed_count ?? 0,
+    mixedQuantity: f.mixed_quantity ?? 0,
     buket: f.total_quantity ?? 0,
     stems: f.flower_stems ?? 0,
     sales: num(f.total_sales),

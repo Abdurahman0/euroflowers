@@ -97,7 +97,16 @@ function BranchRow({ fig, footer }: { fig: AccountingFigures; footer?: boolean }
   return (
     <tr className={footer ? "border-t-2 font-bold" : "border-t"} style={{ borderColor: footer ? "var(--border-strong)" : "var(--line2)" }}>
       <td className="max-w-[220px] truncate px-2 py-2.5 font-bold" title={v.name}>{footer ? "Jami" : v.name}</td>
-      <td className="px-2 py-2.5 text-right tabular-nums">{v.salesCount}</td>
+      {/* ⚠️ «shundan aralash» — QO'SHILMAYDI, sales_count ICHIDA (katta ulush usuliga
+          bir marta yozilgan). Alohida ustun qilinmadi — jamlab yuborilmasin. */}
+      <td className="px-2 py-2.5 text-right tabular-nums">
+        {v.salesCount}
+        {v.mixedCount > 0 && (
+          <span className="block text-[10.5px] font-semibold" style={{ color: "var(--acc)" }} title="Aralash to'lovli sotuvlar — yuqoridagi songa KIRADI, qo'shilmaydi">
+            shundan aralash: {v.mixedCount}
+          </span>
+        )}
+      </td>
       <td className="px-2 py-2.5 text-right tabular-nums">{v.buket}</td>
       <td className="px-2 py-2.5 text-right tabular-nums">{v.stems.toLocaleString("ru")}</td>
       <td className="px-2 py-2.5 text-right"><Money v={v.sales} bold /></td>
@@ -385,7 +394,10 @@ export default function HisobKitobPage() {
         const split = (field: keyof AccountingFigures) => (showSplit ? branchSplitLine(byBranch, field, moneyShort) : null);
         const cards: { label: string; v: string; sub: string; hue?: string; splitField?: keyof AccountingFigures }[] = [
           { label: "Umumiy savdo", v: fmt(s.total_sales), sub: `${s.sales_count ?? s.total_quantity} sotuv · ${s.total_quantity} buket`, splitField: "total_sales" },
-          { label: "Sotuvlar soni", v: String(s.sales_count ?? s.total_quantity), sub: "marta sotildi" },
+          // ⚠️ «shundan aralash» — sales_count ICHIDA (qo'shilmaydi): aralash sotuv KATTA
+          // ulush qaysi usulda bo'lsa o'sha bucketga BIR MARTA yozilgan.
+          { label: "Sotuvlar soni", v: String(s.sales_count ?? s.total_quantity),
+            sub: (s.mixed_count ?? 0) > 0 ? `shundan aralash: ${s.mixed_count} (${s.mixed_quantity ?? 0} dona)` : "marta sotildi" },
           { label: "Sotilgan buket", v: String(s.total_quantity), sub: `${s.standard_quantity} std · ${s.custom_quantity} maxsus` },
           { label: "Sotilgan gul donasi", v: `${(s.flower_stems ?? 0).toLocaleString("ru")} dona`, sub: "gul sarfi" },
           { label: "Naqd", v: fmt(s.cash_total), sub: `${s.cash_count ?? 0} sotuv`, splitField: "cash_total" },
