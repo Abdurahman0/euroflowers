@@ -454,22 +454,29 @@ export default function HisobKitobPage() {
               <Ari label="Rasxoddan keyingi foyda" v={num(s.net_profit_after_expenses)} strong
                 tip="Sof foyda − rasxodlar. Yuqoridagi «Sof foyda» bilan ARALASHTIRMANG." />
             </div>
-            {(acc.expenses_by_category?.length ?? 0) > 0 && (
+            {(acc.expenses?.length ?? 0) > 0 && (
               <div className="mt-3 border-t pt-2.5" style={{ borderColor: "var(--line2, var(--border))" }}>
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Rasxod turlari</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Rasxodlar</span>
                   <a href={`/rasxodlar?date_from=${from}&date_to=${to}`}
                     className="text-[11.5px] font-bold underline underline-offset-2" style={{ color: "var(--primary)" }}>
                     Rasxodlar sahifasi →
                   </a>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
-                  {(acc.expenses_by_category ?? []).map((c) => (
-                    <span key={c.category} style={{ color: "var(--text-2)" }}>
-                      {c.label} <b className="tabular-nums">{fmt(c.total)}</b>
-                      <span style={{ color: "var(--muted)" }}> · {c.count}</span>
-                    </span>
-                  ))}
+                  {/* ⚠️ `expenses_by_category` OLIB TASHLANDI (`category` modeldan chiqdi) —
+                      endi davr ichidagi rasxodlar RO'YXATI keladi. Eng kattadan 6 tasi. */}
+                  {[...(acc.expenses ?? [])]
+                    .sort((a, b) => (+b.amount || 0) - (+a.amount || 0))
+                    .slice(0, 6)
+                    .map((x) => (
+                      <span key={x.id} style={{ color: "var(--text-2)" }}>
+                        {x.destination} <b className="tabular-nums">{fmt(x.amount)}</b>
+                      </span>
+                    ))}
+                  {(acc.expenses?.length ?? 0) > 6 && (
+                    <span style={{ color: "var(--muted)" }}>+{(acc.expenses?.length ?? 0) - 6} ta</span>
+                  )}
                 </div>
               </div>
             )}

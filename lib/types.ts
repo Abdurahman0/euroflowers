@@ -548,16 +548,17 @@ export type CatalogProfit = {
   realized_profit?: string | null;
 };
 
-/* ===== RASXODLAR (GET/POST /api/expenses/) ===== */
-export type ExpenseCategoryOption = { value: string; label: string };
-export type ExpenseCategories = { categories: ExpenseCategoryOption[]; payment_methods: ExpenseCategoryOption[] };
+/* ===== RASXODLAR (GET/POST /api/expenses/) =====
+   ⚠️ 2026-08-04: `category` MODELDAN OLIB TASHLANDI (OpenAPI'da yo'q,
+   `/api/expenses/categories/` → 404). O'rniga `/api/expenses/options/`
+   faqat to'lov usullarini beradi. */
+export type ExpenseOption = { value: string; label: string };
+export type ExpenseOptions = { payment_methods: ExpenseOption[] };
 
 export type Expense = {
   id: number;
   /** ⚠️ STRING decimal ("150000.00") — ko'rsatishdan oldin formatlang, TAQQOSLASHDA parse qiling. */
   amount: string;
-  category: string;
-  category_label?: string;
   destination: string;
   note?: string;
   payment_method: string;
@@ -575,7 +576,6 @@ export type Expense = {
 export type ExpenseSummary = {
   period: { date_from: string | null; date_to: string | null };
   totals: { expense_count: number; total: string | number; average: string | number };
-  by_category: { category: string; label: string; count: number; total: string | number }[];
   by_payment_method: { payment_method: string; label: string; count: number; total: string | number }[];
   /** ⚠️ ENG YANGI KUN BIRINCHI keladi — grafik uchun TESKARISIGA o'giriladi. */
   by_day: { date: string; count: number; total: string | number }[];
@@ -843,8 +843,9 @@ export type Accounting = {
   by_payment: AccountingByPayment[];
   by_volume: AccountingByVolume[];
   discounted_sales: AccountingSale[];
-  /** ⚠️ TOP-LEVEL (summary ichida EMAS) — rasxod turlari ajratmasi. */
-  expenses_by_category?: { category: string; label: string; count: number; total: string | number }[];
+  /** ⚠️ TOP-LEVEL — davr ichidagi rasxodlar RO'YXATI.
+      (`expenses_by_category` OLIB TASHLANDI — `category` modeldan chiqarilgan.) */
+  expenses?: Expense[];
   history: AccountingSale[];
   /** ⚠️ BRON to'lovlari — ALOHIDA cashflow (sotuv EMAS). Sotuv full narxda savdoga kiradi;
       zaklad/oldindan to'lov shu yerda ko'rinadi. Server dinamik qo'shadi (OpenAPI'da yo'q). */

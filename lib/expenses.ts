@@ -23,7 +23,6 @@ export const EXPENSE_PAGE_SIZE_MAX = 100;
 export type ExpenseFilters = {
   dateFrom?: string;
   dateTo?: string;
-  category?: string;
   paymentMethod?: string;
   createdBy?: string;
   minAmount?: string;
@@ -44,7 +43,6 @@ export function buildExpenseQuery(f: ExpenseFilters, forSummary = false): Record
   const q: Record<string, string | number> = {};
   if (f.dateFrom) q.date_from = f.dateFrom;
   if (f.dateTo) q.date_to = f.dateTo;
-  if (f.category) q.category = f.category;
   if (f.paymentMethod) q.payment_method = f.paymentMethod;
   if (f.createdBy) q.created_by = f.createdBy;
   // ⚠️ summa oralig'i — RAQAM sifatida tekshiriladi, bo'sh satr yuborilmaydi
@@ -67,7 +65,6 @@ export function expenseFiltersToParams(f: ExpenseFilters): Record<string, string
   const p: Record<string, string> = {};
   if (f.dateFrom) p.date_from = f.dateFrom;
   if (f.dateTo) p.date_to = f.dateTo;
-  if (f.category) p.category = f.category;
   if (f.paymentMethod) p.pm = f.paymentMethod;
   if (f.createdBy) p.by = f.createdBy;
   if ((f.minAmount ?? "").trim()) p.min = f.minAmount!.trim();
@@ -103,9 +100,110 @@ export function spentAtPayload(ymd: string | null | undefined, now = Date.now())
 export const byDayChronological = <T extends { date: string }>(rows: T[] | null | undefined): T[] =>
   [...(rows ?? [])].sort((a, b) => a.date.localeCompare(b.date));
 
-/** `by_category` — KATTADAN KICHIKKA (spec: gorizontal bar). */
-export const byCategoryDesc = <T extends { total: string | number }>(rows: T[] | null | undefined): T[] =>
-  [...(rows ?? [])].sort((a, b) => expenseNum(b.total) - expenseNum(a.total));
+/* ═══════════ KALENDAR ═══════════ */
+
+export type CalView = "oy" | "hafta" | "kun" | "royxat";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+/** YYYY-MM-DD — mahalliy komponentlardan (UTC o'girish YO'Q). */
+export const ymd = (y: number, m0: number, d: number) => `${y}-${pad(m0 + 1)}-${pad(d)}`;
+
+/**
+ * ⚠️ MAHALLIY SANA — `spent_at` `+05:00` bilan keladi va uni `new Date()` orqali
+ * o'qish brauzer mintaqasiga o'girib KUNNI SILJITADI (22:10 → ertasi kun).
+ * Satrning O'ZIDAN kesib olamiz — bu `fmtLocalTime` bilan bir xil qoida.
+ */
+export const spentDate = (iso: string | null | undefined): string => (iso ?? "").slice(0, 10);
+/** "HH:MM" — xuddi shunday, satrdan. */
+export const spentTime = (iso: string | null | undefined): string => (iso ?? "").slice(11, 16);
+
+/** Dushanbadan boshlanadigan hafta (Du=0 … Yak=6). */
+const mondayIndex = (jsDay: number) => (jsDay + 6) % 7;
+
+/**
+ * KO'RINIB TURGAN ORALIQ — kalendar to'ridagi BIRINCHI va OXIRGI katakcha.
+ * ⚠️ Oyning o'zi emas: qo'shni oylarning kunlari ham to'rda ko'rinadi, shuning uchun
+ * so'rov ularni ham qamrashi kerak (aks holda 27–31 kataklari bo'sh chiqadi).
+ */
+export function visibleRange(year: number, month0: number, view: CalView, anchorDay = 1):
+  { from: string; to: string; days: string[] } {
+  if (view === "kun") {
+    const d = ymd(year, month0, anchorDay);
+    return { from: d, to: d, days: [d] };
+  }
+  if (view === "hafta") {
+    const base = new Date(Date.UTC(year, month0, anchorDay));
+    base.setUTCDate(base.getUTCDate() - mondayIndex(base.getUTCDay()));
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(base); d.setUTCDate(base.getUTCDate() + i);
+      return ymd(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    });
+    return { from: days[0], to: days[6], days };
+  }
+  // OY — to'liq haftalarga to'ldirilgan to'r (6 qator × 7 = 42 katak emas, kerakligicha)
+  const first = new Date(Date.UTC(year, month0, 1));
+  const start = new Date(first);
+  start.setUTCDate(1 - mondayIndex(first.getUTCDay()));
+  const lastDay = new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
+  const last = new Date(Date.UTC(year, month0, lastDay));
+  const end = new Date(last);
+  end.setUTCDate(lastDay + (6 - mondayIndex(last.getUTCDay())));
+  const days: string[] = [];
+  for (const d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    days.push(ymd(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  }
+  return { from: days[0], to: days[days.length - 1], days };
+}
+
+/** Oyning o'zi (Oylik jami uchun — to'r oralig'i EMAS). */
+export function monthRange(year: number, month0: number): { from: string; to: string } {
+  const lastDay = new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
+  return { from: ymd(year, month0, 1), to: ymd(year, month0, lastDay) };
+}
+
+/**
+ * ⚠️ KATAKLARGA GURUHLASH — `spent_at` ning MAHALLIY sana qismi bo'yicha.
+ * 23:30 va 00:30 yozuvlari o'z kunida qolishi SHART (UTC o'girilsa siljirdi).
+ */
+export function groupByDay<T extends { spent_at: string }>(rows: T[]): Record<string, T[]> {
+  const g: Record<string, T[]> = {};
+  for (const r of rows) {
+    const k = spentDate(r.spent_at);
+    if (!k) continue;
+    (g[k] ??= []).push(r);
+  }
+  // kun ichida vaqt bo'yicha
+  for (const k of Object.keys(g)) g[k].sort((a, b) => (a.spent_at < b.spent_at ? -1 : 1));
+  return g;
+}
+
+/** Kun jami — server bermasa shu yerdan (spec ruxsat beradi). */
+export const dayTotal = <T extends { amount: string }>(rows: T[] | undefined): number =>
+  (rows ?? []).reduce((s, r) => s + expenseNum(r.amount), 0);
+
+/**
+ * ⚠️ SANA QOIDASI — uchta holat (spec §3.2):
+ *  · [+] dan ochilgan, sanaga TEGILMAGAN → kalit UMUMAN yuborilmaydi
+ *  · kun katakchasidan ochilgan → o'sha kun ANIQ yuboriladi
+ *  · vaqt tanlangan bo'lsa — o'sha vaqt bilan
+ */
+export function quickAddSpentAt(dayYmd: string | null, timeHm: string | null): Record<string, string> {
+  const d = (dayYmd ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return {};   // tegilmagan → KALIT YO'Q
+  const t = (timeHm ?? "").trim();
+  const hm = /^\d{2}:\d{2}$/.test(t) ? t : "00:00";
+  return { spent_at: `${d}T${hm}:00+05:00` };
+}
+
+/** To'lov usuli nuqtasi — spec belgilagan uchta rang (bizda token ekvivalenti yo'q). */
+export const PAYMENT_DOT: Record<string, string> = {
+  cash: "#22c55e",      // yashil
+  card: "#3b82f6",      // ko'k
+  transfer: "#8b5cf6",  // binafsha
+};
+
+export const MONTHS_UZ = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
+export const WEEKDAYS_UZ = ["Du","Se","Chor","Pay","Ju","Sha","Yak"];
 
 /** Kartochkalar — server bergani AYNAN, qayta hisoblanmaydi. */
 export function expenseTotalsView(s: ExpenseSummary | null | undefined) {
@@ -120,7 +218,6 @@ export function expenseTotalsView(s: ExpenseSummary | null | undefined) {
 export type ExpenseForm = {
   amount: string;
   destination: string;
-  category: string;
   payment_method: string;
   spent_at: string; // "YYYY-MM-DD" yoki bo'sh
   note: string;
@@ -141,7 +238,6 @@ export function buildExpensePayload(f: ExpenseForm, now = Date.now()): Record<st
   return {
     amount: String(expenseNum(f.amount)),
     destination: f.destination.trim(),
-    ...(f.category ? { category: f.category } : {}),
     ...(f.payment_method ? { payment_method: f.payment_method } : {}),
     ...((f.note ?? "").trim() ? { note: f.note.trim() } : {}),
     ...spentAtPayload(f.spent_at, now),
@@ -150,14 +246,13 @@ export function buildExpensePayload(f: ExpenseForm, now = Date.now()): Record<st
 
 /** TAHRIR — FAQAT o'zgargan kalitlar (bizdagi PATCH intizomi). */
 export function buildExpenseEditPayload(
-  orig: { amount?: string; destination?: string; category?: string; payment_method?: string; note?: string; spent_at?: string },
+  orig: { amount?: string; destination?: string; payment_method?: string; note?: string; spent_at?: string },
   f: ExpenseForm,
   now = Date.now(),
 ): Record<string, unknown> {
   const p: Record<string, unknown> = {};
   if (expenseNum(f.amount) !== expenseNum(orig.amount)) p.amount = String(expenseNum(f.amount));
   if (f.destination.trim() !== (orig.destination ?? "")) p.destination = f.destination.trim();
-  if (f.category && f.category !== orig.category) p.category = f.category;
   if (f.payment_method && f.payment_method !== orig.payment_method) p.payment_method = f.payment_method;
   if ((f.note ?? "").trim() !== (orig.note ?? "")) p.note = f.note.trim();
   // sana — faqat KUN o'zgarsa (soat/daqiqa taqqoslanmaydi)

@@ -3,7 +3,7 @@ import type {
   Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult,
   CloseIssuePreview, CloseIssueInput, CloseIssueResult,
   AISettings, Analytics, AuditLog, BatchUsage, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard, Debt, DebtByCustomer,
-  Expense, ExpenseCategories, ExpenseSummary, Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
+  Expense, ExpenseOptions, ExpenseSummary, Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   Reservation, ReservationInput, ReservationPayment, ReservationPaymentInput, CatalogRestoreFlowersInput, FloristStockBulkIssueInput,
@@ -183,17 +183,30 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  // ⚠️ CHAQIRUVCHI signali (masalan kalendar oy almashtirgani) ichki taymer
+  // kontrolleriga BOG'LANADI — aks holda `init.signal` bosib ketilardi va bekor
+  // qilish umuman ishlamasdi.
+  const outer = (init as { signal?: AbortSignal }).signal;
+  const onOuterAbort = () => ctrl.abort();
+  if (outer) {
+    if (outer.aborted) ctrl.abort();
+    else outer.addEventListener("abort", onOuterAbort, { once: true });
+  }
 
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, { ...init, headers, signal: ctrl.signal });
   } catch (e) {
     const aborted = e instanceof DOMException && e.name === "AbortError";
+    // chaqiruvchi ATAYLAB bekor qilgan bo'lsa — AbortError'ni O'ZIDEK uzatamiz
+    // (chaqiruvchi uni jimgina e'tiborsiz qoldiradi; bu xato EMAS).
+    if (aborted && outer?.aborted) throw e;
     throw new ApiError(0, {
       detail: aborted ? "So'rov vaqti tugadi — internet sekin yoki server javob bermayapti" : "Server bilan aloqa yo'q — tarmoqni tekshiring",
     });
   } finally {
     clearTimeout(timer);
+    outer?.removeEventListener("abort", onOuterAbort);
   }
 
   if (res.status === 401 && retry && t) {
@@ -397,7 +410,7 @@ export const api = {
   customer: (id: number) => request<Customer>(`/api/customers/${id}/`),
 
   /* ===== RASXODLAR (ruxsat: `expenses`) ===== */
-  expenses: (p?: Params) => request<Paginated<Expense>>(`/api/expenses/${qs(p)}`),
+  expenses: (p?: Params, signal?: AbortSignal) => request<Paginated<Expense>>(`/api/expenses/${qs(p)}`, { signal }),
   expense: (id: number) => request<Expense>(`/api/expenses/${id}/`),
   createExpense: (data: Record<string, unknown>) =>
     request<Expense>("/api/expenses/", { method: "POST", body: JSON.stringify(data) }),
@@ -406,9 +419,9 @@ export const api = {
   /** ⚠️ 204 qaytaradi — tasdiq oynasi FRONTENDDA. */
   deleteExpense: (id: number) => request<void>(`/api/expenses/${id}/`, { method: "DELETE" }),
   /** ⚠️ Ro'yxat bilan AYNAN bir xil filtr berilishi SHART (buildExpenseQuery). */
-  expenseSummary: (p?: Params) => request<ExpenseSummary>(`/api/expenses/summary/${qs(p)}`),
-  /** Tur va to'lov usuli ro'yxati — QATTIQ YOZILMAYDI, shundan olinadi. */
-  expenseCategories: () => request<ExpenseCategories>("/api/expenses/categories/"),
+  expenseSummary: (p?: Params, signal?: AbortSignal) => request<ExpenseSummary>(`/api/expenses/summary/${qs(p)}`, { signal }),
+  /** ⚠️ To'lov usullari — `/categories/` 404 bo'ldi (`category` modeldan olib tashlangan). */
+  expenseOptions: () => request<ExpenseOptions>("/api/expenses/options/"),
 
   /* ===== QARZDORLAR (ruxsat: `crm`) ===== */
   /** Mijoz bo'yicha guruhlangan qarzlar. ⚠️ Server ENG KATTA QARZDAN saralab beradi —

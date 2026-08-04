@@ -3116,3 +3116,142 @@ tt. ⚠️ **Chegirma tekshiruvi dastafka bilan buziladimi?** `discount_reason`
    SETTLE: (1) server chegirmani `sale_price` bilanmi yoki `sale_price − delivery_amount`
    (tovar) bilanmi solishtiradi? (2) Agar `sale_price` bo'lsa — bu ataylabmi?
    Aks holda dastafkali sotuvlarda chegirma hisobotlari kam ko'rsatadi.
+
+---
+
+# RASXODLAR — KALENDAR KO'RINISHI (2026-08-04)
+
+## §0 — Audit
+
+**Avvalgi spec'dan qurilgani** (`fbedd01`): kartochkalar + turlar bari + kunlar bari +
+filtrlangan jadval + sahifalash, `ExpenseModal`, `lib/expenses.ts`, 39 test, nav/route
+gate, Hisob-kitob arifmetikasi. Ya'ni bu **konversiya**, noldan qurish emas.
+
+### ⚠️ `category` HAQIQATAN olib tashlangan — o'chirishdan OLDIN uch usulda tekshirildi
+
+```
+GET /api/expenses/categories/  → 404 {"detail": "Not found."}
+GET /api/expenses/options/     → 200 {"payment_methods":[cash, card, transfer]}
+OpenAPI Expense / PatchedExpense kalitlari:
+  amount, branch, branch_name, created_at, created_by, created_by_detail,
+  destination, id, note, payment_method, payment_method_label, spent_at, updated_at
+  → 'category' bor: False
+GET /api/expenses/summary/     → by_payment_method + by_day; 'by_category': False
+```
+
+Shu sababli o'chirildi: `category`, `category_label`, tur filtri, turlar diagrammasi,
+`byCategoryDesc`, `expenseCategories()` va `ExpenseModal`.
+
+### Accounting ham o'zgargan (siz taxmin qilganingizdek)
+
+`expenses_by_category` **YO'Q**; o'rniga yuqori darajada `expenses` ro'yxati (hozir `[]`).
+Jonli:
+```
+total_sales 4 700 000 · cost 3 444 550 · waste 0
+net_profit                1 255 450   ← O'ZGARMAGAN, sotuv foydasi
+expense_total                     0
+net_profit_after_expenses 1 255 450   ✓ ayirish to'g'ri
+```
+`summary` da ham, ikkala `by_branch` qatorida ham bor. ⚠️ Serverda **0 ta rasxod** —
+shakl tasdiqlandi, xatti-harakat emas (ketma-ket beshinchi xususiyat).
+
+### ⚠️ §5 — filial farazi UCHINCHI marta noto'g'ri
+
+> «confirm it's excluded by the branch allowlist without needing a special case»
+
+**Filial allowlist YO'Q.** U 2026-08-03 da sizning ko'rsatmangiz bilan olib tashlangan
+(«ruxsat hukm qilsin»), uni tiklashi kerak bo'lgan audit esa tuzatishgacha to'xtatilgan.
+Bundan tashqari **`parkent_admin` da `expenses` can_view BOR** — ya'ni filial
+foydalanuvchisi bu sahifaga BUGUN ham kira oladi.
+
+Maxsus holat qo'shmadim — bu turg'un ko'rsatmaga zid bo'lardi. Bayroqlanmoqda; aytsangiz
+bir qatorda yopiladi.
+
+## §2 — Ma'lumot yuklash
+
+- Ko'rinib turgan to'r uchun **bitta** so'rov:
+  `?date_from=<birinchi katak>&date_to=<oxirgi katak>&page_size=500&ordering=spent_at`.
+  `visibleRange` qo'shni oylarning kunlarini ham qamraydi (2026-avgust → 27-iyuldan).
+- Oylik jami — `summary/` oyning O'ZI bilan (`monthRange`).
+- ⚠️ **ABORT**: `AbortController` har yuklashda; `request()` ichida chaqiruvchi signali
+  ichki taymer kontrolleriga **bog'landi** — ilgari `init.signal` bosib ketilardi va
+  bekor qilish umuman ishlamasdi. Bekor qilingan `AbortError` chaqiruvchiga O'ZIDEK
+  uzatiladi (xato sifatida ko'rsatilmaydi).
+- ⚠️ **Kesilish jimgina emas**: `count − results.length > 0` bo'lsa sarlavhada
+  «⚠️ N ta yozuv ko'rsatilmadi — oraliqni qisqartiring» chiqadi.
+
+## §1/§3/§4 — Qurilgani
+
+Oy to'ri (bugungi katak ●+tint, 3 tagacha yozuv + «+N ta», kunlik jami, oydan tashqari
+kunlar xira), hafta (7 ustun, kesilmagan), kun, ro'yxat (qidiruv + min/max). Ko'rinish va
+oy **URL'da** saqlanadi. Kun paneli o'ngdan (vaqt, summa, to'lov, izoh, ✎/🗑,
+«+ Shu kunga qo'shish»). Klaviatura: ← → T N Esc — **input fokusda bo'lsa tegmaydi**.
+O'chirish «Rasxod o'chirilsinmi?» tasdig'i bilan (204).
+
+⚠️ **Ranglar**: faqat to'lov nuqtachalari — `#22c55e` / `#3b82f6` / `#8b5cf6`.
+Bizda bu uchtaga token ekvivalenti YO'Q (mavjud `--success-ink` yashil boshqa ohangda),
+shuning uchun spec bergan literal qiymatlar ishlatildi va `PAYMENT_DOT` da
+markazlashtirildi. Boshqa hech qayerda rangli fon yo'q.
+
+⚠️ **Sana qoidasi — uchta holat** (`quickAddSpentAt`, uchalasi testlangan):
+[+] dan tegilmagan → kalit YO'Q · kun katakchasidan → `T00:00:00+05:00` ·
+vaqt tanlangan → o'sha vaqt. `new Date()` HECH QACHON yuborilmaydi.
+
+### ⚠️ Yo'l-yo'lakay topilgan nosozlik: chuqur havola ishlamasdi
+
+URL yozuvchi effekt mount'da SUKUT holat bilan ishga tushib, `?view=hafta` ni
+`?view=oy` ga almashtirib yuborardi. Endi birinchi yurish o'tkazib yuboriladi —
+uchala ko'rinish ham havoladan to'g'ri ochiladi (tasdiqlangan).
+
+## §8 — Verify
+
+`tsc` toza · **508/508 Vitest** (25 tasi kalendar uchun) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `cal-month-*`, `cal-day-panel-*`, `cal-quick-add-*`,
+`cal-hafta-*`, `cal-kun-*`, `cal-royxat-*`, `cal-mobile-*`, `cal-accounting-*`.
+
+```
+OY         : header ✓ month ✓ weekdays ✓ total ✓ «+2 ta» ✓ views ✓
+KUN PANELI : ochildi ✓ vaqtlar (17:40 / 09:15) ✓ «Shu kunga qo'shish» ✓ 5/5 yozuv ✓
+QUICK ADD  : ochildi ✓ Summa ✓ Qayerga ✓ «o'zgartir» ✓ radiolar ✓ AUTOFOCUS ✓
+HAFTA/KUN/RO'YXAT : ✓ (URL: ?view=hafta|kun|royxat)
+MOBIL (390px)     : kunlar ro'yxati ✓, to'r YO'Q ✓
+HISOB-KITOB       : Sof foyda ✓ Rasxoddan keyingi foyda ✓ 5 200 000 − 3 505 000
+                    = 1 695 000 ✓ rasxodlar ro'yxati ✓ havola ✓
+```
+
+## LIST 1 — RX bloki QAYTA YOZILDI (kalendar UI)
+
+~~RX1–RX6 (jadval UI)~~ — bekor, o'rniga:
+
+RK1. **⚠️ KUN KATAKCHASIDAN ORQAGA SANALI RASXOD (butun ma'nosi shu).** Hisob-kitobdan
+     IKKI raqamni yozib oling: «Sof foyda» va «Rasxoddan keyingi foyda». Kalendarda
+     ‹ bilan O'TGAN OYGA o'ting, biror kun katakchasiga bosing, 150 000 so'mlik rasxod
+     qo'shing. Keyin tekshiring:
+     - yozuv **O'SHA kun katakchasida** paydo bo'ldi (bugungi kunda EMAS)
+     - Hisob-kitobda davrni o'sha oyga qo'ying: **«Sof foyda» O'ZGARMAGAN**,
+       **«Rasxoddan keyingi foyda» 150 000 ga kamaygan**
+     - joriy oyda esa bu rasxod KO'RINMAYDI
+     **⚠️ RASXODLAR HISOBOTGA DARHOL TA'SIR QILADI.**
+RK2. **[+] dan sana tegilmasa.** [+] bosing, sanaga TEGMANG, saqlang — yozuv BUGUNGI
+     katakka tushishi kerak (frontend `new Date()` yubormaydi). **READ.**
+RK3. **«+N ta» va kun paneli.** Bir kunga 4+ rasxod qo'shing — katakda 3 tasi va
+     «+N ta» ko'rinsin; bosilganda o'ng panel HAMMASINI vaqt bo'yicha ko'rsatsin. **READ.**
+RK4. **Tez ‹ › bosish.** ‹ ni ketma-ket tez bosing — oxirida KO'RINAYOTGAN oyning
+     ma'lumoti turishi kerak (eski oy javobi kelib qolmasin). **READ.**
+RK5. **Klaviatura.** ← → oy, T bugun, N yangi, Esc yopadi. Summa maydoniga yozayotganda
+     bu tugmalar ishlamasligi kerak. **READ.**
+RK6. **Faqat ko'rish huquqi.** `expenses` da `can_control` YO'Q foydalanuvchi bilan
+     kiring — [+], ✎, 🗑 KO'RINMASLIGI va kun katakchasiga bosilganda forma
+     OCHILMASLIGI kerak. **READ.**
+RK7. **Mobil.** Telefon enida to'r o'rniga kunlar ro'yxati va suzuvchi [+] bo'lsin. **READ.**
+
+## LIST 2 — append
+
+uu. ⚠️ **Filial foydalanuvchisi Rasxodlar kalendarini ko'radi.** `parkent_admin` da
+   `expenses` ruxsati bor va filial allowlist yo'q. RASXODLAR_KALENDAR_DIZAYN.md
+   filialga nima bo'lishini aytmaydi, spec §7 esa faqat ruxsatni nomlaydi.
+   Bu (rr) va to'xtatilgan filial auditidagi savolning o'zi — bitta qaror kerak.
+vv. **`page_size=500` yetmasligi mumkin.** Endpoint sahifalangan (`count`/`next`) va biz
+   `count > results.length` bo'lsa ogohlantiramiz, lekin KEYINGI sahifani olmaymiz.
+   Band oyda bu yuzaga chiqadi. SETTLE: `next` bo'yicha yurish kerakmi yoki serverda
+   kalendar uchun alohida (sahifalanmagan) endpoint qo'shiladimi?

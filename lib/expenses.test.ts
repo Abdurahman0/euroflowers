@@ -1,15 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
   buildExpenseQuery, expenseFiltersToParams, expensePageCount, expenseTotalsView,
-  expenseNum, spentAtPayload, byDayChronological, byCategoryDesc,
+  expenseNum, spentAtPayload, byDayChronological,
   validateExpense, buildExpensePayload, buildExpenseEditPayload,
+  visibleRange, monthRange, groupByDay, dayTotal, spentDate, spentTime, quickAddSpentAt,
   EXPENSE_PAGE_SIZE_MAX, type ExpenseForm,
 } from "./expenses";
 
 // 2026-08-04 09:30 Toshkent
 const NOW = Date.parse("2026-08-04T04:30:00Z");
 const FORM = (o: Partial<ExpenseForm> = {}): ExpenseForm => ({
-  amount: "150000", destination: "Kuryerga", category: "transport",
+  amount: "150000", destination: "Kuryerga",
   payment_method: "cash", spent_at: "", note: "", ...o,
 });
 
@@ -27,18 +28,18 @@ describe("expenseNum — `amount` STRING decimal keladi", () => {
 });
 
 describe("⚠️ buildExpenseQuery — RO'YXAT va YIG'INDI AYNAN bir xil filtr oladi", () => {
-  const f = { dateFrom: "2026-08-01", dateTo: "2026-08-31", category: "rent",
+  const f = { dateFrom: "2026-08-01", dateTo: "2026-08-31",
     paymentMethod: "card", minAmount: "1000", maxAmount: "500000", search: "ijara", page: 3 };
   it("ro'yxat: filtrlar + sahifalash", () => {
     expect(buildExpenseQuery(f)).toEqual({
-      date_from: "2026-08-01", date_to: "2026-08-31", category: "rent", payment_method: "card",
+      date_from: "2026-08-01", date_to: "2026-08-31", payment_method: "card",
       min_amount: 1000, max_amount: 500000, search: "ijara", page: 3, page_size: 20,
     });
   });
   it("⚠️ yig'indi: AYNAN o'sha filtrlar, sahifalashsiz", () => {
     const sum = buildExpenseQuery(f, true);
     expect(sum).toEqual({
-      date_from: "2026-08-01", date_to: "2026-08-31", category: "rent", payment_method: "card",
+      date_from: "2026-08-01", date_to: "2026-08-31", payment_method: "card",
       min_amount: 1000, max_amount: 500000, search: "ijara",
     });
     // sahifalashdan boshqa HAMMA kalit bir xil bo'lishi SHART
@@ -49,7 +50,7 @@ describe("⚠️ buildExpenseQuery — RO'YXAT va YIG'INDI AYNAN bir xil filtr o
   });
   it("bo'sh filtrlar yuborilmaydi", () => {
     expect(buildExpenseQuery({})).toEqual({ page_size: 20 });
-    expect(buildExpenseQuery({ search: "   ", minAmount: "", category: "" })).toEqual({ page_size: 20 });
+    expect(buildExpenseQuery({ search: "   ", minAmount: "" })).toEqual({ page_size: 20 });
   });
   it("sukut tartib yuborilmaydi (ortiqcha parametr)", () => {
     expect("ordering" in buildExpenseQuery({ ordering: "-spent_at" })).toBe(false);
@@ -66,8 +67,8 @@ describe("⚠️ buildExpenseQuery — RO'YXAT va YIG'INDI AYNAN bir xil filtr o
 describe("expenseFiltersToParams — URL", () => {
   it("bo'shlari tushiriladi", () => expect(expenseFiltersToParams({})).toEqual({}));
   it("hammasi birga", () => {
-    expect(expenseFiltersToParams({ dateFrom: "2026-08-01", category: "rent", paymentMethod: "cash", search: "x", page: 2 }))
-      .toEqual({ date_from: "2026-08-01", category: "rent", pm: "cash", q: "x", page: "2" });
+    expect(expenseFiltersToParams({ dateFrom: "2026-08-01", paymentMethod: "cash", search: "x", page: 2 }))
+      .toEqual({ date_from: "2026-08-01", pm: "cash", q: "x", page: "2" });
   });
 });
 
@@ -117,12 +118,7 @@ describe("⚠️ byDayChronological — server ENG YANGI KUNNI BIRINCHI beradi",
   });
 });
 
-describe("byCategoryDesc — KATTADAN kichikka", () => {
-  it("summa bo'yicha kamayish tartibida", () => {
-    const r = byCategoryDesc([{ total: "1200000.00" }, { total: "2500000.00" }, { total: "300000" }]);
-    expect(r.map((x) => expenseNum(x.total))).toEqual([2500000, 1200000, 300000]);
-  });
-});
+
 
 describe("validateExpense — SERVER qoidasi bilan bir xil", () => {
   it("to'g'ri forma", () => expect(validateExpense(FORM()).ok).toBe(true));
@@ -136,9 +132,9 @@ describe("validateExpense — SERVER qoidasi bilan bir xil", () => {
 });
 
 describe("buildExpensePayload", () => {
-  it("sanasiz — spec'dagi POST namunasi", () => {
+  it("sanasiz — spec'dagi POST namunasi (category YO'Q)", () => {
     expect(buildExpensePayload(FORM({ note: "Chilonzorga dastafka" }), NOW)).toEqual({
-      amount: "150000", destination: "Kuryerga", category: "transport",
+      amount: "150000", destination: "Kuryerga",
       payment_method: "cash", note: "Chilonzorga dastafka",
     });
   });
@@ -154,7 +150,7 @@ describe("buildExpensePayload", () => {
 });
 
 describe("buildExpenseEditPayload — FAQAT o'zgargan kalitlar", () => {
-  const orig = { amount: "150000.00", destination: "Kuryerga", category: "transport",
+  const orig = { amount: "150000.00", destination: "Kuryerga",
     payment_method: "cash", note: "eski", spent_at: "2026-08-01T00:00:00+05:00" };
   it("hech narsa o'zgarmadi → BO'SH", () => {
     expect(buildExpenseEditPayload(orig, FORM({ note: "eski", spent_at: "2026-08-01" }), NOW)).toEqual({});
@@ -180,7 +176,7 @@ describe("expenseTotalsView / expensePageCount", () => {
     expect(expenseTotalsView({
       period: { date_from: null, date_to: null },
       totals: { expense_count: 12, total: "4350000.00", average: "362500.00" },
-      by_category: [], by_payment_method: [], by_day: [],
+      by_payment_method: [], by_day: [],
     })).toEqual({ count: 12, total: 4350000, average: 362500 });
   });
   it("yig'indi yo'q → nollar", () => {
@@ -189,5 +185,86 @@ describe("expenseTotalsView / expensePageCount", () => {
   it("sahifalar soni", () => {
     expect(expensePageCount(41, 20)).toBe(3);
     expect(expensePageCount(0, 20)).toBe(1);
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KALENDAR (RASXODLAR_KALENDAR_DIZAYN.md)
+// ─────────────────────────────────────────────────────────────────────────────
+describe("⚠️ MAHALLIY SANA — spent_at satrdan o'qiladi, UTC o'girilmaydi", () => {
+  it("⚠️ 23:30 yozuvi O'SHA kunda qoladi (ertasiga o'tmaydi)", () => {
+    expect(spentDate("2026-08-04T23:30:00+05:00")).toBe("2026-08-04");
+    expect(spentTime("2026-08-04T23:30:00+05:00")).toBe("23:30");
+  });
+  it("⚠️ 00:30 yozuvi O'SHA kunda qoladi (kechagiga tushmaydi)", () => {
+    expect(spentDate("2026-08-05T00:30:00+05:00")).toBe("2026-08-05");
+    expect(spentTime("2026-08-05T00:30:00+05:00")).toBe("00:30");
+  });
+  it("groupByDay — 23:30 va 00:30 AYRIM kataklarga tushadi", () => {
+    const g = groupByDay<{ id: number; amount: string; spent_at: string }>([
+      { id: 1, amount: "100", spent_at: "2026-08-04T23:30:00+05:00" },
+      { id: 2, amount: "200", spent_at: "2026-08-05T00:30:00+05:00" },
+    ]);
+    expect(Object.keys(g).sort()).toEqual(["2026-08-04", "2026-08-05"]);
+    expect(g["2026-08-04"]).toHaveLength(1);
+    expect(g["2026-08-05"]).toHaveLength(1);
+  });
+  it("kun ichida VAQT bo'yicha tartiblanadi", () => {
+    const g = groupByDay<{ id: number; amount: string; spent_at: string }>([
+      { id: 1, amount: "1", spent_at: "2026-08-04T17:40:00+05:00" },
+      { id: 2, amount: "1", spent_at: "2026-08-04T09:15:00+05:00" },
+    ]);
+    expect(g["2026-08-04"].map((x) => x.id)).toEqual([2, 1]);
+  });
+  it("dayTotal — string summalarni qo'shadi", () => {
+    expect(dayTotal<{ amount: string }>([{ amount: "150000.00" }, { amount: "200000.00" }])).toBe(350000);
+  });
+});
+
+describe("visibleRange — TO'RDAGI birinchi/oxirgi katak (oyning o'zi EMAS)", () => {
+  it("⚠️ 2026-avgust: to'r 27-iyuldan boshlanadi (1-avgust shanba)", () => {
+    const r = visibleRange(2026, 7, "oy");
+    expect(r.from).toBe("2026-07-27");
+    expect(r.days[0]).toBe("2026-07-27");
+    expect(r.days).toContain("2026-08-01");
+    expect(r.days).toContain("2026-08-31");
+    expect(r.days.length % 7).toBe(0);   // to'liq haftalar
+  });
+  it("oyning o'zi ALOHIDA (Oylik jami uchun)", () => {
+    expect(monthRange(2026, 7)).toEqual({ from: "2026-08-01", to: "2026-08-31" });
+  });
+  it("hafta ko'rinishi — dushanbadan 7 kun", () => {
+    const r = visibleRange(2026, 7, "hafta", 5); // 5-avgust chorshanba
+    expect(r.days).toHaveLength(7);
+    expect(r.days[0]).toBe("2026-08-03"); // dushanba
+    expect(r.days[6]).toBe("2026-08-09");
+  });
+  it("kun ko'rinishi — bitta kun", () => {
+    expect(visibleRange(2026, 7, "kun", 4)).toEqual({ from: "2026-08-04", to: "2026-08-04", days: ["2026-08-04"] });
+  });
+  it("fevral (kabisa emas) chegarasi", () => {
+    expect(monthRange(2026, 1)).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+  });
+});
+
+describe("⚠️ quickAddSpentAt — UCHTA holat (spec §3.2)", () => {
+  it("1) [+] dan, sanaga TEGILMAGAN → kalit UMUMAN yo'q", () => {
+    expect(quickAddSpentAt(null, null)).toEqual({});
+    expect(quickAddSpentAt("", "")).toEqual({});
+  });
+  it("2) kun katakchasidan → o'sha kun, T00:00:00+05:00", () => {
+    expect(quickAddSpentAt("2026-08-01", null)).toEqual({ spent_at: "2026-08-01T00:00:00+05:00" });
+  });
+  it("3) vaqt tanlangan → o'sha vaqt bilan", () => {
+    expect(quickAddSpentAt("2026-08-01", "10:00")).toEqual({ spent_at: "2026-08-01T10:00:00+05:00" });
+  });
+  it("DOIM +05:00, hech qachon Z", () => {
+    const v = quickAddSpentAt("2026-08-01", "17:40").spent_at!;
+    expect(v.endsWith("+05:00")).toBe(true);
+    expect(v).not.toContain("Z");
+  });
+  it("buzuq sana → kalit yo'q (new Date() O'RNIGA qo'yilmaydi)", () => {
+    expect(quickAddSpentAt("2026-8-1", "10:00")).toEqual({});
   });
 });
