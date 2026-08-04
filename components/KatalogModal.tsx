@@ -15,7 +15,7 @@ import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { fmt } from "@/lib/format";
-import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, catalogRateMissing, rateToCatalogSalary, catalogSalaryPayload, batchDeliveryTag, buildFloristComposition, catalogClosed } from "@/lib/inventory";
+import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, catalogRateMissing, rateToCatalogSalary, catalogSalaryPayload, ratesForFlorist, batchDeliveryTag, buildFloristComposition, catalogClosed } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
 import FloristCompositionPicker from "./FloristCompositionPicker";
 import type { ArrangementType, Branch, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
@@ -128,7 +128,11 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   // AYNAN bir manba: ?florist=<id>&is_active=true). Drift bo'lmasligi uchun shu yerdan.
   useEffect(() => {
     if (!florist) { setRates([]); return; }
-    api.floristVolumeRates({ florist, is_active: true }).then(setRates).catch(() => setRates([]));
+    // ⚠️ SERVER `?florist=` filtrini e'tiborga OLMAYDI (hamma floristning tarifi keladi) —
+    // klientda ajratamiz, aks holda «Tarifdan olindi» BOSHQA floristning summasini qo'yardi.
+    api.floristVolumeRates({ florist, is_active: true })
+      .then((raw) => setRates(ratesForFlorist(raw, florist)))
+      .catch(() => setRates([]));
   }, [florist]);
 
   // FLORIST rejimi — katalog florist qo'lidagi gul(lar)dan yasaladi (soni chiqim yopilganda).

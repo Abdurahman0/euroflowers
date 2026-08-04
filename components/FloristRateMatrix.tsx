@@ -4,7 +4,7 @@ import { AlertTriangle, Check, Copy, Plus } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Select from "./Select";
-import { ARRANGEMENTS, ARRANGEMENT_UZ, VOLUMES, VOLUME_LABEL, buildVolumeRatesPayload, type RateCell } from "@/lib/inventory";
+import { ARRANGEMENTS, ARRANGEMENT_UZ, VOLUMES, VOLUME_LABEL, buildVolumeRatesPayload, ratesForFlorist, type RateCell } from "@/lib/inventory";
 import type { FloristProfile, FloristVolumeRate } from "@/lib/types";
 
 const KEY = (a: string, v: string) => `${a}:${v}`;
@@ -61,7 +61,10 @@ export default function FloristRateMatrix({ florist, onSaved }: { florist: Flori
       api.floristVolumeRates({ florist: florist.id, is_active: true }),
       api.floristVolumeRates({ florist: florist.id }).catch(() => [] as FloristVolumeRate[]),
     ])
-      .then(([active, all]) => {
+      .then(([activeRaw, allRaw]) => {
+        // ⚠️ SERVER `?florist=` ni e'tiborga OLMAYDI — klientda ajratamiz (ratesForFlorist).
+        const active = ratesForFlorist(activeRaw, florist.id);
+        const all = ratesForFlorist(allRaw, florist.id);
         const g = gridFromRates(active); setGrid(g); setBaseline(g); setActivated(new Set());
         setHasInactiveOnly(active.length === 0 && all.length > 0);
       })

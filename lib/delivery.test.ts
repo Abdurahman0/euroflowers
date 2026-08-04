@@ -670,3 +670,107 @@ describe("variantUsageLines — FAQAT nolga teng bo'lmaganlar", () => {
   });
   it("usage yo'q → bo'sh", () => expect(variantUsageLines(null)).toEqual([]));
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚠️ FLORIST TARIFLARI — JONLI javob bilan (mock EMAS). 2026-08-04 da olingan.
+// Bu fixture aynan shu nosozlikni ushlaydi: server `?florist=` ni e'tiborga olmaydi.
+// ─────────────────────────────────────────────────────────────────────────────
+import { ratesForFlorist } from "./inventory";
+import type { FloristVolumeRate } from "./types";
+
+/** GET /api/florist-volume-rates/?florist=8&is_active=true — XOM javobning bir qismi.
+    ⚠️ `?florist=8` so'ralgan, LEKIN 4, 6, 7 ning qatorlari ham kelgan. */
+const LIVE_RATES: FloristVolumeRate[] = [
+  { id: 44, florist: 7, florist_name: "Isroil",    arrangement_type: "basket",  volume: "large",  default_stems: 0, florist_fee: "80000.00",  is_active: true },
+  { id: 32, florist: 4, florist_name: "Abror",     arrangement_type: "basket",  volume: "large",  default_stems: 0, florist_fee: "100000.00", is_active: true },
+  { id: 20, florist: 8, florist_name: "Fatxulloh", arrangement_type: "basket",  volume: "large",  default_stems: 0, florist_fee: "80000.00",  is_active: true },
+  { id: 38, florist: 6, florist_name: "Bekzod",    arrangement_type: "basket",  volume: "large",  default_stems: 0, florist_fee: "100000.00", is_active: true },
+  { id: 19, florist: 8, florist_name: "Fatxulloh", arrangement_type: "basket",  volume: "medium", default_stems: 0, florist_fee: "30000.00",  is_active: true },
+  { id: 37, florist: 6, florist_name: "Bekzod",    arrangement_type: "basket",  volume: "medium", default_stems: 0, florist_fee: "40000.00",  is_active: true },
+  { id: 18, florist: 8, florist_name: "Fatxulloh", arrangement_type: "basket",  volume: "small",  default_stems: 0, florist_fee: "10000.00",  is_active: true },
+  { id: 30, florist: 4, florist_name: "Abror",     arrangement_type: "basket",  volume: "small",  default_stems: 0, florist_fee: "15000.00",  is_active: true },
+  { id: 17, florist: 8, florist_name: "Fatxulloh", arrangement_type: "bouquet", volume: "large",  default_stems: 0, florist_fee: "40000.00",  is_active: true },
+  { id: 16, florist: 8, florist_name: "Fatxulloh", arrangement_type: "bouquet", volume: "medium", default_stems: 0, florist_fee: "15000.00",  is_active: true },
+  { id: 42, florist: 7, florist_name: "Isroil",    arrangement_type: "bouquet", volume: "medium", default_stems: 0, florist_fee: "10000.00",  is_active: true },
+  { id: 15, florist: 8, florist_name: "Fatxulloh", arrangement_type: "bouquet", volume: "small",  default_stems: 0, florist_fee: "10000.00",  is_active: true },
+  { id: 41, florist: 7, florist_name: "Isroil",    arrangement_type: "bouquet", volume: "small",  default_stems: 0, florist_fee: "5000.00",   is_active: true },
+];
+
+/** Komponentdagi `gridFromRates` bilan AYNAN bir xil (oxirgi yozuv g'olib). */
+const KEY = (a: string, v: string) => `${a}:${v}`;
+const gridOf = (rates: FloristVolumeRate[]) => {
+  const g: Record<string, string> = {};
+  for (const r of rates) g[KEY(r.arrangement_type, r.volume)] = String(Math.round(+r.florist_fee));
+  return g;
+};
+
+describe("⚠️ JONLI ma'lumot: server `?florist=` ni e'tiborga OLMAYDI", () => {
+  it("xom javobda 4 xil floristning qatorlari bor", () => {
+    expect(new Set(LIVE_RATES.map((r) => r.florist))).toEqual(new Set([4, 6, 7, 8]));
+  });
+  it("⚠️ FILTRSIZ grid — Fatxulloh matritsasida BOSHQA floristlarning summasi", () => {
+    const wrong = gridOf(LIVE_RATES);
+    expect(wrong["bouquet:small"]).toBe("5000");    // Isroil (7)
+    expect(wrong["basket:small"]).toBe("15000");    // Abror (4)
+    expect(wrong["basket:medium"]).toBe("40000");   // Bekzod (6)
+    expect(wrong["basket:large"]).toBe("100000");   // Bekzod (6)
+  });
+});
+
+describe("ratesForFlorist — har bir katak TO'G'RI floristnikini beradi", () => {
+  it("Fatxulloh (8) — jonli serverdagi AYNAN olti qiymat", () => {
+    const g = gridOf(ratesForFlorist(LIVE_RATES, 8));
+    expect(g).toEqual({
+      "bouquet:small": "10000",
+      "bouquet:medium": "15000",
+      "bouquet:large": "40000",
+      "basket:small": "10000",
+      "basket:medium": "30000",
+      "basket:large": "80000",
+    });
+  });
+  it("Isroil (7) — boshqa florist, boshqa qiymatlar", () => {
+    const g = gridOf(ratesForFlorist(LIVE_RATES, 7));
+    expect(g["bouquet:small"]).toBe("5000");
+    expect(g["bouquet:medium"]).toBe("10000");
+    expect(g["basket:large"]).toBe("80000");
+  });
+  it("⚠️ IKKI FLORIST BIR XIL BO'LMASLIGI kerak (nosozlikning belgisi)", () => {
+    const a = gridOf(ratesForFlorist(LIVE_RATES, 8));
+    const b = gridOf(ratesForFlorist(LIVE_RATES, 7));
+    expect(a).not.toEqual(b);
+  });
+  it("tarifi yo'q florist → bo'sh (boshqa birovniki KO'RINMAYDI)", () => {
+    expect(ratesForFlorist(LIVE_RATES, 999)).toEqual([]);
+  });
+  it("⚠️ ichma-ich manba (`florists/{id}/volume_rates`) — `florist` maydoni YO'Q, tegilmaydi", () => {
+    const nested = [{ id: 20, arrangement_type: "basket", volume: "large", default_stems: 0, florist_fee: "80000.00", is_active: true }] as FloristVolumeRate[];
+    expect(ratesForFlorist(nested, 8)).toHaveLength(1);
+  });
+  it("server keyinchalik tuzatilsa ham zararsiz (idempotent)", () => {
+    const only8 = LIVE_RATES.filter((r) => r.florist === 8);
+    expect(ratesForFlorist(only8, 8)).toEqual(only8);
+  });
+});
+
+describe("«Tarifdan olindi» — kompozitor `find` ishlatadi (BIRINCHI mos qator g'olib)", () => {
+  const pick = (rates: FloristVolumeRate[], a: string, v: string) =>
+    rates.find((r) => r.arrangement_type === a && r.volume === v);
+  // ⚠️ Matritsa (tayinlash sikli) OXIRGI yozuvni oladi, kompozitor (`find`) esa BIRINCHISINI —
+  // shuning uchun kompozitorda xato TARTIBGA bog'liq: ba'zi floristda to'g'ri, ba'zisida yo'q.
+  it("⚠️ FILTRSIZ — ISROILGA (7) Fatxullohning 10 000 i qo'yilardi (5 000 o'rniga)", () => {
+    expect(pick(LIVE_RATES, "bouquet", "small")?.florist).toBe(8);
+    expect(pick(LIVE_RATES, "bouquet", "small")?.florist_fee).toBe("10000.00");
+  });
+  it("filtrlangach — Isroilning haqiqiy 5 000 i", () => {
+    expect(pick(ratesForFlorist(LIVE_RATES, 7), "bouquet", "small")?.florist_fee).toBe("5000.00");
+  });
+  it("Fatxullohda tasodifan to'g'ri edi (u ro'yxatda oldinroq) — filtrdan keyin ham o'sha", () => {
+    expect(pick(ratesForFlorist(LIVE_RATES, 8), "bouquet", "small")?.florist_fee).toBe("10000.00");
+  });
+  it("⚠️ FILTRSIZ basket/large — Isroilnikidek ko'rinadi, aslida hammaga bir xil", () => {
+    expect(pick(LIVE_RATES, "basket", "large")?.florist).toBe(7);
+    // Abror (4) uchun 100 000 bo'lishi kerak edi:
+    expect(pick(ratesForFlorist(LIVE_RATES, 4), "basket", "large")?.florist_fee).toBe("100000.00");
+  });
+});

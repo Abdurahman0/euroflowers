@@ -2585,3 +2585,134 @@ nn. **Jonli sinov ma'lumoti yo'q.** Spec «2 ta sotuvda dastafka bor» deydi, jo
    serverda esa `delivery_count: 0`. Xuddi qarz (0 ta) va aralash (0 ta) kabi —
    frontend bu uchala xususiyatni ham HAQIQIY ma'lumotda tekshira olmayapti.
    Demo ma'lumot qoldirilsa yaxshi bo'lardi.
+
+---
+
+# BUG: FLORIST HAJM TARIFLARI MATRITSASI (2026-08-04)
+
+## §1 — Jonli ma'lumot
+
+```
+GET /api/florist-volume-rates/?florist=8&is_active=true
+{ "count": 24, "results": [
+  { "id": 44, "florist_name": "Isroil",    "arrangement_type": "basket", "volume": "large",
+    "default_stems": 0, "florist_fee": "80000.00",  "is_active": true, "florist": 7 },
+  { "id": 32, "florist_name": "Abror",     "arrangement_type": "basket", "volume": "large",
+    "default_stems": 0, "florist_fee": "100000.00", "is_active": true, "florist": 4 },
+  { "id": 20, "florist_name": "Fatxulloh", "arrangement_type": "basket", "volume": "large",
+    "default_stems": 0, "florist_fee": "80000.00",  "is_active": true, "florist": 8 },
+  { "id": 38, "florist_name": "Bekzod",    ... "florist": 6 },  … jami 24 qator
+]}
+```
+
+⚠️ **`?florist=8` so'ralgan, javobda 4, 6, 7 VA 8 ning qatorlari.**
+
+```
+GET /api/florists/8/ → volume_rates   (6 qator, FAQAT 8 niki — TO'G'RI ajratilgan)
+[{ "id": 20, "arrangement_type": "basket", "volume": "large",
+   "default_stems": 0, "florist_fee": "80000.00", "is_active": true }, …]
+```
+
+### Ikki manba farqi
+
+| | ro'yxat endpointi | `florists/{id}/volume_rates` |
+|---|---|---|
+| florist bo'yicha ajratilgan | ❌ **YO'Q** | ✅ ha |
+| `florist` maydoni | ✅ bor | ❌ **yo'q** |
+| `florist_name` | ✅ bor | ❌ yo'q |
+| `created_at`/`updated_at` | ✅ bor | ❌ yo'q |
+| maydon nomlari va turlari | `florist_fee` (string), `default_stems` (int) — **IKKALASIDA BIR XIL** | |
+
+## §2 — Sabablarni tekshirish
+
+| # | Faraz | Natija |
+|---|---|---|
+| a | VOLUME satri mos kelmasligi (`S/M/L` ↔ `small/…`) | ❌ **EMAS** — jonli API `['large','medium','small']` beradi, bizdagi `VOLUMES` bilan AYNAN mos |
+| b | ARRANGEMENT_TYPE mos kelmasligi | ❌ **EMAS** — `['basket','bouquet']`, mos |
+| c | Maydon nomi (`florist_fee`/`default_stems`) | ❌ **EMAS** — kod aynan shularni o'qiydi, `florist_salary_amount` emas |
+| d | Kodda qotib qolgan «placeholder» raqamlar | ❌ **EMAS** — komponentda birorta literal tarif qiymati yo'q |
+| e | So'rov umuman ketmaydimi / gate | ❌ **EMAS** — so'rov ketadi va 200 qaytaradi |
+| f | Kesh/ota obyektdan o'qish | ❌ **EMAS** — ochilganda yangi GET qilinadi |
+
+### ⚠️ HAQIQIY SABAB — SERVER `?florist=` FILTRINI E'TIBORGA OLMAYDI
+
+```
+(filtrsiz)                count=24  floristlar=[4,6,7,8]
+?florist=7                count=24  floristlar=[4,6,7,8]
+?florist=8                count=24  floristlar=[4,6,7,8]
+?florist=7&is_active=true count=24  floristlar=[4,6,7,8]
+?florist=999              count=24  floristlar=[4,6,7,8]   ← mavjud bo'lmagan id
+?florist=abc              count=24  floristlar=[4,6,7,8]   ← umuman raqam emas
+```
+
+`?florist=abc` ham bir xil natija berishi — parametr **umuman qo'llanmasligini** isbotlaydi.
+
+`gridFromRates` esa qatorlar ustidan yurib `g[key] = …` qiladi — ya'ni **oxirgi yozuv
+g'olib**. 24 qator kelgani uchun har bir katak oxirgi kelgan floristnikiga to'lardi va
+natija HAMMA florist uchun BIR XIL bo'lardi — aynan shu «shablon qiymatlar»dek ko'rinardi:
+
+```
+bouquet small  → 5 000    (Isroil 7)      basket small  → 15 000   (Abror 4)
+bouquet medium → 10 000   (Isroil 7)      basket medium → 40 000   (Bekzod 6)
+bouquet large  → 40 000   (Fatxulloh 8)   basket large  → 100 000  (Bekzod 6)
+```
+
+Fatxulloh (8) ning HAQIQIY tariflari esa: `10 000 / 15 000 / 40 000` va
+`10 000 / 30 000 / 80 000` — oltitadan to'rttasi noto'g'ri ko'rsatilardi.
+
+## §3 — Tuzatish
+
+`lib/inventory.ts` ga `ratesForFlorist(rates, floristId)` qo'shildi va **ikkala**
+chaqiruv joyida qo'llandi:
+- `components/FloristRateMatrix.tsx` — matritsa (faol + nofaol tekshiruvi + nusxalash)
+- `components/KatalogModal.tsx` — kompozitorning «Tarifdan olindi» avto-to'ldirishi
+
+⚠️ `florist` maydoni YO'Q qatorlar (ichma-ich manba) «allaqachon ajratilgan» deb
+o'tkaziladi — shu bois funksiya ikkala manba bilan ham ishlaydi. Server keyinchalik
+tuzatilsa filtr zararsiz qoladi (idempotent).
+
+### ⚠️ Hech narsa JIMGINA normallashtirilmadi
+
+Volume satrlari (`small/medium/large`) va arrangement type (`bouquet/basket`) jonli
+API'da bizdagi konstantalar bilan AYNAN mos — hech qanday o'girish qo'shilmadi.
+
+### Kompozitordagi bir nuans
+
+Matritsa tayinlash sikli ishlatadi (**oxirgi** g'olib), kompozitor esa `find`
+(**birinchi** g'olib). Shu bois kompozitorda xato TARTIBGA bog'liq edi — masalan
+Isroilga (7) Fatxullohning `bouquet/small` = 10 000 i qo'yilardi (5 000 o'rniga),
+Fatxullohda esa tasodifan to'g'ri chiqardi. Ikkalasi ham endi filtrlangan.
+
+## Tekshirish
+
+Test fixture — **jonli javobdan** olingan 13 qator (4 florist aralash), mock EMAS:
+- filtrsiz grid boshqa floristlarning summasini berishini isbotlaydi;
+- `ratesForFlorist(…, 8)` → aynan `{10000, 15000, 40000, 10000, 30000, 80000}`;
+- ikki floristning gridi BIR XIL BO'LMASLIGI (nosozlik belgisi);
+- tarifi yo'q florist → bo'sh (birovniki ko'rinmaydi);
+- kompozitorning `find` yo'li ikkala holatda.
+
+`tsc` toza · **450/450 Vitest** (13 tasi shu nosozlik uchun) · konsol xatosi yo'q.
+
+**JONLI skrinshotlar** (mock YO'Q — `rate-florist-8-*`, `rate-florist-7-*`, dark + light):
+
+```
+FLORIST 8 «Fatxulloh» ekran: 10 000 · 15 000 · 40 000 | 10 000 · 30 000 · 80 000
+FLORIST 8 API             : 10 000 · 15 000 · 40 000 | 10 000 · 30 000 · 80 000  ✓
+FLORIST 7 «Isroil»  ekran :  5 000 · 10 000 · 40 000 | 10 000 · 30 000 · 80 000
+FLORIST 7 API             :  5 000 · 10 000 · 40 000 | 10 000 · 30 000 · 80 000  ✓
+```
+Ikki florist endi TURLICHA ko'rsatilyapti — tuzatishning bevosita isboti.
+
+## LIST 2 — append
+
+oo. ⚠️ **`GET /api/florist-volume-rates/` `?florist=` filtrini QO'LLAMAYDI.** Jonli:
+   `?florist=7`, `?florist=8`, `?florist=999` va hatto `?florist=abc` — hammasi bir xil
+   24 qator qaytaradi. Bu frontendda har bir floristda BOSHQA floristning tarifi
+   ko'rinishiga olib kelgan edi. Hozircha klientda filtrlaymiz, lekin server tuzatilsin
+   (ro'yxat o'sganda bu ortiqcha trafik ham demakdir). Qo'shimcha: `is_active` filtri
+   ishlayaptimi — alohida tekshirilsin, chunki u ham xuddi shu tarzda e'tiborsiz
+   qolayotgan bo'lishi mumkin.
+pp. **`default_stems` hamma qatorda 0.** Matritsada «0» ko'rinadi. Bu ataylabmi (dona
+   soni ishlatilmayaptimi) yoki to'ldirilmaganmi? Agar ishlatilmasa, ustunni yashirish
+   mumkin.

@@ -620,6 +620,26 @@ export const catalogRateMissing = (
     Katalogning O'ZINING `florist_fee` (mijozdan xizmat haqi) bilan ARALASHTIRMANG. */
 export const rateToCatalogSalary = (rate: FloristVolumeRate): string => String(Math.round(+rate.florist_fee));
 
+/**
+ * ⚠️ TARIFLARNI FLORIST BO'YICHA AJRATISH — SERVER FILTRI ISHLAMAYDI.
+ *
+ * Jonli tekshiruv (2026-08-04): `GET /api/florist-volume-rates/?florist=<id>` `florist`
+ * parametrini UMUMAN e'tiborga olmaydi — `?florist=7`, `?florist=8`, hatto `?florist=999`
+ * va `?florist=abc` ham BIR XIL 24 qatorni (4 ta floristnikini) qaytaradi.
+ *
+ * Natijada `gridFromRates` da OXIRGI YOZUV G'OLIB bo'lib, HAR BIR floristning
+ * matritsasida boshqa floristlarning tariflari ko'rinardi — hammasida AYNAN bir xil
+ * raqamlar, shuning uchun ular «shablon/placeholder»dek tuyulardi.
+ *
+ * Shu bois javob KLIENTDA ham filtrlanadi. Server keyinchalik tuzatilsa ham bu filtr
+ * zararsiz (idempotent).
+ * ⚠️ Ichma-ich manba (`/api/florists/{id}/volume_rates`) TO'G'RI ajratilgan, lekin unda
+ * `florist` maydoni YO'Q — shuning uchun `florist` yo'q qator «allaqachon ajratilgan»
+ * deb qabul qilinadi.
+ */
+export const ratesForFlorist = <T extends { florist?: number }>(rates: T[], floristId: number): T[] =>
+  rates.filter((r) => r.florist == null || r.florist === floristId);
+
 /** Matritsa katagi (tahrirlanadigan holat). `fee` = florist ish haqi (rate.florist_fee). */
 export type RateCell = { arrangement_type: (typeof ARRANGEMENTS)[number]; volume: CatalogVolume; fee: string; stems: string };
 /** TO'LIQ ALMASHTIRISH payload — FAQAT to'ldirilgan kataklar (fee bor) yuboriladi.
