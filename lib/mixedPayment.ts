@@ -67,6 +67,41 @@ export function applyMixedEdit(
 }
 
 /**
+ * ⚠️ AVTOMATIK TO'LDIRILGAN MAYDONGA FOKUS — QIYMAT TOZALANADI.
+ *
+ * NOSOZLIK (jonli takrorlangan): operator naqdga 400 000 yozadi → karta maydoni
+ * QOLDIQ bilan (500 000) AVTOMATIK to'ladi. Operator kartaga o'z summasini yozadi,
+ * lekin maydon BO'SH EMAS — harflar mavjud qiymatga QO'SHILIB ketadi:
+ *     "500 000" + "500000" → "500 000 500 000" = 500 000 500 000
+ * Yig'indi portlaydi, tugma bloklanadi va xabar («Farq: … ortiq») ASL sababni
+ * KO'RSATMAYDI — operator «summalarni kiritdim, sotib bo'lmayapti» deb ko'radi.
+ *
+ * Yechim: maydon HALI QO'LDA tegilmagan bo'lsa (ya'ni ichidagi son — bizning
+ * taklifimiz), fokus olinganda TOZALANADI. Shunda yozilgan har narsa YANGI qiymat
+ * bo'ladi, qo'shilmaydi. Tegilgan maydon TEGILMAYDI — operator o'z sonini tahrirlaydi.
+ *
+ * ⚠️ `select()` bilan qilinmadi: sichqoncha bosilganda karetka `mouseup` da qayta
+ * qo'yiladi va tanlov BEKOR bo'ladi — o'rtaga yozish yana buzardi.
+ */
+export function focusMixedField(prev: MixedState, field: "cash" | "card"): MixedState {
+  const touched = field === "cash" ? prev.cashTouched : prev.cardTouched;
+  if (touched || prev[field] === "") return prev;   // o'z qiymati yoki allaqachon bo'sh
+  return { ...prev, [field]: "" } as MixedState;
+}
+
+/**
+ * FOKUSDAN CHIQQANDA — hech narsa yozilmagan bo'lsa taklif QAYTADI.
+ * (Operator maydonga bosib, fikridan qaytib, boshqa joyga bossa — qoldiq yo'qolmaydi.)
+ */
+export function blurMixedField(prev: MixedState, field: "cash" | "card", total: number): MixedState {
+  const touched = field === "cash" ? prev.cashTouched : prev.cardTouched;
+  if (touched || prev[field] !== "") return prev;
+  const other = field === "cash" ? "card" : "cash";
+  const rem = Math.max(total - parseMoney(prev[other]), 0);
+  return { ...prev, [field]: rem > 0 ? formatMoneyInput(rem) : "" } as MixedState;
+}
+
+/**
  * JAMI o'zgarganda (dona / chegirma tahrirlandi) — FAQAT tegilmagan maydonni qayta hisoblash.
  * Ikkalasi ham tegilgan bo'lsa hech narsa o'zgarmaydi (nomuvofiqlik ko'rsatiladi).
  */

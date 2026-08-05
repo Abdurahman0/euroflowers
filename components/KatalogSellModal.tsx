@@ -9,7 +9,7 @@ import Select from "./Select";
 import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import { debtSellPayload, debtCustomerReady, DEBT_CUSTOMER_REQUIRED, DEBT_NONE_DISABLED_REASON } from "@/lib/debt";
-import { applyMixedEdit, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage, parseMoney, emptyMixed, type MixedState } from "@/lib/mixedPayment";
+import { applyMixedEdit, focusMixedField, blurMixedField, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage, parseMoney, emptyMixed, type MixedState } from "@/lib/mixedPayment";
 import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
@@ -397,13 +397,20 @@ export default function KatalogSellModal({
             <div className="mt-2 grid grid-cols-2 gap-2">
               <div>
                 <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Naqd</div>
+                {/* ⚠️ FOKUSDA TOZALANADI — avtomatik qoldiq ustiga yozilib ketmasin (lib izohiga qarang) */}
                 <input className="inp" inputMode="numeric" value={mixed.cash} placeholder="0" aria-label="Naqd summasi"
+                  onFocus={() => setMixed((p) => focusMixedField(p, "cash"))}
+                  onBlur={() => setMixed((p) => blurMixedField(p, "cash", payTarget))}
                   onChange={(e) => { setMixed((p) => applyMixedEdit(p, "cash", e.target.value, payTarget)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
+                {!mixed.cashTouched && mixed.cash !== "" && <div className="mt-0.5 text-[10.5px]" style={{ color: "var(--muted)" }}>avtomatik qoldiq</div>}
               </div>
               <div>
                 <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Karta</div>
                 <input className="inp" inputMode="numeric" value={mixed.card} placeholder="0" aria-label="Karta summasi"
+                  onFocus={() => setMixed((p) => focusMixedField(p, "card"))}
+                  onBlur={() => setMixed((p) => blurMixedField(p, "card", payTarget))}
                   onChange={(e) => { setMixed((p) => applyMixedEdit(p, "card", e.target.value, payTarget)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
+                {!mixed.cardTouched && mixed.card !== "" && <div className="mt-0.5 text-[10.5px]" style={{ color: "var(--muted)" }}>avtomatik qoldiq</div>}
               </div>
             </div>
             <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2" style={{ borderColor: "var(--line2, var(--border))" }}>

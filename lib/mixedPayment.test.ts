@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseMoney, formatMoneyInput, applyMixedEdit, recalcOnTotalChange,
-  validateMixed, mixedSellPayload, paymentBreakdownLabel, emptyMixed, type MixedState,
+  applyMixedEdit, blurMixedField, deliveryGoods, deliveryPayload, emptyMixed, focusMixedField, formatMoneyInput, mixedSellPayload, parseMoney, paymentBreakdownLabel, recalcOnTotalChange, validateMixed,
+  type MixedState,
 } from "./mixedPayment";
 
 const S = (over: Partial<MixedState> = {}): MixedState => ({ ...emptyMixed, ...over });
@@ -151,7 +151,7 @@ describe("paymentBreakdownLabel — oddiy to'lovda BO'SH QAVS chizilmaydi", () =
 // YANGI: sale_price = mijozdan olinadigan TO'LIQ pul, dastafka uning ICHIDA.
 // Eski qoidani kodlagan testlar O'CHIRILDI — ikkalasi qoldirilmadi.
 // ─────────────────────────────────────────────────────────────────────────────
-import { deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage } from "./mixedPayment";
+import { deliveryTooLarge, deliveryTooLargeMessage } from "./mixedPayment";
 
 describe("deliveryPayload — bo'sh bo'lsa kalit YUBORILMAYDI", () => {
   it("⚠️ BO'SH → kalit UMUMAN yo'q («0» ham yuborilmaydi)", () => {
@@ -218,5 +218,131 @@ describe("⚠️ ARALASH — jami SOTUV SUMMASINING O'ZI (dastafka QO'SHILMAYDI)
     // jami faqat sotuv summasi va donadan kelib chiqadi
     expect(validateMixed(S({ cash: "150 000", card: "150 000" }), 300000).ok).toBe(true);
     expect(deliveryGoods(300000, "20000")).toBe(280000); // faqat TOVAR o'zgaradi
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   NOSOZLIK: avtomatik to'ldirilgan maydonga yozilgani QO'SHILIB ketardi.
+   Jonli takrorlangan (brauzer): naqd 400 000 → karta avtomatik "500 000" →
+   operator "500000" yozadi → "500 000 500 000" = 500 000 500 000 → tugma bloklanadi.
+   ═══════════════════════════════════════════════════════════════════ */
+describe("⚠️ avtomatik qoldiq ustiga yozish (asl nosozlik)", () => {
+  const TOTAL = 900_000;
+
+  /** brauzerdagidek: maydon oxiriga belgilar qo'shiladi */
+  const typeAppend = (st: MixedState, field: "cash" | "card", text: string, total: number): MixedState => {
+    let s = st;
+    for (const ch of text) s = applyMixedEdit(s, field, s[field] + ch, total);
+    return s;
+  };
+
+  it("NOSOZLIK QAYTA HOSIL QILINADI — fokus tozalanmasa qo'shilib ketadi", () => {
+    let s = typeAppend(emptyMixed, "cash", "400000", TOTAL);
+    expect(s.cash).toBe("400 000");
+    expect(s.card).toBe("500 000");              // avtomatik qoldiq
+    // fokus ishlovisiz to'g'ridan-to'g'ri yozish:
+    s = typeAppend(s, "card", "500000", TOTAL);
+    expect(parseMoney(s.card)).toBe(500_000_500_000);   // ← aynan shu buzardi
+    expect(validateMixed(s, TOTAL).ok).toBe(false);
+  });
+
+  it("TUZATILDI — fokus maydonni tozalaydi, yozilgani YANGI qiymat bo'ladi", () => {
+    let s = typeAppend(emptyMixed, "cash", "400000", TOTAL);
+    s = focusMixedField(s, "card");              // ⬅ tuzatish
+    expect(s.card).toBe("");
+    s = typeAppend(s, "card", "500000", TOTAL);
+    expect(s.card).toBe("500 000");
+    const v = validateMixed(s, TOTAL);
+    expect([v.cash, v.card, v.sum, v.ok]).toEqual([400_000, 500_000, 900_000, true]);
+    expect(mixedSellPayload(true, s, TOTAL)).toEqual({ cash_amount: "400000", card_amount: "500000" });
+  });
+
+  it("TESKARI TARTIB — avval karta, keyin naqd", () => {
+    let s = typeAppend(emptyMixed, "card", "300000", TOTAL);
+    expect(s.cash).toBe("600 000");
+    s = typeAppend(focusMixedField(s, "cash"), "cash", "600000", TOTAL);
+    expect(validateMixed(s, TOTAL).ok).toBe(true);
+  });
+
+  it("QO'LDA tegilgan maydon fokusda TOZALANMAYDI (operator o'z sonini tahrirlaydi)", () => {
+    const s = typeAppend(emptyMixed, "cash", "400000", TOTAL);
+    expect(focusMixedField(s, "cash").cash).toBe("400 000");
+  });
+
+  it("fokus → hech narsa yozilmadi → blur QOLDIQNI QAYTARADI", () => {
+    let s = typeAppend(emptyMixed, "cash", "400000", TOTAL);
+    s = focusMixedField(s, "card");
+    expect(s.card).toBe("");
+    s = blurMixedField(s, "card", TOTAL);
+    expect(s.card).toBe("500 000");
+    expect(validateMixed(s, TOTAL).ok).toBe(true);
+  });
+
+  it("blur QO'LDA yozilgan qiymatni HECH QACHON bosib o'tmaydi", () => {
+    let s = typeAppend(emptyMixed, "cash", "400000", TOTAL);
+    s = typeAppend(focusMixedField(s, "card"), "card", "100000", TOTAL);
+    expect(blurMixedField(s, "card", TOTAL).card).toBe("100 000");   // 500 000 ga qaytmaydi
+  });
+
+  it("blur QO'LDA bo'shatilgan maydonni ham qaytarmaydi", () => {
+    let s = typeAppend(emptyMixed, "cash", "400000", TOTAL);
+    s = applyMixedEdit(s, "card", "", TOTAL);      // operator ATAYLAB tozaladi
+    expect(blurMixedField(s, "card", TOTAL).card).toBe("");
+  });
+});
+
+describe("validateMixed — operator HAQIQATDA hosil qiladigan qiymatlar", () => {
+  const T = 300_000;
+  const st = (cash: string, card: string): MixedState => ({ cash, card, cashTouched: true, cardTouched: true });
+
+  it("formatlangan satrlar (bo'sh joy bilan) — TO'G'RI o'qiladi", () => {
+    const v = validateMixed(st("150 000", "150 000"), T);
+    expect([v.cash, v.card, v.sum, v.ok]).toEqual([150_000, 150_000, 300_000, true]);
+  });
+  it("uzilmas bo'sh joy (NBSP) ham o'qiladi", () => {
+    expect(validateMixed(st("150 000", "150 000"), T).ok).toBe(true);
+  });
+  it("aynan mos", () => expect(validateMixed(st("100 000", "200 000"), T).ok).toBe(true));
+  it("kam", () => {
+    const v = validateMixed(st("100 000", "150 000"), T);
+    expect([v.diff, v.ok]).toEqual([50_000, false]);
+    expect(v.message).toBe("Farq: 50 000 so'm kam");
+  });
+  it("ortiq", () => {
+    const v = validateMixed(st("200 000", "200 000"), T);
+    expect([v.diff, v.ok]).toEqual([-100_000, false]);
+    expect(v.message).toBe("Farq: 100 000 so'm ortiq");
+  });
+  it("bittasi NOL — yig'indi to'g'ri bo'lsa ham RAD ETILADI", () => {
+    const v = validateMixed(st("300 000", "0"), T);
+    expect([v.balanced, v.bothPositive, v.ok]).toEqual([true, false, false]);
+    expect(v.message).toContain("ikkala summa ham noldan katta");
+  });
+  it("ikkalasi ham bo'sh", () => {
+    const v = validateMixed(st("", ""), T);
+    expect([v.sum, v.ok]).toEqual([0, false]);
+    expect(v.message).toBe("Farq: 300 000 so'm kam");
+  });
+  it("jami 0 — hech qachon ok bo'lmaydi (0 = 0 tuzoq'i)", () => {
+    expect(validateMixed(st("", ""), 0).ok).toBe(false);
+  });
+});
+
+describe("⚠️ DASTAFKA taqqoslash summasini O'ZGARTIRMAYDI (qoida 2026-08-04 da teskari bo'lgan)", () => {
+  const T = 500_000;                    // sotuv summasi — dastafka UNING ICHIDA
+  const st = (cash: string, card: string): MixedState => ({ cash, card, cashTouched: true, cardTouched: true });
+
+  it("dastafkasiz: 200 000 + 300 000 = 500 000 ✓", () => {
+    expect(validateMixed(st("200 000", "300 000"), T).ok).toBe(true);
+  });
+  it("dastafka BOR: taqqoslash summasi O'SHA-O'SHA 500 000 (50 000 qo'shilmaydi)", () => {
+    // eski qoida bo'lsa 550 000 kutilardi va naqd+karta HECH QACHON to'g'ri bo'lmasdi
+    expect(validateMixed(st("200 000", "300 000"), T).ok).toBe(true);
+    expect(deliveryGoods(T, "50 000")).toBe(450_000);       // tovar savdosi — HOSILA
+    expect(deliveryPayload("50 000")).toEqual({ delivery_amount: "50000" });
+  });
+  it("avtomatik qoldiq ham SOTUV summasidan hisoblanadi", () => {
+    const s = applyMixedEdit(emptyMixed, "cash", "200000", T);
+    expect(s.card).toBe("300 000");                          // 550 000 − 200 000 EMAS
   });
 });

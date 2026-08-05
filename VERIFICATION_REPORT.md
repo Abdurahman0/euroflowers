@@ -3549,3 +3549,122 @@ aaa. **`received_at` bo'yicha oraliq filtri.** `/api/stock-batches/` da faqat `c
    bor, ekranda esa `received_at` ko'rinadi va ular jonli ma'lumotda bir kun farq qiladi.
    SETTLE: `received_at_after`/`received_at_before` qo'shilsinmi? Hozir bu kalitlar
    qabul qilinadi-yu, JIMGINA e'tiborsiz qoldiriladi — bu eng xavfli holat.
+
+═══════════════════════════════════════════════════════════════════
+# NOSOZLIK: ARALASH TO'LOVNI SAQLAB BO'LMASDI (2026-08-05)
+# READ-ONLY: brauzerda takrorlandi, POST/PATCH tutilib BEKOR qilindi.
+═══════════════════════════════════════════════════════════════════
+
+## §1 — Takrorlash va o'lchov (taxmin emas, jonli holat)
+
+Sotish oynasi → «Aralash» → naqd 400 000 → karta 500 000 (jami 900 000):
+
+```
+─── ARALASH tanlandi ───
+  xom kiritma   : naqd=''  karta=''
+  tugma         : { ochiq: false, title: "Farq: 900 000 so'm kam" }
+
+─── naqd 400000 yozildi ───
+  xom kiritma   : naqd='400 000'  karta='500 000'   ← karta AVTOMATIK to'ldi
+  parse qilingan: naqd=400000  karta=500000  yig'indi=900000
+  tugma         : { ochiq: true }                   ← shu payt hammasi joyida
+
+─── karta 500000 yozildi ───
+  xom kiritma   : naqd='400 000'  karta='500 000 500 000'   ← QO'SHILIB KETDI
+  parse qilingan: naqd=400000  karta=500000500000
+  xabar         : "Farq: 500 000 000 000 so'm ortiq"
+  tugma         : { ochiq: false }
+
+CHIQQAN YOZISH SO'ROVLARI: (hech qanday — klientda bloklangan)
+```
+
+## §2 — Sabab: (d) HOLAT ULANISHI. (a) ham, (b) ham EMAS.
+
+Operator naqdni yozganda karta maydoni **QOLDIQ bilan avtomatik to'ladi**. Keyin
+operator o'sha maydonga o'z summasini yozadi — lekin maydon **BO'SH EMAS**, shuning
+uchun yozilgani mavjud qiymatga **QO'SHILADI**:
+
+```
+"500 000" + "500000" → "500 000 500 000" = 500 000 500 000
+```
+
+Ya'ni avtomatik to'ldirish operator yozadigan AYNAN o'sha maydonga yozilgan, va uni
+tanlab/tozalab qo'yadigan hech narsa yo'q edi.
+
+**(a) formatlangan satrlar — SABAB EMAS.** `parseMoney` barcha raqamsiz belgilarni
+tashlaydi, oddiy bo'shliq ham, uzilmas bo'shliq (NBSP) ham to'g'ri o'qiladi:
+
+```
+"150 000"          parseMoney -> 150000     | Number() bo'lsa -> NaN
+"150 000" (NBSP)   parseMoney -> 150000     | Number() bo'lsa -> NaN
+"1 500 000"        parseMoney -> 1500000    | Number() bo'lsa -> NaN
+"abrakadabra"      parseMoney -> 0          | Number() bo'lsa -> NaN
+```
+
+Kod hech qayerda `Number()` ishlatmaydi — hamma joyda `parseMoney`.
+
+**(b) dastafka qoidasining teskari bo'lishi — SABAB EMAS.** To'rttala joyda ham
+taqqoslash summasi `calc.totalSum` (validatsiya, avto-qoldiq, «Jami ✓», farq xabari) —
+dastafka HECH QAYERDA ustiga qo'shilmaydi. Matritsada dastafkali va dastafkasiz
+qatorlar bir xil ishladi.
+
+**(c) falsy tekshiruv — yo'q.** `mixedSellPayload` `=== null` bilan, `validateMixed`
+`cash > 0 && card > 0` bilan solishtiradi.
+
+**(e) eski xato — yo'q.** Xatolar har o'zgarishda tozalanadi. Lekin ko'rsatilgan xabar
+(«Farq: … ortiq») ASL sababni tushuntirmaydi — operator uchun bu «summalarni kiritdim,
+sotib bo'lmayapti» bo'lib ko'rinadi.
+
+## §3 — Tuzatish
+
+`focusMixedField` / `blurMixedField` (`lib/mixedPayment.ts`, sof funksiyalar):
+
+- maydon HALI QO'LDA tegilmagan bo'lsa (ichidagi son — BIZNING taklifimiz), fokus
+  olinganda **TOZALANADI** → yozilgan har narsa YANGI qiymat, qo'shilmaydi;
+- hech narsa yozilmasdan fokusdan chiqilsa — taklif **QAYTADI**;
+- QO'LDA tegilgan maydonga **HECH QACHON** tegilmaydi.
+
+⚠️ `select()` bilan qilinmadi: sichqoncha bosilganda karetka `mouseup` da qayta
+qo'yiladi va tanlov bekor bo'ladi — o'rtaga yozish yana buzardi.
+
+Avtomatik qiymatli maydon ostida «avtomatik qoldiq» yozuvi chiqadi — raqam qayerdan
+kelgani ko'rinib tursin.
+
+## §3 — Boshqa pul maydonlari (tekshirildi)
+
+`formatMoneyInput` butun ilovada FAQAT ikki joyda: aralash to'lovning ikki maydoni va
+dastafka summasi. Dastafka **avtomatik to'ldirilmaydi**, shuning uchun unga qo'shilib
+ketish holati yo'q. Qolgan hamma pul maydonlari (`sale_price`, rasxod summasi, partiya
+narxlari, hajm tariflari, material narxi) `replace(/\D/g, "")` bilan faqat raqam saqlaydi
+va ajratgich KO'RSATMAYDI — ya'ni na format, na avto-to'ldirish muammosi bor.
+**Parser umumiy (`parseMoney`) va U SOG'LOM — nosozlik hech qachon o'qishda emas edi.**
+
+## §3 — Brauzer matritsasi (POST TUTILDI, BEKOR QILINDI — backendga bormadi)
+
+Naqd va Karta (8 + 8 holat) oldingi yurishda tasdiqlangan; quyida Aralash va Qarz:
+
+```
+ 1 Aralash dast=yo'q cheg=yo'q n=1  naqd=450 000  karta=450 000  OCHIQ  POST /api/catalog/210/sell/
+ 2 Aralash dast=yo'q cheg=yo'q n=2  naqd=900 000  karta=900 000  OCHIQ  POST …
+ 3 Aralash dast=yo'q cheg=bor  n=1  naqd=400 000  karta=400 000  OCHIQ  POST …
+ 4 Aralash dast=yo'q cheg=bor  n=2  naqd=800 000  karta=800 000  OCHIQ  POST …
+ 5 Aralash dast=bor  cheg=yo'q n=1  naqd=450 000  karta=450 000  OCHIQ  POST …
+ 6 Aralash dast=bor  cheg=yo'q n=2  naqd=900 000  karta=900 000  OCHIQ  POST …
+ 7 Aralash dast=bor  cheg=bor  n=1  naqd=400 000  karta=400 000  OCHIQ  POST …
+ 8 Aralash dast=bor  cheg=bor  n=2  naqd=800 000  karta=800 000  OCHIQ  POST …
+ 9–16 Qarz  (dastafka × chegirma × dona)                          OCHIQ  POST …
+
+JAMI 16 holat · OCHIQ 16 · bloklangan 0
+KONSOL XATOLARI (abort'lardan tashqari): yo'q
+```
+
+⚠️ Hech bir POST **yuborilmadi** — harness ularni tutib, qayd etib, bekor qildi.
+«OCHIQ + POST» = so'rov chiqishga tayyor edi, xolos.
+
+⚠️ Chegirmali qatorlar chegirma SABABISIZ bloklanadi, qarz esa MIJOZSIZ bloklanadi —
+bu TO'G'RI xatti-harakat (birinchi yurishda mening skriptim bu maydonlarni
+to'ldirmagani uchun «bloklangan» chiqqan edi, ilova aybi emas).
+
+## Verify
+
+`tsc` toza · **617/617 Vitest** (69 tasi `mixedPayment.test.ts`) · konsol xatosi yo'q.
