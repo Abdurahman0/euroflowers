@@ -11,7 +11,7 @@ import FreeBatchChip from "./FreeBatchChip";
 import DatePicker from "./DatePicker";
 import {
   EMPTY_RANGE, createdAtQuery, hasRange, inDateRange, rangeLabel, rangeToParams, readRange,
-  type DateRange,
+  supplierTotals, type DateRange,
 } from "@/lib/supplierRange";
 import type { MovementType, StockBatch, StockMovement, Supplier, SupplierPayment } from "@/lib/types";
 
@@ -130,13 +130,17 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
     api.stockMovements({ supplier: supplier.id, ordering: "-created_at", ...createdAtQuery(range) }).then(setMoves).catch(() => setMoves([]));
   }, [supplier.id, range]);
 
+  // ⚠️ KO'RINADIGAN partiyalar — sarlavha jamilari AYNAN shu ro'yxatdan hisoblanadi,
+  // shuning uchun «sarlavha = ko'ringan qatorlar yig'indisi» tengligi buzilmaydi.
+  const shownBatches = useMemo(() => (batches ?? []).filter((b) => inDateRange(b.received_at, range)), [batches, range]);
+
   // §4 YUK bo'yicha guruhlar — tartib partiya tartibidan meros (batches allaqachon saralangan)
   const batchGroups = useMemo(() => {
     const m = new Map<string, { key: string; title: string; rows: StockBatch[]; totalStems: number }>();
     // ⚠️ ORALIQ partiyaning O'Z `received_at`iga qo'llanadi — yuk sanasiga EMAS. Yuk
     // sarlavhasi shu bois guruhda QOLGAN partiyalarni sanaydi, «5 partiya» deb yozib
     // 2 tasini ko'rsatmaydi.
-    for (const b of (batches ?? []).filter((b) => inDateRange(b.received_at, range))) {
+    for (const b of shownBatches) {
       const dd = b.delivery_detail;
       const key = dd ? `d${dd.id}` : "none";
       const title = dd ? DELIVERY.label(dd.number, fmtDate(dd.received_at)) : "Yuksiz partiyalar (eski yozuvlar)";
@@ -147,10 +151,25 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
     }
     // «Yuksiz» guruh DOIM oxirida; qolganlari birinchi qatorining tartibini saqlaydi (yangi birinchi)
     return Array.from(m.values()).sort((a, b) => (a.key === "none" ? 1 : b.key === "none" ? -1 : 0));
-  }, [batches, range]);
+  }, [shownBatches]);
 
   const shownPayments = useMemo(() => (payments ?? []).filter((p) => inDateRange(p.paid_at, range)), [payments, range]);
-  const paidInRange = shownPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+
+  /**
+   * SARLAVHA JAMILARI.
+   * ⚠️ FILTRSIZ — SERVER raqamlari (avtoritativ; ro'yxat 500 qatorda cheklangani uchun
+   * klient yig'indisi katta yetkazib beruvchida kam chiqishi mumkin edi).
+   * ⚠️ ORALIQ TANLANGANDA — server sana bo'yicha kesa olmaydi, shuning uchun jamilar
+   * KO'RINAYOTGAN qatorlardan hisoblanadi (`supplierTotals`, Vitest bilan qulflangan).
+   */
+  const derived = useMemo(() => supplierTotals(shownBatches, shownPayments), [shownBatches, shownPayments]);
+  const head = filtered ? derived : {
+    batchesCount: supplier.batches_count ?? 0,
+    stems: supplier.total_received_stems ?? 0,
+    purchase: parseFloat(supplier.purchase_total ?? "0") || 0,
+    paid: parseFloat(supplier.paid_total ?? "0") || 0,
+  };
+  const paidInRange = derived.paid;
 
   /** Bo'sh holat — oraliq aybdor bo'lsa oralig'ni TOZALASH yo'li darhol beriladi */
   const Empty = ({ all }: { all: string }) => (
@@ -185,18 +204,26 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
         )}
       </div>
 
-      {/* ⚠️ JAMILAR — server sana bo'yicha KESA OLMAYDI, shuning uchun ochiq «Butun davr» deb
-          yoziladi. Pastdagi ro'yxatlar tanlangan davrni ko'rsatadi — chalkashmasin. */}
-      <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
-        Butun davr
+      {/* ⚠️ JAMILAR DAVRGA ERGASHADI. Sarlavhada DOIM qaysi davr ekani yozilgan:
+          filtrsiz «Butun davr» (server raqamlari), oraliqda esa aynan tanlangan davr
+          (ko'rinayotgan qatorlardan hisoblangan). Ikkalasi hech qachon aralashmaydi. */}
+      <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: filtered ? "var(--primary)" : "var(--muted)" }}>
+        {rangeLabel(range)}
         <span className="h-px flex-1" style={{ background: "var(--line2, var(--border))" }} />
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2.5">
-        <StatChip label="Partiya" value={`${supplier.batches_count}`} />
-        <StatChip label="Jami kelgan" value={stems(supplier.total_received_stems)} />
-        {+(supplier.purchase_total ?? 0) > 0 && <StatChip label="Sotib olingan" value={fmt(supplier.purchase_total)} />}
-        {+(supplier.paid_total ?? 0) > 0 && <StatChip label="To'langan" value={fmt(supplier.paid_total)} />}
+        <StatChip label="Partiya" value={`${head.batchesCount}`} />
+        <StatChip label="Jami kelgan" value={stems(head.stems)} />
+        {(head.purchase > 0 || filtered) && <StatChip label="Sotib olingan" value={fmt(head.purchase)} />}
+        {(head.paid > 0 || filtered) && <StatChip label="To'langan" value={fmt(head.paid)} />}
       </div>
+      {filtered && (
+        // ⚠️ Bu raqamlar SERVERDAN kelmadi — quyidagi qatorlardan yig'ildi. Aytib qo'yamiz.
+        <p className="mt-1.5 text-[11px] leading-snug" style={{ color: "var(--muted)" }}>
+          Tanlangan davr bo&apos;yicha — quyidagi <b>{head.batchesCount} partiya</b>
+          {shownPayments.length > 0 ? <> va <b>{shownPayments.length} to&apos;lov</b></> : null} yig&apos;indisi.
+        </p>
+      )}
       {supplier.notes && (
         <p className="mt-3.5 rounded-[14px] bg-[color:var(--surface-2)] px-4 py-3 text-[13px] leading-relaxed">{supplier.notes}</p>
       )}

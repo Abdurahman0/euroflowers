@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   readRange, rangeToParams, createdAtQuery, inDateRange, rangeLabel, hasRange, EMPTY_RANGE,
+  supplierTotals,
 } from "./supplierRange";
 
 describe("readRange — URL o'qish", () => {
@@ -108,5 +109,54 @@ describe("rangeLabel", () => {
     expect(rangeLabel({ from: "2026-08-02", to: "2026-08-05" })).toBe("02.08.2026 — 05.08.2026");
     expect(rangeLabel({ from: "2026-08-02", to: "" })).toBe("02.08.2026 dan");
     expect(rangeLabel({ from: "", to: "2026-08-05" })).toBe("05.08.2026 gacha");
+  });
+});
+
+describe("supplierTotals — sarlavha jamilari (KLIENTDA)", () => {
+  const b = (stems: number, cost: string) => ({ received_stems: stems, cost_per_stem: cost });
+
+  it("bo'sh — hammasi nol", () => {
+    expect(supplierTotals([], [])).toEqual({ batchesCount: 0, stems: 0, purchase: 0, paid: 0 });
+  });
+
+  it("dona va tannarx yig'iladi", () => {
+    expect(supplierTotals([b(200, "9000.00"), b(150, "12000.00")], []))
+      .toEqual({ batchesCount: 2, stems: 350, purchase: 200 * 9000 + 150 * 12000, paid: 0 });
+  });
+
+  it("⚠️ JONLI MOSLIK — server purchase_total bilan AYNAN teng bo'lishi kerak", () => {
+    // id 24 «Mirzarahim»: 1 partiya · 350 dona · server purchase_total 4 550 000.00
+    expect(supplierTotals([b(350, "13000.00")], []).purchase).toBe(4_550_000);
+  });
+
+  it("tekin partiya JIMGINA qo'shilmaydi (cost_per_stem allaqachon 0)", () => {
+    const t = supplierTotals([b(200, "9000.00"), b(100, "0.00")], []);
+    expect(t.stems).toBe(300);           // dona SANALADI
+    expect(t.purchase).toBe(1_800_000);  // pul QO'SHILMAYDI
+  });
+
+  it("to'lovlar yig'iladi (string decimal)", () => {
+    expect(supplierTotals([], [{ amount: "8000000.00" }, { amount: "5000000.00" }]).paid).toBe(13_000_000);
+  });
+
+  it("buzuq/yetishmayotgan maydonlar yig'indini BUZMAYDI (NaN chiqmaydi)", () => {
+    const t = supplierTotals(
+      [{ received_stems: null, cost_per_stem: null }, { received_stems: 100, cost_per_stem: "abrakadabra" }, b(50, "1000")],
+      [{ amount: null }, { amount: "" }, { amount: "2000" }],
+    );
+    expect(t).toEqual({ batchesCount: 3, stems: 150, purchase: 50_000, paid: 2000 });
+    expect(Number.isNaN(t.purchase)).toBe(false);
+  });
+
+  it("filtrlangan ro'yxat bilan ishlaydi — sarlavha KO'RINGAN qatorlar yig'indisi", () => {
+    const all = [
+      { received_at: "2026-08-04", received_stems: 8060, cost_per_stem: "2146.4" },
+      { received_at: "2026-08-02", received_stems: 325, cost_per_stem: "3769.2" },
+    ];
+    const r = { from: "2026-08-04", to: "2026-08-04" };
+    const shown = all.filter((x) => inDateRange(x.received_at, r));
+    expect(shown).toHaveLength(1);
+    expect(supplierTotals(shown, []).stems).toBe(8060);
+    expect(supplierTotals(all, []).stems).toBe(8385);   // filtrsiz — hammasi
   });
 });

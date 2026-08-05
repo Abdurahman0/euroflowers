@@ -3439,3 +3439,113 @@ yy. **Eski `restore-flowers` qoladimi?** Spec «yangi ishlarda catalog-reworks i
    deydi, lekin endpoint saqlangan. UI'da ikkalasi ham bor: yangisi «Restavratsiya»,
    eskisi «So'lgan gulni almashtirish» deb QAYTA NOMLANDI (ilgari ikkalasi ham
    «Restavratsiya» edi — chalkash). SETTLE: eskisi qachon o'chiriladi?
+
+═══════════════════════════════════════════════════════════════════
+# YETKAZIB BERUVCHI — SANA ORALIG'I (2026-08-05)
+# READ-ONLY: GET + jonli OpenAPI.
+═══════════════════════════════════════════════════════════════════
+
+## Qaysi endpoint sanani QABUL QILADI (jonli tekshirilgan)
+
+| endpoint | oraliq | maydon | qayerda filtrlanadi |
+|---|---|---|---|
+| `/api/suppliers/` | **YO'Q** | — | — (sarlavha jamilari) |
+| `/api/stock-batches/` | bor | `created_at_after/_before` | ⚠️ **ISHLATILMAYDI** — pastga qarang |
+| `/api/stock-movements/` | bor | `created_at_after/_before` | **SERVERDA** |
+| `/api/stock-deliveries/` | yo'q | faqat aniq kun `received_at=` | — |
+| `/api/supplier-payments/` | yo'q | faqat aniq kun `paid_at=` | **KLIENTDA** (`paid_at`) |
+
+⚠️ **PARTIYADAGI TUZOQ.** Ekranda ko'rinadigan sana — `received_at` (yuk sarlavhasi,
+partiya yangiligi), server esa faqat `created_at` (bazaga kiritilgan payt) bo'yicha
+kesa oladi. Jonli ma'lumotda ular BOSHQA kun:
+
+```
+supplier 22 · received_at:  [('2026-08-02', 6), ('2026-08-04', 28)]
+supplier 22 · created_at:   [('2026-08-04', 6), ('2026-08-05', 27)]   ← bir kun farq
+```
+
+Ya'ni «02.08 — 04.08» so'ralganda server'ga `created_at` yuborilsa 27 partiya
+JIMGINA yo'qolardi. Shuning uchun partiyalar KLIENTDA `received_at` bo'yicha
+saralanadi.
+
+⚠️ `received_at_after` / `received_at_before` / `date_from` — server ularni
+**TANIMAYDI va jimgina hammasini qaytaradi** (33 → 33, `?zzz_bogus=1` bilan bir xil).
+Ular hech qachon yuborilmaydi.
+
+## Sarlavha jamilari — DAVRGA ERGASHADI (klientda hisoblanadi)
+
+`/api/suppliers/` da sana parametri YO'Q, shuning uchun oraliq tanlanganda
+**to'rttala raqam ham ko'rinayotgan qatorlardan** hisoblanadi
+(`supplierTotals`, `lib/supplierRange.ts`, Vitest bilan qulflangan):
+
+| sarlavha raqami | qayerdan | hosil bo'ladimi |
+|---|---|---|
+| `batches_count` | filtrlangan partiyalar soni | ✓ |
+| `total_received_stems` | Σ `received_stems` | ✓ |
+| `purchase_total` | Σ `received_stems × cost_per_stem` | ✓ |
+| `paid_total` | Σ to'lov `amount` | ✓ (jonli 0 ta to'lov — nolda tasdiqlangan) |
+
+**Filtrsiz — SERVER raqamlari** (avtoritativ; ro'yxat 500 qatorda cheklangan, katta
+yetkazib beruvchida klient yig'indisi kam chiqishi mumkin edi).
+
+⚠️ **`cost_per_stem` ishlatiladi, `cost_per_stem_exact` EMAS.** Server `purchase_total` i
+aynan YAXLITLANGAN maydon bilan mos tushdi — «aniqroq» maydon sarlavhani serverdan
+jimgina ajratib yuborardi:
+
+```
+id 22 «Davron Aka» : server 18 525 000 · cost_per_stem 18 525 000 ✓ · exact 18 525 000
+id 23 «Hojiakbar»  : server 13 278 000 · cost_per_stem 13 278 000 ✓ · exact 13 295 000 ✗ (+17 000)
+id 24 «Mirzarahim» : server  4 550 000 · cost_per_stem  4 550 000 ✓ · exact  4 550 000
+```
+
+Tekin partiyalar alohida ajratilmaydi — `cost_per_stem` i allaqachon 0
+(id 22 da 3 ta tekin partiya bor; «tekinsiz» va «hammasi» AYNAN bir xil chiqdi).
+
+## Tenglik tekshiruvi — SARLAVHA == KO'RINGAN QATORLAR (jonli)
+
+```
+YETKAZIB BERUVCHI: Davron Aka (id 22)   ORALIQ: 2026-08-04 — 2026-08-04
+
+SARLAVHA (filtrsiz = SERVER):  34 partiya · 8385 dona · 18 525 000 so'm · to'langan 0
+SARLAVHA (oraliqda = KLIENT):  28 partiya · 8060 dona · 17 300 000 so'm · to'langan 0
+
+EKRANDAGI YUK GURUHLARI:
+   Yuk Davr stek 040800 · 2026-08-04     7 partiya ·  2100 dona
+   Yuk Davronaka 040800 · 2026-08-04    20 partiya ·  3760 dona
+   Yuk Mirzarahim 040800 · 2026-08-04    1 partiya ·  2200 dona
+   JAMI                                 28 partiya ·  8060 dona   ← qatorlar yig'indisi
+
+TENGLIK:  sarlavha 28 partiya == qatorlar 28  ✓
+          sarlavha 8060 dona  == qatorlar 8060 ✓
+```
+
+Filtrsiz holatda klient yig'indisi server raqamiga ham teng (34 · 8385 · 18 525 000).
+
+## Ko'rsatish qoidalari
+
+- Sarlavha ustida DOIM davr yozilgan: filtrsiz «BUTUN DAVR» (kul rang),
+  oraliqda «04.08.2026 — 04.08.2026» (aksent rang). Ikkalasi hech qachon aralashmaydi.
+- Oraliqda ostiga qo'shimcha qator: «Tanlangan davr bo'yicha — quyidagi N partiya
+  va M to'lov yig'indisi» — raqamlar SERVERDAN kelmagani ochiq aytiladi.
+- Oraliq `?date_from=&date_to=` da, `?supplier=<id>` bilan birga — ulashilgan havola
+  drawer'ni QAYTA OCHADI (busiz oraliq «saqlangandek» ko'rinib, aslida yo'qolardi).
+- Bo'sh davr: «Bu davrda yozuv yo'q» + «Butun davrni ko'rsatish» tugmasi.
+
+## Verify
+
+`tsc` toza · **599/599 Vitest** (30 tasi `supplierRange.test.ts`) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `sup-full-*` (filtrsiz), `sup-range-*` (partiyalar),
+`sup-range-moves-*`, `sup-range-pay-*`, `sup-empty-*`.
+
+## LIST 2 — append
+
+zz. **Sana bo'yicha kesiladigan yetkazib beruvchi endpointi.** Sarlavha jamilari hozir
+   KLIENTDA hisoblanadi va ro'yxat 500 qatorda cheklangan (`list()` guard) — ya'ni
+   500 dan ko'p partiyali yetkazib beruvchida oraliq jamilari KAM chiqadi. SETTLE:
+   `/api/suppliers/{id}/?date_from=&date_to=` (yoki `/api/suppliers/{id}/summary/`)
+   qo'shilsinmi? Qo'shilsa `purchase_total` AYNAN `Σ received_stems × cost_per_stem`
+   (yaxlitlangan maydon) bo'yicha hisoblanishini tasdiqlang — biz shunga moslashtirdik.
+aaa. **`received_at` bo'yicha oraliq filtri.** `/api/stock-batches/` da faqat `created_at_*`
+   bor, ekranda esa `received_at` ko'rinadi va ular jonli ma'lumotda bir kun farq qiladi.
+   SETTLE: `received_at_after`/`received_at_before` qo'shilsinmi? Hozir bu kalitlar
+   qabul qilinadi-yu, JIMGINA e'tiborsiz qoldiriladi — bu eng xavfli holat.

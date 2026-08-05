@@ -91,3 +91,53 @@ export function rangeLabel(r: DateRange): string {
   if (r.to) return `${fmtLocalDate(r.to)} gacha`;
   return "Butun davr";
 }
+
+/* ═══════════ SARLAVHA JAMILARI (davr bo'yicha) ═══════════ */
+
+/**
+ * ⚠️ SARLAVHA RAQAMLARI DAVRGA ERGASHADI — LEKIN SERVER BUNI QILA OLMAYDI.
+ *
+ * `/api/suppliers/` da sana parametri YO'Q (yuqoridagi jadval), shuning uchun oraliq
+ * tanlanganda jamilar KLIENTDA — sahifada KO'RINAYOTGAN qatorlardan — hisoblanadi.
+ * Ya'ni sarlavha yig'indisi ko'rinib turgan qatorlar yig'indisiga AYNAN teng bo'ladi.
+ *
+ * ⚠️ `cost_per_stem` ISHLATILADI, `cost_per_stem_exact` EMAS. Jonli tekshiruvda
+ * server `purchase_total` i aynan yaxlitlangan `cost_per_stem` bilan mos tushdi:
+ *   id 22 → 18 525 000 = 18 525 000 ✓ · id 24 → 4 550 000 = 4 550 000 ✓
+ *   id 23 → 13 278 000 = 13 278 000 ✓  (exact bilan 13 295 000 — 17 000 so'm XATO)
+ * «Aniqroq» maydonni olish sarlavhani serverdan JIMGINA ajratib yuborardi.
+ *
+ * Tekin partiyalar alohida ajratilmaydi — ularning `cost_per_stem` i allaqachon 0
+ * (jonli: id 22 da 3 ta tekin partiya bor, «tekinsiz» va «hammasi» bir xil chiqdi).
+ */
+export type SupplierTotals = {
+  batchesCount: number;
+  stems: number;
+  /** Σ received_stems × cost_per_stem */
+  purchase: number;
+  /** Σ to'lov summasi */
+  paid: number;
+};
+
+const money = (v: unknown): number => {
+  const x = typeof v === "number" ? v : parseFloat(String(v ?? ""));
+  return Number.isFinite(x) ? x : 0;
+};
+
+export function supplierTotals(
+  batches: { received_stems?: number | null; cost_per_stem?: string | null }[],
+  payments: { amount?: string | null }[],
+): SupplierTotals {
+  let stems = 0, purchase = 0;
+  for (const b of batches) {
+    const n = b.received_stems ?? 0;
+    stems += n;
+    purchase += n * money(b.cost_per_stem);
+  }
+  return {
+    batchesCount: batches.length,
+    stems,
+    purchase,
+    paid: payments.reduce((s, p) => s + money(p.amount), 0),
+  };
+}
