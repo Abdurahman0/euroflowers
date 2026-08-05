@@ -73,7 +73,7 @@ export function applyMixedEdit(
  * QOLDIQ bilan (500 000) AVTOMATIK to'ladi. Operator kartaga o'z summasini yozadi,
  * lekin maydon BO'SH EMAS — harflar mavjud qiymatga QO'SHILIB ketadi:
  *     "500 000" + "500000" → "500 000 500 000" = 500 000 500 000
- * Yig'indi portlaydi, tugma bloklanadi va xabar («Farq: … ortiq») ASL sababni
+ * Yig'indi portlaydi, tugma bloklanadi va xabar («✗ … ortiq») ASL sababni
  * KO'RSATMAYDI — operator «summalarni kiritdim, sotib bo'lmayapti» deb ko'radi.
  *
  * Yechim: maydon HALI QO'LDA tegilmagan bo'lsa (ya'ni ichidagi son — bizning
@@ -142,11 +142,15 @@ export function validateMixed(state: MixedState, total: number): MixedValidation
   const bothPositive = cash > 0 && card > 0;
   let message = "";
   if (!balanced) {
+    // ⚠️ SPEC (FRONTEND_CATALOG_MIXED_SALE_API.md, «Ekran») dagi AYNAN ibora:
+    //   «Kiritildi 750 000        ✗ 50 000 kam»
+    //   «Kiritildi 850 000        ✗ 50 000 ortiq»
     message = diff > 0
-      ? `Farq: ${formatMoneyInput(diff)} so'm kam`
-      : `Farq: ${formatMoneyInput(-diff)} so'm ortiq`;
+      ? `✗ ${formatMoneyInput(diff)} kam`
+      : `✗ ${formatMoneyInput(-diff)} ortiq`;
   } else if (!bothPositive) {
     // 300 000 + 0 — spec bo'yicha NOTO'G'RI; oddiy naqd/kartaga yo'naltiramiz
+    // spec 400 matni AYNAN, ustiga NIMA QILISH kerakligi (jimgina bloklamaymiz)
     message = "Aralash to'lovda ikkala summa ham noldan katta bo'lishi kerak — bitta usul bo'lsa «Naqd» yoki «Karta»ni tanlang.";
   }
   return { cash, card, sum, diff, balanced, bothPositive, ok: balanced && bothPositive, message };

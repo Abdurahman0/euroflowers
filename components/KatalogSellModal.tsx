@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CalendarClock, Check, ChevronDown, CreditCard, HandCoins, Info, Minus, Package, Plus, Sparkles, Split, Tag, X } from "lucide-react";
+import { Banknote, CalendarClock, Check, ChevronDown, CreditCard, HandCoins, Image as ImageIcon, Info, Minus, Package, Plus, Sparkles, Split, Tag, X } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -8,6 +8,7 @@ import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
+import ImageInput from "./ImageInput";
 import { debtSellPayload, debtCustomerReady, DEBT_CUSTOMER_REQUIRED, DEBT_NONE_DISABLED_REASON } from "@/lib/debt";
 import { applyMixedEdit, focusMixedField, blurMixedField, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage, parseMoney, emptyMixed, type MixedState } from "@/lib/mixedPayment";
 import { fmt } from "@/lib/format";
@@ -116,6 +117,10 @@ export default function KatalogSellModal({
   const [florists, setFlorists] = useState<FloristProfile[]>([]);
   const [saleMats, setSaleMats] = useState<SaleMat[]>([]);
   const [saleDeco, setSaleDeco] = useState<number>(0);
+  // ⚠️ SOTUV RASMI — katalogning O'Z rasmidan ALOHIDA. Spec: Telegram guruhiga ketadi
+  // (`sale_image_url`). Ilgari biz uni sotuvlar ro'yxatida KO'RSATARDIK, lekin
+  // yubormasdik — ya'ni u hech qachon to'lmasdi.
+  const [saleImage, setSaleImage] = useState("");
   useEffect(() => {
     // ⚠️ §5: SARFLANADIGANLAR (Gupka/Lenta/Lak) sotuvda qo'shilmaydi — tanlagichdan chiqarib tashlanadi.
     api.materials({ is_active: true }).then((ms) => setMaterials(usableInCatalog(ms))).catch(() => {});
@@ -255,6 +260,8 @@ export default function KatalogSellModal({
         // §4: quantity PER 1 sotuv dona (backend × quantity qiladi — oldindan ko'paytirmang).
         ...(validSaleMats.length ? { materials: validSaleMats.map((m) => ({ packaging: m.packaging, quantity: +m.qty })) } : {}),
         ...(saleDeco ? { decoration_florist: saleDeco } : {}),
+        // bo'sh bo'lsa kalit UMUMAN yuborilmaydi (bizdagi «nol — qiymat» qoidasi)
+        ...(saleImage.trim() ? { sale_image_url: saleImage.trim() } : {}),
         // QARZ: customer | customer_name+customer_phone (+ debt_note). Qarz bo'lmasa — bo'sh.
         ...debtBody,
         // ARALASH: cash_amount + card_amount. Boshqa rejimda kalitlar UMUMAN yo'q.
@@ -535,7 +542,7 @@ export default function KatalogSellModal({
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
-            {(validSaleMats.length > 0 || saleDeco > 0) && <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>{validSaleMats.length + (saleDeco > 0 ? 1 : 0)}</span>}
+            {(validSaleMats.length > 0 || saleDeco > 0 || !!saleImage) && <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>{validSaleMats.length + (saleDeco > 0 ? 1 : 0) + (saleImage ? 1 : 0)}</span>}
             <ChevronDown size={16} className="transition-transform duration-200" style={{ transform: extraOpen ? "rotate(180deg)" : undefined, color: "var(--muted)" }} />
           </span>
         </button>
@@ -576,6 +583,11 @@ export default function KatalogSellModal({
             ) : (
               <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Oformleniya haqi: {decoFee.toLocaleString("ru")} × {qty} = <b style={{ color: "var(--acc)" }}>{fmt(decoPay)}</b></p>
             ))}
+
+            {/* SOTUV RASMI — guruhga ketadi (spec: `sale_image_url`) */}
+            <div className="mb-1 mt-4 flex items-center gap-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}><ImageIcon size={13} style={{ color: "var(--acc)" }} /> Sotuv rasmi</div>
+            <ImageInput value={saleImage} onChange={setSaleImage} />
+            <p className="mt-1 text-[11.5px]" style={{ color: "var(--muted)" }}>Ixtiyoriy — sotuv xabari bilan birga Telegram guruhiga yuboriladi.</p>
 
             {/* IQTISODIY TA'SIR — bu sotuvga */}
             {extraTotal > 0 && (

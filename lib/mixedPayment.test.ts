@@ -84,11 +84,11 @@ describe("validateMixed — yig'indi AYNAN teng va ikkalasi > 0", () => {
   it("KAM kiritilgan → farq ko'rsatiladi", () => {
     const v = validateMixed(S({ cash: "100 000", card: "100 000" }), 300000);
     expect(v.ok).toBe(false);
-    expect(v.message).toBe("Farq: 100 000 so'm kam");
+    expect(v.message).toBe("✗ 100 000 kam");
   });
   it("ORTIQ kiritilgan → farq ko'rsatiladi", () => {
     const v = validateMixed(S({ cash: "200 000", card: "200 000" }), 300000);
-    expect(v.message).toBe("Farq: 100 000 so'm ortiq");
+    expect(v.message).toBe("✗ 100 000 ortiq");
   });
   it("⚠️ 300 000 + 0 — yig'indi TO'G'RI, lekin NOTO'G'RI (ikkalasi > 0 bo'lishi shart)", () => {
     const v = validateMixed(S({ cash: "300 000", card: "" }), 300000);
@@ -205,7 +205,7 @@ describe("⚠️ ARALASH — jami SOTUV SUMMASINING O'ZI (dastafka QO'SHILMAYDI)
   it("⚠️ ESKI qoida bo'yicha to'g'ri bo'lgan 320 000 endi NOTO'G'RI", () => {
     const v = validateMixed(S({ cash: "150 000", card: "170 000" }), target);
     expect(v.ok).toBe(false);
-    expect(v.message).toBe("Farq: 20 000 so'm ortiq");
+    expect(v.message).toBe("✗ 20 000 ortiq");
   });
   it("payload sotuv summasiga qarab quriladi", () => {
     expect(mixedSellPayload(true, S({ cash: "150 000", card: "150 000" }), target))
@@ -306,12 +306,12 @@ describe("validateMixed — operator HAQIQATDA hosil qiladigan qiymatlar", () =>
   it("kam", () => {
     const v = validateMixed(st("100 000", "150 000"), T);
     expect([v.diff, v.ok]).toEqual([50_000, false]);
-    expect(v.message).toBe("Farq: 50 000 so'm kam");
+    expect(v.message).toBe("✗ 50 000 kam");
   });
   it("ortiq", () => {
     const v = validateMixed(st("200 000", "200 000"), T);
     expect([v.diff, v.ok]).toEqual([-100_000, false]);
-    expect(v.message).toBe("Farq: 100 000 so'm ortiq");
+    expect(v.message).toBe("✗ 100 000 ortiq");
   });
   it("bittasi NOL — yig'indi to'g'ri bo'lsa ham RAD ETILADI", () => {
     const v = validateMixed(st("300 000", "0"), T);
@@ -321,7 +321,7 @@ describe("validateMixed — operator HAQIQATDA hosil qiladigan qiymatlar", () =>
   it("ikkalasi ham bo'sh", () => {
     const v = validateMixed(st("", ""), T);
     expect([v.sum, v.ok]).toEqual([0, false]);
-    expect(v.message).toBe("Farq: 300 000 so'm kam");
+    expect(v.message).toBe("✗ 300 000 kam");
   });
   it("jami 0 — hech qachon ok bo'lmaydi (0 = 0 tuzoq'i)", () => {
     expect(validateMixed(st("", ""), 0).ok).toBe(false);
@@ -401,8 +401,8 @@ describe("§2 — YAGONA MANBA: ✓ va xato ZID bo'la olmaydi", () => {
     expect(v.message).toContain("noldan katta");
   });
   it("kam / ortiq — farq AYNAN ko'rsatiladi", () => {
-    expect(validateMixed(st("75 000", "50 000"), T).message).toBe("Farq: 25 000 so'm kam");
-    expect(validateMixed(st("100 000", "100 000"), T).message).toBe("Farq: 50 000 so'm ortiq");
+    expect(validateMixed(st("75 000", "50 000"), T).message).toBe("✗ 25 000 kam");
+    expect(validateMixed(st("100 000", "100 000"), T).message).toBe("✗ 50 000 ortiq");
   });
   it("mixedSellPayload `ok` bilan AYNAN mos (uchinchi javob yo'q)", () => {
     for (const [cash, card] of [["75 000", "75 000"], ["100 000", "50 000"], ["150 000", "0"], ["", ""]]) {

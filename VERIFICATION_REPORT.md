@@ -3796,3 +3796,155 @@ KONSOL XATOLARI: yo'q
 ⚠️ Hech bir POST **yuborilmadi** — harness ularni tutib, qayd etib, bekor qildi.
 
 `tsc` toza · **630/630 Vitest** (82 tasi `mixedPayment.test.ts`) · konsol xatosi yo'q.
+
+═══════════════════════════════════════════════════════════════════
+# ⚠️ ASL SABAB TOPILDI: SUMMALAR BRAUZERDAN CHIQMAGAN (2026-08-05)
+# Manba: FRONTEND_CATALOG_MIXED_SALE_API.md · READ-ONLY (POST tutildi/bekor qilindi)
+═══════════════════════════════════════════════════════════════════
+
+Spec bo'yicha tekshirganda chiqayotgan so'rov tanasi o'lchandi. **Tana bo'sh edi:**
+
+```
+CHIQAYOTGAN POST TANASI (tuzatishdan OLDIN):
+ {"payment_type":"mixed"}
+
+  payment_type     -> "mixed"
+  cash_amount      -> ❌ YO'Q
+  card_amount      -> ❌ YO'Q
+  delivery_amount  -> ❌ YO'Q
+```
+
+`api.sellCatalogItem` tanani **OQ RO'YXAT** bo'yicha qayta qurardi va ro'yxatda
+bo'lmagan kalitlarni **JIMGINA tashlab yuborardi**. `git log -S` ko'rsatadi: bu metod
+birinchi commit'dan (`bccd693`) beri **tegilmagan** — undan keyin qo'shilgan har bir
+maydon chaqiruv joyida berilib, shu chegarada yo'qolgan:
+
+| commit | qo'shilgan maydon | holati |
+|---|---|---|
+| `904b22b` qarzdorlar | `customer_name`, `customer_phone`, `debt_note` | **yo'qolardi** |
+| `0d84faa` aralash | `cash_amount`, `card_amount` | **yo'qolardi** |
+| `840341f`/`5eee296` dastafka | `delivery_amount` | **yo'qolardi** |
+
+Ya'ni server haqli ravishda o'zining 400 ini qaytarardi —
+«Aralash to'lovda naqd va karta summasini kiriting» — chunki summalar **haqiqatan
+yo'q edi**. Formadagi yashil ✓ ham HAQ edi: u kiritilgan qiymatlarni to'g'ri
+hisoblardi. Ikki tomon ham to'g'ri, o'rtadagi uzatish buzuq edi.
+
+**⚠️ QARZ ham xuddi shunday buzilgan edi** — har bir qarz sotuvi
+«Qarzga sotishda mijozni tanlang…» xatosi bilan tugashi kerak edi.
+
+Tuzatishdan keyin (jonli o'lchov, 390×844):
+
+```
+ARALASH + DASTAFKA : {"payment_type":"mixed","cash_amount":"75000","card_amount":"75000","delivery_amount":"20000"}
+QARZ + MIJOZ       : {"payment_type":"debt","delivery_amount":"20000","customer_name":"Aziz","customer_phone":"901112233","debt_note":"Juma kuni to'laydi"}
+```
+
+Tana endi `buildSellPayload` sof funksiyasida (`lib/api.ts`), 12 ta Vitest bilan
+qulflangan — har bir hujjatlashtirilgan maydonning YETIB BORISHI tekshiriladi.
+
+## §1 — Qoida (tasdiqlandi)
+
+`cash_amount + card_amount == sale_price × quantity`, dastafka ICHIDA.
+Taqqoslash summasi TO'RTTA joyda ham `calc.totalSum` (= `salePrice × qty`):
+
+| joy | qiymat |
+|---|---|
+| `payTarget` (yagona hosila) | `calc.totalSum` |
+| validatsiya — `validateMixed(mixed, payTarget)` | ✓ |
+| avto-qoldiq — `applyMixedEdit(..., payTarget)` / `recalcOnTotalChange` | ✓ |
+| «Jami ✓» ko'rsatkichi va farq xabari | ✓ (bitta `mixedV`) |
+| payload — `mixedSellPayload(isMixed, mixed, payTarget)` | ✓ |
+
+Hech qayerda dastafka QO'SHILMAYDI. Farq iborasi spec'ga moslandi:
+**«✗ 50 000 kam» / «✗ 50 000 ortiq»** (ilgari «Farq: 50 000 so'm kam»).
+Ikkalasi ham > 0 sharti — bloklash BILAN BIRGA sabab yoziladi:
+«…bitta usul bo'lsa «Naqd» yoki «Karta»ni tanlang».
+
+## §2 — Xato shakli: SATR ham, MASSIV ham
+
+`extractFieldErrors` ikkalasini ham TO'G'RI o'qiydi (`flattenErrors` da satr sharti
+massivdan OLDIN turadi), ya'ni `[object Object]` ham, harflarga bo'linish ham yo'q:
+
+```
+{"cash_amount": "…"}    -> {"cash_amount": "…"}     (spec shakli)
+{"cash_amount": ["…"]}  -> {"cash_amount": "…"}     (DRF shakli)
+{"cash_amount": "abc"}  -> kalitlar: ["cash_amount"]  ("0","1","2" EMAS)
+```
+
+`delivery_amount`, `customer` — xuddi shunday. `detail` esa maydon emas, umumiy
+xabarga chiqadi. 9 ta Vitest (`lib/apiErrors.test.ts`).
+
+## §3 — Maydonlar (jonli `CatalogSellRequest` bilan solishtirildi)
+
+Server 17 maydon e'lon qiladi. Holat:
+
+| maydon | avval | endi |
+|---|---|---|
+| `quantity`, `sale_price`, `discount_reason`, `payment_type`, `sold_at` | ✓ | ✓ |
+| `reservation` — «Bronga bog'lash» | ✓ (UI bor va YUBORADI) | ✓ |
+| `materials` — sotuvdagi qadoq | ✓ | ✓ |
+| `decoration_florist` — oformleniya floristi | ✓ | ✓ |
+| `customer` / `customer_name` / `customer_phone` / `debt_note` | UI bor, **YUBORILMASDI** | ✓ |
+| `cash_amount` / `card_amount` | UI bor, **YUBORILMASDI** | ✓ |
+| `delivery_amount` | UI bor, **YUBORILMASDI** | ✓ |
+| `sale_image` / `sale_image_url` | **UI YO'Q EDI** | ✓ qo'shildi |
+
+⚠️ `sale_price` — **BIR DONA** narxi. `salePrice = discountOn ? +price : listPrice`
+va payload'ga `salePrice.toFixed(2)` ketadi; `qty` ALOHIDA maydon. Jami hech qachon
+yuborilmaydi (spec 3-misoli test bilan qulflangan).
+
+⚠️ `sale_image_url` — biz uni sotuvlar ro'yxatida KO'RSATARDIK, lekin hech qachon
+YUBORMASDIK, ya'ni u hech qachon to'lmasdi. Endi «Sotuvda qo'shilgan» bo'limida
+rasm yuklagich bor (Telegram guruhiga ketishi izohlangan).
+
+## §4 — Qayerdan o'qiladi: IKKI MANBA YO'Q
+
+```
+GET /api/catalog-history/   -> 404   (OpenAPI'da UMUMAN yo'q)
+GET /api/catalog/sales/     -> 200   (26 sotuv, `payment_breakdown` bor)
+```
+
+Spec `CatalogHistory.snapshot` va `/api/catalog-history/` ni ko'rsatadi — **bu
+endpoint mavjud emas**. Ziddiyat xavfi YO'Q: biz yagona mavjud manbadan o'qiymiz.
+
+⚠️ **`?payment_type=mixed` ISHLAMAYDI** (jonli):
+
+```
+?payment_type=cash        -> 5 ta    ✓
+?payment_type=card        -> 21 ta   ✓
+?payment_type=debt        -> 0 ta    ✓
+?payment_type=mixed       -> 26 ta   ✗ (hammasi — filtr qo'llanmadi)
+?payment_type=abrakadabra -> 26 ta     (aynan bir xil — ya'ni TANILMAYDI)
+```
+
+Spec «filtrlash ham mumkin» deydi — bugun EMAS. UI bu holatni ochiq aytadi.
+`totals` da `mixed_count` BOR, lekin spec va'da qilgan `mixed_quantity` **YO'Q**.
+
+## §5 — Avto-to'ldirish (saqlandi)
+
+Spec'ning sodda varianti (`setCard(received − cash)`) o'rniga bizdagi kengaytma
+kuchda qoladi va tasdiqlandi: qo'lda tegilgan maydon QAYTA YOZILMAYDI, manfiy
+qoldiq 0 ga qisiladi, dona/narx o'zgarganda faqat tegilmagani qayta hisoblanadi,
+taklif qilingan qiymat ustiga yozib ketmaslik uchun fokusda tozalanadi.
+
+## Verify
+
+Viewport **390×844, dSF 2–3, isMobile+hasTouch, iOS 17.5 Safari UA**.
+Skrinshotlar: `mobile-valid-dark.png`, `mobile-valid-light.png` — 75 000 + 75 000,
+dastafka 20 000 ICHIDA («tovar savdosi 130 000»), «Jami 150 000 so'm ✓» yashil,
+qizil xato YO'Q, native qora oynacha YO'Q.
+
+`tsc` toza · **651/651 Vitest** · konsol xatosi yo'q · hech qanday POST yuborilmadi.
+
+## LIST 2 — append
+
+bbb. **`/api/catalog-history/` mavjud emas (404).** Spec aralash to'lov ma'lumoti
+   `CatalogHistory.snapshot` da (`payment_cash`/`payment_card`) deydi va shu
+   endpointni ko'rsatadi. SETTLE: endpoint qo'shiladimi, yoki spec `/api/catalog/sales/`
+   ga (`payment_breakdown`) yo'naltirilsinmi? Biz ikkinchisidan o'qiyapmiz.
+ccc. **`?payment_type=mixed` jimgina e'tiborsiz qoladi.** cash/card/debt ishlaydi,
+   `mixed` esa noma'lum qiymat kabi hammasini qaytaradi. Filtr «ishlagandek»
+   ko'rinib, aslida ishlamayapti — eng xavfli shakl.
+ddd. **`totals.mixed_quantity` yo'q.** Spec `mixed_count` bilan birga va'da qiladi;
+   jonli javobda faqat `mixed_count` bor.

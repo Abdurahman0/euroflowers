@@ -132,6 +132,63 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * KATALOG SOTUV TANASI — sof funksiya (jonli sxema: `CatalogSellRequest`).
+ *
+ * ⚠️ SHU YER JIMGINA MAYDON YO'QOTGAN EDI. Ilgari tana OQ RO'YXAT bo'yicha qurilardi
+ * va ro'yxatda bo'lmagan kalitlar TASHLAB YUBORILARDI. Chaqiruvchi
+ * `cash_amount`/`card_amount`/`delivery_amount`/mijoz maydonlarini BERSA ham
+ * serverga faqat `{"payment_type":"mixed"}` ketardi, server esa haqli ravishda
+ * «Aralash to'lovda naqd va karta summasini kiriting» deb 400 qaytarardi —
+ * forma yashil ✓ ko'rsatib turgani holda. QARZ ham xuddi shunday buzilgan edi
+ * (`customer_name`/`customer_phone`/`debt_note` yo'qolardi).
+ *
+ * ⚠️ Yangi maydon qo'shilsa SHU YERGA ham qo'shilishi shart — aks holda u yana
+ * jimgina yo'qoladi va nosozlik SERVER xatosi bo'lib ko'rinadi.
+ * Bo'sh qiymat YUBORILMAYDI («nol — qiymat» qoidasi).
+ */
+export type SellInput = {
+  quantity?: number; sale_price?: string; discount_reason?: string;
+  payment_type?: PaymentType; sold_at?: string; reservation?: number;
+  materials?: { packaging: number; quantity: number }[]; decoration_florist?: number;
+  /** ARALASH — ikkalasi ham majburiy va > 0 */
+  cash_amount?: string; card_amount?: string;
+  /** sotuv summasining ICHIDAGI dastafka (ustiga qo'shilmaydi) */
+  delivery_amount?: string;
+  /** QARZ — `customer` YOKI `customer_name` + `customer_phone` */
+  customer?: number; customer_name?: string; customer_phone?: string; debt_note?: string;
+  /** sotuv rasmi — Telegram guruhiga ketadi */
+  sale_image_url?: string;
+};
+
+export function buildSellPayload(data?: SellInput): Record<string, unknown> {
+  const d = data ?? {};
+  return {
+    // ⚠️ 1 dona — sukut; yuborilmaydi
+    ...(d.quantity && d.quantity > 1 ? { quantity: d.quantity } : {}),
+    // ⚠️ BIR DONA narxi (jami EMAS). Berilmasa katalog narxi olinadi.
+    ...(d.sale_price ? { sale_price: d.sale_price } : {}),
+    ...(d.discount_reason ? { discount_reason: d.discount_reason } : {}),
+    ...(d.payment_type ? { payment_type: d.payment_type } : {}),
+    ...(d.sold_at ? { sold_at: d.sold_at } : {}),
+    // ⚠️ BRON: backend history'ga bron ID + paid_amount + remaining_due yozadi
+    ...(d.reservation ? { reservation: d.reservation } : {}),
+    // ⚠️ material quantity — 1 DONA sotuv uchun (backend × quantity qiladi)
+    ...(d.materials?.length ? { materials: d.materials } : {}),
+    // ⚠️ sotuv oformleniyasi — katalog yaratishdagi decoration'dan ALOHIDA
+    ...(d.decoration_florist ? { decoration_florist: d.decoration_florist } : {}),
+    ...(d.cash_amount ? { cash_amount: d.cash_amount } : {}),
+    ...(d.card_amount ? { card_amount: d.card_amount } : {}),
+    // ⚠️ operator ATAYLAB "0" yozsa — yuboriladi (ongli tanlov)
+    ...(d.delivery_amount != null && d.delivery_amount !== "" ? { delivery_amount: d.delivery_amount } : {}),
+    ...(d.customer ? { customer: d.customer } : {}),
+    ...(d.customer_name ? { customer_name: d.customer_name } : {}),
+    ...(d.customer_phone ? { customer_phone: d.customer_phone } : {}),
+    ...(d.debt_note ? { debt_note: d.debt_note } : {}),
+    ...(d.sale_image_url ? { sale_image_url: d.sale_image_url } : {}),
+  };
+}
+
 let refreshing: Promise<boolean> | null = null;
 
 async function refreshAccess(): Promise<boolean> {
@@ -629,23 +686,12 @@ export const api = {
   /** Katalogdan sotish. quantity berilmasa backend 1 ta deb oladi.
       Arzonroq sotilsa: sale_price (dona narxi) + discount_reason yuboriladi —
       backend chegirmani hisoblab history'ga yozadi. */
-  sellCatalogItem: (id: number, data?: { quantity?: number; sale_price?: string; discount_reason?: string; payment_type?: PaymentType; sold_at?: string; reservation?: number; materials?: { packaging: number; quantity: number }[]; decoration_florist?: number }) =>
-    request<CatalogItem>(`/api/catalog/${id}/sell/`, {
-      method: "POST",
-      body: JSON.stringify({
-        ...(data?.quantity && data.quantity > 1 ? { quantity: data.quantity } : {}),
-        ...(data?.sale_price ? { sale_price: data.sale_price } : {}),
-        ...(data?.discount_reason ? { discount_reason: data.discount_reason } : {}),
-        ...(data?.payment_type ? { payment_type: data.payment_type } : {}),
-        ...(data?.sold_at ? { sold_at: data.sold_at } : {}),
-        // ⚠️ BRON: berilsa backend history'ga bron ID + paid_amount + remaining_due yozadi (full narx savdoga kiradi)
-        ...(data?.reservation ? { reservation: data.reservation } : {}),
-        // ⚠️ SOTUVDA QO'SHILGAN: material quantity 1 DONA sotuv uchun (backend × quantity qiladi — oldindan ko'paytirmang).
-        ...(data?.materials?.length ? { materials: data.materials } : {}),
-        // ⚠️ SOTUV OFORMLENIYASI: catalog-yaratishdagi decoration'dan ALOHIDA (source=sale_decoration) salary yoziladi.
-        ...(data?.decoration_florist ? { decoration_florist: data.decoration_florist } : {}),
-      }),
-    }),
+  /**
+   * KATALOGDAN SOTISH — POST /api/catalog/{id}/sell/
+   * Tana `buildSellPayload` da (sof funksiya, Vitest bilan qulflangan).
+   */
+  sellCatalogItem: (id: number, data?: SellInput) =>
+    request<CatalogItem>(`/api/catalog/${id}/sell/`, { method: "POST", body: JSON.stringify(buildSellPayload(data)) }),
   catalogItem: (id: number) => request<CatalogItem>(`/api/catalog/${id}/`),
   /**
    * KATALOG SOTUV TARIXI — sahifalangan, `totals` BUTUN FILTR bo'yicha.

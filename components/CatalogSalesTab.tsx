@@ -143,6 +143,9 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
       {/* ⚠️ JONLI TEKSHIRUV: server `?payment_type=mixed` ni TANIMAYDI va filtrsiz
           hammasini qaytaradi (abrakadabra bilan bir xil). Jimgina «hammasi aralash»
           bo'lib ko'rinmasin — ochiq aytamiz. LIST 2. */}
+      {/* ⚠️ JONLI TASDIQ (2026-08-05): ?payment_type=cash→5, card→21, debt→0 — ishlaydi;
+          mixed→26 va abrakadabra→26 — ya'ni «mixed» TANILMAYDI va filtr JIMGINA
+          e'tiborsiz qoladi. Spec buni «filtrlash mumkin» deydi — bugun EMAS (LIST 2). */}
       {payment === "mixed" && rows.length > 0 && rows.some((r) => r.payment_type !== "mixed") && (
         <p className="mb-3 rounded-[11px] px-3 py-2 text-[12px] font-semibold" style={{ background: "color-mix(in srgb, #b3873a 12%, transparent)", color: "var(--warning-ink, #8a6d1f)" }}>
           ⚠️ Server «aralash» filtrini qo&apos;llamadi — quyida BARCHA sotuvlar va butun davr jamilari ko&apos;rsatilyapti.
