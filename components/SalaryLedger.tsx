@@ -8,7 +8,7 @@ import ClearFilters from "./ClearFilters";
 import DateChips from "./DateChips";
 import EmptyState from "./EmptyState";
 import { dateAfterParam, fmt, fmtDate, rangeParams } from "@/lib/format";
-import { SALARY_SOURCE_LABEL, SALARY_SOURCE_HUE } from "@/lib/inventory";
+import { SALARY_SOURCE_LABEL, salarySourceLabel, salarySourceHue } from "@/lib/inventory";
 import type { FloristProfile, FloristSalaryEntry, SalarySource } from "@/lib/types";
 
 const SOURCE_OPTS = [
@@ -97,12 +97,12 @@ export default function SalaryLedger() {
           <section key={date} className="glass !rounded-[18px] p-4">
             <div className="mb-2 text-[13px] font-bold" style={{ color: "var(--text-2)" }}>{fmtDate(date)}</div>
             {items.map((r) => {
-              const hue = SALARY_SOURCE_HUE[r.source] ?? "var(--muted)";
+              const hue = salarySourceHue(r.source);
               return (
                 <div key={r.id} className="flex items-center gap-3 border-t py-2.5 first:border-t-0" style={{ borderColor: "var(--line2)" }}>
                   <span className="min-w-0 flex-1 truncate text-[13px] font-semibold" title={floristName(r.florist_detail)}>{floristName(r.florist_detail)}</span>
                   <span className="shrink-0 whitespace-nowrap rounded-full border px-2 py-[3px] text-[11px] font-bold" style={{ background: `color-mix(in srgb, ${hue} 13%, transparent)`, borderColor: `color-mix(in srgb, ${hue} 28%, transparent)`, color: `color-mix(in srgb, ${hue} 72%, var(--text))` }}>
-                    {SALARY_SOURCE_LABEL[r.source] ?? r.source}
+                    {salarySourceLabel(r.source)}
                   </span>
                   {r.note && <span className="hidden max-w-[160px] shrink-0 truncate text-[12px] sm:block" style={{ color: "var(--muted)" }} title={r.note}>{r.note}</span>}
                   <span className="shrink-0 text-[13px] font-bold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(r.amount)}</span>

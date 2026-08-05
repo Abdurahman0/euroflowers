@@ -3,6 +3,7 @@ import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import Select from "./Select";
 import { useStore } from "@/lib/store";
+import { catalogRemaining } from "@/lib/rework";
 import type { CatalogItem, Packaging, StockBatch } from "@/lib/types";
 
 /**
@@ -122,7 +123,8 @@ export function CatalogUsagePicker({
   const showToast = useStore((s) => s.showToast);
   const [pick, setPick] = useState(0);
   const [qty, setQty] = useState("1");
-  const remaining = (it: CatalogItem) => Math.max((it.quantity_total ?? 1) - (it.quantity_sold ?? 0), 0);
+  // ⚠️ QOLDIQ — chiqit va RESTAVRATSIYA ham ayriladi (lib/rework)
+  const remaining = (it: CatalogItem) => catalogRemaining(it);
 
   const add = () => {
     const it = items.find((x) => x.id === pick);

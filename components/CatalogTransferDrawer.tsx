@@ -6,13 +6,15 @@ import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Field } from "./Modal";
 import Select from "./Select";
 import { fmt } from "@/lib/format";
+import { catalogRemaining } from "@/lib/rework";
 import type { Branch, CatalogItem } from "@/lib/types";
 
 /**
  * Katalog nusxasini FILIALGA yuborish (asosiy → Parkent). Qisman yuborish mumkin.
  * ⚠️ QAYTARIB BO'LMAYDI — backend'da bekor/qaytar yo'li YO'Q (OpenAPI: catalog-transfers
  * faqat GET, transfer faqat POST). Shu bois yuborishdan oldin aniq ogohlantiriladi.
- * Max = sotilmagan qism (quantity_total − quantity_sold). POST /catalog/{id}/transfer/.
+ * ⚠️ Max = QOLDIQ (catalogRemaining): sotilgan + chiqit + RESTAVRATSIYA ayriladi.
+ * Ilgari faqat quantity_total − quantity_sold edi. POST /catalog/{id}/transfer/.
  */
 export default function CatalogTransferDrawer({ item, onClose, onDone }: { item: CatalogItem; onClose: () => void; onDone: () => void }) {
   const { showToast } = useStore();
@@ -33,8 +35,8 @@ export default function CatalogTransferDrawer({ item, onClose, onDone }: { item:
   }, []);
 
   const total = item.quantity_total ?? 1;
-  const sold = item.quantity_sold ?? (item.status === "sold" ? total : 0);
-  const unsold = Math.max(total - sold, 0); // MAX yuboriladigan son
+  // ⚠️ MAX = QOLDIQ: sotilgan + chiqit + RESTAVRATSIYA ayrilgan (lib/rework).
+  const unsold = catalogRemaining(item);
   const listPrice = Math.round(+item.price || 0);
   const n = Math.min(Math.max(Math.round(+qty || 0), 0), unsold);
   const remaining = unsold - n;

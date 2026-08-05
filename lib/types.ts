@@ -463,6 +463,15 @@ export type CatalogItem = {
   /** katalogga qo'yilgan tayyor buket soni / sotilgani / skladdan yechilgani */
   quantity_total?: number;
   quantity_sold?: number;
+  /** ⚠️ CHIQITGA yozilgan dona (jonli javobda BOR edi, turda YO'Q edi — qoldiq hisobidan
+      tushib qolgan edi). */
+  quantity_wasted?: number;
+  /** ⚠️ SERVER hisoblagan QOLDIQ — total − sold − wasted − reworked. AVTORITATIV. */
+  quantity_remaining?: number;
+  /** ⚠️ RESTAVRATSIYADA buzilgan dona soni (FRONTEND_CATALOG_REWORK_API.md).
+      ⚠️ 2026-08-04 holatiga backend HALI DEPLOY QILINMAGAN — jonli javobda ham,
+      OpenAPI'da ham YO'Q. Shuning uchun ixtiyoriy va `catalogRemaining` uni 0 deb oladi. */
+  quantity_reworked?: number;
   quantity_stock_deducted?: number;
   // MIJOZ biriktirish (walk-in) — backend telefon bo'yicha dedup qiladi; customer_detail read-only
   customer?: number | null;
@@ -546,6 +555,64 @@ export type CatalogProfit = {
   total_potential_profit?: string | null;
   sold_quantity?: number | null;
   realized_profit?: string | null;
+};
+
+/* ===== RESTAVRATSIYA (catalog rework) — FRONTEND_CATALOG_REWORK_API.md =====
+   ⚠️ 2026-08-04: backend HALI DEPLOY QILINMAGAN — `/api/catalog-reworks/` 404,
+   OpenAPI'da rework yo'llari/sxemalari YO'Q, `quantity_reworked` ham yo'q.
+   Bu turlar SPEC bo'yicha yozilgan; deploydan keyin AYNAN tekshirilsin. */
+
+export type ReworkSourceRow = {
+  id?: number;
+  catalog_item: number;
+  catalog_item_name?: string;
+  quantity: number;
+  stems?: number;
+  unit_cost?: string;
+  cost?: string;
+};
+
+export type ReworkStockInputRow = {
+  id?: number;
+  stock_batch: number;
+  batch_number?: string;
+  variant_name?: string;
+  /** ⚠️ ANIQ dona soni — sklad AYNAN shuncha kamayadi. */
+  quantity_stems: number;
+  cost?: string;
+};
+
+export type ReworkOutputRow = {
+  id?: number;
+  catalog_item?: number;
+  catalog_item_name?: string;
+  catalog_item_price?: string;
+  image_url?: string;
+  quantity: number;
+  stems?: number;
+  allocated_cost?: string;
+  allocated_florist_amount?: string;
+};
+
+export type CatalogRework = {
+  id: number;
+  florist: number;
+  florist_name?: string;
+  florist_amount: string;
+  input_stems: number;
+  output_stems: number;
+  /** ⚠️ HAQIQIY YO'QOTISH — sklad chiqit harakati YARATILMAYDI, faqat shu yerda. */
+  waste_stems: number;
+  input_cost: string;
+  waste_cost: string;
+  note?: string;
+  created_by?: number | null;
+  created_by_name?: string;
+  created_at: string;
+  updated_at?: string;
+  sources: ReworkSourceRow[];
+  stock_inputs: ReworkStockInputRow[];
+  outputs: ReworkOutputRow[];
 };
 
 /* ===== RASXODLAR (GET/POST /api/expenses/) =====
@@ -1531,7 +1598,8 @@ export type CloseIssueResult = {
 export type CloseIssueInput = { florist: number; batch: number; return_stems?: number };
 
 /** Florist oylik yozuvi (backend: /api/florist-salary/) */
-export type SalarySource = "catalog" | "custom_catalog" | "decoration" | "sale_decoration" | "daily" | "manual";
+/** ⚠️ `rework` — restavratsiya (spec). Backend enum'ida HALI YO'Q (deploy kutilmoqda). */
+export type SalarySource = "catalog" | "custom_catalog" | "decoration" | "sale_decoration" | "daily" | "manual" | "rework";
 export type FloristSalaryEntry = {
   id: number;
   florist: number;

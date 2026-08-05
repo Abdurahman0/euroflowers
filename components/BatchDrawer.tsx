@@ -172,7 +172,9 @@ export default function BatchDrawer({
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-[color:var(--muted)]">
                     <span>{who} · {fmtTime(m.created_at)}</span>
-                    {m.reference_type?.startsWith("florist") && movementRefLabel(m.reference_type) && (
+                    {/* ⚠️ ILGARI faqat `florist*` ko'rsatilardi — `catalog_rework` (va boshqa yangi
+                        turlar) jurnalda KO'RINMAY qolardi. Endi yorlig'i bor har qanday tur chiqadi. */}
+                    {movementRefLabel(m.reference_type) && (
                       <span className="rounded-full px-1.5 py-px text-[10.5px] font-bold" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>{movementRefLabel(m.reference_type)}</span>
                     )}
                   </div>

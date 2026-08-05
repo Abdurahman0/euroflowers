@@ -3255,3 +3255,187 @@ vv. **`page_size=500` yetmasligi mumkin.** Endpoint sahifalangan (`count`/`next`
    `count > results.length` bo'lsa ogohlantiramiz, lekin KEYINGI sahifani olmaymiz.
    Band oyda bu yuzaga chiqadi. SETTLE: `next` bo'yicha yurish kerakmi yoki serverda
    kalendar uchun alohida (sahifalanmagan) endpoint qo'shiladimi?
+
+═══════════════════════════════════════════════════════════════════
+# RESTAVRATSIYA (FRONTEND_CATALOG_REWORK_API.md, 2026-08-05)
+# READ-ONLY: GET + jonli OpenAPI. POST ATAYIN sinalmagan (spec bo'yicha yozildi).
+═══════════════════════════════════════════════════════════════════
+
+## §4 — Jonli tekshiruv (backend DEPLOY QILINGAN)
+
+```
+GET /api/catalog-reworks/           → 200 {"count": 0, "next": null, "previous": null, "results": []}
+OpenAPI yo'llari                    → /api/catalog-reworks/      : get, post
+                                       /api/catalog-reworks/{id}/ : get   ← FAQAT GET
+GET parametrlari                    → florist, ordering, page, page_size, search
+CatalogReworkCreate  required       → ['florist', 'outputs']
+CatalogReworkOutputInput required   → ['composition', 'name_uz', 'price']
+enum arrangement_type               → [bouquet, basket, box]
+enum catalog_kind                   → [standard, custom]
+enum status                         → [available, draft]
+FloristSalaryEntry.source enum      → … + rework ✓
+```
+
+**`quantity_reworked` KATALOG ITEMDA BOR** (jonli, id=211):
+
+```json
+{"quantity_remaining": 1, "quantity_total": 1, "quantity_sold": 0,
+ "quantity_wasted": 0, "quantity_reworked": 0, "quantity_stock_deducted": 1}
+```
+
+⚠️ **BEKOR QILISH YO'Q — OpenAPI'da tasdiqlangan.** `{id}/` da faqat `get` bor:
+PATCH ham, DELETE ham YO'Q. Saqlangan restavratsiya QAYTMAYDI.
+
+## §0a — QOLDIQ MATEMATIKASI (app-wide, TUZATILDI)
+
+Ilgari HAMMA joyda `total − sold` hisoblanardi — ya'ni `quantity_wasted` ALLAQACHON
+e'tiborsiz qolayotgan edi (jonli maydon bo'lsa ham), `quantity_reworked` esa endi
+qo'shildi. Oltita joy `lib/rework.ts → catalogRemaining()` ga o'tkazildi; u avval
+SERVER hisoblagan `quantity_remaining` ni oladi (avtoritativ), bo'lmasa
+`total − sold − wasted − reworked` ni o'zi ayiradi:
+
+| # | Joy | Nima buzilgan edi |
+|---|---|---|
+| 1 | `app/katalog/page.tsx` — kartochka `left` | «N TA QOLDI» va sotiladigan holat oshib ketardi |
+| 2 | `app/katalog/page.tsx` — filialga yuborish gate'i ×2 | buzilgan donani yuborishga ruxsat berardi |
+| 3 | `components/KatalogSellModal.tsx` — `left` | sotuv maksimumi oshib ketardi |
+| 4 | `components/CatalogTransferDrawer.tsx` — `unsold` | transfer maksimumi oshib ketardi |
+| 5 | `components/KatalogViewModal.tsx` — `left` | batafsildagi qoldiq |
+| 6 | `components/UsagePicker.tsx` — `remaining` | tanlanadigan dona |
+
+Kartochkada spec qatori: «Jami 3 · Sotildi 1 · Restavratsiyada 1 · Qoldi 1»
+(chiplar) + batafsilda AYNAN shu satr (`catalogCountsLabel`).
+
+## §0b — «SKLADDAN YECHISH» (verdict: TUGMA UMUMAN YO'Q)
+
+Biz `quantity_stock_deducted` ni **o'qiymiz** (kartochkada «Kutilmoqda: N»,
+batafsilda «Skladdan yechilgan» sanasi), lekin katalog itemida **yechish AMALI
+umuman yo'q** — ya'ni bugun bosiladigan tugma ham yo'q, 400 ham chiqmaydi.
+`stockAlreadyDeducted()` lib'ga qo'yildi va batafsilda «To'liq yechilgan —
+qayta yechilmaydi» qatorini chiqaradi; tugma qo'shilsa gate TAYYOR.
+
+## §0c — OYLIK MANBASI `rework`
+
+Filtr va legenda `Object.keys(SALARY_SOURCE_LABEL)` dan quriladi → `rework`
+avtomatik chiqdi. **Noma'lum manba** esa ilgari XOM `snake_case` bo'lib ekranga
+chiqardi (`LABEL[v] ?? v`) va hech kim sezmasdi. Endi `lib/enumLabel.ts`:
+o'qiladigan zaxira («Kelajak manba») + konsolga BIR MARTA ogohlantirish.
+Formada: «Haq yozilmasa (0) **oylik yozuvi yaratilmaydi**».
+
+## §0d — `reference_type: catalog_rework`
+
+Yorliq qo'shildi. ⚠️ **Asl nosozlik yorliqda emas edi:** `BatchDrawer.tsx` yorliqni
+faqat `reference_type.startsWith("florist")` bo'lganda chizardi — ya'ni
+`catalog_rework` yorliq bilan ham jurnalda KO'RINMAY qolardi. Shart olib tashlandi.
+`movementRefLabel` endi noma'lum tur uchun `null` qaytarmaydi — ko'rsatadi va
+ogohlantiradi.
+
+## §0e — ⚠️ RESTAVRATSIYA YO'QOTISHI HISOBOTDAGI «CHIQIT»GA TUSHMAYDI (patch YO'Q)
+
+`lib/finance.ts → costBreakdown()` chiqitni FAQAT sklad harakatlaridan yig'adi
+(`wasteMovements`). Spec esa aniq aytadi: restavratsiyada sklad chiqit harakati
+**yaratilmaydi** — yo'qotish hujjat ichidagi `waste_stems`/`waste_cost` bo'lib qoladi.
+**Demak bugun bu yo'qotish hisobotdagi chiqit raqamiga KO'RINMAYDI.** Bu florist-chiqit
+topilmasi bilan bir sinf. Taklif: Hisob-kitobda **alohida** «Restavratsiyadagi
+yo'qotish» qatori — sklad chiqitiga **QO'SHILMAYDI** (LIST 2 ww). Hozircha faqat
+restavratsiya hujjatining o'zida ko'rinadi va u yerda ko'zga tashlanadi.
+
+## §1 — Hisob qatlami (`lib/rework.ts`, UI'dan OLDIN yozildi va sinaldi)
+
+⚠️ **PER-DONA TUZOG'I** — `composition[].quantity_stems` BITTA dona uchun;
+`quantity 2 × 25 = 50`. UI aynan spec eskizidagidek yozadi:
+«25 dona/dona → jami 50 dona». Barcha hisob ×quantity qiladi.
+
+⚠️ **PARTIYA BO'YICHA** tekshiruv: umumiy gul yetsa ham AYNAN bitta partiya
+yetmasligi mumkin — `batchBalance()` har partiya uchun alohida mavjud/kerak
+beradi va yetmaganini NOMLAYDI (test: «jami yetarli, bitta partiya yetmaydi»).
+
+**Manba guli** itemning O'Z `composition`idan olinadi. Jonli tekshiruv: 26/26
+katalogda `composition` bor (masalan id=210: partiya 207 × 25 + partiya 209 × 13
+= 38 dona/dona). ⚠️ **Kutayotgan florist katalogi** (`quantity_stems: 0`) manba
+sifatida bugun HECH QANDAY jonli yozuvda yo'q — ya'ni bu chekka holatni jonli
+kuzatib bo'lmadi; nazariy jihatdan u 0 dona beradi va shu bois chiqim uchun
+gul yetmaydi (LIST 2 xx).
+
+## §4 — Verify
+
+`tsc` toza · **592/592 Vitest** (50 tasi `rework.test.ts` — spec'ning IKKALA ishlangan
+misoli uchdan-uchgacha, 11 tasi `enumLabel.test.ts`) · konsol xatosi yo'q ·
+skrinshotlar dark + light: `rw-card-*`, `rw-history-*`, `rw-form-*`,
+`rw-form-batches-*`, `rw-form-short-*`, `rw-form-ok-*`.
+
+```
+KARTOCHKA  : Jami 3 · Sotildi 1 · Restavratsiyada 1 · Qoldiq 1 ✓ «1 TA QOLDI» ✓
+FORMA      : 2 manba ✓ 1 sklad kirimi (40 dona) ✓ 2 chiqim ✓
+             «Jami kirim: 125 dona · 960 000 so'm» (buzilgan 85 + skladdan 40) ✓
+             «25/dona = 50 dona» per-dona yorlig'i ✓
+             «Jami chiqim: 95 dona» · «Yo'qotish: 30 dona» ✓
+             florist haqi QO'LDA (tarif prefill'i YO'Q) ✓
+YETMASLIK  : «Atirgul kust pushti guli yetmayapti: mavjud 20 dona, kerak 45 dona» ✓
+             partiya jadvali: kust pushti 20/45 · 25 dona yetmaydi | prut oq 105/50 ✓
+             Saqlash o'chiq + SABAB ko'rinadi (jimgina o'chmaydi) ✓
+TO'G'RI    : jadval 105/95 + 20/0 ✓ «Bu amal qaytmaydi …» ✓ Saqlash yonadi ✓
+TARIX      : hujjat ochildi ✓ buzilgan / skladdan / yangi ustunlari ✓
+             allocated_cost 578 947 + haq 78 947 ✓ Yo'qotish 5 dona · 50 000 ✓
+```
+
+### ⚠️ Yo'l-yo'lakay topilgan nosozlik: partiya jadvali 2px chiziqqa siqilgan edi
+
+Drawer tanasi `flex flex-col`; `overflow-hidden` bo'lgan bolaning avtomatik minimal
+o'lchami 0 ga tushadi, shuning uchun jadval SIQILIB ketardi — sabab matni ko'rinsa ham
+QAYSI partiya yetmayotgani ko'rinmasdi. `shrink-0` qo'shildi (skrinshotda tutildi,
+DOM balandligi 2px → 97px).
+
+## LIST 1 — RESTAVRATSIYA bloki (⚠️ HAMMASI IRREVERSIBLE)
+
+⚠️ **BEKOR QILISH YO'Q** — OpenAPI'da `{id}/` faqat GET (yuqorida). Quyidagilarni
+BAJARSANGIZ, ortga qaytarish yo'li YO'Q: buzilgan katalog tiklanmaydi, sklad qaytmaydi,
+yasalgan kataloglarni faqat qo'lda o'chirish mumkin. Sinov uchun ARZON katalog tanlang.
+
+RW1. **⚠️ QISMAN BUZISH (asosiy holat). IRREV.** `quantity_total: 3` bo'lgan katalogni
+     toping (yoki yarating). Kartochkadagi ♻ → forma o'sha itemni manba qilib ochadi.
+     Soni **1**. Skladdan 1 partiya, aniq dona qo'shing. Bitta chiqim: nom, narx,
+     tarkib. Florist + haq. Saqlang. Keyin tekshiring:
+     - kartochkada **«Restavratsiyada: 1»** va **«Qoldiq: 1»** (3 − 1 sotilgan − 1 buzilgan)
+     - «N TA QOLDI» yorlig'i ham **1** ni ko'rsatadi (2 EMAS)
+     - katalog **`available` holicha** qoladi
+RW2. **Sklad FAQAT qo'shimchaga kamayadi. READ (RW1 dan keyin).** Sklad → o'sha partiya →
+     harakatlar. **Faqat bitta** chiqim yozuvi bo'lsin — siz qo'shgan dona.
+     Buzilgan katalogning guli uchun harakat **BO'LMASLIGI** kerak.
+     Yozuvda «Restavratsiya» yorlig'i ko'rinsin (`reference_type: catalog_rework`).
+RW3. **Yangi mahsulot QAYTA yechilmaydi. READ.** Yasalgan katalogni oching — «Sklad holati:
+     To'liq yechilgan — qayta yechilmaydi». Agar biror joyda «Skladdan yechish» tugmasi
+     ko'rinsa — bu NOSOZLIK, ayting (backend 400 qaytaradi).
+RW4. **Florist oyligi. READ.** Hisob-kitob → oylik → manba filtri **«Restavratsiya»**.
+     Yozuv summasi siz kiritgan haqqa TENG bo'lsin.
+RW5. **⚠️ HAQSIZ RESTAVRATSIYA. IRREV.** Haqni **bo'sh** qoldirib saqlang → oylikda
+     yangi yozuv **PAYDO BO'LMASLIGI** kerak (`florist_amount: 0`).
+RW6. **Partiya yetishmovchiligi. READ (saqlamaysiz).** Chiqim tarkibida biror partiyadan
+     mavjuddan KO'P so'rang → qizil jadval «mavjud / kerak» va Saqlash o'chadi, sabab
+     ko'rinadi. **Saqlamang** — shu yerda to'xtang.
+RW7. **Chiqim kirimdan ko'p. READ (saqlamaysiz).** Umumiy chiqimni kirimdan oshiring →
+     «Yangi mahsulotlardagi gul soni kirimdan ko'p bo'lmasligi kerak».
+RW8. **⚠️ HAMMASINI BUZISH. IRREV — eng oxirida.** `quantity_total` ning HAMMASINI buzing →
+     katalog `archived` (avval sotilgan bo'lsa `sold`) bo'lishi va sotuvda
+     KO'RINMASLIGI kerak.
+RW9. **Tarix. READ.** Katalog → «Restavratsiya» tabi → hujjatni oching: buzilgan / skladdan /
+     yangi ustunlari, `allocated_cost` va har mahsulotdagi haq ulushi, **Yo'qotish**
+     ko'zga tashlansin. Florist filtri va tartiblar ishlasin.
+
+## LIST 2 — append
+
+ww. ⚠️ **Restavratsiya yo'qotishi chiqit hisobotiga KIRMAYDI (§0e).** `waste_stems`/
+   `waste_cost` hujjat ichida qoladi, sklad chiqit harakati yaratilmaydi — demak
+   Hisob-kitobdagi «Chiqit» bu zararni KO'RMAYDI. SETTLE: (1) backend restavratsiya
+   yo'qotishini alohida jamida bersinmi (`accounting.rework_waste_cost`), yoki
+   (2) frontend `/api/catalog-reworks/` ni o'zi yig'ib **alohida** qator chizsinmi?
+   Sklad chiqitiga QO'SHILMASLIGI kerak — aks holda bir zarar ikki marta sanaladi.
+xx. **Kutayotgan florist katalogi manba bo'la oladimi?** Chiqim yopilmagan katalogda
+   `composition[].quantity_stems = 0` — ya'ni u restavratsiyaga 0 dona beradi. Backend
+   uni manba sifatida QABUL QILADIMI (keyin «gul yetmayapti» beradi), yoki darhol
+   rad etadimi? Bugun jonli bazada bunday item YO'Q, shuning uchun tekshirib bo'lmadi.
+   Frontend hozir uni ro'yxatdan chiqarmaydi (qoldig'i bor bo'lsa ko'rinadi).
+yy. **Eski `restore-flowers` qoladimi?** Spec «yangi ishlarda catalog-reworks ishlatilsin»
+   deydi, lekin endpoint saqlangan. UI'da ikkalasi ham bor: yangisi «Restavratsiya»,
+   eskisi «So'lgan gulni almashtirish» deb QAYTA NOMLANDI (ilgari ikkalasi ham
+   «Restavratsiya» edi — chalkash). SETTLE: eskisi qachon o'chiriladi?

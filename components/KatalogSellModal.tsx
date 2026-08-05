@@ -14,6 +14,7 @@ import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
 import { paymentProgress } from "@/lib/reservation";
+import { catalogRemaining } from "@/lib/rework";
 import { withTashkentOffset, todayTashkent } from "@/lib/backdate";
 import type { CatalogItem, FloristProfile, Packaging, PaymentType, Reservation } from "@/lib/types";
 
@@ -58,8 +59,9 @@ export default function KatalogSellModal({
 }) {
   const showToast = useStore((s) => s.showToast);
   const total = item.quantity_total ?? 1;
-  const sold = item.quantity_sold ?? (item.status === "sold" ? total : 0);
-  const left = Math.max(total - sold, 0) || 1;
+  // ⚠️ QOLDIQ — YAGONA manba (sotilgan + chiqit + RESTAVRATSIYA ayriladi).
+  // Ilgari faqat total − sold edi: buzilgan buketni sotishga urinish mumkin edi.
+  const left = Math.max(catalogRemaining(item), 0) || 1;
   const listPrice = Math.round(+item.price || 0);
 
   const [qty, setQty] = useState(1);

@@ -1,5 +1,5 @@
 "use client";
-import { Info, Pencil, Plus, Send, Sparkles, Trash2, User, X } from "lucide-react";
+import { Info, Pencil, Plus, Recycle, Send, Sparkles, Trash2, User, X } from "lucide-react";
 import clsx from "clsx";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
@@ -13,6 +13,7 @@ import { useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import { catalogWaiting, compareCatalogNewestFirst } from "@/lib/inventory";
+import { catalogRemaining } from "@/lib/rework";
 import { catalogHasCostData } from "@/lib/branch";
 import { CATALOG_STATUS_LABEL, ARRANGEMENT_LABEL } from "@/components/badges";
 import KatalogModal from "@/components/KatalogModal";
@@ -23,6 +24,8 @@ import CatalogRestoreDrawer from "@/components/CatalogRestoreDrawer";
 import { usePerm } from "@/lib/store";
 import { isBranchUser } from "@/lib/branch";
 import CatalogSalesTab from "@/components/CatalogSalesTab";
+import RestavratsiyaTab from "@/components/RestavratsiyaTab";
+import RestavratsiyaModal from "@/components/RestavratsiyaModal";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 
 /** Florist ismi (user_detail'dan) — bo'lmasa bo'sh */
@@ -91,12 +94,15 @@ export default function KatalogPage() {
   // HOLAT KO'RINISHI — KLIENT filtri (Sotuvda default). Sotilgan/arxiv/soni-to'lgan sukut YASHIRINADI.
   // URL ?status= da saqlanadi (ulashiladi + refresh'dan omon qoladi). Server hammasini qaytaradi.
   const [statusView, setStatusView] = useState<StatusView>("sotuvda");
-  // ⚠️ ?tab= konvensiyasi — «Katalog» SUKUT, «Sotuvlar» ikkinchi tab
-  const [tab, setTab] = useState<"katalog" | "sotuvlar">("katalog");
+  // ⚠️ ?tab= konvensiyasi — «Katalog» SUKUT, «Sotuvlar» va «Restavratsiya» qo'shimcha
+  const [tab, setTab] = useState<"katalog" | "sotuvlar" | "restavratsiya">("katalog");
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (new URLSearchParams(window.location.search).get("tab") === "sotuvlar") setTab("sotuvlar");
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t === "sotuvlar" || t === "restavratsiya") setTab(t);
   }, []);
+  // RESTAVRATSIYA formasi — `source` bo'lsa o'sha katalog manba sifatida oldindan qo'yiladi
+  const [reworkOpen, setReworkOpen] = useState<{ source: CatalogItem | null } | null>(null);
   // florist va katalog turi — SERVER filtrlari (?florist= va ?catalog_kind= mavjud)
   const [floristFilter, setFloristFilter] = useState("");
   const [decorationFilter, setDecorationFilter] = useState("");
@@ -259,13 +265,15 @@ export default function KatalogPage() {
 
   const tabBar = (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      {([["katalog", "Katalog"], ["sotuvlar", "Sotuvlar"]] as const).map(([k, lab]) => (
+      {([["katalog", "Katalog"], ["sotuvlar", "Sotuvlar"], ["restavratsiya", "Restavratsiya"]] as const).map(([k, lab]) => (
         <button key={k} type="button" aria-pressed={tab === k}
           onClick={() => {
             setTab(k);
             if (typeof window !== "undefined") {
               const u = new URL(window.location.href);
-              k === "sotuvlar" ? u.searchParams.set("tab", "sotuvlar") : u.searchParams.delete("tab");
+              if (k === "katalog") u.searchParams.delete("tab"); else u.searchParams.set("tab", k);
+              // boshqa tabning filtrlari yangi tabda MA'NOSIZ — qoldirilsa jimgina qo'llanardi
+              for (const x of ["florist", "ordering", "page"]) u.searchParams.delete(x);
               window.history.replaceState(null, "", u);
             }
           }}
@@ -277,11 +285,28 @@ export default function KatalogPage() {
     </div>
   );
 
+  const openItemById = (id: number) => {
+    api.catalogItem(id).then((it) => { setTab("katalog"); setViewItem(it); }).catch(() => showToast("Katalog yozuvi topilmadi"));
+  };
+
   if (tab === "sotuvlar") {
     return (
       <>
         {tabBar}
-        <CatalogSalesTab branchUser={branchUser} onOpenItem={(id) => { api.catalogItem(id).then((it) => { setTab("katalog"); setViewItem(it); }).catch(() => showToast("Katalog yozuvi topilmadi")); }} />
+        <CatalogSalesTab branchUser={branchUser} onOpenItem={openItemById} />
+      </>
+    );
+  }
+
+  if (tab === "restavratsiya") {
+    return (
+      <>
+        {tabBar}
+        <RestavratsiyaTab onOpenItem={openItemById} />
+        {reworkOpen && (
+          <RestavratsiyaModal source={reworkOpen.source} onClose={() => setReworkOpen(null)}
+            onSaved={() => { setReworkOpen(null); load(); notifyReportDataChanged(); }} />
+        )}
       </>
     );
   }
@@ -338,6 +363,12 @@ export default function KatalogPage() {
             <Plus size={18} strokeWidth={1.75} /> Katalogga qo&apos;shish
           </button>
         )}
+        {/* RESTAVRATSIYA — manbasiz (bo'sh forma). Ruxsat: `catalog` can_control. */}
+        {control && (
+          <button onClick={() => setReworkOpen({ source: null })} className="!flex-none rounded-[13px] border px-4 py-2.5 text-[14px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
+            <Recycle size={17} strokeWidth={1.75} className="mr-1.5 inline" /> Restavratsiya
+          </button>
+        )}
       </div>
 
       {customerFilter && (
@@ -356,7 +387,8 @@ export default function KatalogPage() {
           const sold = k.quantity_sold ?? (k.status === "sold" ? total : 0);
           const dedu = k.quantity_stock_deducted ?? (k.stock_deducted_at ? sold : 0);
           const pending = Math.max(sold - dedu, 0);
-          const left = Math.max(total - sold, 0);
+          // ⚠️ QOLDIQ — YAGONA manba: sotilgan + chiqit + RESTAVRATSIYA ayriladi.
+          const left = catalogRemaining(k);
           const sellable = left > 0 && (k.status === "available" || k.status === "reserved" || k.status === "draft");
           // sotilgan/arxiv item ko'rsatilganda MUTED — sotuvdagi tovar bilan chalkashmasin (status chip qoladi)
           const dimmed = isSold(k) || isArchived(k);
@@ -374,8 +406,14 @@ export default function KatalogPage() {
                 {/* tahrirlash / o'chirish / filialga yuborish — rasm ustida, hover'da */}
                 {control && (
                   <span className="absolute bottom-2.5 right-2.5 flex items-center gap-1 rounded-[11px] p-1 opacity-0 backdrop-blur-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" style={{ background: "color-mix(in srgb, var(--surface-solid) 82%, transparent)" }}>
+                    {/* RESTAVRATSIYA — qoldig'i bor mahsulotni buzib yangisini yasash */}
+                    {catalogRemaining(k) > 0 && (
+                      <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setReworkOpen({ source: k }); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setReworkOpen({ source: k }); } }} title="Restavratsiya — buzib yangi mahsulot yasash" aria-label={`${k.name_uz || k.name_ru} — restavratsiya`} className="icon-btn !h-7 !w-7">
+                        <Recycle size={13} strokeWidth={1.9} />
+                      </span>
+                    )}
                     {/* Filialga yuborish — FAQAT asosiy filial admini, sotilmagan qismi bor bo'lsa */}
-                    {mainUser && ((k.quantity_total ?? 1) - (k.quantity_sold ?? 0)) > 0 && (
+                    {mainUser && catalogRemaining(k) > 0 && (
                       <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setTransferItem(k); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setTransferItem(k); } }} title="Filialga yuborish" aria-label={`${k.name_uz || k.name_ru} — filialga yuborish`} className="icon-btn !h-7 !w-7">
                         <Send size={13} strokeWidth={1.9} />
                       </span>
@@ -479,6 +517,14 @@ export default function KatalogPage() {
                     <span className="rounded-full bg-mint px-2.5 py-0.5 text-mintink">Qoldiq: {left}</span>
                     <span className="rounded-full bg-tint px-2.5 py-0.5">Jami: {total}</span>
                     <span className="rounded-full bg-tint px-2.5 py-0.5">Sotildi: {sold}</span>
+                    {/* ⚠️ RESTAVRATSIYADA — buzilgan donalar sotuvda KO'RINMAYDI (spec kartochka qatori) */}
+                    {(k.quantity_reworked ?? 0) > 0 && (
+                      <span className="rounded-full px-2.5 py-0.5" style={{ background: "color-mix(in srgb, var(--acc) 15%, transparent)", color: "var(--acc)" }}
+                        title="Restavratsiyada buzilgan — sotuvda ko'rinmaydi">Restavratsiyada: {k.quantity_reworked}</span>
+                    )}
+                    {(k.quantity_wasted ?? 0) > 0 && (
+                      <span className="rounded-full px-2.5 py-0.5" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>Chiqit: {k.quantity_wasted}</span>
+                    )}
                     {pending > 0 && <span className="rounded-full bg-peach px-2.5 py-0.5 text-peachink">Kutilmoqda: {pending}</span>}
                     {/* chegirmada sotilgan — ⚠️ FILIALGA yashiriladi (komponent narxidan hisoblanadi, tannarxni oshkor qiladi) */}
                     {catalogHasCostData(k) && +(k.discount_amount ?? 0) > 0 && (
@@ -552,8 +598,9 @@ export default function KatalogPage() {
           onClose={() => setViewItem(null)}
           onEdit={control ? () => { setEditItem(viewItem); setViewItem(null); } : undefined}
           onDelete={control ? () => setConfirmDel(viewItem) : undefined}
-          onTransfer={mainUser && control && ((viewItem.quantity_total ?? 1) - (viewItem.quantity_sold ?? 0)) > 0 ? () => { setTransferItem(viewItem); setViewItem(null); } : undefined}
+          onTransfer={mainUser && control && catalogRemaining(viewItem) > 0 ? () => { setTransferItem(viewItem); setViewItem(null); } : undefined}
           onRestore={control ? () => { setRestoreItem(viewItem); setViewItem(null); } : undefined}
+          onRework={control ? () => { setReworkOpen({ source: viewItem }); setViewItem(null); } : undefined}
         />
       )}
 
@@ -568,6 +615,14 @@ export default function KatalogPage() {
             try { const fresh = await api.catalogItem(upd.id); patchItem(fresh); setViewItem(fresh); } catch { setViewItem(upd); }
             notifyReportDataChanged(); loadNotifs(); load();
           }}
+        />
+      )}
+
+      {reworkOpen && (
+        <RestavratsiyaModal
+          source={reworkOpen.source}
+          onClose={() => setReworkOpen(null)}
+          onSaved={() => { setReworkOpen(null); load(); notifyReportDataChanged(); }}
         />
       )}
 

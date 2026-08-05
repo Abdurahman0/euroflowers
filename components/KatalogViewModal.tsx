@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send, Info, Recycle } from "lucide-react";
+import { ArrowLeftRight, Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send, Info, Recycle } from "lucide-react";
 import Modal from "./Modal";
 import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
 import { KIND_LABEL, catalogWaiting } from "@/lib/inventory";
+import { catalogRemaining, catalogCountsLabel, stockAlreadyDeducted } from "@/lib/rework";
 import { catalogHasCostData } from "@/lib/branch";
 import { api } from "@/lib/api";
 import FreeBatchChip from "./FreeBatchChip";
@@ -39,6 +40,7 @@ export default function KatalogViewModal({
   onDelete,
   onTransfer,
   onRestore,
+  onRework,
 }: {
   item: CatalogItem;
   onClose: () => void;
@@ -48,6 +50,8 @@ export default function KatalogViewModal({
   onTransfer?: () => void;
   /** §3 restavratsiya — tarkibdagi so'lgan gulni almashtirish (tarkib bor bo'lsa) */
   onRestore?: () => void;
+  /** ⚠️ YANGI restavratsiya (catalog-reworks) — buzib yangi mahsulot yasash */
+  onRework?: () => void;
 }) {
   // ro'yxat javobida `history` bo'lmasligi mumkin — batafsil ochilganda o'qiymiz
   const [full, setFull] = useState<CatalogItem>(item);
@@ -63,7 +67,8 @@ export default function KatalogViewModal({
   const sold = full.quantity_sold ?? (full.status === "sold" ? total : 0);
   const dedu = full.quantity_stock_deducted ?? (full.stock_deducted_at ? sold : 0);
   const pending = Math.max(sold - dedu, 0);
-  const left = Math.max(total - sold, 0);
+  // ⚠️ QOLDIQ — chiqit va RESTAVRATSIYA ham ayriladi (lib/rework)
+  const left = catalogRemaining(full);
   const discount = Math.round(+(full.discount_amount ?? 0) || 0);
   const salary = Math.round(+(full.florist_salary_amount ?? 0) || 0);
   // ⚠️ FILIAL narx yashirish: tannarx/foyda/florist bloklari MA'LUMOTdan aniqlanadi (profit bor-yo'q).
@@ -145,6 +150,8 @@ export default function KatalogViewModal({
       {/* soni ko'rsatkichlari */}
       <div className="mt-3.5 flex flex-wrap gap-1.5 text-[11.5px] font-bold">
         <span className="rounded-full bg-mint px-2.5 py-0.5 text-mintink">Qoldiq: {left}</span>
+        {/* ⚠️ SPEC qatori — «Jami 3 · Sotildi 1 · Restavratsiyada 1 · Qoldi 1» AYNAN shu ko'rinishda */}
+        <span className="w-full text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>{catalogCountsLabel(full)}</span>
         <span className="rounded-full bg-tint px-2.5 py-0.5">Jami: {total}</span>
         <span className="rounded-full bg-tint px-2.5 py-0.5">Sotildi: {sold}</span>
         {pending > 0 && <span className="rounded-full bg-peach px-2.5 py-0.5 text-peachink">Chiqim kutilmoqda: {pending}</span>}
@@ -188,6 +195,10 @@ export default function KatalogViewModal({
         <Row k="Qo'shilgan" v={fmtTime(full.created_at)} />
         {full.sold_at && <Row k="Sotilgan" v={fmtTime(full.sold_at)} />}
         {full.stock_deducted_at && <Row k="Skladdan yechilgan" v={fmtTime(full.stock_deducted_at)} />}
+        {/* ⚠️ §0b: TO'LIQ yechilgan (masalan restavratsiya chiqimi — u `quantity_stock_deducted =
+            quantity_total` bilan tug'iladi). «Skladdan yechish» amali BO'LSA, shu shart bo'yicha
+            yashirilishi shart: bosilsa backend 400 qaytaradi. Hozircha bunday tugma YO'Q. */}
+        {stockAlreadyDeducted(full) && <Row k="Sklad holati" v="To'liq yechilgan — qayta yechilmaydi" />}
       </div>
 
       {/* tarkib — qaysi partiyadan nechta gul */}
@@ -325,16 +336,28 @@ export default function KatalogViewModal({
         </a>
       )}
 
-      {(onEdit || onDelete || onTransfer || onRestore) && (
+      {(onEdit || onDelete || onTransfer || onRestore || onRework) && (
         <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--border)] pt-4">
-          {onRestore && full.composition?.length ? (
+          {/* RESTAVRATSIYA — buzib yangi mahsulot yasash (qoldig'i borida) */}
+          {onRework && left > 0 ? (
             <button
               type="button"
-              onClick={onRestore}
+              onClick={onRework}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--primary)]"
               style={{ color: "var(--primary)" }}
             >
               <Recycle size={14} strokeWidth={1.9} /> Restavratsiya
+            </button>
+          ) : null}
+          {/* ESKI `restore-flowers` — FAQAT bitta gulni almashtiradi, florist haqini yozmaydi */}
+          {onRestore && full.composition?.length ? (
+            <button
+              type="button"
+              onClick={onRestore}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--acc)]"
+              style={{ color: "var(--text-2)" }}
+            >
+              <ArrowLeftRight size={14} strokeWidth={1.9} /> So&apos;lgan gulni almashtirish
             </button>
           ) : null}
           {onTransfer && (

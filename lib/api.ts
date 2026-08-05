@@ -7,7 +7,7 @@ import type {
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   Reservation, ReservationInput, ReservationPayment, ReservationPaymentInput, CatalogRestoreFlowersInput, FloristStockBulkIssueInput,
-  CatalogSalesPage, CatalogSalesList, SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
+  CatalogSalesPage, CatalogSalesList, CatalogRework, SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
 import { dashboardDateTo, accountingDateTo } from "./format";
 
@@ -408,6 +408,14 @@ export const api = {
 
   customers: (p?: Params) => list<Customer>("/api/customers/", p),
   customer: (id: number) => request<Customer>(`/api/customers/${id}/`),
+
+  /* ===== RESTAVRATSIYA (ruxsat: `catalog`; GET can_view, POST can_control) ===== */
+  /** ⚠️ Filtr: ?florist= · ?search= · ?ordering=(-created_at | florist_amount | input_stems | output_stems) */
+  catalogReworks: (p?: Params) => request<Paginated<CatalogRework>>(`/api/catalog-reworks/${qs(p)}`),
+  catalogRework: (id: number) => request<CatalogRework>(`/api/catalog-reworks/${id}/`),
+  /** ⚠️ QAYTMAS — OpenAPI'da `{id}/` faqat GET beradi, bekor qilish yo'li YO'Q. */
+  createCatalogRework: (data: Record<string, unknown>) =>
+    request<CatalogRework>("/api/catalog-reworks/", { method: "POST", body: JSON.stringify(data) }),
 
   /* ===== RASXODLAR (ruxsat: `expenses`) ===== */
   expenses: (p?: Params, signal?: AbortSignal) => request<Paginated<Expense>>(`/api/expenses/${qs(p)}`, { signal }),

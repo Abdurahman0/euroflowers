@@ -1,3 +1,4 @@
+import { enumLabel } from "./enumLabel";
 import type { ArrangementType, BatchUsage, CatalogKind, CatalogVolume, FloristStockIssueKind, FloristVolumeRate, MovementType, PackagingType, RoundingSide, SalarySource, StaffType, StockBatch, StockDelivery, VolumeRateInput } from "./types";
 
 /**
@@ -696,14 +697,25 @@ export const SALARY_SOURCE_LABEL: Record<SalarySource, string> = {
   decoration: "Oformleniya",
   sale_decoration: "Sotuv oformleniyasi",
   daily: "Kunlik",
+  // ⚠️ RESTAVRATSIYA — florist buzib-yasagani uchun haq (qo'lda kiritiladi)
+  rework: "Restavratsiya",
   manual: "Qo'lda",
 };
+/** ⚠️ NOMA'LUM manba — xom `snake_case` o'rniga o'qiladigan matn + konsol ogohlantirishi
+    (backend enum'i o'sganda sezmay qolmaslik uchun; §0c). */
+export const salarySourceLabel = (source: string | null | undefined): string =>
+  enumLabel(SALARY_SOURCE_LABEL, source, "florist oylik manbasi (source)");
+
+export const salarySourceHue = (source: string | null | undefined): string =>
+  (source && SALARY_SOURCE_HUE[source as SalarySource]) || "var(--muted)";
+
 export const SALARY_SOURCE_HUE: Record<SalarySource, string> = {
   catalog: "var(--primary)",
   custom_catalog: "#6a6ac2",
   decoration: "var(--acc)",
   sale_decoration: "#c27ba0",
   daily: "#b3873a",
+  rework: "var(--acc)",
   manual: "#8a8a8a",
 };
 

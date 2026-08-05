@@ -1,3 +1,4 @@
+import { enumLabel } from "./enumLabel";
 export const fmt = (n: number | string | null | undefined): string => {
   if (n == null || n === "") return "—";
   const num = typeof n === "string" ? parseFloat(n) : n;
@@ -132,10 +133,16 @@ export const MOVEMENT_REF_LABEL: Record<string, string> = {
   florist_return: "Floristdan qaytdi",
   florist_waste: "Florist qo'lida chiqit",
   catalog_item: "Katalog",
+  // ⚠️ RESTAVRATSIYA — skladdan QO'SHIMCHA olingan gul (buzilgan katalog guli uchun
+  // harakat YARATILMAYDI — u allaqachon hisobdan chiqqan).
+  catalog_rework: "Restavratsiya",
   lead: "Buyurtma",
 };
+/** ⚠️ NOMA'LUM `reference_type` — ilgari JIMGINA `null` qaytarardi va yangi tur
+    (masalan `catalog_rework`) jurnalda ko'rinmay qolardi. Endi o'qiladigan yorliq
+    beriladi va konsol BIR MARTA ogohlantiradi (§0d). */
 export const movementRefLabel = (referenceType?: string | null): string | null =>
-  referenceType ? MOVEMENT_REF_LABEL[referenceType] ?? null : null;
+  referenceType ? enumLabel(MOVEMENT_REF_LABEL, referenceType, "sklad harakati manbasi (reference_type)") : null;
 
 /** created_at date filtri: bugun / 7 kun / 30 kun. */
 export const inDateFilter = (iso: string, filter: "bugun" | "hafta" | "oy"): boolean => {

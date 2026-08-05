@@ -1,5 +1,5 @@
 import { exportWorkbook, exportName, type SheetCol } from "./xlsx";
-import { SALARY_SOURCE_LABEL, KIND_LABEL, VOLUME_LABEL } from "./inventory";
+import { salarySourceLabel, KIND_LABEL, VOLUME_LABEL } from "./inventory";
 import type { Accounting, FloristProfile, FloristSalaryEntry, SalarySource } from "./types";
 
 /**
@@ -29,7 +29,7 @@ export async function exportFloristOwn(entries: FloristSalaryEntry[], name: stri
     const c = cat(e);
     return {
       date: e.work_date || (e.created_at ?? "").slice(0, 10),
-      source: SALARY_SOURCE_LABEL[e.source] ?? e.source,
+      source: salarySourceLabel(e.source),
       catalog: (c.name_uz as string) || (c.name_ru as string) || "",
       arr: ARR_LABEL[(c.arrangement_type as string) ?? ""] ?? "",
       volume: VOLUME_LABEL[(c.volume as never)] ?? "",
@@ -80,7 +80,7 @@ export async function exportAllFlorists(entries: FloristSalaryEntry[], florists:
     return {
       florist: floristName(e.florist_detail) || `#${e.florist ?? ""}`,
       date: e.work_date || (e.created_at ?? "").slice(0, 10),
-      source: SALARY_SOURCE_LABEL[e.source] ?? e.source,
+      source: salarySourceLabel(e.source),
       catalog: (c.name_uz as string) || (c.name_ru as string) || "",
       arr: ARR_LABEL[(c.arrangement_type as string) ?? ""] ?? "",
       volume: VOLUME_LABEL[(c.volume as never)] ?? "",

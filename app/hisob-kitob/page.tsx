@@ -9,7 +9,7 @@ import { accountingCached, stockBatchesCached, invalidateReportCache, notifyRepo
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtDate, dateAfterParam, dateBeforeParam } from "@/lib/format";
-import { KIND_LABEL, VOLUME_LABEL, SALARY_SOURCE_LABEL } from "@/lib/inventory";
+import { KIND_LABEL, VOLUME_LABEL, salarySourceLabel } from "@/lib/inventory";
 import { ARRANGEMENT_LABEL } from "@/components/badges";
 import { num, saleProfit, profitTone, wasteTotals, costBreakdown, saleLineAllocations, excludeTest } from "@/lib/finance";
 import { PAYMENT_METHOD_LABEL } from "@/lib/reservation";
@@ -855,7 +855,7 @@ export default function HisobKitobPage() {
                           <div className="flex flex-col gap-1">
                             {(salaryByFlo.get(r.id) ?? []).map((e) => (
                               <div key={e.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5" style={{ background: "var(--surface-2)" }}>
-                                <span>{fmtDate(e.work_date)} · {SALARY_SOURCE_LABEL[e.source] ?? e.source}{e.catalog_item_detail?.name_uz ? ` · ${e.catalog_item_detail.name_uz}` : ""}</span>
+                                <span>{fmtDate(e.work_date)} · {salarySourceLabel(e.source)}{e.catalog_item_detail?.name_uz ? ` · ${e.catalog_item_detail.name_uz}` : ""}</span>
                                 <span className="shrink-0 tabular-nums font-semibold">{fmt(e.amount)}</span>
                               </div>
                             ))}

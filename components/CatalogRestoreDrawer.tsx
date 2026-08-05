@@ -59,22 +59,25 @@ export default function CatalogRestoreDrawer({ item, onClose, onDone }: { item: 
     setBusy(true); setErr(null);
     try {
       const updated = await api.restoreCatalogFlowers(item.id, { florist, old_batch: oldBatch, new_batch: newBatch, quantity_stems: n, reason: reason.trim() || undefined });
-      showToast("✓ Restavratsiya bajarildi");
+      showToast("✓ Gul almashtirildi");
       onDone(updated);
     } catch (e) {
       const d = e instanceof ApiError && e.body && typeof e.body === "object" && "detail" in e.body ? String((e.body as { detail: unknown }).detail) : null;
-      setErr(d || (e instanceof ApiError ? e.message : "Restavratsiya bajarilmadi"));
+      setErr(d || (e instanceof ApiError ? e.message : "Gulni almashtirib bo'lmadi"));
       showToast(e instanceof ApiError ? e.message : "Bajarib bo'lmadi");
       setBusy(false);
     }
   };
 
   return (
-    <Drawer onClose={onClose} width={480} title="Restavratsiya" sub={item.name_uz || item.name_ru}>
+    <Drawer onClose={onClose} width={480} title="So'lgan gulni almashtirish" sub={item.name_uz || item.name_ru}>
       <div className="flex flex-col gap-4">
         <p className="flex items-start gap-1.5 rounded-[12px] px-3.5 py-2.5 text-[12.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
           <Recycle size={15} className="mt-px shrink-0" style={{ color: "var(--primary)" }} />
           So&apos;lgan gulni yangisiga almashtiring. Eski gul chiqitga, yangi gul skladdan floristga o&apos;tadi.
+          {/* ⚠️ Bu — ESKI `restore-flowers`: BITTA gulni almashtiradi va florist haqini YOZMAYDI.
+              Buketni butunlay buzib yangi mahsulot yasash uchun «Restavratsiya» (catalog-reworks). */}
+          <b> Butun buketni buzib yangisini yasash uchun «Restavratsiya» amalidan foydalaning.</b>
         </p>
 
         <div><Lbl>Florist</Lbl><Select value={florist ? String(florist) : ""} onChange={(v) => setFlorist(+v)} options={[{ value: "", label: "Floristni tanlang" }, ...florists.map((f) => ({ value: String(f.id), label: floristName(f) }))]} /></div>
