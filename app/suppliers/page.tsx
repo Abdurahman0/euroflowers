@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Phone, Plus, Trash2, Truck } from "lucide-react";
 import { api } from "@/lib/api";
@@ -50,6 +50,20 @@ export default function SuppliersPage() {
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load);
+
+  // ⚠️ CHUQUR HAVOLA — `?supplier=<id>` bo'lsa tafsilot QAYTA OCHILADI. Bu bo'lmasa
+  // `?date_from=/?date_to=` URL'da qolib, yangilagandan keyin hech qayerga qo'llanmasdi
+  // (oraliq «saqlangandek» ko'rinib, aslida yo'qolardi).
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || !rows || typeof window === "undefined") return;
+    const id = Number(new URLSearchParams(window.location.search).get("supplier"));
+    if (!id) return;
+    opened.current = true;
+    const hit = rows.find((r) => r.id === id);
+    if (hit) setDetail(hit);
+    else api.supplier(id).then(setDetail).catch(() => showToast("Yetkazib beruvchi topilmadi"));
+  }, [rows, showToast]);
 
   const doDelete = async () => {
     if (!confirmDel) return;
@@ -160,7 +174,14 @@ export default function SuppliersPage() {
       {detail && (
         <SupplierDetail
           supplier={detail}
-          onClose={() => setDetail(null)}
+          onClose={() => {
+            setDetail(null);
+            if (typeof window !== "undefined") {
+              const u = new URL(window.location.href);
+              for (const k of ["supplier", "date_from", "date_to"]) u.searchParams.delete(k);
+              window.history.replaceState(null, "", u);
+            }
+          }}
           onEdit={control ? () => { setForm({ open: true, edit: detail }); setDetail(null); } : undefined}
           onOpenBatch={(bch) => { setDetail(null); router.push(`/sklad?tab=partiyalar&batch=${bch.id}`); }}
         />

@@ -1,14 +1,19 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Package, Truck } from "lucide-react";
+import { CalendarRange, Package, Truck, Wallet } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import StemGauge from "./StemGauge";
-import { fmtDate } from "@/lib/format";
+import { fmt, fmtDate, fmtLocalDate } from "@/lib/format";
 import { stems, freshness, MOVEMENT_LABEL, DELIVERY, compareBatchNewestFirst, isFreeBatch } from "@/lib/inventory";
 import FreeBatchChip from "./FreeBatchChip";
-import type { MovementType, StockBatch, StockMovement, Supplier } from "@/lib/types";
+import DatePicker from "./DatePicker";
+import {
+  EMPTY_RANGE, createdAtQuery, hasRange, inDateRange, rangeLabel, rangeToParams, readRange,
+  type DateRange,
+} from "@/lib/supplierRange";
+import type { MovementType, StockBatch, StockMovement, Supplier, SupplierPayment } from "@/lib/types";
 
 /** Yetkazib beruvchi — yaratish/tahrirlash (o'ng drawer). */
 export function SupplierForm({ supplier, onClose, onSaved }: { supplier: Supplier | null; onClose: () => void; onSaved: (s: Supplier) => void }) {
@@ -69,22 +74,69 @@ const StatChip = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-/** Yetkazib beruvchi tafsiloti — statistika + 2 tab (Partiyalar / Harakatlar). */
+/**
+ * Yetkazib beruvchi tafsiloti — sana oralig'i + 3 tab (Partiyalar / Harakatlar / To'lovlar).
+ *
+ * ⚠️ IKKI XIL DAVR BIR EKRANDA — ADASHTIRMASLIK SHART:
+ *   • YUQORIDAGI JAMILAR (`batches_count`, `total_received_stems`, `purchase_total`,
+ *     `paid_total`) — `/api/suppliers/` da HECH QANDAY sana parametri YO'Q (jonli
+ *     OpenAPI: is_active, ordering, page, page_size, search, supplier_type). Ular
+ *     BUTUN DAVR raqamlari va shunday YOZIB QO'YILGAN.
+ *   • PASTDAGI RO'YXATLAR — tanlangan oraliq bo'yicha, sarlavhada davr ko'rsatiladi.
+ * Ikkalasi bir xil davrni tasvirlayotgandek ko'rinmasligi uchun har biri O'Z yorlig'i
+ * bilan chiqadi (talab §3).
+ *
+ * Filtr qayerda bajariladi (jonli auditga qarang: lib/supplierRange.ts):
+ *   Harakatlar → SERVERDA (`created_at_after/_before` — ekranda ham `created_at`).
+ *   Partiyalar/Yuklar → KLIENTDA `received_at` bo'yicha; serverda bu maydon uchun
+ *     oraliq filtri YO'Q, `created_at` esa BOSHQA kun (bir kun farq jonli topilgan).
+ *   To'lovlar → KLIENTDA `paid_at` bo'yicha; serverda faqat ANIQ kun (`paid_at=`).
+ */
 export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { supplier: Supplier; onClose: () => void; onEdit?: () => void; onOpenBatch?: (b: StockBatch) => void }) {
-  const [tab, setTab] = useState<"batches" | "moves">("batches");
+  const [tab, setTab] = useState<"batches" | "moves" | "payments">("batches");
   const [batches, setBatches] = useState<StockBatch[] | null>(null);
   const [moves, setMoves] = useState<StockMovement[] | null>(null);
+  const [payments, setPayments] = useState<SupplierPayment[] | null>(null);
+  // ⚠️ URL'dan boshlang'ich oraliq — ulashilgan havola/yangilash oralig'ni SAQLAYDI
+  const [range, setRange] = useState<DateRange>(() => (typeof window === "undefined" ? EMPTY_RANGE : readRange(window.location.search)));
+  const filtered = hasRange(range);
+  const setFrom = (v: string) => setRange((r) => ({ ...r, from: v }));
+  const setTo = (v: string) => setRange((r) => ({ ...r, to: v }));
+  const clearRange = () => setRange(EMPTY_RANGE);
+
+  // URL'ga yozish — `?supplier=` bilan birga, shunda havola drawer'ni QAYTA OCHADI
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const u = new URL(window.location.href);
+    u.searchParams.set("supplier", String(supplier.id));
+    for (const k of ["date_from", "date_to"]) u.searchParams.delete(k);
+    for (const [k, v] of Object.entries(rangeToParams(range))) u.searchParams.set(k, v);
+    window.history.replaceState(null, "", u);
+  }, [supplier.id, range]);
 
   useEffect(() => {
-    // ⚠️ server bir kun ichida beqaror — klientda barqaror «yangi birinchi» (Partiyalar bilan bir qoida)
+    // ⚠️ PARTIYALAR — server'ga sana YUBORILMAYDI. Yagona oraliq filtri `created_at`
+    // bo'yicha bo'lardi, ekranda esa `received_at` ko'rinadi (jonli farq: 04.08 kelgan
+    // 27 partiya 05.08 kiritilgan) — ya'ni server filtri ko'rinib turgan sanaga
+    // MOS TUSHMASDI va qatorlar jimgina yo'qolardi. Klientda `received_at` bo'yicha.
     api.stockBatches({ supplier: supplier.id, ordering: "-received_at" }).then((bs) => setBatches([...bs].sort(compareBatchNewestFirst))).catch(() => setBatches([]));
-    api.stockMovements({ supplier: supplier.id, ordering: "-created_at" }).then(setMoves).catch(() => setMoves([]));
+    // TO'LOVLAR — serverda faqat ANIQ kun filtri bor (`paid_at=`), oraliq yo'q → klientda
+    api.supplierPayments({ supplier: supplier.id, ordering: "-paid_at" }).then(setPayments).catch(() => setPayments([]));
   }, [supplier.id]);
+
+  useEffect(() => {
+    // HARAKATLAR — SERVERDA filtrlanadi (`created_at_*` mavjud va ekranda ham `created_at`)
+    setMoves(null);
+    api.stockMovements({ supplier: supplier.id, ordering: "-created_at", ...createdAtQuery(range) }).then(setMoves).catch(() => setMoves([]));
+  }, [supplier.id, range]);
 
   // §4 YUK bo'yicha guruhlar — tartib partiya tartibidan meros (batches allaqachon saralangan)
   const batchGroups = useMemo(() => {
     const m = new Map<string, { key: string; title: string; rows: StockBatch[]; totalStems: number }>();
-    for (const b of batches ?? []) {
+    // ⚠️ ORALIQ partiyaning O'Z `received_at`iga qo'llanadi — yuk sanasiga EMAS. Yuk
+    // sarlavhasi shu bois guruhda QOLGAN partiyalarni sanaydi, «5 partiya» deb yozib
+    // 2 tasini ko'rsatmaydi.
+    for (const b of (batches ?? []).filter((b) => inDateRange(b.received_at, range))) {
       const dd = b.delivery_detail;
       const key = dd ? `d${dd.id}` : "none";
       const title = dd ? DELIVERY.label(dd.number, fmtDate(dd.received_at)) : "Yuksiz partiyalar (eski yozuvlar)";
@@ -95,7 +147,25 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
     }
     // «Yuksiz» guruh DOIM oxirida; qolganlari birinchi qatorining tartibini saqlaydi (yangi birinchi)
     return Array.from(m.values()).sort((a, b) => (a.key === "none" ? 1 : b.key === "none" ? -1 : 0));
-  }, [batches]);
+  }, [batches, range]);
+
+  const shownPayments = useMemo(() => (payments ?? []).filter((p) => inDateRange(p.paid_at, range)), [payments, range]);
+  const paidInRange = shownPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+
+  /** Bo'sh holat — oraliq aybdor bo'lsa oralig'ni TOZALASH yo'li darhol beriladi */
+  const Empty = ({ all }: { all: string }) => (
+    <div className="py-6 text-center">
+      <p className="text-[13px]" style={{ color: "var(--muted)" }}>{filtered ? "Bu davrda yozuv yo'q" : all}</p>
+      {filtered && (
+        <>
+          <p className="mt-1 text-[12px]" style={{ color: "var(--muted)" }}>Tanlangan davr: <b>{rangeLabel(range)}</b></p>
+          <button type="button" onClick={clearRange} className="mt-2 rounded-full border px-3.5 py-1.5 text-[12px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border-strong)", color: "var(--primary)" }}>
+            Butun davrni ko&apos;rsatish
+          </button>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <Modal onClose={onClose} width={560}>
@@ -115,18 +185,41 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2.5">
+      {/* ⚠️ JAMILAR — server sana bo'yicha KESA OLMAYDI, shuning uchun ochiq «Butun davr» deb
+          yoziladi. Pastdagi ro'yxatlar tanlangan davrni ko'rsatadi — chalkashmasin. */}
+      <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+        Butun davr
+        <span className="h-px flex-1" style={{ background: "var(--line2, var(--border))" }} />
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2.5">
         <StatChip label="Partiya" value={`${supplier.batches_count}`} />
         <StatChip label="Jami kelgan" value={stems(supplier.total_received_stems)} />
+        {+(supplier.purchase_total ?? 0) > 0 && <StatChip label="Sotib olingan" value={fmt(supplier.purchase_total)} />}
+        {+(supplier.paid_total ?? 0) > 0 && <StatChip label="To'langan" value={fmt(supplier.paid_total)} />}
       </div>
       {supplier.notes && (
         <p className="mt-3.5 rounded-[14px] bg-[color:var(--surface-2)] px-4 py-3 text-[13px] leading-relaxed">{supplier.notes}</p>
       )}
 
-      <div className="mt-4 flex gap-1 rounded-full border p-1" style={{ borderColor: "var(--border)" }}>
-        {(["batches", "moves"] as const).map((t) => (
+      {/* SANA ORALIG'I — pastdagi HAMMA ro'yxatga qo'llanadi. Sukut: filtrsiz. */}
+      <div className="mt-4 rounded-[14px] border p-2.5" style={{ borderColor: filtered ? "var(--primary)" : "var(--border)", background: "var(--surface-2)" }}>
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11.5px] font-bold" style={{ color: "var(--text-2)" }}>
+          <CalendarRange size={13} strokeWidth={2} style={{ color: "var(--primary)" }} />
+          Davr: {rangeLabel(range)}
+          {filtered && (
+            <button type="button" onClick={clearRange} className="ml-auto text-[11.5px] font-bold underline underline-offset-2" style={{ color: "var(--primary)" }}>Tozalash</button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <DatePicker value={range.from} onChange={setFrom} placeholder="Sanadan" ariaLabel="Sanadan" maxDate={range.to || undefined} />
+          <DatePicker value={range.to} onChange={setTo} placeholder="Sanagacha" ariaLabel="Sanagacha" />
+        </div>
+      </div>
+
+      <div className="mt-3 flex gap-1 rounded-full border p-1" style={{ borderColor: "var(--border)" }}>
+        {(["batches", "moves", "payments"] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className="flex-1 rounded-full py-1.5 text-[12.5px] font-bold transition-colors duration-150" style={tab === t ? { background: "var(--primary)", color: "#fff" } : { color: "var(--muted)" }}>
-            {t === "batches" ? "Partiyalar" : "Harakatlar"}
+            {t === "batches" ? "Partiyalar" : t === "moves" ? "Harakatlar" : "To'lovlar"}
           </button>
         ))}
       </div>
@@ -134,7 +227,7 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
       {tab === "batches" ? (
         <div className="mt-3 flex flex-col gap-3">
           {batches == null && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
-          {batches?.length === 0 && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Partiya yo&apos;q.</p>}
+          {batches != null && batchGroups.length === 0 && <Empty all="Partiya yo'q." />}
           {/* ⚠️ §4 YUK BO'YICHA GURUHLASH — yuk detali bilan AYNAN bir grammatika
               (sarlavha: yuk raqami · sana · jamilar). Guruhlar ham «yangi birinchi».
               Yuksiz (eski) partiyalar alohida guruhga tushadi — jimgina tushib qolmaydi. */}
@@ -169,15 +262,34 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
             </div>
           ))}
         </div>
-      ) : (
+      ) : tab === "moves" ? (
         <div className="mt-3 flex flex-col gap-1.5">
           {moves == null && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
-          {moves?.length === 0 && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Harakat yo&apos;q.</p>}
+          {moves?.length === 0 && <Empty all="Harakat yo'q." />}
           {moves?.map((m) => (
             <div key={m.id} className="flex items-center justify-between gap-3 border-t py-2 text-[13px] first:border-t-0" style={{ borderColor: "var(--line2)" }}>
               <span className="min-w-0 truncate">{MOVEMENT_LABEL[m.movement_type as MovementType] ?? m.movement_type} · {m.batch_detail?.variant_detail?.name_uz ?? `#${m.batch}`}</span>
               <span className="shrink-0 font-semibold tabular-nums">{stems(m.quantity_stems)}</span>
               <span className="shrink-0 text-[12px]" style={{ color: "var(--muted)" }}>{fmtDate(m.created_at)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-col gap-1.5">
+          {payments == null && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
+          {payments != null && shownPayments.length === 0 && <Empty all="To'lov yo'q." />}
+          {shownPayments.length > 0 && (
+            <div className="mb-1 flex items-center justify-between gap-2 rounded-[12px] px-3 py-2 text-[12.5px] font-bold" style={{ background: "var(--surface-2)" }}>
+              <span className="flex items-center gap-1.5"><Wallet size={13} strokeWidth={2} style={{ color: "var(--primary)" }} />{rangeLabel(range)}</span>
+              <span className="tabular-nums" style={{ color: "var(--acc)" }}>{shownPayments.length} ta · {fmt(paidInRange)}</span>
+            </div>
+          )}
+          {shownPayments.map((p) => (
+            <div key={p.id} className="flex items-center justify-between gap-3 border-t py-2 text-[13px] first:border-t-0" style={{ borderColor: "var(--line2)" }}>
+              <span className="min-w-0 truncate">{p.method_label || p.method}{p.note ? ` · ${p.note}` : ""}</span>
+              <span className="shrink-0 font-semibold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(p.amount)}</span>
+              {/* ⚠️ `paid_at` — KUN (YYYY-MM-DD), mintaqa o'girilmaydi */}
+              <span className="shrink-0 text-[12px]" style={{ color: "var(--muted)" }}>{fmtLocalDate(p.paid_at)}</span>
             </div>
           ))}
         </div>
