@@ -3668,3 +3668,131 @@ to'ldirmagani uchun «bloklangan» chiqqan edi, ilova aybi emas).
 ## Verify
 
 `tsc` toza · **617/617 Vitest** (69 tasi `mixedPayment.test.ts`) · konsol xatosi yo'q.
+
+═══════════════════════════════════════════════════════════════════
+# NOSOZLIK: MOBILDA YASHIL ✓ va QIZIL XATO BIR VAQTDA (2026-08-05)
+# READ-ONLY: brauzerda 390×844 (iPhone Safari UA) takrorlandi.
+# Serverning 400 javobi TAQLID qilindi — jonli API'ga hech narsa yuborilmadi.
+═══════════════════════════════════════════════════════════════════
+
+## §1 — «Native bubble» taxmini: MEXANIZM BOSHQA (tekshirildi)
+
+Butun kod bazasida **constraint validation UMUMAN ishlatilmaydi**:
+
+```
+setCustomValidity / reportValidity / checkValidity / noValidate  → HECH QAYERDA YO'Q
+<form> elementi                                                  → YO'Q
+input[required]                                                  → YO'Q
+```
+
+Brauzerda ham tasdiqlandi (har bir input tekshirildi):
+
+```
+<form> bormi : false  ·  native validatsiya holati: []       ← validationMessage BO'SH
+```
+
+Aralash pul maydonlari allaqachon `type="text"` + `inputMode="numeric"`
+(`type="number"` EMAS) — «75 000» dagi bo'shliq brauzer darajasida hech narsani
+buzmaydi. Ya'ni **`setCustomValidity` sabab EMAS — u yo'q.**
+
+⚠️ **Qora oynachaning HAQIQIY manbai — `title` atributi.** iOS Safari `title` ni
+uzoq bosilganda qora native oynacha qilib ko'rsatadi va u brauzer xatosidan
+farq qilmaydi. Sotish oqimida ikkita shunday joy bor edi:
+
+| joy | `title` qiymati | holati |
+|---|---|---|
+| `KatalogSellModal` — «Sotish» tugmasi | `mixedV.message` (bloklash sababi) | **OLIB TASHLANDI** |
+| `CustomerPicker` — o'chirilgan rejim chipi | `disabledReason` | **OLIB TASHLANDI** |
+
+Ikkalasida ham matn ekranda ALLAQACHON oddiy matn sifatida ko'rinib turardi —
+ya'ni `title` faqat takror va chalkashlik manbai edi. Tugmaga `aria-describedby`
+qo'yildi (skrinrider uchun sabab bog'lanadi, qora oynacha chiqmaydi).
+
+## §2 — HAQIQIY nosozlik: IKKI VALIDATOR, IKKI JAVOB
+
+Yashil ✓ **hosila** qiymatdan (`mixedV`) chiqadi, qizil matn esa **saqlangan**
+`errs` dan. Xabar matni kod bazasida YO'Q — chunki u **SERVERNING 400 javobi**:
+
+```
+{"cash_amount": "Aralash to'lovda naqd va karta summasini kiriting"}
+```
+
+`setErrs(e.fieldErrors)` uni saqlaydi, keyin esa uni FAQAT ikkita pul maydonining
+`onChange` i tozalardi. Dona, chegirma, to'lov turi yoki dastafka o'zgarganda —
+QOLIB KETARDI. Jonli takrorlash (390×844):
+
+```
+─── 3. «Sotish» bosildi → server 400 (TAQLID) ───
+  naqd='75 000' karta='75 000'  |  Jami: "150 000 so'm"
+  QIZIL xabar: ["Aralash to'lovda naqd va karta summasini kiriting", …]
+  >>> ZIDDIYAT: BOR — yashil ✓ va qizil xabar BIR VAQTDA
+
+─── 4. dastafka o'zgartirildi ───            (tuzatishdan OLDIN)
+  >>> server xatosi tozalandimi? YO'Q — HALI HAM TURIBDI ✗
+```
+
+**Tuzatish — HOSILA yo'l tanlandi (saqlash EMAS):**
+
+1. Aralash xatosi endi **umuman saqlanmaydi** — `submit()` dagi
+   `next.cash_amount = mixedV.message` OLIB TASHLANDI. Yashil ✓ ham, qizil sabab
+   ham AYNAN bitta `mixedV` dan chiqadi → **zid bo'lishi mumkin emas** (invariant
+   Vitest bilan qulflangan: `ok=true ⇒ message===""`, `ok=false ⇒ message!==""`).
+2. SERVER 400 maydonlari (ular saqlanishi SHART — server aytgan gap) endi
+   tegishli kiritmalardan BIRORTASI o'zgarsa tozalanadi — yagona effektda:
+   `[payment, mixed.cash, mixed.card, qty, discountOn, price, delivery, cust.mode]`.
+3. Server xabari faqat holat YAROQLI bo'lganda ko'rsatiladi — aks holda o'zimizning
+   sabab bilan ikkilanib ketardi.
+
+Tuzatishdan keyin (jonli, o'sha qadamlar):
+
+```
+>>> 4-QADAM: server xatosi tozalandimi? HA ✓
+>>> 5-QADAM: yaroqli holatda xato bormi? YO'Q ✓   (naqd 50 000 + karta 100 000)
+>>> 5-QADAM: tugma ochiqmi? HA ✓
+```
+
+## §3 — Parse (tasdiqlandi)
+
+`parseMoney` barcha raqamsiz belgilarni tashlaydi va SONLI solishtiriladi:
+
+```
+"75 000"            → 75000      | Number() bo'lsa → NaN
+"75 000" (NBSP)     → 75000      | Number() bo'lsa → NaN
+"75 000" (NNBSP)    → 75000      | Number() bo'lsa → NaN
+"150000.00"         → 150000     (server decimal satri — nuqta saqlanadi)
+"" / null / axlat   → 0          (NaN EMAS)
+```
+
+Ilova hech qayerda `Number()` yoki satr solishtiruvi ishlatmaydi.
+`formatMoneyInput` (ajratgichli ko'rinish) butun ilovada FAQAT ikki joyda:
+aralash to'lovning ikki maydoni va dastafka summasi — ikkalasi ham `parseMoney`
+bilan o'qiladi. Qolgan pul maydonlari (`sale_price`, rasxod summasi, partiya
+narxlari, hajm tariflari, material narxi) `replace(/\D/g, "")` bilan faqat raqam
+saqlaydi va ajratgich KO'RSATMAYDI. **Parser umumiy va SOG'LOM.**
+
+## §4 — Mobil tekshiruv
+
+Viewport: **390×844, deviceScaleFactor 3, isMobile+hasTouch, iOS 17.5 Safari UA.**
+
+Skrinshotlar (tuzatilgandan keyingi yaroqli holat, xatosiz va oynachasiz):
+`mobile-valid-dark.png`, `mobile-valid-light.png` — «Jami 150 000 so'm ✓» yashil,
+qizil matn YO'Q, qora oynacha YO'Q.
+
+Matritsa (to'lov turi × dastafka × chegirma × dona), MOBIL kenglikda:
+
+```
+ 1– 8  Aralash  (naqd/karta juftlari to'g'ri, qo'shilib ketish YO'Q)   OCHIQ  POST
+ 9–16  Qarz                                                            OCHIQ  POST
+17–24  Naqd                                                            OCHIQ  POST
+25–32  Karta                                                           OCHIQ  POST
+
+JAMI 32 holat · OCHIQ 32 · bloklangan 0
+POST chiqishga tayyor bo'lganlar: 32
+ZIDDIYAT (yashil ✓ + qizil xato birga): 0
+NATIVE QORA OYNACHA manbai (title/validationMessage): 0
+KONSOL XATOLARI: yo'q
+```
+
+⚠️ Hech bir POST **yuborilmadi** — harness ularni tutib, qayd etib, bekor qildi.
+
+`tsc` toza · **630/630 Vitest** (82 tasi `mixedPayment.test.ts`) · konsol xatosi yo'q.

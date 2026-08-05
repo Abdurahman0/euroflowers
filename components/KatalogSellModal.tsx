@@ -188,6 +188,19 @@ export default function KatalogSellModal({
   const mixedV = validateMixed(mixed, payTarget);
   const mixedBlocked = isMixed && !mixedV.ok;
 
+  /**
+   * ⚠️ SAQLANGAN XATOLARNI TOZALASH — YAGONA joy.
+   *
+   * `errs` ichida SERVER 400 maydonlari ham bo'ladi (masalan backend'ning
+   * «Aralash to'lovda naqd va karta summasini kiriting» xabari). Ilgari ular faqat
+   * ikkita pul maydonining `onChange` ida tozalanardi — dona, chegirma, to'lov turi
+   * yoki dastafka o'zgarganda esa QOLIB KETARDI va yaroqli holat ustida turardi.
+   * Endi tegishli kiritmalardan BIRORTASI o'zgarsa — hammasi tozalanadi.
+   */
+  useEffect(() => {
+    setErrs((x) => (Object.keys(x).length ? {} : x));
+  }, [payment, mixed.cash, mixed.card, qty, discountOn, price, delivery, cust.mode]);
+
   // §4 SOTUVDA QO'SHILGAN iqtisodi: material qoldiqni × qty (server ko'paytiradi), tannarx va oformleniya haqi.
   const validSaleMats = saleMats.filter((m) => m.packaging > 0 && +m.qty > 0);
   const extraMatCost = validSaleMats.reduce((s, m) => { const p = matOf(m.packaging); return s + (p ? Math.round(+(p.cost_price ?? 0)) * (+m.qty || 0) * qty : 0); }, 0);
@@ -204,9 +217,12 @@ export default function KatalogSellModal({
     if (debtBody === null) next.customer = DEBT_CUSTOMER_REQUIRED;
     // ⚠️ DASTAFKA sotuv summasidan kichik bo'lishi SHART (server 400)
     if (deliveryBad) next.delivery_amount = deliveryTooLargeMessage(calc.totalSum, delivery);
-    // ⚠️ ARALASH — yig'indi jamiga TENG va ikkalasi ham > 0 bo'lmasa yuborilmaydi
+    // ⚠️ ARALASH xatosi HOLATDA SAQLANMAYDI — u `mixedV` dan HOSILA bo'lib, forma
+    // ostida doim ko'rinib turadi. Ilgari u `errs.cash_amount` ga yozilardi va
+    // keyingi tahrirlar uni TOZALAMASDI: natijada yashil «Jami … ✓» bilan qizil
+    // xato BIR VAQTDA turardi (mobil skrinshotda aynan shu). Ikki validator — ikki javob.
     const mixedBody = mixedSellPayload(isMixed, mixed, payTarget);
-    if (mixedBody === null) next.cash_amount = mixedV.message;
+    if (mixedBody === null) return;   // tugma allaqachon o'chiq; sabab pastda ko'rinadi
     if (Object.keys(next).length) return setErrs(next);
     setBusy(true);
     setErrs({});
@@ -421,11 +437,16 @@ export default function KatalogSellModal({
                 {mixedV.ok ? <Check size={14} strokeWidth={2.6} /> : null}
               </span>
             </div>
+            {/* YAGONA MANBA — yashil ✓ ham, qizil sabab ham AYNAN shu `mixedV` dan.
+                Ular hech qachon bir-biriga zid bo'la olmaydi. */}
             {!mixedV.ok && mixedV.message && (
-              <p className="mt-1.5 text-[11.5px] font-bold" style={{ color: "var(--danger-ink)" }}>{mixedV.message}</p>
+              <p id="mixed-reason" className="mt-1.5 text-[11.5px] font-bold" style={{ color: "var(--danger-ink)" }}>{mixedV.message}</p>
             )}
-            {errs.cash_amount && <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.cash_amount}</p>}
-            {errs.card_amount && <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.card_amount}</p>}
+            {/* SERVER 400 maydonlari — faqat holat YAROQLI bo'lsa ko'rsatiladi
+                (aks holda o'zimizning sabab bilan ikkilanib ketardi). */}
+            {mixedV.ok && (errs.cash_amount || errs.card_amount) && (
+              <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.cash_amount || errs.card_amount}</p>
+            )}
             <p className="mt-1.5 text-[11px]" style={{ color: "var(--muted)" }}>
               Pul haqiqatda qayerga tushgan bo&apos;lsa o&apos;sha ustunga yoziladi. Sotuv soni BIR MARTA sanaladi.
             </p>
@@ -666,7 +687,11 @@ export default function KatalogSellModal({
 
       <ModalFooter>
         <button onClick={onClose} className="btn-ghost">Bekor</button>
-        <button onClick={submit} disabled={busy || debtBlocked || mixedBlocked || deliveryBad} title={debtBlocked ? DEBT_CUSTOMER_REQUIRED : mixedBlocked ? mixedV.message : undefined} className={clsx("btn-primary disabled:opacity-60", busy && "btn-loading")}>
+        {/* ⚠️ `title` ATAYIN YO'Q: iOS Safari uni uzoq bosilganda QORA native oynacha
+            qilib ko'rsatadi — foydalanuvchi buni brauzer validatsiyasi deb o'ylaydi va
+            u ekrandagi xabar bilan zid tushishi mumkin. Bloklash sababi HAR DOIM
+            forma ichida, matn sifatida ko'rinadi. */}
+        <button onClick={submit} disabled={busy || debtBlocked || mixedBlocked || deliveryBad} aria-describedby={mixedBlocked ? "mixed-reason" : undefined} className={clsx("btn-primary disabled:opacity-60", busy && "btn-loading")}>
           {isDebt ? `${qty} ta qarzga berish` : `${qty} ta sotish`}
         </button>
       </ModalFooter>

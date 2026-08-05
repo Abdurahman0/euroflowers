@@ -69,8 +69,11 @@ export default function CustomerPicker({ value, onChange, label = "Mijoz (ixtiyo
       <div className="mb-2.5 flex gap-1 rounded-[12px] p-1" style={{ background: "var(--surface-2)" }}>
         {MODES.map((m) => {
           const off = !!disabledModes?.includes(m.key);
+          // ⚠️ `title` ATAYIN YO'Q — iOS Safari uni uzoq bosilganda QORA native oynacha
+          // qilib chiqaradi va foydalanuvchi buni brauzer xatosi deb o'ylaydi. Sabab
+          // pastda oddiy matn sifatida allaqachon ko'rinib turadi.
           return (
-            <button key={m.key} type="button" disabled={off} title={off ? disabledReason : undefined}
+            <button key={m.key} type="button" disabled={off}
               onClick={() => { if (off) return; onChange(m.key === "none" ? { mode: "none" } : m.key === "existing" ? { mode: "existing", id: value.mode === "existing" ? value.id : 0, detail: value.mode === "existing" ? value.detail : undefined } : { mode: "new", name: value.mode === "new" ? value.name : "", phone: value.mode === "new" ? value.phone : "" }); setOpen(false); setQ(""); }}
               className="flex-1 rounded-[9px] py-1.5 text-[12.5px] font-bold transition-colors disabled:cursor-not-allowed"
               style={{ background: value.mode === m.key ? "var(--surface-solid)" : "transparent", color: value.mode === m.key ? "var(--primary)" : "var(--muted)", opacity: off ? 0.42 : 1 }}>

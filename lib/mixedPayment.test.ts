@@ -346,3 +346,69 @@ describe("⚠️ DASTAFKA taqqoslash summasini O'ZGARTIRMAYDI (qoida 2026-08-04 
     expect(s.card).toBe("300 000");                          // 550 000 − 200 000 EMAS
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════
+   §3 — PARSE: operator HAQIQATDA hosil qiladigan satrlar.
+   ⚠️ `Number()` bularning ko'pida NaN beradi — shuning uchun HECH QAYERDA
+   ishlatilmaydi; yagona yo'l `parseMoney` (barcha raqamsiz belgi tashlanadi).
+   ═══════════════════════════════════════════════════════════════════ */
+describe("parseMoney — formatlangan pul satrlari", () => {
+  const NBSP = " ";      // uzilmas bo'shliq — iOS/Safari nusxa-ko'chirishda uchraydi
+  const NNBSP = " ";     // tor uzilmas bo'shliq
+  it("oddiy bo'shliq", () => expect(parseMoney("75 000")).toBe(75_000));
+  it("uzilmas bo'shliq (NBSP)", () => expect(parseMoney(`75${NBSP}000`)).toBe(75_000));
+  it("tor uzilmas bo'shliq (NNBSP)", () => expect(parseMoney(`75${NNBSP}000`)).toBe(75_000));
+  it("ko'p guruhli", () => expect(parseMoney("1 500 000")).toBe(1_500_000));
+  it("server decimal satri — ONLIK NUQTA saqlanadi", () => expect(parseMoney("150000.00")).toBe(150_000));
+  it("bo'sh / null / axlat → 0 (NaN EMAS)", () => {
+    for (const v of ["", null, undefined, "abrakadabra", " "]) expect(parseMoney(v)).toBe(0);
+  });
+  it("⚠️ Number() bo'lsa NaN bo'lardi — shu bois ishlatilmaydi", () => {
+    expect(Number.isNaN(Number("75 000"))).toBe(true);
+    expect(Number.isNaN(Number(`75${NBSP}000`))).toBe(true);
+    expect(parseMoney("75 000")).toBe(75_000);
+  });
+});
+
+describe("§2 — YAGONA MANBA: ✓ va xato ZID bo'la olmaydi", () => {
+  const T = 150_000;
+  const st = (cash: string, card: string): MixedState => ({ cash, card, cashTouched: true, cardTouched: true });
+
+  it("skrinshotdagi holat: 75 000 + 75 000 = 150 000 → ok, xabar BO'SH", () => {
+    const v = validateMixed(st("75 000", "75 000"), T);
+    expect([v.cash, v.card, v.sum, v.ok]).toEqual([75_000, 75_000, 150_000, true]);
+    expect(v.message).toBe("");        // ⬅ ok bo'lsa xabar BO'LMAYDI — zid tushishi mumkin emas
+  });
+  it("NBSP bilan ham AYNAN o'sha natija", () => {
+    const v = validateMixed(st("75 000", "75 000"), T);
+    expect(v.ok).toBe(true);
+    expect(v.message).toBe("");
+  });
+  it("ok=true ⇒ message doim bo'sh; ok=false ⇒ message doim bor (invariant)", () => {
+    const cases: [string, string, number][] = [
+      ["75 000", "75 000", T], ["100 000", "50 000", T], ["10 000", "10 000", T],
+      ["200 000", "200 000", T], ["150 000", "0", T], ["", "", T], ["", "", 0],
+      ["75 000", "75 000", 300_000],
+    ];
+    for (const [cash, card, total] of cases) {
+      const v = validateMixed(st(cash, card), total);
+      expect(v.ok ? v.message === "" : v.message !== "").toBe(true);
+    }
+  });
+  it("bitta nol — yig'indi to'g'ri bo'lsa ham RAD, sabab ko'rsatiladi", () => {
+    const v = validateMixed(st("150 000", "0"), T);
+    expect([v.balanced, v.bothPositive, v.ok]).toEqual([true, false, false]);
+    expect(v.message).toContain("noldan katta");
+  });
+  it("kam / ortiq — farq AYNAN ko'rsatiladi", () => {
+    expect(validateMixed(st("75 000", "50 000"), T).message).toBe("Farq: 25 000 so'm kam");
+    expect(validateMixed(st("100 000", "100 000"), T).message).toBe("Farq: 50 000 so'm ortiq");
+  });
+  it("mixedSellPayload `ok` bilan AYNAN mos (uchinchi javob yo'q)", () => {
+    for (const [cash, card] of [["75 000", "75 000"], ["100 000", "50 000"], ["150 000", "0"], ["", ""]]) {
+      const s = st(cash, card);
+      const v = validateMixed(s, T);
+      expect(mixedSellPayload(true, s, T) === null).toBe(!v.ok);
+    }
+  });
+});
