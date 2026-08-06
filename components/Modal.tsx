@@ -53,11 +53,17 @@ export const ModalHeader = ({ icon, title, sub, onClose }: { icon: React.ReactNo
   );
 };
 
-/** Amal tugmalari — QADALMAGAN: kontentdan keyin oddiy oqimda turadi
-    (foydalanuvchi talabi). Asosiy tugma o'ngda. */
+/**
+ * Amal tugmalari — QADALMAGAN: kontentdan keyin oddiy oqimda turadi
+ * (foydalanuvchi talabi). Tartib O'ZGARMAYDI: bekor CHAPDA, asosiy O'NGDA.
+ *
+ * ⚠️ TUGMALAR MATNIDAN KICHIK BO'LMAYDI. `flex-wrap` + `shrink-0`: joy tor bo'lsa
+ * tugmalar QISILMAYDI, balki pastga tushadi (va tor ekranda to'liq kenglikda
+ * cho'ziladi). Ilgari ular siqilib, yorliq ikkinchi qatorga tushardi.
+ */
 export const ModalFooter = ({ children }: { children: React.ReactNode }) => (
   <div
-    className="mt-6 flex justify-end gap-2.5 border-t pt-4 max-sm:[&>*]:flex-1"
+    className="mt-6 flex flex-wrap justify-end gap-2.5 border-t pt-4 [&>*]:shrink-0 max-sm:[&>*]:flex-1 max-sm:[&>*]:basis-[calc(50%-0.3125rem)]"
     style={{ borderColor: "var(--border)" }}
   >
     {children}

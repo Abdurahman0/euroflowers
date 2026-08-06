@@ -110,7 +110,7 @@ export default function MijozlarPage() {
             onClear={() => { setSearch(""); setLang(""); }}
           />
           {canControl("customers") && (
-            <button onClick={() => setNewClient(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+            <button onClick={() => setNewClient(true)} className="btn-primary !flex-none px-4 py-2.5 text-[13.5px]">
               <Plus size={17} strokeWidth={1.75} /> Mijoz
             </button>
           )}

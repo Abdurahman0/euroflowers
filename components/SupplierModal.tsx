@@ -243,9 +243,10 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
         </div>
       </div>
 
-      <div className="mt-3 flex gap-1 rounded-full border p-1" style={{ borderColor: "var(--border)" }}>
+      {/* segment: tashqi --r-md, ichki --r-sm (modal tugmalari bilan bir oila) */}
+      <div className="mt-3 flex gap-1 rounded-md border p-1" style={{ borderColor: "var(--border)" }}>
         {(["batches", "moves", "payments"] as const).map((t) => (
-          <button key={t} type="button" onClick={() => setTab(t)} className="flex-1 rounded-full py-1.5 text-[12.5px] font-bold transition-colors duration-150" style={tab === t ? { background: "var(--primary)", color: "#fff" } : { color: "var(--muted)" }}>
+          <button key={t} type="button" onClick={() => setTab(t)} className="flex-1 rounded-sm py-1.5 text-[12.5px] font-bold transition-colors duration-150" style={tab === t ? { background: "var(--primary)", color: "#fff" } : { color: "var(--muted)" }}>
             {t === "batches" ? "Partiyalar" : t === "moves" ? "Harakatlar" : "To'lovlar"}
           </button>
         ))}

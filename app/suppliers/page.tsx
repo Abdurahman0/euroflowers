@@ -113,7 +113,7 @@ export default function SuppliersPage() {
           <FilterSelect value={active} options={ACTIVE_OPTS} onChange={setActive} label="Holat" />
           <ClearFilters show={!!(search || active)} onClear={() => { setSearch(""); setActive(""); }} />
           {control && (
-            <button onClick={() => setForm({ open: true, edit: null })} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+            <button onClick={() => setForm({ open: true, edit: null })} className="btn-primary !flex-none px-4 py-2.5 text-[13.5px]">
               <Plus size={17} strokeWidth={1.75} /> Yangi
             </button>
           )}

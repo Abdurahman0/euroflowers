@@ -163,7 +163,7 @@ export default function FloristStockIssuePage() {
           </div>
         </div>
         {!isFlorist && (
-          <button onClick={() => { setIssueFlorist(0); setIssueOpen(true); }} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
+          <button onClick={() => { setIssueFlorist(0); setIssueOpen(true); }} className="btn-primary !flex-none px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Skladdan chiqarish
           </button>
         )}

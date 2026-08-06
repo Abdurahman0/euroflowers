@@ -303,7 +303,7 @@ export default function KatalogSellModal({
 
       {/* §2 BRON ULASH + HISOB-KITOB */}
       {!resv ? (
-        <button type="button" onClick={openPicker} className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-[13px] border-[1.5px] border-dashed py-2.5 text-[12.5px] font-bold transition-colors" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>
+        <button type="button" onClick={openPicker} className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border-[1.5px] border-dashed py-2.5 text-[12.5px] font-bold transition-colors" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>
           <Tag size={14} strokeWidth={1.9} /> Bronga bog&apos;lash (ixtiyoriy)
         </button>
       ) : (
@@ -396,7 +396,7 @@ export default function KatalogSellModal({
                 type="button"
                 onClick={() => setPayment(p.value)}
                 aria-pressed={on}
-                className={clsx("flex items-center justify-center gap-1.5 rounded-[13px] border-[1.5px] py-2.5 text-[13px] font-bold transition-colors duration-150", on ? "text-white" : "")}
+                className={clsx("flex items-center justify-center gap-1.5 rounded-md border-[1.5px] py-2.5 text-[13px] font-bold transition-colors duration-150", on ? "text-white" : "")}
                 style={on ? { background: "var(--primary)", borderColor: "var(--primary)" } : { borderColor: "var(--border)", color: "var(--text-2)" }}
               >
                 <PIcon size={16} strokeWidth={2} /> {p.label}
@@ -406,7 +406,7 @@ export default function KatalogSellModal({
         </div>
         {/* ARALASH — ikkita summa; jami CHEGIRMADAN KEYINGI summaga teng bo'lishi shart */}
         {isMixed && (
-          <div className="mt-2 rounded-[13px] border p-3" style={{ borderColor: mixedV.ok ? "var(--acc)" : "var(--border)", background: "var(--surface-2)" }}>
+          <div className="mt-2 rounded-md border p-3" style={{ borderColor: mixedV.ok ? "var(--acc)" : "var(--border)", background: "var(--surface-2)" }}>
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>Mijozdan olinadi</span>
               <span className="text-[14px] font-extrabold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(payTarget)}</span>
@@ -591,7 +591,7 @@ export default function KatalogSellModal({
 
             {/* IQTISODIY TA'SIR — bu sotuvga */}
             {extraTotal > 0 && (
-              <div className="mt-3 rounded-[11px] px-3 py-2 text-[12px]" style={{ background: "var(--surface-2)" }}>
+              <div className="mt-3 rounded-sm px-3 py-2 text-[12px]" style={{ background: "var(--surface-2)" }}>
                 <div className="flex items-center justify-between"><span style={{ color: "var(--muted)" }}>Qo&apos;shimcha material tannarxi</span><span className="font-semibold tabular-nums">{fmt(extraMatCost)}</span></div>
                 <div className="flex items-center justify-between"><span style={{ color: "var(--muted)" }}>Oformleniya haqi (oylikka)</span><span className="font-semibold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(decoPay)}</span></div>
                 <div className="mt-1 flex items-center justify-between border-t pt-1 font-bold" style={{ borderColor: "var(--border)" }}><span>Bu sotuvga qo&apos;shimcha xarajat</span><span className="tabular-nums" style={{ color: "var(--danger-ink)" }}>−{fmt(extraTotal)}</span></div>
@@ -692,7 +692,7 @@ export default function KatalogSellModal({
       </div>
 
       {errs.detail && (
-        <p className="mt-3 whitespace-pre-line rounded-[11px] px-3 py-2 text-[12.5px] font-semibold" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>
+        <p className="mt-3 whitespace-pre-line rounded-sm px-3 py-2 text-[12.5px] font-semibold" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>
           {errs.detail}
         </p>
       )}
@@ -713,7 +713,7 @@ export default function KatalogSellModal({
 
 function SettleCell({ label, value, hue }: { label: string; value: string; hue?: string }) {
   return (
-    <div className="rounded-[11px] px-1.5 py-1.5" style={{ background: "var(--surface-solid, var(--surface))" }}>
+    <div className="rounded-sm px-1.5 py-1.5" style={{ background: "var(--surface-solid, var(--surface))" }}>
       <div className="text-[9.5px] font-semibold uppercase leading-tight tracking-wide" style={{ color: "var(--muted)" }}>{label}</div>
       <div className="mt-0.5 text-[12.5px] font-extrabold tabular-nums" style={{ color: hue ?? "var(--text)" }}>{value}</div>
     </div>

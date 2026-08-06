@@ -621,7 +621,7 @@ export default function BuyurtmalarPage() {
             onClear={() => { setSearch(""); setArrType(""); setStatusFilter(""); setDateFilter("oy"); }}
           />
           {canControl("crm") && (
-            <button onClick={() => setNewLead(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+            <button onClick={() => setNewLead(true)} className="btn-primary !flex-none px-4 py-2.5 text-[13.5px]">
               <Plus size={17} strokeWidth={1.75} /> Buyurtma
             </button>
           )}

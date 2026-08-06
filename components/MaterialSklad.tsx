@@ -592,7 +592,7 @@ export default function MaterialSklad() {
           {sizeOpts.length > 1 && <FilterSelect value={sizeF} onChange={setSizeF} label="O'lcham" options={sizeOpts} />}
           <ClearFilters show={!!(search || group || supplierF || unitF || basketF || sizeF)} onClear={() => { setSearch(""); setGroup(""); setSupplierF(""); setUnitF(""); setBasketF(""); setSizeF(""); }} />
           {control && (
-            <button onClick={() => setFormM({ open: true, edit: null })} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
+            <button onClick={() => setFormM({ open: true, edit: null })} className="btn-primary !flex-none px-4 py-2.5 text-[14px]">
               <Plus size={18} strokeWidth={1.75} /> Material qo&apos;shish
             </button>
           )}

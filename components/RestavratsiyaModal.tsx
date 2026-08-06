@@ -153,7 +153,7 @@ export default function RestavratsiyaModal({
           );
         })}
         <button type="button" onClick={() => setSources([...sources, { catalog_item: 0, quantity: 1 }])}
-          className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
+          className="btn-secondary btn-sm self-start">
           <Plus size={15} strokeWidth={1.75} className="mr-1 inline" />Katalogdan tanlash
         </button>
         <p className="text-[11.5px]" style={{ color: "var(--muted)" }}>
@@ -188,7 +188,7 @@ export default function RestavratsiyaModal({
           );
         })}
         <button type="button" onClick={() => setStock([...stock, { stock_batch: 0, quantity_stems: "" }])}
-          className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
+          className="btn-secondary btn-sm self-start">
           <Plus size={15} strokeWidth={1.75} className="mr-1 inline" />Partiyadan tanlash
         </button>
       </div>
@@ -255,7 +255,7 @@ export default function RestavratsiyaModal({
                         </div>
                       ))}
                       <button type="button" onClick={() => setOut(i, { composition: [...o.composition, { stock_batch: 0, quantity_stems: "" }] })}
-                        className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3 py-1 text-[11.5px] font-bold">
+                        className="btn-secondary btn-sm self-start">
                         <Plus size={14} strokeWidth={1.75} className="mr-1 inline" />Gul qo&apos;shish
                       </button>
                     </div>
@@ -290,7 +290,7 @@ export default function RestavratsiyaModal({
                               </div>
                             ))}
                             <button type="button" onClick={() => setOut(i, { materials: [...o.materials, { packaging: 0, quantity: "1" }] })}
-                              className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3 py-1 text-[11.5px] font-bold">
+                              className="btn-secondary btn-sm self-start">
                               <Plus size={14} strokeWidth={1.75} className="mr-1 inline" />Qadoq qo&apos;shish
                             </button>
                           </div>
@@ -308,7 +308,7 @@ export default function RestavratsiyaModal({
           );
         })}
         <button type="button" onClick={() => { setOutputs([...outputs, emptyOutput()]); setOpen(outputs.length); }}
-          className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
+          className="btn-secondary btn-sm self-start">
           <Plus size={15} strokeWidth={1.75} className="mr-1 inline" />Mahsulot qo&apos;shish
         </button>
       </div>

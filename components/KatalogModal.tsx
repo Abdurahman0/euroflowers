@@ -783,7 +783,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
               </div>
             );
           })}
-          <button type="button" onClick={addComp} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
+          <button type="button" onClick={addComp} className="btn-secondary btn-sm self-start">
             <Plus size={15} strokeWidth={1.75} /> Yana gul
           </button>
         </div>
@@ -837,7 +837,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                 </div>
               );
             })}
-            <button type="button" onClick={addMat} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3.5 py-1.5 text-[12px] font-bold">
+            <button type="button" onClick={addMat} className="btn-secondary btn-sm self-start">
               <Plus size={15} strokeWidth={1.75} /> Material qo&apos;shish
             </button>
           </div>

@@ -337,55 +337,38 @@ export default function KatalogViewModal({
       )}
 
       {(onEdit || onDelete || onTransfer || onRestore || onRework) && (
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--border)] pt-4">
+        /* ⚠️ AMAL QATORI — umumiy `.btn-*` sinflariga o'tkazildi. Ilgari har biri
+           qo'lda yasalgan edi (`rounded-xl` = 20px, kiritmalarnikidan ikki baravar
+           yumaloq) va `flex-1` sabab matnidan kichrayib, «Filialga yuborish» hamda
+           «So'lgan gulni almashtirish» IKKI QATORGA bo'linardi (375px: h=61px).
+           Endi `.btn-secondary` + `shrink-0` — qisilmaydi, joy tor bo'lsa pastga tushadi. */
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--border)] pt-4 [&>button]:shrink-0 [&>button]:flex-1">
           {/* RESTAVRATSIYA — buzib yangi mahsulot yasash (qoldig'i borida) */}
           {onRework && left > 0 ? (
-            <button
-              type="button"
-              onClick={onRework}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--primary)]"
-              style={{ color: "var(--primary)" }}
-            >
+            <button type="button" onClick={onRework} className="btn-secondary" style={{ color: "var(--primary)" }}>
               <Recycle size={14} strokeWidth={1.9} /> Restavratsiya
             </button>
           ) : null}
           {/* ESKI `restore-flowers` — FAQAT bitta gulni almashtiradi, florist haqini yozmaydi */}
           {onRestore && full.composition?.length ? (
-            <button
-              type="button"
-              onClick={onRestore}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--acc)]"
-              style={{ color: "var(--text-2)" }}
-            >
+            <button type="button" onClick={onRestore} className="btn-secondary" style={{ color: "var(--text-2)" }}>
               <ArrowLeftRight size={14} strokeWidth={1.9} /> So&apos;lgan gulni almashtirish
             </button>
           ) : null}
           {onTransfer && (
-            <button
-              type="button"
-              onClick={onTransfer}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--primary)]"
-              style={{ color: "var(--primary)" }}
-            >
+            <button type="button" onClick={onTransfer} className="btn-secondary" style={{ color: "var(--primary)" }}>
               <Send size={14} strokeWidth={1.9} /> Filialga yuborish
             </button>
           )}
           {onEdit && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[color:var(--border-strong)] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:border-[color:var(--acc)]"
-            >
+            <button type="button" onClick={onEdit} className="btn-secondary">
               <Pencil size={14} strokeWidth={1.75} /> Tahrirlash
             </button>
           )}
           {onDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] py-2.5 text-[13px] font-bold transition-colors duration-150 hover:bg-[color:var(--hover)]"
-              style={{ borderColor: "color-mix(in srgb, var(--danger-ink) 40%, var(--border-strong))", color: "var(--danger-ink)" }}
-            >
+            /* DESTRUKTIV — mavjud semantik rang (`--danger-ink`), yangi qizil EMAS */
+            <button type="button" onClick={onDelete} className="btn-secondary"
+              style={{ borderColor: "color-mix(in srgb, var(--danger-ink) 40%, var(--border-strong))", color: "var(--danger-ink)" }}>
               <Trash2 size={14} strokeWidth={1.75} /> O&apos;chirish
             </button>
           )}

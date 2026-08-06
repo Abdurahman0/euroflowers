@@ -359,7 +359,7 @@ export default function KatalogPage() {
         </div>
         {/* filialda katalog YARATIB BO'LMAYDI (backend 400) — tugmani ko'rsatmaymiz */}
         {mainUser && (
-          <button onClick={() => setFormOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
+          <button onClick={() => setFormOpen(true)} className="btn-primary !flex-none px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Katalogga qo&apos;shish
           </button>
         )}

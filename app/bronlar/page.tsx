@@ -103,7 +103,7 @@ export default function BronlarPage() {
             <p className="text-[12.5px]" style={{ color: "var(--muted)" }}>Mijoz oldindan buyurtma beradi (zaklad) — keyin katalogdan sotiladi.</p>
           </div>
         </div>
-        <button onClick={() => setCreateOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]"><Plus size={18} strokeWidth={1.75} /> Bron</button>
+        <button onClick={() => setCreateOpen(true)} className="btn-primary !flex-none px-4 py-2.5 text-[14px]"><Plus size={18} strokeWidth={1.75} /> Bron</button>
       </div>
 
       {/* STAT STRIP */}

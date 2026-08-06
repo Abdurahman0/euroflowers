@@ -141,7 +141,7 @@ export default function FloristlarPage() {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <SearchInput value={search} onChange={setSearch} ariaLabel="Florist qidirish" />
           {control && (
-            <button onClick={() => setForm({ open: true, edit: null })} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[13.5px]">
+            <button onClick={() => setForm({ open: true, edit: null })} className="btn-primary !flex-none px-4 py-2.5 text-[13.5px]">
               <Plus size={17} strokeWidth={1.75} /> Yangi
             </button>
           )}

@@ -81,7 +81,7 @@ export default function DeliveryDrawer({ delivery, onClose, onChanged }: {
         {/* PARTIYALAR + qo'shish */}
         <div className="mt-4 mb-2 flex items-center justify-between">
           <h3 className="text-[14px] font-bold">Partiyalar</h3>
-          <button onClick={() => setAddOpen(true)} className="btn-primary !flex-none rounded-[11px] px-3 py-1.5 text-[13px]">
+          <button onClick={() => setAddOpen(true)} className="btn-primary !flex-none px-3 py-1.5 text-[13px]">
             <Plus size={16} strokeWidth={2} /> {DELIVERY.addFlower}
           </button>
         </div>

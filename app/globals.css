@@ -529,14 +529,38 @@ html {
   .btn-primary, .btn-secondary, .btn-outline, .btn-ghost, .btn-danger, .btn-icon {
     @apply inline-flex items-center justify-center gap-2 font-semibold text-sm cursor-pointer select-none;
     height: 40px;
+    /* ⚠️ TEGINISH MAYDONI — mobil uchun kamida 44px (WCAG 2.5.5) */
+    min-height: 40px;
     padding: 0 16px;
+    /* ⚠️ RADIUS TOKENI — `.inp` bilan BIR OILA (ikkalasi ham --r-md). Hech qanday
+       qo'lda piksel qiymati ishlatilmaydi; kichik tugmalar uchun `.btn-sm` bor. */
     border-radius: var(--r-md);
+    /* ⚠️ YORLIQ IKKINCHI QATORGA TUSHMAYDI. Sabab: `.btn-primary` da `flex-1` bor
+       (flex-basis 0) — tor joyda tugma o'z matnidan KICHIK bo'lib qolar va
+       «Filialga yuborish» ikki qatorga bo'linardi (375px da o'lchangan: h=61px). */
+    white-space: nowrap;
     transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
       border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
       transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
   }
+  /* ikonka o'lchamini YO'QOTMAYDI (flex ichida qisilib ketmasin) */
+  .btn-primary > svg, .btn-secondary > svg, .btn-outline > svg,
+  .btn-ghost > svg, .btn-danger > svg, .btn-icon > svg {
+    flex-shrink: 0;
+  }
   .btn-primary:active, .btn-secondary:active, .btn-outline:active, .btn-ghost:active, .btn-danger:active, .btn-icon:active {
     transform: scale(0.98);
+  }
+  /* fokus halqasi tugmaning O'Z radiusini oladi (global 4px o'rniga) */
+  .btn-primary:focus-visible, .btn-secondary:focus-visible, .btn-outline:focus-visible,
+  .btn-ghost:focus-visible, .btn-danger:focus-visible, .btn-icon:focus-visible {
+    border-radius: var(--r-md);
+  }
+  /* ⚠️ MOBIL: barmoq uchun kamida 44px */
+  @media (pointer: coarse) {
+    .btn-primary, .btn-secondary, .btn-outline, .btn-ghost, .btn-danger, .btn-icon {
+      min-height: 44px;
+    }
   }
   .btn-primary:disabled, .btn-secondary:disabled, .btn-outline:disabled, .btn-ghost:disabled, .btn-danger:disabled, .btn-icon:disabled {
     background: var(--disabled-bg);
@@ -607,6 +631,23 @@ html {
     padding: 0;
   }
 
+  /* ⚠️ KICHIK TUGMA — forma ichidagi ikkilamchi amallar («+ Gul qo'shish»).
+     Ilgari bular `rounded-full` edi va modal ichida DORI-TABLETKA bo'lib ko'rinardi;
+     endi radius kiritmadan bir oz tighter (--r-sm 8px vs --r-md 12px). */
+  .btn-sm {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+    border-radius: var(--r-sm);
+  }
+  .btn-sm:focus-visible { border-radius: var(--r-sm); }
+  @media (pointer: coarse) {
+    .btn-sm { min-height: 36px; }
+  }
+
+  /* ⚠️ YUKLANISH — matn SHAFFOF bo'ladi, o'chirilmaydi: tugma kengligi o'zgarmaydi
+     va footer «saqlanmoqda» paytida SAKRAMAYDI. */
   .btn-loading {
     position: relative;
     color: transparent !important;

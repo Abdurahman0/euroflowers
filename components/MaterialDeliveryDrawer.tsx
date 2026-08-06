@@ -64,7 +64,7 @@ export default function MaterialDeliveryDrawer({ delivery, onClose, onChanged }:
             <button onClick={() => setNewMatOpen(true)} className="flex items-center gap-1.5 rounded-[11px] border px-3 py-1.5 text-[13px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
               <Plus size={15} strokeWidth={2} /> Yangi material
             </button>
-            <button onClick={() => setReceiveOpen(true)} className="btn-primary !flex-none rounded-[11px] px-3 py-1.5 text-[13px]">
+            <button onClick={() => setReceiveOpen(true)} className="btn-primary !flex-none px-3 py-1.5 text-[13px]">
               <Plus size={16} strokeWidth={2} /> {MATERIAL_DELIVERY.receive}
             </button>
           </div>

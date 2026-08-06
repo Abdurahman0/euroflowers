@@ -340,7 +340,7 @@ export default function SkladPage() {
               <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
                 Material yuki = bir kelishda kelgan materiallar guruhi. Avval yuk ochiladi, keyin materiallar kiritiladi.
               </p>
-              <button onClick={() => setNewMatDeliveryOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px] ml-auto">
+              <button onClick={() => setNewMatDeliveryOpen(true)} className="btn-primary !flex-none px-4 py-2.5 text-[14px] ml-auto">
                 <Plus size={18} strokeWidth={1.75} /> {MATERIAL_DELIVERY.neu}
               </button>
             </div>
@@ -409,7 +409,7 @@ export default function SkladPage() {
           <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
             Yuk = bir kelishda kelgan gullar guruhi. Avval yuk ochiladi, keyin ichiga partiyalar qo&apos;shiladi.
           </p>
-          <button onClick={() => setNewDeliveryOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px] ml-auto">
+          <button onClick={() => setNewDeliveryOpen(true)} className="btn-primary !flex-none px-4 py-2.5 text-[14px] ml-auto">
             <Plus size={18} strokeWidth={1.75} /> {DELIVERY.neu}
           </button>
         </div>
@@ -696,7 +696,7 @@ export default function SkladPage() {
             show={!!search || !!showFilter || !!freeFilter || !!variantFilter}
             onClear={() => { setSearch(""); setShowFilter(""); setFreeFilter(""); setVariantFilter(""); }}
           />
-          <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none rounded-[13px] px-4 py-2.5 text-[14px]">
+          <button onClick={() => setKirimOpen(true)} className="btn-primary !flex-none px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Yangi partiya
           </button>
         </div>
