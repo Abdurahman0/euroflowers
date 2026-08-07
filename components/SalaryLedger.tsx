@@ -9,6 +9,10 @@ import DateChips from "./DateChips";
 import EmptyState from "./EmptyState";
 import { dateAfterParam, fmt, fmtDate, rangeParams } from "@/lib/format";
 import { SALARY_SOURCE_LABEL, salarySourceLabel, salarySourceHue } from "@/lib/inventory";
+import { hasArithmetic, arithmeticLabel } from "@/lib/decoration";
+import SalaryEditModal from "./SalaryEditModal";
+import { usePerm } from "@/lib/store";
+import { Pencil } from "lucide-react";
 import type { FloristProfile, FloristSalaryEntry, SalarySource } from "@/lib/types";
 
 const SOURCE_OPTS = [
@@ -23,6 +27,9 @@ export default function SalaryLedger() {
   const [florists, setFlorists] = useState<FloristProfile[]>([]);
   const [floristId, setFloristId] = useState("");
   const [source, setSource] = useState("");
+  // tahrir — `florists` can_control bo'lganda
+  const canEdit = usePerm().canControl("florists");
+  const [editing, setEditing] = useState<FloristSalaryEntry | null>(null);
 
   const load = useCallback(() => {
     api.floristSalary({
@@ -105,13 +112,27 @@ export default function SalaryLedger() {
                     {salarySourceLabel(r.source)}
                   </span>
                   {r.note && <span className="hidden max-w-[160px] shrink-0 truncate text-[12px] sm:block" style={{ color: "var(--muted)" }} title={r.note}>{r.note}</span>}
+                  {/* ⚠️ HISOB — BITTA shart: `quantity` ham, `unit_amount` ham > 0 bo'lsa.
+                      Boshqa manbalarda ikkalasi 0 — o'shanda faqat summa chiqadi (spec §6). */}
+                  {hasArithmetic(r) && (
+                    <span className="shrink-0 whitespace-nowrap text-[12px] tabular-nums" style={{ color: "var(--muted)" }}>{arithmeticLabel(r)}</span>
+                  )}
                   <span className="shrink-0 text-[13px] font-bold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(r.amount)}</span>
+                  {canEdit && (
+                    <button type="button" onClick={() => setEditing(r)} className="icon-btn !h-7 !w-7 shrink-0" title="Tuzatish" aria-label="Yozuvni tuzatish">
+                      <Pencil size={13} strokeWidth={1.9} />
+                    </button>
+                  )}
                 </div>
               );
             })}
           </section>
         ))}
       </div>
+
+      {editing && (
+        <SalaryEditModal entry={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+      )}
     </>
   );
 }

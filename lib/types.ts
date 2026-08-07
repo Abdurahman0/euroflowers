@@ -1599,7 +1599,9 @@ export type CloseIssueInput = { florist: number; batch: number; return_stems?: n
 
 /** Florist oylik yozuvi (backend: /api/florist-salary/) */
 /** ⚠️ `rework` — restavratsiya (spec). Backend enum'ida HALI YO'Q (deploy kutilmoqda). */
-export type SalarySource = "catalog" | "custom_catalog" | "decoration" | "sale_decoration" | "daily" | "manual" | "rework";
+/** ⚠️ `extra_decoration` — QO'LDA yoziladigan oformleniya (FRONTEND_FLORIST_DECORATION_SALARY_API.md).
+    KONTRAKT bo'yicha: jonli OpenAPI enum'ida HALI YO'Q (deploydan keyin qo'shiladi). */
+export type SalarySource = "catalog" | "custom_catalog" | "decoration" | "sale_decoration" | "daily" | "manual" | "rework" | "extra_decoration";
 export type FloristSalaryEntry = {
   id: number;
   florist: number;
@@ -1610,6 +1612,10 @@ export type FloristSalaryEntry = {
   source: SalarySource;
   work_date: string;
   note: string;
+  /** ⚠️ FAQAT `extra_decoration` da > 0 — boshqa manbalarda 0 (spec §6).
+      KONTRAKT: jonli sxemada hali YO'Q, endpoint bilan birga keladi. */
+  quantity?: number;
+  unit_amount?: string;
   created_at?: string;
   updated_at?: string;
 };

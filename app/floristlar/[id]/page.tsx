@@ -10,6 +10,8 @@ import { STAFF_LABEL, formatStemsAndBunches, volumeLabel } from "@/lib/inventory
 import DateChips from "@/components/DateChips";
 import DailyChart from "@/components/DailyChart";
 import FloristRateMatrix from "@/components/FloristRateMatrix";
+import FloristDecorationBlock from "@/components/FloristDecorationBlock";
+import FloristModal from "@/components/FloristModal";
 import FloristStockIssueModal from "@/components/FloristStockIssueModal";
 import FloristStockReturnDrawer from "@/components/FloristStockReturnDrawer";
 import StockLine, { lineFromBatchDetail } from "@/components/StockLine";
@@ -87,6 +89,9 @@ export default function FloristDetailPage() {
   const { showToast, dateFilter, dateRange } = useStore();
   const { canControl } = usePerm();
   const canManage = canControl("inventory");
+  // ⚠️ OFORMLENIYA yozish — `florists` ruxsati (sklad `inventory` dan ALOHIDA)
+  const canFlorists = canControl("florists");
+  const [editFee, setEditFee] = useState(false);
 
   const [florist, setFlorist] = useState<FloristProfile | null>(null);
   const [stats, setStats] = useState<FloristStats | null>(null);
@@ -279,23 +284,26 @@ export default function FloristDetailPage() {
               })()}
             </Section>
 
-            {/* e) HAJM TARIFLARI */}
+            {/* e) OFORMLENIYA HAQI — narx + qo'lda yozish (spec §1).
+                ⚠️ Ilgari bu yerda faqat O'QISH uchun chiziq bor edi va u «Hajm tariflari»
+                ichida turardi; endi o'z bo'limi — narx bir joyda, yozish ham shu yerda. */}
+            <Section id="decoration" title="Oformleniya haqi">
+              {florist
+                ? <FloristDecorationBlock
+                    florist={florist}
+                    canControl={canFlorists}
+                    onEditFee={() => setEditFee(true)}
+                    onAdded={() => { loadStats(); }}
+                  />
+                : <p className="text-[13px]" style={{ color: "var(--muted)" }}>Florist ma&apos;lumoti yuklanmadi.</p>}
+            </Section>
+
+            {/* f) HAJM TARIFLARI */}
             <Section id="rates" title="Hajm tariflari">
-              {florist && (
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border px-3.5 py-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                  <div className="min-w-0">
-                    <div className="text-[12.5px] font-semibold">Oformleniya haqi</div>
-                    <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>Hajm tarifidan alohida — 1 dona buket/savat bezash uchun</div>
-                  </div>
-                  <span className="shrink-0 rounded-full px-3 py-1 text-[13px] font-bold tabular-nums" style={{ background: "color-mix(in srgb, var(--acc) 14%, transparent)", color: "var(--acc)" }}>
-                    {Math.round(+(florist.decoration_fee ?? 0)) > 0 ? `${fmt(florist.decoration_fee)} / dona` : "Belgilanmagan"}
-                  </span>
-                </div>
-              )}
               {florist ? <FloristRateMatrix florist={florist} /> : <p className="text-[13px]" style={{ color: "var(--muted)" }}>Florist ma&apos;lumoti yuklanmadi.</p>}
             </Section>
 
-            {/* f) ISH HAQI TARIXI */}
+            {/* g) ISH HAQI TARIXI */}
             <Section id="salary" title="Ish haqi tarixi">
               {stats.salary_entries.length === 0 ? <EmptyState title="Yozuv yo'q" sub="Bu davrda ish haqi yozuvi yo'q." /> : (
                 <div className="overflow-x-auto thin-scroll">
@@ -389,6 +397,10 @@ export default function FloristDetailPage() {
       )}
       {returnTarget && (
         <FloristStockReturnDrawer balance={returnTarget.balance} initialKind={returnTarget.kind} onClose={() => setReturnTarget(null)} onDone={() => { loadBalances(); loadStats(); loadBatches(); }} />
+      )}
+      {/* ⚠️ OFORMLENIYA NARXI — YAGONA input shu formada (takrorlanmaydi) */}
+      {editFee && florist && (
+        <FloristModal florist={florist} onClose={() => setEditFee(false)} onSaved={(f) => { setFlorist(f); setEditFee(false); loadStats(); }} />
       )}
     </div>
   );

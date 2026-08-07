@@ -189,6 +189,9 @@ export function buildSellPayload(data?: SellInput): Record<string, unknown> {
   };
 }
 
+/** oxirgi HTTP javob kodi — `requestWithStatus` uchun (200 va 201 farqi). */
+let lastStatus = 0;
+
 let refreshing: Promise<boolean> | null = null;
 
 async function refreshAccess(): Promise<boolean> {
@@ -273,11 +276,30 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
     throw new ApiError(401, { detail: "Sessiya tugadi — qayta kiring" });
   }
 
+  // ⚠️ OXIRGI JAVOB KODI — `requestWithStatus` shu yerdan oladi. Alohida fetch
+  // qilinmaydi: ikkinchi so'rov yuborish yozuvni IKKI MARTA yaratib qo'yardi.
+  lastStatus = res.status;
+
   if (res.status === 204) return undefined as T;
 
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, body);
   return body as T;
+}
+
+/**
+ * `request` bilan AYNAN bir xil, lekin HOLAT KODINI ham qaytaradi.
+ *
+ * ⚠️ Kerak, chunki oformleniya qo'shishda 200 va 201 BOSHQA-BOSHQA ma'no beradi
+ * (200 = o'sha kunning qatoriga qo'shildi, 201 = yangi qator ochildi) va operatorga
+ * aynan shu farq aytilishi kerak — aks holda u «ishlamadi» deb yana qo'shadi.
+ *
+ * ⚠️ Ikkinchi so'rov YUBORILMAYDI (u yozuvni ikki marta yaratardi) — kod
+ * `request` ning o'zidan, modul darajasidagi `lastStatus` orqali olinadi.
+ */
+export async function requestWithStatus<T>(path: string, init: RequestInit = {}): Promise<{ status: number; data: T }> {
+  const data = await request<T>(path, init);
+  return { status: lastStatus, data };
 }
 
 const qs = (params?: Record<string, string | number | boolean | undefined>) => {
@@ -674,6 +696,19 @@ export const api = {
   /** Joriy foydalanuvchining florist profili (o'z hisoboti uchun). Florist bo'lmasa 404. */
   floristMe: () => request<FloristProfile>("/api/florists/me/"),
   floristSalary: (p?: Params) => list<FloristSalaryEntry>("/api/florist-salary/", p),
+  /**
+   * ⚠️ QO'SHIMCHA OFORMLENIYA — POST /api/florists/{id}/decoration/
+   * Spec: FRONTEND_FLORIST_DECORATION_SALARY_API.md · KONTRAKT (jonli OpenAPI'da HALI YO'Q).
+   * ⚠️ HOLAT KODI MUHIM: 201 = yangi qator, 200 = o'sha kunning qatoriga QO'SHILDI.
+   * Shu bois `requestWithStatus` — oddiy `request` kodni yo'qotardi.
+   */
+  addFloristDecoration: (id: number, data: Record<string, unknown>) =>
+    requestWithStatus<FloristSalaryEntry>(`/api/florists/${id}/decoration/`, { method: "POST", body: JSON.stringify(data) }),
+  /** ⚠️ `amount` yuborilsa ko'paytirish BEKOR bo'ladi — tanani `buildSalaryEditPayload` quradi. */
+  updateFloristSalary: (id: number, data: Record<string, unknown>) =>
+    request<FloristSalaryEntry>(`/api/florist-salary/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteFloristSalary: (id: number) =>
+    request<void>(`/api/florist-salary/${id}/`, { method: "DELETE" }),
   createSalaryEntry: (data: Partial<FloristSalaryEntry>) =>
     request<FloristSalaryEntry>("/api/florist-salary/", { method: "POST", body: JSON.stringify(data) }),
 

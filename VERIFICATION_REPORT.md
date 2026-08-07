@@ -4075,3 +4075,148 @@ fff. **`not_sent` elementining shakli noma'lum** — jonli ma'lumotda doim `[]`.
 ggg. **`shop_phone` va `operator_phone` bir xil qiymatda.** Ikkalasi ATAYLAB alohida
    (spec), lekin bugun qiymatlari bir xil va `shop_phone` frontendda tahrirlanmaydi.
    SETTLE: `shop_phone` uchun ham UI kerakmi, yoki u faqat AI uchunmi?
+
+═══════════════════════════════════════════════════════════════════
+# QO'LDA OFORMLENIYA HAQI (FRONTEND_FLORIST_DECORATION_SALARY_API.md, 2026-08-07)
+# READ-ONLY: GET + OpenAPI. Har bir yozish ATAYIN sinalmagan.
+═══════════════════════════════════════════════════════════════════
+
+## §5 — ⚠️ ISH DAVOMIDA DEPLOY BO'LDI
+
+Birinchi tekshiruv (148 yo'l) va ikkinchisi (149 yo'l) ORASIDA backend chiqdi:
+
+| | 1-tekshiruv | 2-tekshiruv |
+|---|---|---|
+| `POST /api/florists/{id}/decoration/` | ❌ YO'Q | ✅ BOR |
+| salary enum'da `extra_decoration` | ❌ YO'Q | ✅ BOR |
+| `FloristSalaryEntry.quantity/unit_amount` | ❌ YO'Q | ✅ BOR |
+| `decoration_fee` florist modelida | ✅ BOR | ✅ BOR |
+| `PATCH /api/florist-salary/{id}/` | ✅ BOR | ✅ BOR |
+| `summary.decoration_salary_total` | ✅ BOR | ✅ BOR |
+
+Ya'ni **hammasi endi TEKSHIRILGAN**, kontrakt-only qism qolmadi.
+
+```
+FloristDecorationSalary (request)  maydonlar: count · note · unit_amount · work_date
+                                   required : ['count']
+javoblar (OpenAPI)                 : ['200']      ← ⚠️ 201 E'LON QILINMAGAN (LIST 2)
+```
+
+**Jonli yozuvlar bor** (florist 7 «Isroil», `decoration_fee = 5000.00`):
+
+```
+id=250  2026-08-07  qty=3   unit=5000.00  amount=15000.00
+id=173  2026-08-05  qty=28  unit=5000.00  amount=140000.00
+id=134  2026-08-04  qty=52  unit=5000.00  amount=260000.00
+```
+
+Boshqa manbalarda `quantity=0, unit_amount=0.00` — spec §6 AYNAN shunday deydi, ya'ni
+qatordagi «hisobni ko'rsatish» sharti bitta bo'lishi mumkin (`hasArithmetic`).
+
+## §0a — `decoration_fee` UI'da ALLAQACHON BOR → TAKRORLANMADI
+
+`components/FloristModal.tsx:84` — florist yaratish/tahrirlash formasida input bor
+(`PATCH /api/florists/{id}/` ham o'sha yerda). Shu bois yangi blokka **ikkinchi input
+QO'YILMADI**: blok narxni KO'RSATADI va «O'zgartirish» tugmasi o'sha yagona formani
+ochadi. Ikki input bo'lsa ikki joyda ikki xil qiymat ko'rinib qolardi.
+
+⚠️ Yo'l-yo'lakay: florist detalida «Hajm tariflari» ichida FAQAT O'QISH uchun
+«Oformleniya haqi» chizig'i bor edi — u endi ortiqcha, olib tashlandi va o'rniga
+to'liq blok o'z bo'limiga chiqdi (bitta nomdagi ikkita joy qolmadi).
+
+## §0b — yangi manba AVTOMATIK qo'llab-quvvatlandi ✓
+
+`rework` paytida qilingan tuzatish AYNAN ishladi:
+`SalaryLedger.tsx:16` filtr variantlarini `Object.keys(SALARY_SOURCE_LABEL)` dan
+quradi, yorliq esa `salarySourceLabel()` orqali (noma'lum qiymat uchun ogohlantirish +
+o'qiladigan zaxira). Ya'ni `lib/inventory.ts` ga BITTA qator qo'shish yetdi — filtr,
+yorliq va legenda o'zi keldi. **Hech qayerda qattiq yozilgan manba ro'yxati YO'Q.**
+(`lib/exports.ts` dagi `source === "catalog"` — boshqa maqsad: katalog turini sanash,
+manba ro'yxati emas.)
+
+Jonli tasdiq (skrinshot): florist 7 ning «Manba bo'yicha» chizmasida
+«Qo'shimcha of… 415 000 so'm · 3» qatori O'ZI paydo bo'ldi.
+
+## §0c — VERDIKT: biz yig'MAYMIZ, serverdan olamiz ✓
+
+`FloristStats.tsx` va `app/floristlar/[id]/page.tsx` `stats.by_source` va
+`stats.summary.*` ni TO'G'RIDAN-TO'G'RI chizadi; manbalarni klientda qo'shadigan
+joy YO'Q. Jonli arifmetika buni tasdiqlaydi:
+
+```
+extra_decoration  415 000
+decoration        165 000
+sale_decoration    30 000
+                  ───────
+decoration_salary_total = 610 000   ✓ (server o'zi yig'gan)
+```
+
+Ya'ni ikki marta sanash xavfi yo'q — tegilmadi.
+
+## §4 — «bu florist — MEN» qanday aniqlanadi
+
+`FloristProfile.user` — `User` jadvalining kaliti (jonli: florist 7 → user 11,
+florist 4 → user 8). `/api/me/` esa o'sha `User` ning `id` sini beradi. Demak
+`florist.user === me.id` (`isOwnProfile`). Shu holatda qo'shish formasi UMUMAN
+chizilmaydi — doim 403 beradigan tugma ko'rsatilmaydi.
+
+## §2 — 200 va 201 farqi
+
+`api.requestWithStatus` qo'shildi: `request` ning O'ZIDAN holat kodini oladi
+(ikkinchi so'rov YUBORILMAYDI — u yozuvni ikki marta yaratardi). Keyin:
+
+```
+200 → «Bugungi qatorga qo'shildi: 5 ta · 25 000 so'm»
+201 → «Yangi qator qo'shildi: 2 ta · 14 000 so'm»
+```
+
+Ikki marta bosishdan `busy` qo'riqlaydi; muvaffaqiyatdan keyin `loadStats()` chaqiriladi.
+
+## §3 — tahrir: UCH XULQ, IKKI REJIM
+
+⚠️ Server qoidasi: `amount` yuborilsa u USTUN turadi va ko'paytirish BEKOR bo'ladi.
+Shu bois forma uchta erkin maydon EMAS, ikkita REJIM: «Soni / narxi» yoki
+«Summani qo'lda». `buildSalaryEditPayload` `amount` ni HECH QACHON `quantity`/
+`unit_amount` bilan birga chiqarmaydi va O'ZGARMAGAN qiymatni yubormaydi —
+aks holda operator sonini o'zgartirsa-yu, eski `amount` ham ketib, hisob jimgina
+muzlab qolardi. Bu Vitest bilan qulflangan (uchala kombinatsiya + invariant).
+
+## Verify
+
+`tsc` toza · **706/706 Vitest** (34 tasi `lib/decoration.test.ts`) · konsol xatosi yo'q.
+Skrinshotlar (dark + light, jonli ma'lumot bilan):
+`deco-calc-*` (3 × 5 000 = 15 000), `deco-blocked-*` (narx yo'q — tugma o'chiq va
+sabab yozilgan), `deco-rows-*` (`?source=extra_decoration`, qatorda «3 × 5 000»),
+`deco-edit-*` (ikki rejim + jonli hisob).
+
+## LIST 1 — OFORMLENIYA bloki (⚠️ ISH HAQIGA TA'SIR QILADI)
+
+OF1. **Narxni belgilash. REV.** Florist detali → «Oformleniya haqi» → «O'zgartirish» →
+     `decoration_fee` ni 5 000 qiling. ✅ Blokdagi narx yangilansin.
+OF2. **⚠️ 3 ta qo'shish. IRREV-ish (o'chirish mumkin, lekin ish haqi o'zgaradi).**
+     «Nechta qildi» = 3 → hisob «3 × 5 000 = 15 000» ko'rinsin → Qo'shish.
+     ✅ Toast: «**Yangi qator** qo'shildi: 3 ta · 15 000 so'm».
+OF3. **⚠️ SHU KUNI yana 2 ta — BIRLASHISHI SHART.** Yana 2 ta qo'shing (narx o'sha).
+     ✅ Toast: «**Bugungi qatorga qo'shildi**: 5 ta · 25 000 so'm».
+     ✅ Ro'yxatda YANGI qator PAYDO BO'LMASIN — o'sha qator «5 × 5 000 = 25 000» bo'lsin.
+     Bu — butun xatti-harakatning MAG'ZI: qator 3 da qolsa xato, 2 ta alohida
+     qator chiqsa ham xato.
+OF4. **⚠️ BOSHQA narx — ALOHIDA qator.** «Boshqa narx» = 7 000, «Nechta» = 2 → Qo'shish.
+     ✅ Toast «**Yangi qator** qo'shildi: 2 ta · 14 000 so'm» va ro'yxatda IKKI qator:
+     `5 × 5 000 = 25 000` va `2 × 7 000 = 14 000`.
+OF5. **Narx yo'q holati. READ.** `decoration_fee` = 0 bo'lgan floristni oching —
+     Qo'shish O'CHIQ va «Avval oformleniya narxini kiriting» yozilgan bo'lsin.
+     «Boshqa narx» kiritilsa tugma YONSIN.
+OF6. **Tahrir — soni. REV.** Qatorni tuzating: «Soni / narxi» rejimida sonni 5 → 6
+     qiling. ✅ Summa 30 000 ga O'ZI o'zgarsin.
+OF7. **Tahrir — qo'lda summa. REV.** «Summani qo'lda» rejimiga o'ting, 20 000 yozing.
+     ✅ Summa 20 000 bo'lsin, `quantity` O'ZGARMASIN (ko'paytirish bekor).
+OF8. **⚠️ O'ZINGIZGA yozib bo'lmasligi. READ.** Florist hisobi bilan kirib o'z
+     profilingizni oching — qo'shish formasi UMUMAN ko'rinmasin (server 403 beradi).
+
+## LIST 2 — append
+
+hhh. **`POST /api/florists/{id}/decoration/` OpenAPI'da faqat `200` e'lon qilingan**,
+   holbuki spec `201` (yangi qator) va `200` (birlashdi) ni ajratadi va butun UX
+   shunga qurilgan. Kod haqiqiy kodni o'qiydi, lekin sxema chalg'ituvchi.
+   SETTLE: `201` javobi sxemaga qo'shilsinmi?

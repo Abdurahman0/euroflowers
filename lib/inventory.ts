@@ -699,6 +699,9 @@ export const SALARY_SOURCE_LABEL: Record<SalarySource, string> = {
   daily: "Kunlik",
   // ⚠️ RESTAVRATSIYA — florist buzib-yasagani uchun haq (qo'lda kiritiladi)
   rework: "Restavratsiya",
+  // ⚠️ QO'SHIMCHA OFORMLENIYA — admin qo'lda yozadi (soni × narxi). Katalogdagi
+  // avtomatik `decoration` va sotuvdagi `sale_decoration` dan ALOHIDA tur.
+  extra_decoration: "Qo'shimcha oformleniya",
   manual: "Qo'lda",
 };
 /** ⚠️ NOMA'LUM manba — xom `snake_case` o'rniga o'qiladigan matn + konsol ogohlantirishi
@@ -716,6 +719,7 @@ export const SALARY_SOURCE_HUE: Record<SalarySource, string> = {
   sale_decoration: "#c27ba0",
   daily: "#b3873a",
   rework: "var(--acc)",
+  extra_decoration: "#c27ba0",
   manual: "#8a8a8a",
 };
 
