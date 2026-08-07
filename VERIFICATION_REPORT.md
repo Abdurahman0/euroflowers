@@ -3948,3 +3948,130 @@ ccc. **`?payment_type=mixed` jimgina e'tiborsiz qoladi.** cash/card/debt ishlayd
    ko'rinib, aslida ishlamayapti — eng xavfli shakl.
 ddd. **`totals.mixed_quantity` yo'q.** Spec `mixed_count` bilan birga va'da qiladi;
    jonli javobda faqat `mixed_count` bor.
+
+═══════════════════════════════════════════════════════════════════
+# AI KATALOG ALBOMI + OPERATOR ALOQASI (2026-08-07)
+# Spec: FRONTEND_AI_ALBUM_AND_OPERATOR_API.md · READ-ONLY (GET + OpenAPI)
+═══════════════════════════════════════════════════════════════════
+
+## §2 audit — chat bugun nima qiladi
+
+`sender: "system"` + media yo'q → `sideOf()` «center» beradi, keyin:
+
+```
+if (!m.text.trim()) return null;   // app/chat/page.tsx
+```
+
+⚠️ Ya'ni albom xabari **bo'sh qator ham emas — UMUMAN chizilmaydi** (bug hisobotidagidan
+biroz battarroq). Operator mijoz nima ko'rganini bilmaydi.
+
+`image_tool_result` esa `parseMedia()` (MessageMedia.tsx) ichida, `attachments[]` dan
+keyingi ikkinchi manba sifatida o'qiladi va bitta rasm pufagi bo'lib chiqadi.
+**Unga TEGILMADI** — albom butunlay alohida yo'lda (`parseAlbum`), chunki u galereya,
+u esa bitta rasm; bitta uslubga tiqishtirish ikkalasini ham buzardi.
+
+## §2 — ⚠️ JONLI MA'LUMOT SPEC BILAN MOS EMAS: `image_url` YO'Q
+
+Haqiqiy albom topildi — **suhbat 274, xabar 2715**:
+
+```
+sender='system'  text=''
+yuqori daraja : album_max_per_message · items · messages_sent · not_sent · numbering_visible · ok · sent_as
+ok=True · sent_as='album' · messages_sent=4 · album_max_per_message=10 · numbering_visible=True
+items: 38 · positions 1…38 · delivered=false: 0
+ITEM kalitlari: catalog_id · delivered · detail · name · position · price · type
+                                    ↑ image_url HECH BIR itemda YO'Q
+not_sent: [] (bo'sh)
+```
+
+Spec «`items[].image_url` shu uchun qaytariladi» deydi — **backend uni yubormayapti**.
+Shu bois galereya rasmni SHART qilmaydi: plitka raqam + nom + narx + tur bilan quriladi,
+`image_url` kelsa (spec bo'yicha kelishi kerak) rasm ham chiziladi. Katalog rasmini
+`catalog_id` orqali TORTIB OLMADIK — u mijozga ketgan rasm emas, keyin o'zgargan
+bo'lishi mumkin; soxta dalil ko'rsatgandan ko'ra rasmsiz halol plitka yaxshiroq.
+
+⚠️ `not_sent` bo'sh bo'lgani uchun uning HAQIQIY shakli KO'RINMADI — parser satr ham,
+`{name/title/catalog_id}` + `{reason/error/detail/message}` obyekti ham qabul qiladi.
+⚠️ `delivered:false` ham jonli ma'lumotda YO'Q — u variant MOCK bilan tekshirildi.
+
+## §2 — Qanday chizildi
+
+- Sarlavha: «Katalog albomi yuborildi — 38 ta mahsulot, 4 ta xabar» + `sent_as` chipi
+- Plitkalar `position` bo'yicha; **raqam eng yirik element** (`tabular-nums`, plitkaning
+  chap yuqorisida, `--primary` fonda) — 38 da ham bir qarashda o'qiladi
+- Har plitka `catalog_id` bo'lsa `/katalog?item=<id>` ga havola
+- `delivered:false` → xira (opacity .45) + «yetmadi» belgisi
+- `ok:false` → galereya YO'Q, faqat «⚠ Katalog rasmlari yuborilmadi» + sabablari
+- `not_sent` bo'sh emas → nechtaligi va sabablari yoziladi
+- To'r: mobil 3, sm 5, lg 7 ustun — 38 plitka ham buzilmaydi
+- Ostida: «Mijoz shu raqamlarni ko'rgan — «1chisi qancha» degani shu ro'yxatdagi 1-raqam»
+
+## §1 — Sozlamalar: «Operator aloqasi»
+
+Uchala maydon JONLI mavjud va spec defaultlari bilan:
+
+```
+operator_phone    -> "+998 88 009 33 30"
+operator_hours    -> "08:00 dan 00:00 gacha"
+operator_hours_ru -> "с 08:00 до 00:00"
+shop_phone        -> "+998 88 009 33 30"        ← operator_phone bilan AYNAN BIR XIL
+working_hours     -> {"uz": "24/7, kunu tun ochiq", "ru": "24/7, круглосуточно", …}
+```
+
+⚠️ **`shop_phone` va `operator_phone` hozir bir xil qiymatda** — «takror» bo'lib
+ko'rinadi va kimdir birlashtirib yuborishi mumkin. Lekin `working_hours` («24/7»)
+va `operator_hours` («08:00–00:00») JONLI ma'lumotda ochiq FARQ qiladi: do'kon
+tunu kun ochiq, administrator esa 08:00–00:00 da javob beradi. Blok ostida shu
+ochiq yozilgan.
+
+⚠️ **`shop_phone` / `working_hours` bugun HECH QAYERDA tahrirlanmaydi** — butun
+frontendda ular faqat `lib/types.ts` va `lib/demo.ts` da uchraydi, UI yo'q. Ya'ni
+chalkashadigan MAVJUD blok yo'q; yangi blok o'zi tushunarli bo'lishi kerak edi va
+shunday qilindi (sarlavha + izoh + «Do'kon ish vaqtidan alohida» ta'kidi).
+
+**Bo'sh maydon qoidasi:** «bo'sh → yubormaslik» EMAS, «**o'zgarmagan → yubormaslik**».
+Tegilmagan maydon PATCH'ga umuman tushmaydi (server defaulti saqlanadi). Operator
+ATAYLAB tozalasa — bu ongli tanlov va `""` yuboriladi; aks holda Saqlash bosilardi-yu
+hech nima o'zgarmasdi. `can_control` yo'q bo'lsa maydonlar FAQAT O'QISH (GET ochiq).
+
+## §3 — Verify
+
+`tsc` toza · **672/672 Vitest** (21 tasi `lib/aiAlbum.test.ts`) · konsol xatosi yo'q.
+Skrinshotlar — JONLI metadata bilan (suhbat 274), **1440 va 390 · dark va light**:
+`album-settings-*`, `album-live-*` (38 raqamli plitka), `album-undelivered-*`,
+`album-fail-*`.
+
+⚠️ `delivered:false` va `ok:false` variantlari JONLI ma'lumotda YO'Q (hammasi
+`delivered:true`, `ok:true`, `not_sent: []`) — ular jonli metadatadan **MOCK
+qilib olingan**: item'lar va matnlar haqiqiy, faqat shu uch bayroq o'zgartirilgan.
+Qolgan hamma skrinshot — o'zgartirilmagan jonli javob.
+
+Mobil (390px): 3 ustunli to'r, raqamlar 1…38 o'qiladi, `delivered:false` plitka
+xira + «yetmadi» belgisi, sarlavhada «3 ta yetmadi» chipi.
+
+## LIST 1 — append
+
+OP1. **⚠️ OPERATOR SOATINI O'ZGARTIRISH (arzon va foydali tekshiruv).** Sozlamalar →
+     «Operator aloqasi» → «Navbatchilik» ni erkin matnga o'zgartiring, masalan
+     `har kuni 09:00 - 23:00`. Saqlang. Keyin **haqiqiy suhbatda** (Instagram/Telegram)
+     AI'dan operatorga ulashni so'rang — javobida AYNAN yangi matn chiqishi kerak.
+     Shu bilan uch narsa tasdiqlanadi: PATCH ketdi, erkin matn buzilmadi, AI bazadan
+     o'qiyapti. **REV** — eski qiymatni qaytarib qo'ysangiz bo'ldi.
+OP2. **Ruxsatsiz foydalanuvchi. READ.** `settings` da `can_control` YO'Q hisob bilan
+     kiring — uchala maydon faqat o'qish uchun ko'rinsin, Saqlash tugmasi BO'LMASIN.
+OP3. **Albom galereyasi. READ.** Katalog so'ralgan suhbatni oching — raqamlangan
+     plitkalar ko'rinsin. Mijoz «1chisi qancha» desa, 1-plitka nomi va narxi
+     javobingizga mos kelishini tekshiring.
+
+## LIST 2 — append
+
+eee. ⚠️ **`catalog_album_result.items[].image_url` YUBORILMAYAPTI.** Spec uni
+   hujjatlashtiradi va «mijozga ketgan aynan o'sha manzil» deydi, lekin jonli javobda
+   (suhbat 274, 38 ta item) u YO'Q. Galereya rasmsiz ishlaydi, lekin operator mijoz
+   ko'rgan RASMNI ko'rmaydi — bu xususiyatning yarmi. SETTLE: qo'shiladimi?
+fff. **`not_sent` elementining shakli noma'lum** — jonli ma'lumotda doim `[]`.
+   Parser satr ham, obyekt ham qabul qiladi, lekin haqiqiy shakl tasdiqlanmagan.
+   SETTLE: element `{catalog_id, name, reason}` bo'ladimi?
+ggg. **`shop_phone` va `operator_phone` bir xil qiymatda.** Ikkalasi ATAYLAB alohida
+   (spec), lekin bugun qiymatlari bir xil va `shop_phone` frontendda tahrirlanmaydi.
+   SETTLE: `shop_phone` uchun ham UI kerakmi, yoki u faqat AI uchunmi?

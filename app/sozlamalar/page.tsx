@@ -7,6 +7,8 @@ import { usePerm, useStore } from "@/lib/store";
 import { fmt } from "@/lib/format";
 import PasswordCard from "@/components/PasswordCard";
 import type { BusinessSettings } from "@/lib/types";
+import { OPERATOR_FIELDS, operatorPayload, operatorDirty, type OperatorContact } from "@/lib/aiAlbum";
+import { Headset } from "lucide-react";
 
 /**
  * Sozlamalar: Florist xizmat haqi (single-branch rejim — filiallar yo'q) va
@@ -23,6 +25,10 @@ export default function SozlamalarPage() {
   const [fee, setFee] = useState("");
   const [savingFee, setSavingFee] = useState(false);
   const [feeEditing, setFeeEditing] = useState(false);
+  // ⚠️ OPERATOR ALOQASI — uchta ERKIN MATN maydoni (vaqtga maska/format YO'Q:
+  // «har kuni 08:00 - 00:00» ham to'g'ri, AI uni o'zgartirmasdan aytadi).
+  const [op, setOp] = useState<OperatorContact>({ operator_phone: "", operator_hours: "", operator_hours_ru: "" });
+  const [savingOp, setSavingOp] = useState(false);
 
   useEffect(() => {
     if (!seeSettings) return; // ruxsat yo'q — faqat parol bo'limi ko'rinadi
@@ -30,6 +36,11 @@ export default function SozlamalarPage() {
       .then((sts) => {
         setSt(sts);
         setFee(String(Math.round(parseFloat(sts.default_florist_fee) || 0)));
+        setOp({
+          operator_phone: sts.operator_phone ?? "",
+          operator_hours: sts.operator_hours ?? "",
+          operator_hours_ru: sts.operator_hours_ru ?? "",
+        });
       })
       .catch((e) => showToast(e instanceof Error ? e.message : "Yuklashda xatolik"));
   }, [showToast, seeSettings]);
@@ -46,6 +57,27 @@ export default function SozlamalarPage() {
       showToast("Saqlab bo'lmadi");
     } finally {
       setSavingFee(false);
+    }
+  };
+
+  const opDirty = operatorDirty(st, op);
+  const saveOperator = async () => {
+    if (!st || !opDirty) return;
+    setSavingOp(true);
+    try {
+      // ⚠️ FAQAT O'ZGARGAN kalitlar (lib/aiAlbum.ts — operatorPayload)
+      const upd = await api.updateSettings(operatorPayload(st, op));
+      setSt(upd);
+      setOp({
+        operator_phone: upd.operator_phone ?? "",
+        operator_hours: upd.operator_hours ?? "",
+        operator_hours_ru: upd.operator_hours_ru ?? "",
+      });
+      showToast("✓ Operator aloqasi yangilandi");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Saqlab bo'lmadi");
+    } finally {
+      setSavingOp(false);
     }
   };
 
@@ -109,6 +141,63 @@ export default function SozlamalarPage() {
       </section>
 
       {/* ===== Parol — har bir foydalanuvchi o'ziniki ===== */}
+      {/* ===== OPERATOR ALOQASI — AI mijozni operatorga ulaganda aytadigan ma'lumot =====
+          ⚠️ Bu «Do'kon ish vaqti» (working_hours) va do'kon telefoni (shop_phone) BILAN
+          BIR XIL EMAS. Jonli ma'lumot buni ochiq ko'rsatadi:
+            working_hours  = «24/7, kunu tun ochiq»   ← do'kon ochiq bo'lgan vaqt
+            operator_hours = «08:00 dan 00:00 gacha»  ← admin telefonga javob beradigan vaqt
+          Hozir shop_phone bilan operator_phone qiymati TASODIFAN bir xil — shuning uchun
+          kimdir «takror» deb o'ylab birlashtirib yubormasligi kerak. AI ularni ATAYLAB
+          ajratib ishlatadi. */}
+      <section className="glass p-5" hidden={!seeSettings}>
+        <h2 className="flex items-center gap-2 text-base font-bold">
+          <Headset size={17} strokeWidth={1.9} style={{ color: "var(--primary)" }} /> Operator aloqasi
+        </h2>
+        <p className="mt-0.5 text-[13px]" style={{ color: "var(--muted)" }}>
+          AI mijozni operatorga ulaganda shu raqamni va vaqtni aytadi. <b>Do&apos;kon ish vaqtidan alohida</b> —
+          do&apos;kon ochiq bo&apos;lgan vaqt boshqa, administrator telefonga javob beradigan vaqt boshqa.
+        </p>
+
+        <div className="mt-3 flex flex-col gap-3">
+          {([
+            ["operator_phone", "Aloqa raqami", "+998 88 009 33 30"],
+            ["operator_hours", "Navbatchilik", "08:00 dan 00:00 gacha"],
+            ["operator_hours_ru", "Navbatchilik (RU)", "с 08:00 до 00:00"],
+          ] as const).map(([k, label, ph]) => (
+            <label key={k} className="flex flex-col gap-1.5 text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>
+              {label}
+              {control ? (
+                /* ⚠️ ERKIN MATN — vaqt tanlagich ham, maska ham YO'Q (spec talabi) */
+                <input className="inp" value={op[k]} onChange={(e) => setOp({ ...op, [k]: e.target.value })}
+                  placeholder={ph} maxLength={64} inputMode="text" />
+              ) : (
+                /* ruxsatsiz foydalanuvchi — FAQAT KO'RISH (GET hammaga ochiq) */
+                <div className="inp flex items-center" style={{ background: "var(--surface-2)", color: op[k] ? "var(--text)" : "var(--muted)" }}>
+                  {op[k] || "—"}
+                </div>
+              )}
+            </label>
+          ))}
+        </div>
+
+        {control && (
+          <div className="mt-3 flex items-center justify-end gap-2">
+            {opDirty && (
+              <button type="button" onClick={() => setOp({
+                operator_phone: st?.operator_phone ?? "", operator_hours: st?.operator_hours ?? "", operator_hours_ru: st?.operator_hours_ru ?? "",
+              })} className="btn-ghost">Bekor</button>
+            )}
+            <button type="button" onClick={saveOperator} disabled={!opDirty || savingOp}
+              className={clsx("btn-primary !flex-none px-5 disabled:opacity-60", savingOp && "btn-loading")}>
+              Saqlash
+            </button>
+          </div>
+        )}
+        {!control && (
+          <p className="mt-2 text-[11.5px]" style={{ color: "var(--muted)" }}>Tahrirlash uchun «Sozlamalar» ruxsati kerak.</p>
+        )}
+      </section>
+
       <PasswordCard />
     </div>
   );

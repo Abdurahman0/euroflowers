@@ -17,6 +17,8 @@ import { fmtTime, initials } from "@/lib/format";
 import { CONV_STATUS_LABEL } from "@/components/badges";
 import { Icon } from "@/components/icons";
 import MessageMedia, { MediaLightbox, mediaBodyText, parseMedia } from "@/components/chat/MessageMedia";
+import CatalogAlbum from "@/components/chat/CatalogAlbum";
+import { parseAlbum } from "@/lib/aiAlbum";
 import type { Conversation, Message } from "@/lib/types";
 
 /**
@@ -84,6 +86,23 @@ function MessageRow({
 
   // AI/tizim yuborgan media (image_tool_result) — CHIQAYOTGAN pufak (o'ngda)
   const side: Side = m.sender === "system" && media ? "right" : sideOf(m);
+
+  /* ⚠️ KATALOG ALBOMI — `text` BO'SH bo'lgani uchun bu xabar quyidagi
+     «bo'sh tizim yozuvi ko'rsatilmaydi» sharti bilan BUTUNLAY yo'qolardi:
+     operator mijoz qaysi rasmlarni va qaysi raqamlar ostida ko'rganini bilmasdi.
+     Shu bois u shartdan OLDIN, o'z galereyasi bilan chiziladi.
+     ⚠️ `image_tool_result` bunga TEGMAYDI — u avvalgidek `parseMedia` orqali. */
+  const album = m.sender === "system" ? parseAlbum(m.metadata) : null;
+  if (album) {
+    return (
+      <div className="mt-4 flex justify-center">
+        <div className="w-full max-w-[92%]">
+          <CatalogAlbum album={album} />
+          <div className="mt-1 text-center text-[10.5px]" style={{ color: "var(--muted)" }}>{fmtTime(m.created_at)}</div>
+        </div>
+      </div>
+    );
+  }
 
   if (side === "center") {
     if (!m.text.trim()) return null; // bo'sh tizim yozuvi ko'rsatilmaydi

@@ -1646,7 +1646,17 @@ export type BusinessSettings = {
   approximate_price_wording_ru: string;
   handoff_rules_uz: string;
   handoff_rules_ru: string;
+  /** ⚠️ DO'KON ISH VAQTI — mijoz «nechida ochilasiz» deganda. Jonli javobda
+      OBYEKT: {uz, ru, timezone}. `operator_hours` BILAN ARALASHTIRMANG. */
   working_hours: Record<string, unknown> | string;
+  /** ⚠️ DO'KON telefoni — `operator_phone` dan ALOHIDA maydon (hozir qiymati
+      bir xil bo'lsa ham). Ikkalasini birlashtirmang: AI ularni ajratib ishlatadi. */
+  shop_phone?: string;
+  /** Mijozga beriladigan ALOQA raqami (AI operatorga ulaganda aytadi) */
+  operator_phone?: string;
+  /** ⚠️ ADMINISTRATORLAR NAVBATCHILIGI — do'kon ish vaqti EMAS. ERKIN MATN. */
+  operator_hours?: string;
+  operator_hours_ru?: string;
 };
 
 export type UploadResponse = { url: string; path: string };
