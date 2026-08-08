@@ -18,7 +18,7 @@ function mockApi(total: number, opts: { failPage?: number; failFirst?: boolean }
   const fetchMock = vi.fn(async (url: string) => {
     seen.push(url);
     const u = new URL(url);
-    const size = Number(u.searchParams.get("page_size"));
+    const size = Math.min(Number(u.searchParams.get("page_size")), 100);   // ⚠️ jonli server shifti
     const page = Number(u.searchParams.get("page") || 1);
     if (opts.failFirst && page === 1) return { ok: false, status: 500, headers: new Headers(), json: async () => ({ detail: "boom" }) };
     if (opts.failPage === page) return { ok: false, status: 500, headers: new Headers(), json: async () => ({ detail: "boom" }) };
@@ -45,6 +45,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+const sizes = (seen: string[]) => seen.map((u) => Number(new URL(u).searchParams.get("page_size")));
 const pageNums = (seen: string[]) => seen.map((u) => Number(new URL(u).searchParams.get("page") || 1));
 
 describe("listPaged — bosqichma-bosqich yuklash", () => {
@@ -78,7 +79,7 @@ describe("listPaged — bosqichma-bosqich yuklash", () => {
       const u = new URL(url);
       const size = Number(u.searchParams.get("page_size"));
       const page = Number(u.searchParams.get("page") || 1);
-      order.push(`fetch:p${page}`);
+      order.push(`fetch:${size}@p${page}`);
       const start = (page - 1) * size;
       return {
         ok: true, status: 200, headers: new Headers({ "Content-Type": "application/json" }),
@@ -88,10 +89,12 @@ describe("listPaged — bosqichma-bosqich yuklash", () => {
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
     await listPaged<{ id: number }>("/api/catalog/", undefined, (r, done) => order.push(done ? "onPage:done" : `onPage:first(${r.length})`), 24);
-    expect(order[0]).toBe("fetch:p1");
+    expect(order[0]).toBe("fetch:24@p1");
     expect(order[1]).toBe("onPage:first(24)");     // ← ekran SHU YERDA to'ladi
-    expect(order[2]).toBe("fetch:p2");             // qolgan sahifalar KEYIN
+    expect(order[2]).toBe("fetch:100@p1");         // qolgani KEYIN, KATTA sahifa bilan
     expect(order.at(-1)).toBe("onPage:done");
+    // ⚠️ HECH QACHON bir vaqtda bir nechta so'rov emas — ketma-ket
+    expect(order.filter((o) => o.startsWith("fetch:"))).toEqual(["fetch:24@p1", "fetch:100@p1", "fetch:100@p2"]);
   });
 
   it("⚠️ QATOR YO'QOLMAYDI — hammasi, TARTIBI buzilmagan holda", async () => {
@@ -106,20 +109,22 @@ describe("listPaged — bosqichma-bosqich yuklash", () => {
     // ro'yxat jimgina qisqarardi.
     mockApi(900);
     const out = await listPaged<{ id: number }>("/api/x/", undefined, () => {}, 24);
-    expect(out).toHaveLength(504);            // 21 sahifa × 24 (500 dan oshgan oxirgi to'liq sahifa)
-    expect(out.length).toBeGreaterThanOrEqual(500);
+    expect(out).toHaveLength(500);            // AYNAN shift — 5 × 100
   });
 
   it("sahifa raqamlari 1..N — takror yoki tushib qolgan sahifa yo'q", async () => {
     const { seen } = mockApi(100);
     await listPaged<{ id: number }>("/api/x/", undefined, () => {}, 24);
-    expect(pageNums(seen).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5]);
+    // 1 ta kichik (ekran uchun) + 1 ta katta (100 qatorning hammasi) = 2 so'rov
+    expect(seen).toHaveLength(2);
+    expect(sizes(seen)).toEqual([24, 100]);
   });
 
   it("⚠️ chaqiruvchi `page` bersa ham sahifalash BUZILMAYDI (spread'dan keyin qo'yilgan)", async () => {
     const { seen } = mockApi(60);
-    await listPaged<{ id: number }>("/api/x/", { page: 7 }, () => {}, 24);
-    expect(pageNums(seen).sort((a, b) => a - b)).toEqual([1, 2, 3]);
+    await listPaged<{ id: number }>("/api/x/", { page: 7, page_size: 999 }, () => {}, 24);
+    expect(pageNums(seen)).toEqual([1, 1]);
+    expect(sizes(seen)).toEqual([24, 100]);
   });
 
   it("filtrlar HAR sahifaga uzatiladi — aks holda 2-sahifa filtrsiz kelardi", async () => {
@@ -137,10 +142,10 @@ describe("listPaged — bosqichma-bosqich yuklash", () => {
   });
 
   it("⚠️ KEYINGI sahifa yiqilsa — ro'yxat BO'SHAB qolmaydi, o'sha bo'lak tushadi xolos", async () => {
-    mockApi(60, { failPage: 2 });
+    // 282 qator: kichik 1-sahifa (24) o'tadi, katta 2-sahifa yiqiladi → 100 tasi qoladi
+    mockApi(282, { failPage: 2 });
     const out = await listPaged<{ id: number }>("/api/x/", undefined, () => {}, 24);
-    expect(out).toHaveLength(36);             // 24 (1-sahifa) + 12 (3-sahifa)
-    expect(out.length).toBeGreaterThan(0);
+    expect(out).toHaveLength(100);            // BO'SH emas — yetib kelgani saqlanadi
   });
 
   it("bo'sh javob — onPage bir marta, bo'sh ro'yxat bilan", async () => {
@@ -193,7 +198,7 @@ describe("listPaged — bosqichma-bosqich yuklash", () => {
   it("tartib BARQAROR bo'lsa — qayta olish YO'Q (ortiqcha so'rov qilinmaydi)", async () => {
     const { seen } = mockApi(141);
     await listPaged<{ id: number }>("/api/x/", { ordering: "-created_at" }, () => {}, 24);
-    expect(seen).toHaveLength(6);   // 141/24 = 6 sahifa, qayta olish yo'q
+    expect(sizes(seen)).toEqual([24, 100, 100]);   // 1 kichik + 2 katta, qayta olish YO'Q
     expect(seen.some((u) => new URL(u).searchParams.get("ordering") === "-id")).toBe(false);
   });
 

@@ -378,9 +378,9 @@ const list = async <T,>(path: string, params?: Params): Promise<T[]> => {
  * `done: true` bilan). Xato bo'lsa promise REJECT bo'ladi (birinchi sahifada) yoki
  * yetib kelgan qismi qaytadi (keyingi sahifalarda) — ro'yxat jimgina BO'SHAB qolmaydi.
  */
-const PAGED_MAX_ROWS = 500;   // `list()` dagi bilan bir xil shift (5 × 100)
-const PAGED_CONCURRENCY = 3;  // serverni bo'g'masin — jonli o'lchovda 3 va 8 bir xil chiqdi
-/** ⚠️ Sahifalash uchun BARQAROR tartib — pastdagi `unstableOrdering` izohiga qarang. */
+const PAGED_MAX_ROWS = 500;    // `list()` dagi bilan bir xil shift (5 × 100)
+const PAGED_BULK_SIZE = 100;   // ⚠️ SERVER SHIFTI — 200/500 so'ralsa ham 100 qaytaradi (jonli tekshirildi)
+/** ⚠️ Sahifalash uchun BARQAROR tartib — pastdagi izohga qarang. */
 const PAGED_STABLE_ORDERING = "-id";
 
 /** `id` bo'yicha takrorlarni tashlaydi, BIRINCHI uchraganini saqlaydi (tartib buzilmaydi). */
@@ -403,43 +403,43 @@ export const listPaged = async <T,>(
   onPage: (rows: T[], done: boolean) => void,
   pageSize = 24,
 ): Promise<T[]> => {
-  // ⚠️ `onFirst` — 1-sahifa KELISHI BILANOQ. Bu butun optimallashtirishning MOHIYATI:
-  // agar u to'liq yuklashdan keyin chaqirilsa, ekran avvalgidek uzoq bo'sh turadi.
-  const fetchAll = async (over?: Params, onFirst?: (rows: T[]) => void) => {
-    // ⚠️ `page` SPREAD'DAN KEYIN — chaqiruvchi tasodifan `page` bersa ham sahifalash buzilmaydi
-    const at = (page: number) => `${path}${qs({ page_size: pageSize, ...params, ...over, page })}`;
-    const first = await request<Paginated<T>>(at(1));
-    const rows = [...first.results];
-    if (first.count != null && first.count > rows.length) onFirst?.([...rows]);
-    const expected = Math.min(first.count ?? rows.length, PAGED_MAX_ROWS);
-    const pages = Math.ceil(expected / pageSize);
-    if (pages <= 1) return { rows, expected, pages };
+  const url = (size: number, page: number, over?: Params) =>
+    // ⚠️ `page`/`page_size` SPREAD'DAN KEYIN — chaqiruvchi ularni bersa ham sahifalash buzilmaydi
+    `${path}${qs({ ...params, ...over, page_size: size, page })}`;
 
-    // qolgan sahifalar — cheklangan parallellik bilan, TARTIBI saqlangan holda
-    const rest: T[][] = new Array(pages - 1).fill(null).map(() => []);
-    let cursor = 0;
-    const worker = async () => {
-      for (;;) {
-        const i = cursor++;
-        if (i >= pages - 1) return;
-        // ⚠️ bitta sahifa yiqilsa BUTUN ro'yxat yo'qolmasin — o'sha sahifa bo'sh qoladi
-        rest[i] = await request<Paginated<T>>(at(i + 2)).then((p) => p.results).catch(() => []);
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(PAGED_CONCURRENCY, pages - 1) }, worker));
-    for (const r of rest) rows.push(...r);
-    return { rows, expected, pages };
-  };
-
-  // 1-sahifa ekranga DARHOL (fetchAll ichidan, qolgan sahifalarni KUTMASDAN)
-  const first = await fetchAll(undefined, (rows) => onPage(rows, false));
-  if (first.pages <= 1) {
-    const only = dedupeById(first.rows);
+  // 1) KICHIK birinchi sahifa — ekran shu bilan to'ladi
+  const head = await request<Paginated<T>>(url(pageSize, 1));
+  const count = head.count ?? head.results.length;
+  const expected = Math.min(count, PAGED_MAX_ROWS);
+  if (count <= head.results.length) {
+    const only = dedupeById(head.results);
     onPage([...only], true);
     return only;
   }
+  onPage([...head.results], false);
 
-  let all = dedupeById(first.rows);
+  /**
+   * 2) QOLGANI — KETMA-KET va KATTA sahifalar bilan.
+   *
+   * ⚠️ BIR VAQTDA BITTA SO'ROV. Ilgari qolgan sahifalar parallel olinardi va bitta
+   * ro'yxat uchun 6–12 ta bir xil so'rov bir vaqtda ketardi; server ularni baribir
+   * navbatga qo'yadi (jonli o'lchov: 6 parallel × 25 ta = 6.3 s, ketma-ket 2 × 100 = 5.4 s),
+   * ya'ni parallellik FOYDA BERMAGAN, shunchaki so'rovlar to'dasini yasagan.
+   * ⚠️ page_size 100 dan katta so'ralsa ham server 100 qaytaradi — shu bois shift.
+   */
+  const bulk = async (over?: Params) => {
+    const rows: T[] = [];
+    for (let page = 1; rows.length < expected; page++) {
+      // ⚠️ bitta sahifa yiqilsa BUTUN ro'yxat yo'qolmasin — yetib kelgani qaytadi
+      const p = await request<Paginated<T>>(url(PAGED_BULK_SIZE, page, over)).catch(() => null);
+      if (!p) break;
+      rows.push(...p.results);
+      if (!p.next || p.results.length === 0) break;
+    }
+    return dedupeById(rows).slice(0, expected);
+  };
+
+  let all = await bulk();
   /**
    * ⚠️ BEQAROR TARTIB — QATOR JIMGINA YO'QOLADI.
    * Server ba'zi tartiblarda TENG qiymatli qatorlarni har so'rovda boshqacha joylashtiradi;
@@ -449,11 +449,10 @@ export const listPaged = async <T,>(
    *                             225 o'rniga 175 dona ko'rsatgan edi)
    *     ordering=-id / id / -created_at → dublikat 0, tushib qolgan 0
    * Shuning uchun: kam kelgani ANIQLANADI va BARQAROR tartib bilan bir marta qayta olinadi.
-   * (Chaqiruvchi tartibi ekran uchun; bu sahifalar ro'yxatni baribir klientda saralaydi.)
    */
-  if (all.length < first.expected) {
-    const retry = await fetchAll({ ordering: PAGED_STABLE_ORDERING }).catch(() => null);
-    if (retry && dedupeById(retry.rows).length > all.length) all = dedupeById(retry.rows);
+  if (all.length < expected) {
+    const retry = await bulk({ ordering: PAGED_STABLE_ORDERING }).catch(() => null);
+    if (retry && retry.length > all.length) all = retry;
   }
   onPage([...all], true);
   return all;
