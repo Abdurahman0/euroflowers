@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { batchTitle } from "@/lib/stockLabel";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -213,10 +214,10 @@ export default function DashboardPage() {
       </motion.h3>
       <motion.div variants={rise} className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}>
         <AlertCard icon={<AlertTriangle size={15} strokeWidth={2.2} />} title="Kam qolgan partiyalar" count={lowStock.length} href="/sklad?tab=partiyalar&show=low" tone="var(--danger-ink)"
-          rows={lowStock.slice(0, 4).map((b) => ({ id: b.id, main: `${b.variant_detail?.flower_detail?.name_uz ?? ""} ${b.variant_detail?.name_uz ?? ""}`.trim() || `№${b.batch_number}`, side: `${b.remaining_stems} dona` }))}
+          rows={lowStock.slice(0, 4).map((b) => ({ id: b.id, main: batchTitle(b, "") || `№${b.batch_number}`, side: `${b.remaining_stems} dona` }))}
           empty="Hamma partiyada yetarli qoldiq bor." />
         <AlertCard icon={<Clock size={15} strokeWidth={2.2} />} title="So'lish xavfi (8+ kun)" count={wiltRisk.length} href="/sklad?tab=partiyalar&show=wilt" tone="var(--warning-ink)"
-          rows={wiltRisk.slice(0, 4).map((b) => ({ id: b.id, main: `${b.variant_detail?.flower_detail?.name_uz ?? ""} ${b.variant_detail?.name_uz ?? ""}`.trim() || `№${b.batch_number}`, side: freshness(b.received_at).label }))}
+          rows={wiltRisk.slice(0, 4).map((b) => ({ id: b.id, main: batchTitle(b, "") || `№${b.batch_number}`, side: freshness(b.received_at).label }))}
           empty="So'lish xavfidagi partiya yo'q." />
         <AlertCard icon={<Truck size={15} strokeWidth={2.2} />} title="Bugungi yetkazishlar" count={aux.deliveries.length} href="/buyurtmalar?delivery=today" tone="var(--info)"
           rows={aux.deliveries.slice(0, 4).map((l) => ({ id: l.id, main: l.customer_detail?.name || `@${l.customer_detail?.instagram_username}` || "Mijoz", side: fmt(l.estimated_price) }))}

@@ -3,6 +3,7 @@ import { Flower2 } from "lucide-react";
 import type { ReactNode } from "react";
 import FreeBatchChip from "./FreeBatchChip";
 import type { FloristStockBatchDetail, StockBatch } from "@/lib/types";
+import { batchTitle, flowerName, variantName, variantColor } from "@/lib/stockLabel";
 
 /** Ikki yo'nalishda BIR XIL o'qiladigan gul qatori — sklad→florist chiqarish formasi,
     florist balanslari va composer tanlagichi shu grammatikadan foydalanadi:
@@ -16,28 +17,42 @@ export type StockLineData = {
   batchNumber?: string;
   /** TEKIN partiya — nom yonida «TEKIN» yorlig'i chiqadi (0 tannarx xato ko'rinmasin) */
   isFree?: boolean;
+  /** ⚠️ SERVER bergan tayyor nom (`title`) — bo'lsa qo'lda yig'ilgani O'RNIGA ishlatiladi */
+  title?: string;
 };
 
 /** Florist balansi/tarixidagi flat batch_detail → StockLineData. Himoyalangan:
     batch_detail yo'q bo'lsa ham QATOR portlamaydi — bo'sh grammatika qaytadi
     (StockLine "Gul" fallback + rasm o'rniga ikonka ko'rsatadi). */
 export const lineFromBatchDetail = (b: FloristStockBatchDetail | null | undefined): StockLineData =>
-  b ? { image: b.image_url, flower: b.flower, variant: b.variant, color: b.color, height: b.height_label, batchNumber: b.batch_number, isFree: !!(b as { is_free?: boolean }).is_free } : {};
+  b ? {
+    image: b.image_url,
+    flower: flowerName(b), variant: variantName(b), color: variantColor(b),
+    height: b.height_label, batchNumber: b.batch_number,
+    isFree: !!(b as { is_free?: boolean }).is_free,
+    // ⚠️ bu shaklda `title` YO'Q (jonli: florist-stock-balances.batch_detail) —
+    // helper bo'laklardan toza yig'adi
+    title: batchTitle(b, ""),
+  } : {};
 /** Sklad partiyasi (nested variant_detail) → StockLineData. */
 export const lineFromStockBatch = (b: StockBatch): StockLineData => ({
   image: b.image_url || b.variant_detail?.image_url,
-  flower: b.variant_detail?.flower_detail?.name_uz,
-  variant: b.variant_detail?.name_uz,
-  color: b.variant_detail?.color_uz,
+  // ⚠️ NOM `lib/stockLabel.ts` dan — «general» qatorda nav/rang BO'SH qaytadi
+  // va osilgan ajratgich chiqmaydi (spec: kirimda nav so'ralmaydi).
+  flower: flowerName(b),
+  variant: variantName(b),
+  color: variantColor(b),
   height: b.height_label,
   batchNumber: b.batch_number,
   isFree: !!b.is_free,
+  title: batchTitle(b),
 });
 
 /** Bitta gul yozuvi — matnli qism (rasm + nomlar), o'ngda `right` sloti (miqdor/qiymat). */
 export default function StockLine({ data, right, size = "md" }: { data: StockLineData; right?: ReactNode; size?: "sm" | "md" }) {
   const thumb = size === "sm" ? "h-9 w-9" : "h-11 w-11";
-  const title = [data.flower, data.variant].filter(Boolean).join(" ") || "Gul";
+  // ⚠️ Tayyor `title` bo'lsa O'SHA; aks holda bo'sh bo'laklar TASHLAB yig'iladi
+  const title = data.title || [data.flower, data.variant].filter(Boolean).join(" · ") || "Gul";
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       <div className={`${thumb} shrink-0 overflow-hidden rounded-[11px] border`} style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>

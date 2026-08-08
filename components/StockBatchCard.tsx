@@ -1,5 +1,6 @@
 "use client";
 import { ChevronRight, Pencil, Truck } from "lucide-react";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import StemGauge from "./StemGauge";
 import { fmt } from "@/lib/format";
 import { bunches, freshness, stems, roundingHint, isFreeBatch, batchCostLabel } from "@/lib/inventory";
@@ -50,8 +51,10 @@ export default function StockBatchCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[14px] font-bold" title={`${v?.flower_detail?.name_uz ?? ""} — ${v?.name_uz ?? ""}`}>
-            {v?.flower_detail?.name_uz} — {v?.name_uz}
+          {/* ⚠️ NOM `lib/stockLabel.ts` dan: yangi «general» qatorda nav BO'SH bo'ladi va
+              qo'lda yozilgan « — » osilib qolardi («Atirgul —»). Bo'y alohida chipda. */}
+          <div className="truncate text-[14px] font-bold" title={batchTitleNoHeight(batch)}>
+            {batchTitleNoHeight(batch)}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-tintink">№{batch.batch_number}</span>

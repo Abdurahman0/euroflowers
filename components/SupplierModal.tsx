@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { batchTitle } from "@/lib/stockLabel";
 import { CalendarRange, Package, Truck, Wallet } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -277,7 +278,7 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
                     <button key={b.id} type="button" onClick={() => onOpenBatch?.(b)} className="rounded-[12px] border p-3 text-left transition-colors duration-150 hover:border-[color:var(--primary)]" style={{ borderColor: "var(--border)" }}>
                       <div className="mb-1.5 flex items-center justify-between gap-2">
                         <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="truncate text-[13px] font-bold">{b.variant_detail?.flower_detail?.name_uz} — {b.variant_detail?.name_uz}</span>
+                          <span className="truncate text-[13px] font-bold">{batchTitle(b)}</span>
                           {isFreeBatch(b) && <FreeBatchChip />}
                         </span>
                         <span className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: `color-mix(in srgb, ${fr.hue} 15%, transparent)`, color: fr.hue }}>{fr.label}</span>

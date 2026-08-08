@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import Link from "next/link";
 import FreeBatchChip from "@/components/FreeBatchChip";
 import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown, BookmarkCheck, Info } from "lucide-react";
@@ -304,7 +305,7 @@ export default function HisobKitobPage() {
   const variantRows = useMemo(() => {
     type Agg = { name: string; purchasedStems: number; purchaseSum: number; soldStems: number; revenue: number; cost: number; wasteStems: number; wasteValue: number };
     const agg = new Map<number, Agg>();
-    const label = (b?: StockBatch) => b ? `${b.variant_detail?.flower_detail?.name_uz ?? ""} ${b.variant_detail?.name_uz ?? ""}${b.variant_detail?.color_uz ? ` (${b.variant_detail.color_uz})` : ""}`.trim() : "—";
+    const label = (b?: StockBatch) => b ? batchTitleNoHeight(b, "") : "—";
     const ensure = (id: number, nm: string): Agg => { let a = agg.get(id); if (!a) { a = { name: nm, purchasedStems: 0, purchaseSum: 0, soldStems: 0, revenue: 0, cost: 0, wasteStems: 0, wasteValue: 0 }; agg.set(id, a); } return a; };
     for (const b of cleanBatches) { const a = ensure(b.variant, label(b)); a.purchasedStems += b.received_stems; a.purchaseSum += b.received_stems * num(b.cost_per_stem); }
     for (const s of mainSales) for (const l of saleLineAllocations(s, catalogById.get(s.catalog_id))) if (l.variantId != null) { const a = ensure(l.variantId, agg.get(l.variantId)?.name ?? "—"); a.soldStems += l.stems; a.revenue += l.revenue; a.cost += l.cost; }
@@ -789,7 +790,7 @@ export default function HisobKitobPage() {
                       {cleanWaste.length === 0 && <p className="text-[12px]" style={{ color: "var(--muted)" }}>Bu davrda chiqit yo&apos;q.</p>}
                       {cleanWaste.map((m) => (
                         <div key={m.id} className="flex items-center justify-between gap-2 text-[12.5px]">
-                          <span className="min-w-0 truncate">№{m.batch_detail?.batch_number} · {m.batch_detail?.variant_detail?.flower_detail?.name_uz} {m.batch_detail?.variant_detail?.name_uz}{m.reason ? ` — ${m.reason}` : ""}</span>
+                          <span className="min-w-0 truncate">№{m.batch_detail?.batch_number} · {batchTitleNoHeight(m.batch_detail)}{m.reason ? ` — ${m.reason}` : ""}</span>
                           <span className="shrink-0 tabular-nums" style={{ color: "var(--danger-ink)" }}>{Math.abs(m.quantity_stems)} dona · {fmt(m.cost_value)}{num(m.sale_value) > 0 ? <span style={{ opacity: 0.7 }}> · sotuvda {fmt(m.sale_value)}</span> : null}</span>
                         </div>
                       ))}
@@ -1036,7 +1037,7 @@ function CatalogDetail({ sale, item, net }: { sale: import("@/lib/types").Accoun
               return (
               <div key={c.id} className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px]" style={{ background: "var(--surface-2)" }}>
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="min-w-0 truncate">{c.batch_detail?.variant_detail?.flower_detail?.name_uz} {c.batch_detail?.variant_detail?.name_uz} · №{c.batch_detail?.batch_number}</span>
+                  <span className="min-w-0 truncate">{batchTitleNoHeight(c.batch_detail)} · №{c.batch_detail?.batch_number}</span>
                   {free && <FreeBatchChip />}
                 </span>
                 <span className="shrink-0 tabular-nums" style={{ color: free ? "var(--acc)" : "var(--text-2)" }}>{c.quantity_stems} dona × {free ? "0 · tekin" : `${fmt(c.batch_detail?.cost_per_stem)}/dona`}</span>

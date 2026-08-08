@@ -1,5 +1,6 @@
 "use client";
 import { Plus, X } from "lucide-react";
+import { batchTitle } from "@/lib/stockLabel";
 import { useState } from "react";
 import Select from "./Select";
 import { useStore } from "@/lib/store";
@@ -17,7 +18,7 @@ export type PackRow = { packaging: number; quantity: number };
 export type CatalogRow = { item: CatalogItem; qty: number };
 
 export const batchLabel = (b: StockBatch) =>
-  `${b.variant_detail?.flower_detail?.name_uz ?? ""} — ${b.variant_detail?.name_uz || b.variant_detail?.name_ru || ""}`.trim();
+  batchTitle(b, "");
 
 const PKG_TYPE: Record<string, string> = { wrap: "O'ram", basket: "Savat", box: "Quti", accessory: "Aksessuar" };
 

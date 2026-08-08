@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
+import { batchTitleNoHeight, flowerName } from "@/lib/stockLabel";
 import { PackagePlus, Plus, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -70,10 +71,10 @@ export default function FloristStockIssueModal({
   //    (Ota-sahifa ham refetch qiladi; bu esa modal ichidagi himoya — eski/tugagan partiya sirg'alib chiqmasin.)
   const batchOpts = useMemo(() => [...batches]
     .filter((b) => (b.remaining_stems ?? 0) > 0)
-    .sort((a, b) => `${a.variant_detail?.flower_detail?.name_uz}`.localeCompare(`${b.variant_detail?.flower_detail?.name_uz}`))
+    .sort((a, b) => flowerName(a).localeCompare(flowerName(b)))
     .map((b) => ({
       value: b.id,
-      label: `${b.variant_detail?.flower_detail?.name_uz ?? ""} ${b.variant_detail?.name_uz ?? ""}${b.variant_detail?.color_uz ? ` · ${b.variant_detail.color_uz}` : ""}${b.height_label ? ` · ${b.height_label}` : ""}`,
+      label: `${batchTitleNoHeight(b, "")}${b.height_label ? ` · ${b.height_label}` : ""}`,
       sub: `№${b.batch_number} · ${formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)}${batchDeliveryTag(b.delivery_detail) ? ` · ${batchDeliveryTag(b.delivery_detail)}` : ""}`,
     })), [batches]);
 

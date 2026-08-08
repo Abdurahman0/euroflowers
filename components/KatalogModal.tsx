@@ -1,5 +1,6 @@
 "use client";
 import { AlertTriangle, Building2, CheckCircle2, Info, Plus, X } from "lucide-react";
+import { batchTitle, batchTitleNoHeight, flowerName } from "@/lib/stockLabel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
@@ -173,7 +174,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     const dtag = batchDeliveryTag(bb.delivery_detail); // ikki o'xshash partiyani ajratish
     return {
       value: bb.id,
-      label: `${bb.variant_detail?.flower_detail?.name_uz ?? ""} ${bb.variant_detail?.name_uz ?? ""}`.trim(),
+      label: batchTitle(bb, ""),
       sub: `${formatStemsAndBunches(bb.remaining_stems, bb.stems_per_bunch)} · ${fmt(bb.sale_price_per_stem)}/dona${dtag ? ` · ${dtag}` : ""}`,
     };
   }), [usableBatches]);
@@ -411,7 +412,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
         const lines = labeled.length ? labeled : all;
         // aybdor partiyani topamiz — matnda partiya raqami yoki gul nomi bo'lsa (warehouse, best-effort)
         const off = comp.find((r) => { const b = batchOf(r.stock_batch); return b?.batch_number && detail.includes(b.batch_number); })
-          ?? comp.find((r) => { const nm = batchOf(r.stock_batch)?.variant_detail?.flower_detail?.name_uz; return nm && detail.includes(nm); });
+          ?? comp.find((r) => { const nm = flowerName(batchOf(r.stock_batch)); return nm && detail.includes(nm); });
         setStockError({ lines, batchId: off?.stock_batch ?? null, shortage: !!stockText });
         showToast(stockText ? "Skladda yetarli qoldiq yo'q" : (e instanceof ApiError ? e.message : "Saqlab bo'lmadi"));
       } else if (e instanceof ApiError && e.fieldErrors) {
@@ -702,7 +703,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
               <div className="mt-2 flex flex-col gap-1">
                 {(item?.composition ?? []).map((c) => (
                   <div key={c.stock_batch} className="flex items-center justify-between gap-2 text-[12px]">
-                    <span className="truncate">{[c.batch_detail?.variant_detail?.flower_detail?.name_uz, c.batch_detail?.variant_detail?.name_uz].filter(Boolean).join(" ") || `Partiya #${c.stock_batch}`}</span>
+                    <span className="truncate">{batchTitleNoHeight(c.batch_detail, `Partiya #${c.stock_batch}`)}</span>
                     <span className="shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{c.quantity_stems} dona</span>
                   </div>
                 ))}

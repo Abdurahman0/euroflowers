@@ -1,5 +1,6 @@
 "use client";
 import SearchInput from "@/components/SearchInput";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
@@ -607,8 +608,9 @@ export default function SkladPage() {
                   {isIn ? <ArrowDown size={16} strokeWidth={2} /> : <ArrowUp size={16} strokeWidth={2} />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold" title={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} — ${formatStemsAndBunches(Math.abs(m.quantity_stems), m.batch_detail?.stems_per_bunch)}${m.reason ? ` · ${m.reason}` : ""}`}>
-                    {v?.flower_detail?.name_uz} {v?.name_uz} — {formatStemsAndBunches(Math.abs(m.quantity_stems), m.batch_detail?.stems_per_bunch)}
+                  <div className="truncate text-[14px] font-semibold" title={`${batchTitleNoHeight(m.batch_detail, "")} — ${formatStemsAndBunches(Math.abs(m.quantity_stems), m.batch_detail?.stems_per_bunch)}${m.reason ? ` · ${m.reason}` : ""}`}>
+                    {/* ⚠️ nom helper'dan — «general» qatorda bo'sh nav qo'sh bo'shliq qoldirardi */}
+                    {batchTitleNoHeight(m.batch_detail)} — {formatStemsAndBunches(Math.abs(m.quantity_stems), m.batch_detail?.stems_per_bunch)}
                     {m.reason ? ` · ${m.reason}` : ""}
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 truncate text-xs" style={{ color: "var(--mut)" }}>

@@ -1,5 +1,6 @@
 "use client";
 import { AlertTriangle, ChevronDown, Plus, Recycle, X } from "lucide-react";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -17,7 +18,7 @@ import type { CatalogItem, FloristProfile, Packaging, StockBatch } from "@/lib/t
 const ARR_OPTS: SelectOption[] = ["bouquet", "basket", "box"].map((v) => ({ value: v, label: ARRANGEMENT_LABEL[v] ?? v }));
 
 const batchName = (b: StockBatch | undefined, id: number): string =>
-  b ? [b.variant_detail?.flower_detail?.name_uz, b.variant_detail?.name_uz].filter(Boolean).join(" ") || b.batch_number : `Partiya #${id}`;
+  b ? batchTitleNoHeight(b, b.batch_number) : `Partiya #${id}`;
 
 /**
  * RESTAVRATSIYA — tayyor katalogni buzib, undan yangi mahsulot(lar) yasash.

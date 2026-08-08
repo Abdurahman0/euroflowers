@@ -1,5 +1,6 @@
 "use client";
 import { Info, Pencil, Plus, Recycle, Send, Sparkles, Trash2, User, X } from "lucide-react";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import clsx from "clsx";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
@@ -36,7 +37,7 @@ const floristName = (fp?: FloristProfile | null): string => {
 
 const compositionText = (k: CatalogItem) =>
   k.composition
-    .map((c) => `${c.batch_detail?.variant_detail?.flower_detail?.name_uz ?? ""} ${c.batch_detail?.variant_detail?.name_uz ?? ""} ${c.quantity_stems} dona`.trim())
+    .map((c) => `${batchTitleNoHeight(c.batch_detail, "")} ${c.quantity_stems} dona`.trim())
     .join(" · ") || "Tarkib kiritilmagan";
 
 /** KUTAYAPTI: florist katalogi, gul tanlangan lekin soni 0 (chiqim yopilmagan). ⚠️ §0c: material
