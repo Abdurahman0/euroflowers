@@ -6,7 +6,7 @@ import FilterSelect from "@/components/FilterSelect";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
@@ -160,35 +160,61 @@ export default function SkladPage() {
   // partiya batafsil (view) modali — barcha amallar shu yerda
   const [supplierDetail, setSupplierDetail] = useState<Supplier | null>(null);
 
+  // ⚠️ ESKIRGAN JAVOB YOZIB KETMASIN — listPaged bitta so'rovga IKKI marta javob beradi
+  // (birinchi sahifa + to'lig'i), filtr esa shu orada o'zgarishi mumkin.
+  const loadGen = useRef(0);
   const load = useCallback(async () => {
+    const gen = ++loadGen.current;
     try {
-      const [bs, ms] = await Promise.all([
-        // ⚠️ TARTIB: server FAQAT received_at bo'yicha tartiblaydi (-id/-created_at e'tiborsiz) va bir
-        // kun ichida BEQAROR — shuning uchun klientda compareBatchNewestFirst bilan barqarorlashtiramiz.
-        api.stockBatches({
-          is_active: true,
-          ordering: "-received_at",
-          ...(freeFilter ? { is_free: freeFilter } : {}),
-          ...(variantFilter ? { variant: variantFilter } : {}),
-        }),
-        // davr + tur filtri server tomonda
-        api.stockMovements({
-          ordering: "-created_at",
-          ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
-          movement_type: moveType || undefined,
-          supplier: moveSupplier || undefined,
-        }),
-      ]);
-      setBatches(bs);
-      setMoves(ms);
-      // florist qo'lidagi chiqit — alohida ko'rsatiladi (jamlanmaydi)
-      api.floristStockIssues({ kind: "waste", ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }), page_size: 200 }).then(setFloristWaste).catch(() => setFloristWaste([]));
+      // ⚠️ TARTIB: server FAQAT received_at bo'yicha tartiblaydi (-id/-created_at e'tiborsiz) va bir
+      // kun ichida BEQAROR — shuning uchun klientda compareBatchNewestFirst bilan barqarorlashtiramiz.
+      // ⚠️ Bosqichma-bosqich: birinchi sahifa darhol chiziladi, «Jami qoldiq» va «kam qolgan»
+      // sonlari to'liq ro'yxat kelgach aniqlashadi (ikkalasi ham HAMMA partiyadan hisoblanadi —
+      // serverda bunday jami YO'Q, shuning uchun ro'yxat baribir to'liq olinadi).
+      await api.stockBatchesPaged({
+        is_active: true,
+        // ⚠️ SAHIFALASH UCHUN BARQAROR TARTIB — `-received_at` da server teng sanali
+        // qatorlarni har so'rovda boshqacha joylashtiradi va sahifa chegarasida qator
+        // TUSHIB QOLADI (jonli: 141 dan 6 tasi yo'qolib, «Jami qoldiq» 225 → 175 bo'lgan).
+        // Ekrandagi tartib pastda `compareBatchNewestFirst` bilan baribir qayta quriladi.
+        ordering: "-id",
+        ...(freeFilter ? { is_free: freeFilter } : {}),
+        ...(variantFilter ? { variant: variantFilter } : {}),
+      }, (rows, done) => {
+        if (gen !== loadGen.current) return;
+        setBatches(rows);
+        if (!done) setLoading(false);   // partiyalar ekranga DARHOL chiqadi
+      });
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
+      if (gen === loadGen.current) showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
     } finally {
-      setLoading(false);
+      if (gen === loadGen.current) setLoading(false);
     }
-  }, [showToast, dateFilter, dateRange, moveType, moveSupplier, freeFilter, variantFilter]);
+  }, [showToast, freeFilter, variantFilter]);
+
+  /**
+   * ⚠️ JURNAL ALOHIDA VA FAQAT O'Z TABIDA. Ilgari `stock-movements` HAR SAFAR, «Partiyalar»
+   * tabida turganda ham yuklanardi — jonli o'lchov (08.08.2026): 423 qator, 5 ketma-ket
+   * sahifa ≈ 8.6 s. Ya'ni sklad ochilishining katta qismi ko'rinmaydigan ro'yxatga ketardi.
+   * ⚠️ SAHIFALANMAYDI: MovesSummary jamilari (tur bo'yicha dona/pochka) BUTUN davr bo'yicha
+   * hisoblanadi va serverda bunday agregat yo'q — bo'lak-bo'lak olsak jami noto'g'ri chiqardi.
+   */
+  const loadMoves = useCallback(async () => {
+    const range = dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) };
+    try {
+      setMoves(await api.stockMovements({
+        ordering: "-created_at",
+        ...range,
+        movement_type: moveType || undefined,
+        supplier: moveSupplier || undefined,
+      }));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Jurnalni yuklab bo'lmadi");
+    }
+    // florist qo'lidagi chiqit — alohida ko'rsatiladi (jamlanmaydi)
+    api.floristStockIssues({ kind: "waste", ...range, page_size: 200 }).then(setFloristWaste).catch(() => setFloristWaste([]));
+  }, [showToast, dateFilter, dateRange, moveType, moveSupplier]);
+  useEffect(() => { if (tab === "jurnal" && jSource === "gul") loadMoves(); }, [tab, jSource, loadMoves]);
 
   // yetkazib beruvchilar — jurnal filtri uchun (bir marta)
   useEffect(() => {
@@ -222,17 +248,23 @@ export default function SkladPage() {
 
   useEffect(() => { api.flowerVariants({ is_active: true }).then(setVariants).catch(() => {}); }, []);
   useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
+  // ⚠️ Davriy yangilash KO'RINIB TURGAN narsani yangilaydi: jurnal tabida jurnalni ham,
+  // aks holda faqat partiyalarni (ko'rinmaydigan 423 qatorli ro'yxatni har safar tortmaymiz).
+  const refreshVisible = useCallback(() => {
+    load();
+    if (tab === "jurnal") { if (jSource === "gul") loadMoves(); else loadMat(); }
+  }, [load, tab, jSource, loadMoves, loadMat]);
+  useAutoRefresh(refreshVisible); // jimgina davriy yangilash — real vaqt hissi
 
   // WS: supplier_stock (yangi partiya keldi) → sklad darhol yangilanadi.
   // Kesh ham tozalanadi (WS push invalidate qilmaydi) — mount holatida stale qolmasin.
   useEffect(() => {
     // ⚠️ YUKLAR HAM qayta yuklanadi: partiyaning `received_stems`i to'g'rilansa yukning
     // JAMILARI (dona/tannarx) siljiydi — aks holda ro'yxat eskirgan raqam ko'rsatib turadi.
-    const onStock = () => { invalidateReportCache(); load(); loadDeliveries(); };
+    const onStock = () => { invalidateReportCache(); refreshVisible(); loadDeliveries(); };
     window.addEventListener("ef:stock-changed", onStock);
     return () => window.removeEventListener("ef:stock-changed", onStock);
-  }, [load, loadDeliveries]);
+  }, [refreshVisible, loadDeliveries]);
 
   // §1c/§3 FILTRLARNI URL'da SAQLASH — yangilash yoki havola ulashishda saqlanadi
   useEffect(() => {

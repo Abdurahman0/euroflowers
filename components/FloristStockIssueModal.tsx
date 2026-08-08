@@ -30,12 +30,16 @@ type Row = { batch: number; mode: QtyMode; qty: string };
 export default function FloristStockIssueModal({
   initialFlorist = 0,
   batches,
+  batchesLoading = false,
   florists,
   onClose,
   onDone,
 }: {
   initialFlorist?: number;
   batches: StockBatch[];
+  /** ⚠️ partiyalar forma OCHILGANDA olinadi — kelguncha tanlagich bo'sh ko'rinib
+      «partiya yo'q» degan xato taassurot bermasligi uchun shu bayroq. */
+  batchesLoading?: boolean;
   florists: FloristProfile[];
   onClose: () => void;
   onDone: () => void;
@@ -152,7 +156,9 @@ export default function FloristStockIssueModal({
             <div key={i} className="rounded-[13px] border p-2.5 transition-colors duration-300"
               style={{ borderColor: over || err ? "var(--danger-ink)" : "var(--border)", background: flashing ? "color-mix(in srgb, var(--primary) 12%, transparent)" : (over || err) ? "var(--danger-soft, rgba(160,74,74,.08))" : undefined, boxShadow: flashing ? "inset 0 0 0 1.5px var(--primary)" : undefined }}>
               <div className="grid grid-cols-[1fr_32px] items-center gap-2">
-                <Select value={r.batch} onChange={(v) => setBatchAt(i, +v)} placeholder="Gulni tanlang" searchable options={batchOpts} />
+                <Select value={r.batch} onChange={(v) => setBatchAt(i, +v)}
+                  placeholder={batchesLoading && batchOpts.length === 0 ? "Partiyalar yuklanmoqda…" : "Gulni tanlang"}
+                  searchable options={batchOpts} />
                 {rows.length > 1 && <button type="button" onClick={() => removeRow(i)} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={15} strokeWidth={1.75} /></button>}
               </div>
               {b && (

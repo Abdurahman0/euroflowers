@@ -43,6 +43,7 @@ export default function FloristStockIssuePage() {
   const [onlyAvail, setOnlyAvail] = useState(true);
   const [issues, setIssues] = useState<FloristStockIssue[] | null>(null);
   const [batches, setBatches] = useState<StockBatch[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(false);
   const [florists, setFlorists] = useState<FloristProfile[]>([]);
 
   // chiqarish MODALI (inline forma o'rniga) + ?florist= deep link uchun prefill
@@ -67,7 +68,7 @@ export default function FloristStockIssuePage() {
     const t = q.get("tab");
     if (t && t in TAB_LABEL) setTab(t as Tab);
     const fid = Number(q.get("florist"));
-    if (fid && !isFlorist) { setIssueFlorist(fid); setIssueOpen(true); }
+    if (fid && !isFlorist) { setIssueFlorist(fid); setIssueOpen(true); loadBatches(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const switchTab = (t: Tab) => {
@@ -79,11 +80,24 @@ export default function FloristStockIssuePage() {
     if (isFlorist) api.floristMe().then((f) => setMyFloristId(f.id)).catch(() => setMyFloristId(null));
   }, [isFlorist]);
 
+  // ⚠️ ESKIRGAN JAVOB YOZIB KETMASIN — listPaged bitta so'rovga IKKI marta javob beradi
+  // (birinchi sahifa + to'lig'i), filtr esa shu orada o'zgargan bo'lishi mumkin.
+  const balGen = useRef(0);
+  const issGen = useRef(0);
+  // ⚠️ Chip jamilari (florist soni / dona / qiymat) HAMMA balansdan hisoblanadi — serverda
+  // bunday agregat yo'q, shuning uchun ro'yxat baribir to'liq olinadi; sahifalash faqat
+  // birinchi ko'rinishni tezlashtiradi, jamilar to'liq kelgach aniqlashadi.
   const loadBalances = useCallback(() => {
-    api.floristStockBalances({ only_available: onlyAvail ? undefined : "false", ordering: "florist" }).then(setBalances).catch(() => setBalances([]));
+    const gen = ++balGen.current;
+    api.floristStockBalancesPaged({ only_available: onlyAvail ? undefined : "false", ordering: "florist" },
+      (rows) => { if (gen === balGen.current) setBalances(rows); })
+      .catch(() => { if (gen === balGen.current) setBalances([]); });
   }, [onlyAvail]);
   const loadIssues = useCallback(() => {
-    api.floristStockIssues({ ordering: "-created_at", florist: hFlorist || undefined, page_size: 200 }).then(setIssues).catch(() => setIssues([]));
+    const gen = ++issGen.current;
+    api.floristStockIssuesPaged({ ordering: "-created_at", florist: hFlorist || undefined },
+      (rows) => { if (gen === issGen.current) setIssues(rows); })
+      .catch(() => { if (gen === issGen.current) setIssues([]); });
   }, [hFlorist]);
   useEffect(() => { loadBalances(); }, [loadBalances]);
   useEffect(() => { loadIssues(); }, [loadIssues]);
@@ -98,27 +112,41 @@ export default function FloristStockIssuePage() {
   //   (1)+(2) markazlashgan notifyReportDataChanged() ichida; (3) shu sahifa refetch'i.
   // ⚠️ Sklad partiyalari — chiqarish/qaytarish/chiqit/adjust/close'dan KEYIN qayta yuklanadi (qoldiq JONLI;
   //    tugagan partiya chiqarish tanlagichida qolmasin). remaining>0 filtri shu yerda.
+  /**
+   * ⚠️ FAQAT «Gul chiqarish» formasi uchun. Ilgari sahifa OCHILISHIDA yuklanardi — jonli
+   * o'lchov (08.08.2026): 141 partiya ≈ 1.7 s, va u balans/tarix so'rovlari bilan navbat
+   * talashardi (server so'rovlarni ketma-ket bajaradi). Endi forma ochilganda olinadi.
+   * `batchesLoading` — tanlagich BO'SH ko'rinib «partiya yo'q» degan xato taassurot
+   * bermasligi uchun (yuklanayotgani AYTILADI).
+   */
   const loadBatches = useCallback(() => {
-    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+    setBatchesLoading(true);
+    api.stockBatches({ is_active: true })
+      .then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0)))
+      .catch(() => {})
+      .finally(() => setBatchesLoading(false));
   }, []);
-  const onAdjustDone = useCallback(() => {
+  const openIssue = useCallback((florist: number) => {
+    setIssueFlorist(florist);
+    setIssueOpen(true);
+    loadBatches();   // forma ochilganda — sahifa ochilishida emas
+  }, [loadBatches]);
+  // ⚠️ Partiyalar FAQAT chiqarish formasi ochiq bo'lsa qayta olinadi — yagona iste'molchi
+  // o'sha forma. Yopiq bo'lsa keyingi ochilishda yangisi olinadi (openIssue).
+  const refetchAfterChange = useCallback(() => {
     notifyReportDataChanged();
     loadBalances();
     loadIssues();
-    loadBatches();
-  }, [loadBalances, loadIssues, loadBatches]);
+    if (issueOpen) loadBatches();
+  }, [loadBalances, loadIssues, loadBatches, issueOpen]);
+  const onAdjustDone = refetchAfterChange;
   // florist chiqarish/qaytarish/chiqit ham sklad qoldig'i + qiymatini o'zgartiradi → hisobot + partiya qoldig'i
-  const onStockChange = useCallback(() => {
-    notifyReportDataChanged();
-    loadBalances();
-    loadIssues();
-    loadBatches();
-  }, [loadBalances, loadIssues, loadBatches]);
+  const onStockChange = refetchAfterChange;
   useEffect(() => {
     if (isFlorist) return; // florist chiqarish forma/ro'yxatini ko'rmaydi
-    loadBatches();
+    // ⚠️ partiyalar BU YERDA OLINMAYDI — faqat «Gul chiqarish» formasi ochilganda (openIssue)
     api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
-  }, [isFlorist, loadBatches]);
+  }, [isFlorist]);
 
   const scopedBalances = useMemo(() => (!balances ? null : isFlorist && myFloristId ? balances.filter((b) => b.florist === myFloristId) : balances), [balances, isFlorist, myFloristId]);
   const scopedIssues = useMemo(() => {
@@ -163,7 +191,7 @@ export default function FloristStockIssuePage() {
           </div>
         </div>
         {!isFlorist && (
-          <button onClick={() => { setIssueFlorist(0); setIssueOpen(true); }} className="btn-primary !flex-none px-4 py-2.5 text-[14px]">
+          <button onClick={() => openIssue(0)} className="btn-primary !flex-none px-4 py-2.5 text-[14px]">
             <Plus size={18} strokeWidth={1.75} /> Skladdan chiqarish
           </button>
         )}
@@ -302,6 +330,7 @@ export default function FloristStockIssuePage() {
         <FloristStockIssueModal
           initialFlorist={issueFlorist}
           batches={batches}
+          batchesLoading={batchesLoading}
           florists={florists}
           onClose={() => setIssueOpen(false)}
           onDone={onStockChange}

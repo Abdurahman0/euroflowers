@@ -356,6 +356,109 @@ const list = async <T,>(path: string, params?: Params): Promise<T[]> => {
   return out;
 };
 
+/**
+ * ⚠️ BOSQICHMA-BOSQICH RO'YXAT — sahifalarni KETMA-KET emas, BIRINCHISINI DARHOL berib,
+ * qolganini ORQA FONDA yuklaydi.
+ *
+ * NEGA: `list()` 100 talik sahifalarni ketma-ket so'raydi va HAMMASI kelguncha ekran bo'sh
+ * turadi. Jonli o'lchov (2026-08-08):
+ *     /api/catalog/       146 qator → 2 ketma-ket sahifa ≈ 8.1 s
+ *     /api/stock-movements/ 423 qator → 5 ketma-ket sahifa ≈ 8.6 s
+ * So'rov narxi sahifa HAJMIGA qarab o'sadi (catalog: 20 ta → 1.3 s, 100 ta → 3.9 s),
+ * shuning uchun KICHIK birinchi sahifa ekranga tez chiqadi.
+ *
+ * ⚠️ JAMILAR BUZILMAYDI: chaqiruvchi to'liq ro'yxatni baribir oladi (`done: true` bilan
+ * ikkinchi marta). Sarlavha jamilari, chip sonlari va klient filtrlari o'zgarishsiz
+ * ishlaydi — faqat ular biroz KEYINROQ aniqlashadi. Server tomonda filtrlashga
+ * O'TKAZILMADI: katalogda `status` serverniki UI bilan MOS EMAS (jonli: 6 ta yozuv
+ * `available` bo'lsa-da soni to'lgan — server bo'yicha filtrlasak sotilgan buket
+ * «Sotuvda» javonига qaytib chiqardi).
+ *
+ * `onPage(rows, done)` KAMIDA IKKI marta chaqiriladi (bitta sahifa bo'lsa — bir marta,
+ * `done: true` bilan). Xato bo'lsa promise REJECT bo'ladi (birinchi sahifada) yoki
+ * yetib kelgan qismi qaytadi (keyingi sahifalarda) — ro'yxat jimgina BO'SHAB qolmaydi.
+ */
+const PAGED_MAX_ROWS = 500;   // `list()` dagi bilan bir xil shift (5 × 100)
+const PAGED_CONCURRENCY = 3;  // serverni bo'g'masin — jonli o'lchovda 3 va 8 bir xil chiqdi
+/** ⚠️ Sahifalash uchun BARQAROR tartib — pastdagi `unstableOrdering` izohiga qarang. */
+const PAGED_STABLE_ORDERING = "-id";
+
+/** `id` bo'yicha takrorlarni tashlaydi, BIRINCHI uchraganini saqlaydi (tartib buzilmaydi). */
+const dedupeById = <T,>(rows: T[]): T[] => {
+  const seen = new Set<unknown>();
+  const out: T[] = [];
+  for (const r of rows) {
+    const id = (r as { id?: unknown })?.id;
+    if (id === undefined) return rows;   // `id`siz shakl — aralashmaymiz
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(r);
+  }
+  return out;
+};
+
+export const listPaged = async <T,>(
+  path: string,
+  params: Params | undefined,
+  onPage: (rows: T[], done: boolean) => void,
+  pageSize = 24,
+): Promise<T[]> => {
+  // ⚠️ `onFirst` — 1-sahifa KELISHI BILANOQ. Bu butun optimallashtirishning MOHIYATI:
+  // agar u to'liq yuklashdan keyin chaqirilsa, ekran avvalgidek uzoq bo'sh turadi.
+  const fetchAll = async (over?: Params, onFirst?: (rows: T[]) => void) => {
+    // ⚠️ `page` SPREAD'DAN KEYIN — chaqiruvchi tasodifan `page` bersa ham sahifalash buzilmaydi
+    const at = (page: number) => `${path}${qs({ page_size: pageSize, ...params, ...over, page })}`;
+    const first = await request<Paginated<T>>(at(1));
+    const rows = [...first.results];
+    if (first.count != null && first.count > rows.length) onFirst?.([...rows]);
+    const expected = Math.min(first.count ?? rows.length, PAGED_MAX_ROWS);
+    const pages = Math.ceil(expected / pageSize);
+    if (pages <= 1) return { rows, expected, pages };
+
+    // qolgan sahifalar — cheklangan parallellik bilan, TARTIBI saqlangan holda
+    const rest: T[][] = new Array(pages - 1).fill(null).map(() => []);
+    let cursor = 0;
+    const worker = async () => {
+      for (;;) {
+        const i = cursor++;
+        if (i >= pages - 1) return;
+        // ⚠️ bitta sahifa yiqilsa BUTUN ro'yxat yo'qolmasin — o'sha sahifa bo'sh qoladi
+        rest[i] = await request<Paginated<T>>(at(i + 2)).then((p) => p.results).catch(() => []);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PAGED_CONCURRENCY, pages - 1) }, worker));
+    for (const r of rest) rows.push(...r);
+    return { rows, expected, pages };
+  };
+
+  // 1-sahifa ekranga DARHOL (fetchAll ichidan, qolgan sahifalarni KUTMASDAN)
+  const first = await fetchAll(undefined, (rows) => onPage(rows, false));
+  if (first.pages <= 1) {
+    const only = dedupeById(first.rows);
+    onPage([...only], true);
+    return only;
+  }
+
+  let all = dedupeById(first.rows);
+  /**
+   * ⚠️ BEQAROR TARTIB — QATOR JIMGINA YO'QOLADI.
+   * Server ba'zi tartiblarda TENG qiymatli qatorlarni har so'rovda boshqacha joylashtiradi;
+   * sahifa chegarasida bir qator IKKI marta, boshqasi esa UMUMAN chiqmaydi.
+   * Jonli o'lchov (08.08.2026, /api/stock-batches/, 141 qator, sahifa 24):
+   *     ordering=-received_at → 6 dublikat va 6 qator TUSHIB QOLGAN (ekranda «Jami qoldiq»
+   *                             225 o'rniga 175 dona ko'rsatgan edi)
+   *     ordering=-id / id / -created_at → dublikat 0, tushib qolgan 0
+   * Shuning uchun: kam kelgani ANIQLANADI va BARQAROR tartib bilan bir marta qayta olinadi.
+   * (Chaqiruvchi tartibi ekran uchun; bu sahifalar ro'yxatni baribir klientda saralaydi.)
+   */
+  if (all.length < first.expected) {
+    const retry = await fetchAll({ ordering: PAGED_STABLE_ORDERING }).catch(() => null);
+    if (retry && dedupeById(retry.rows).length > all.length) all = dedupeById(retry.rows);
+  }
+  onPage([...all], true);
+  return all;
+};
+
 // ===== Auth =====
 
 /**
@@ -543,6 +646,8 @@ export const api = {
   deleteFlowerVariant: (id: number) => request<void>(`/api/flower-variants/${id}/`, { method: "DELETE" }),
 
   stockBatches: (p?: Params) => list<StockBatch>("/api/stock-batches/", p),
+  /** bosqichma-bosqich — birinchi sahifa darhol, qolgani orqa fonda (listPaged izohiga qarang) */
+  stockBatchesPaged: (p: Params | undefined, onPage: (r: StockBatch[], done: boolean) => void) => listPaged<StockBatch>("/api/stock-batches/", p, onPage),
 
   /* ===== YUK (stock-delivery) — partiyalarni guruhlaydi ===== */
   stockDeliveries: (p?: Params) => list<StockDelivery>("/api/stock-deliveries/", p),
@@ -663,6 +768,7 @@ export const api = {
   floristStockReturn: (data: FloristStockReturnInput) =>
     request<FloristStockIssue>("/api/florist-stock-issues/return/", { method: "POST", body: JSON.stringify(data) }),
   floristStockIssues: (p?: Params) => list<FloristStockIssue>("/api/florist-stock-issues/", p),
+  floristStockIssuesPaged: (p: Params | undefined, onPage: (r: FloristStockIssue[], done: boolean) => void) => listPaged<FloristStockIssue>("/api/florist-stock-issues/", p, onPage),
   /** Chiqim/qaytarish/chiqit yozuvini TAHRIRLASH — faqat son va izoh (florist/partiya o'zgarmas).
       Farq skladga va florist balansiga avtomatik siljiydi (yo'nalish kind bo'yicha). */
   floristStockIssueEdit: (id: number, data: { quantity_stems?: number; reason?: string }) =>
@@ -673,6 +779,7 @@ export const api = {
     request<void>(`/api/florist-stock-issues/${id}/cancel/`, { method: "DELETE" }),
   /** Kimda qancha gul bor. Sukut: faqat remaining>0; hammasi uchun only_available=false. */
   floristStockBalances: (p?: Params) => list<FloristStockBalance>("/api/florist-stock-balances/", p),
+  floristStockBalancesPaged: (p: Params | undefined, onPage: (r: FloristStockBalance[], done: boolean) => void) => listPaged<FloristStockBalance>("/api/florist-stock-balances/", p, onPage),
 
   /** Florist hisobini to'g'rilash — OLDINDAN KO'RISH. GET, bazaga TEGMAYDI: erkin chaqirsa bo'ladi.
       to_catalog: batch ixtiyoriy (berilmasa hamma qoldiq). to_florist: batch+quantity_stems MAJBURIY. */
@@ -713,6 +820,7 @@ export const api = {
     request<FloristSalaryEntry>("/api/florist-salary/", { method: "POST", body: JSON.stringify(data) }),
 
   catalog: (p?: Params) => list<CatalogItem>("/api/catalog/", p),
+  catalogPaged: (p: Params | undefined, onPage: (r: CatalogItem[], done: boolean) => void) => listPaged<CatalogItem>("/api/catalog/", p, onPage),
   createCatalogItem: (data: Record<string, unknown>) =>
     request<CatalogItem>("/api/catalog/", { method: "POST", body: JSON.stringify(data) }),
   updateCatalogItem: (id: number, data: Record<string, unknown>) =>

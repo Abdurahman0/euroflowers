@@ -7,7 +7,7 @@ import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
@@ -117,11 +117,19 @@ export default function KatalogPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // ⚠️ ESKIRGAN JAVOB YOZIB KETMASIN — bosqichma-bosqich yuklashda bitta so'rov IKKI marta
+  // javob qaytaradi, filtr esa shu orada o'zgargan bo'lishi mumkin. Har yuklashning o'z
+  // raqami bor; faqat ENG OXIRGISI ro'yxatga yozadi.
+  const loadGen = useRef(0);
   const load = useCallback(async () => {
+    const gen = ++loadGen.current;
     try {
       // ⚠️ status server'ga YUBORILMAYDI — hamma holat kelib, klientda «Holat» ko'rinishi bo'yicha
       // ajratiladi (Sotuvda default = sold/archived/soni-to'lgan yashirin). Chip sonlari uchun kerak.
-      setItems(await api.catalog({
+      // ⚠️ VA SERVERNIKI XATO: jonli tekshiruv (08.08.2026) — 6 ta yozuv `status: available`
+      // bo'lsa-da soni to'lgan (#318, #316, #257, #227, #189, #188). `?status=` bo'yicha
+      // sahifalasak o'sha sotilgan buketlar «Sotuvda» javoniga qaytib chiqardi.
+      await api.catalogPaged({
         ordering: "-created_at",
         search: q || undefined,
         arrangement_type: arrType || undefined,
@@ -129,11 +137,15 @@ export default function KatalogPage() {
         decoration_florist: decorationFilter || undefined,
         catalog_kind: kindFilter || undefined,
         customer: customerFilter?.id || undefined,
-      }));
+      }, (rows, done) => {
+        if (gen !== loadGen.current) return;   // eskirgan yuklash — jimgina tashlanadi
+        setItems(rows);
+        if (!done) setLoading(false);          // birinchi sahifa — ekran DARHOL to'ladi
+      });
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
+      if (gen === loadGen.current) showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
     } finally {
-      setLoading(false);
+      if (gen === loadGen.current) setLoading(false);
     }
   }, [showToast, q, arrType, floristFilter, decorationFilter, kindFilter, customerFilter]);
 
