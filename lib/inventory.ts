@@ -150,7 +150,9 @@ export const deliveryRoundingHint = (d: Pick<StockDelivery, "total_cost_exact" |
    Ikkalasi ham yuborilsa server hech narsa hisoblamaydi (ataylab override). Standart: pochka only.
    ⚠️ YUK-bog'langanda batch_number/received_at/supplier YUBORILMAYDI — ular yukdan olinadi. */
 export type BatchPayloadInput = {
-  variant: number;
+  /** ⚠️ YANGI KIRIM — GUL yuboriladi, NAV SO'RALMAYDI. Jonli OpenAPI: `flower` writeOnly,
+      «Gul. Kirimda shu yuboriladi, nav so'ralmaydi.» Server «general» navni O'ZI yasaydi. */
+  flower: number;
   heightCm: number;
   stemsPerBunch: number;
   /** yuk (delivery) id — berilsa batch_number/received_at/supplier TASHLANADI */
@@ -174,7 +176,9 @@ export type BatchPayloadInput = {
   isFree?: boolean;
 };
 export function buildBatchPayload(v: BatchPayloadInput): Record<string, unknown> {
-  const p: Record<string, unknown> = { variant: v.variant, height_cm: v.heightCm, stems_per_bunch: v.stemsPerBunch };
+  // ⚠️ `variant` KIRIMDA UMUMAN YUBORILMAYDI — faqat `flower`. Eski partiyani
+  // TAHRIRLASHDA nav hali ham yuboriladi, lekin u boshqa yo'l (buildBatchEditPayload).
+  const p: Record<string, unknown> = { flower: v.flower, height_cm: v.heightCm, stems_per_bunch: v.stemsPerBunch };
   if (v.deliveryId) {
     p.delivery = v.deliveryId;
     // batch_number / received_at / supplier ATAYLAB yuborilmaydi — yukdan olinadi

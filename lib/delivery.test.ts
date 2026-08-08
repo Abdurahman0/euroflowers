@@ -55,7 +55,7 @@ describe("DR1 — pochka→dona rounding matches the spec table exactly", () => 
 
 // ── DR2: payload builder — never send both bunch+stem unless override; delivery omits 3 fields
 describe("DR2 — buildBatchPayload send-rules", () => {
-  const base = { variant: 31, heightCm: 50, stemsPerBunch: 25 };
+  const base = { flower: 31, heightCm: 50, stemsPerBunch: 25 };
 
   it("bunch only (default): cost/sale per-bunch sent, per-stem NOT sent", () => {
     const p = buildBatchPayload({ ...base, costPerBunch: "25000", salePerBunch: "50000" });
@@ -90,6 +90,28 @@ describe("DR2 — buildBatchPayload send-rules", () => {
     expect(p.supplier).toBe(22);
     expect(p.batch_number).toBe("EF-1");
     expect(p.received_at).toBe("2026-08-01"); // sliced to date
+  });
+
+  /**
+   * ⚠️ KIRIM = GUL, TAHRIR = NAV. Ikki oqim ikki xil kalit yuboradi va ular
+   * ARALASHMASLIGI shart:
+   *   yangi kirim  → `flower`  (nav so'ralmaydi; server «general» navni o'zi yasaydi)
+   *   eski partiya → `variant` (buildBatchEditPayload, PATCH — pastdagi DR4 bloki)
+   * Agar kirimga `variant` sizib kirsa, yangi qatorlar yana navga bog'lanib qolardi
+   * va birlashtirish (merge) ishlamasdi.
+   */
+  it("⚠️ KIRIM `flower` yuboradi va `variant` NI UMUMAN YUBORMAYDI", () => {
+    const p = buildBatchPayload({ ...base, deliveryId: 2, receivedBunches: 8, costPerBunch: "25000", salePerBunch: "50000" });
+    expect(p.flower).toBe(31);
+    expect("variant" in p).toBe(false);
+  });
+
+  it("⚠️ tekin kirim ham `flower` — tannarxsiz, lekin gul kaliti joyida", () => {
+    const p = buildBatchPayload({ ...base, isFree: true, costPerBunch: "99000", salePerBunch: "50000" });
+    expect(p.flower).toBe(31);
+    expect("variant" in p).toBe(false);
+    expect(p.is_free).toBe(true);
+    expect("cost_per_bunch" in p).toBe(false);
   });
 
   it("quantity: bunch XOR stem — bunch wins if both accidentally set", () => {
@@ -253,7 +275,7 @@ describe("buildBatchEditPayload — received_stems FAQAT o'zgarganda va FAQAT xa
 import { isFreeBatch, batchCostLabel, compareBatchNewestFirst } from "./inventory";
 
 describe("TEKIN GUL — buildBatchPayload (create)", () => {
-  const base = { variant: 31, heightCm: 60, stemsPerBunch: 25, deliveryId: 19, receivedStems: 100, salePerBunch: "50000" };
+  const base = { flower: 31, heightCm: 60, stemsPerBunch: 25, deliveryId: 19, receivedStems: 100, salePerBunch: "50000" };
   it("TEKIN: is_free yuboriladi, tannarx kalitlari UMUMAN yo'q", () => {
     const p = buildBatchPayload({ ...base, isFree: true, costPerBunch: "99000", costPerStem: "4000" });
     expect(p.is_free).toBe(true);

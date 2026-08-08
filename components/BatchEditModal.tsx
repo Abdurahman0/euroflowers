@@ -230,8 +230,16 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
             </>
           ) : (
             <>
-              <Select value={f.variant} onChange={(vv) => setF((p) => ({ ...p, variant: +vv }))} searchable placeholder="Navni tanlang"
-                options={variants.map((x) => ({ value: x.id, label: `${x.flower_detail?.name_uz ?? "Gul"} ${x.name_uz ?? ""}`.trim(), sub: x.color_uz || undefined }))} />
+              {/* ⚠️ BITTA BIRLASHGAN TANLAGICH — «Gul · Nav · Rang». Operator avval gulni
+                  tanlab, keyin ikkinchi ro'yxatni ochishi SHART EMAS: bitta qidiriladigan
+                  ro'yxat, «atirgul oq» deb yozilsa ham topiladi (label + sub bo'yicha qidiruv). */}
+              <Select value={f.variant} onChange={(vv) => setF((p) => ({ ...p, variant: +vv }))} searchable
+                placeholder="Gul · nav · rang tanlang" searchPlaceholder="Gul, nav yoki rang…"
+                options={variants.map((x) => ({
+                  value: x.id,
+                  label: [x.flower_detail?.name_uz, x.name_uz, x.color_uz].map((t) => (t ?? "").trim()).filter(Boolean).join(" · ") || `#${x.id}`,
+                  sub: `pochkada ${x.default_stems_per_bunch}`,
+                }))} />
               <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>
                 Bu partiyadan hali gul ishlatilmagan — xato tanlangan nav tuzatilsa bo&apos;ladi.
               </span>

@@ -13,7 +13,7 @@ import FreeBatchToggle from "./FreeBatchToggle";
 import { Icon } from "./icons";
 import { fmt, fmtDate } from "@/lib/format";
 import { DELIVERY, buildBatchPayload, perStemFromBunch, roundingNote } from "@/lib/inventory";
-import type { FlowerVariant, StockBatch, StockDelivery } from "@/lib/types";
+import type { Flower, StockBatch, StockDelivery } from "@/lib/types";
 
 /**
  * GUL PARTIYASI (StockBatch) yaratish — HAR DOIM bir YUK (delivery) ichida.
@@ -30,13 +30,15 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
   onSaved: () => void;
 }) {
   const { showToast } = useStore();
-  const [variants, setVariants] = useState<FlowerVariant[]>([]);
+  // ⚠️ NAV EMAS, GUL. Kirimda nav so'ralmaydi (jonli OpenAPI: `flower` writeOnly —
+  // «Gul. Kirimda shu yuboriladi, nav so'ralmaydi»); serverning o'zi «general» nav yasaydi.
+  const [flowers, setFlowers] = useState<Flower[]>([]);
   const [deliveries, setDeliveries] = useState<StockDelivery[]>([]);
   const [flowerId, setFlowerId] = useState(0);
   const [selDelivery, setSelDelivery] = useState<number>(delivery?.id ?? 0);
   const [newDelivery, setNewDelivery] = useState(false);
   const [f, setF] = useState({
-    variant: 0, stems_per_bunch: "", height_cm: "",
+    stems_per_bunch: "", height_cm: "",
     cost_per_bunch: "", sale_price_per_bunch: "",
     cost_per_stem: "", sale_price_per_stem: "", // qo'lda override
     minimum_sale_stems: "", image_url: "",
@@ -52,11 +54,10 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF({ ...f, [k]: e.target.value }); if (errs[k]) setErrs((x) => { const n = { ...x }; delete n[k]; return n; }); };
 
   useEffect(() => {
-    api.flowerVariants({ is_active: true }).then((vs) => {
-      setVariants(vs);
-      const first = vs[0];
-      if (first) { setFlowerId((p) => p || first.flower); setF((p) => ({ ...p, variant: p.variant || first.id })); }
-    }).catch(() => showToast("Gul navlarini yuklab bo'lmadi"));
+    // ⚠️ OLDINDAN TANLANMAYDI — operator gulni O'ZI tanlasin (tasodifan boshqa gul kirmasin)
+    api.flowers({ is_active: true, ordering: "name_uz" })
+      .then(setFlowers)
+      .catch(() => showToast("Gullarni yuklab bo'lmadi"));
     // Yuk ro'yxatini DOIM olamiz (eng yangi birinchi) — select butun modal davomida INTERAKTIV qoladi.
     // Pre-bound (prop) yuk ro'yxatda bo'lmasa oldiga qo'shamiz (o'zgartirilishi mumkin, lekin ko'rinadi).
     api.stockDeliveries({ is_active: true, ordering: "-received_at" })
@@ -64,14 +65,9 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
       .catch(() => { if (delivery) setDeliveries([delivery]); });
   }, [showToast, delivery]);
 
-  const flowers = useMemo(() => {
-    const m = new Map<number, string>();
-    variants.forEach((v) => v.flower_detail && m.set(v.flower, v.flower_detail.name_uz || v.flower_detail.name_ru));
-    return Array.from(m.entries()).map(([id, name]) => ({ id, name }));
-  }, [variants]);
-  const filteredVariants = useMemo(() => variants.filter((v) => v.flower === flowerId), [variants, flowerId]);
-  const variant = useMemo(() => variants.find((v) => v.id === f.variant), [variants, f.variant]);
-  const spb = +f.stems_per_bunch || variant?.default_stems_per_bunch || 20;
+  const flower = useMemo(() => flowers.find((x) => x.id === flowerId), [flowers, flowerId]);
+  // ⚠️ Nav yo'q → pochkadagi dona uchun nav standarti ham yo'q; 20 — forma sukuti
+  const spb = +f.stems_per_bunch || 20;
   const receivedStems = qtyMode === "bunches" ? Math.round((+qty || 0) * spb) : Math.round(+qty || 0);
 
   // TANLANGAN yuk — ro'yxatdan (yuklanmagunча prop'ga tayanadi). selDelivery o'zgarganda
@@ -88,21 +84,15 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
   const margin = salePerStem - costPerStem;
   const marginPct = costPerStem ? Math.round((margin / costPerStem) * 100) : 0;
 
-  const pickFlower = (id: number) => {
-    setFlowerId(id);
-    const first = variants.find((v) => v.flower === id);
-    setF((p) => ({ ...p, variant: first?.id ?? 0 }));
-  };
-
   const save = async () => {
     if (!boundDelivery) { setErrs({ delivery: "Yukni tanlang (yoki yangi yuk oching)" }); return showToast("Avval yukni tanlang"); }
-    if (!f.variant) return showToast("Gul navini tanlang");
+    if (!flowerId) { setErrs({ flower: "Gulni tanlang" }); return showToast("Gulni tanlang"); }
     if (!qty || receivedStems <= 0) return showToast("Miqdorni kiriting");
     if (!(+f.height_cm > 0)) { setErrs({ height_cm: "Bo'yini kiriting (majburiy)" }); return showToast("Gul bo'yini kiriting"); }
     setBusy(true); setErrs({});
     try {
       const payload = buildBatchPayload({
-        variant: f.variant,
+        flower: flowerId,
         deliveryId: boundDelivery.id, // ⚠️ yuk-bog'langan → batch_number/received_at/supplier YUBORILMAYDI
         heightCm: +f.height_cm,
         stemsPerBunch: spb,
@@ -112,11 +102,11 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
         costPerStem: costManual ? (f.cost_per_stem || null) : null,
         salePerBunch: f.sale_price_per_bunch || null,
         salePerStem: saleManual ? (f.sale_price_per_stem || null) : null,
-        minimumSaleStems: +f.minimum_sale_stems || variant?.minimum_sale_stems || 1,
-        imageUrl: f.image_url || variant?.image_url || "",
+        minimumSaleStems: +f.minimum_sale_stems || 1,
+        imageUrl: f.image_url || flower?.image_url || "",
       });
       await api.createStockBatch(payload as Partial<StockBatch>);
-      showToast(`✓ Partiya qo'shildi: ${variant?.flower_detail?.name_uz ?? ""} ${variant?.name_uz ?? ""}`);
+      showToast(`✓ Partiya qo'shildi: ${flower?.name_uz ?? "Gul"}`);
       onSaved();
       onClose();
     } catch (e) {
@@ -160,21 +150,21 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
           </div>
         )}
 
+        {/* ⚠️ BITTA TANLAGICH — nav/rang so'ralmaydi. Ilgari «Gul turi» → «Gul navi»
+            zanjiri bor edi va operator ikkinchi ro'yxatni ko'rish uchun avval turini
+            tanlashi kerak edi. Server endi navni O'ZI yasaydi. */}
         <Section>Gul</Section>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Gul turi">
-            <Select searchable value={flowerId} onChange={(v) => pickFlower(+v)} placeholder="Turini tanlang" options={flowers.map((fl) => ({ value: fl.id, label: fl.name }))} />
-          </Field>
-          <Field label="Gul navi">
-            <Select searchable value={f.variant} onChange={(v) => { setF({ ...f, variant: +v }); setErrs((x) => { const n = { ...x }; delete n.variant; return n; }); }} placeholder={flowerId ? "Navini tanlang" : "Avval turini tanlang"} options={filteredVariants.map((v) => ({ value: v.id, label: `${v.name_uz} (${v.color_uz})`, sub: `pochkada ${v.default_stems_per_bunch}` }))} />
-            <Err k="variant" />
-          </Field>
-        </div>
+        <Field label="Qaysi gul" span>
+          <Select searchable value={flowerId} placeholder="Gulni tanlang" searchPlaceholder="Gul nomi…"
+            onChange={(v) => { setFlowerId(+v); setErrs((x) => { const n = { ...x }; delete n.flower; return n; }); }}
+            options={flowers.map((fl) => ({ value: fl.id, label: fl.name_uz }))} />
+          <Err k="flower" />
+        </Field>
 
         <Section>Miqdor</Section>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Gul bo'yi (sm)"><input className="inp" type="number" value={f.height_cm} onChange={set("height_cm")} placeholder="Masalan: 60" /><Err k="height_cm" /></Field>
-          <Field label="Pochkada nechta dona"><input className="inp" type="number" value={f.stems_per_bunch} onChange={set("stems_per_bunch")} placeholder={`Masalan: ${variant?.default_stems_per_bunch ?? 20}`} /></Field>
+          <Field label="Pochkada nechta dona"><input className="inp" type="number" value={f.stems_per_bunch} onChange={set("stems_per_bunch")} placeholder="Masalan: 20" /></Field>
           <div>
             <DualQtyInput mode={qtyMode} value={qty} stemsPerBunch={spb} onMode={setQtyMode} onValue={(v) => { setQty(v); setErrs((x) => { const n = { ...x }; delete n.received_stems; delete n.received_bunches; return n; }); }} label="Kelgan miqdor" />
             <Err k="received_stems" />
@@ -199,7 +189,7 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
             <Field label="Pochka sotuv narxi (so'm)"><input className="inp" type="number" value={f.sale_price_per_bunch} onChange={set("sale_price_per_bunch")} placeholder="Masalan: 50 000" /></Field>
             <PriceHint label="dona sotuv narxi" perStem={salePerStem} note={saleNote} manual={saleManual} manualVal={f.sale_price_per_stem} onManualToggle={() => setSaleManual((m) => !m)} onManualChange={(v) => setF({ ...f, sale_price_per_stem: v })} />
           </div>
-          <Field label="Minimal sotuv (dona)"><input className="inp" type="number" value={f.minimum_sale_stems} onChange={set("minimum_sale_stems")} placeholder={`Masalan: ${variant?.minimum_sale_stems ?? 5}`} /></Field>
+          <Field label="Minimal sotuv (dona)"><input className="inp" type="number" value={f.minimum_sale_stems} onChange={set("minimum_sale_stems")} placeholder="Masalan: 5" /></Field>
         </div>
         {isFree && salePerStem > 0 && (
           <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold" style={{ background: "color-mix(in srgb, var(--acc) 12%, transparent)", color: "var(--acc)" }}>
