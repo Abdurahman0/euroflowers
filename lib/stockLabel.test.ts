@@ -86,4 +86,46 @@ describe("batchTitleNoHeight — bo'y alohida ustunda bo'lganda", () => {
   it("title'dan bo'y kesiladi (nomlar yo'q bo'lsa)", () => {
     expect(batchTitleNoHeight({ title: "Atirgul 40 sm", height_label: "40 sm" })).toBe("Atirgul");
   });
+  it("zaxira matn — bo'sh partiyada chaqiruvchi bergani", () => {
+    expect(batchTitleNoHeight(undefined, "#12")).toBe("#12");
+  });
+});
+
+/**
+ * ⚠️ EKRANDAGI HAQIQIY SHABLONLAR — har biri BURUN qo'lda yig'ilgan va «general»
+ * qatorda osilgan ajratgich berardi. Bu yerda AYNAN o'sha satrlar sinaladi.
+ */
+describe("chaqiruv joylaridagi shablonlar — osilgan ajratgich YO'Q", () => {
+  const clean = (s: string) => {
+    expect(s).not.toMatch(/^\s*[·—]|[·—]\s*$/);   // boshida/oxirida ajratgich
+    expect(s).not.toMatch(/[·—]\s*[·—]/);          // ketma-ket ajratgich
+    expect(s).not.toMatch(/\s{2,}/);               // qo'sh bo'shliq
+    return s;
+  };
+
+  it("BatchDrawer sarlavhasi", () => {
+    expect(clean(batchTitleNoHeight(general))).toBe("Atirgul");
+    expect(clean(batchTitleNoHeight(legacy))).toBe("Atirgul · Prut · Oq");
+  });
+  it("BatchEditModal / BatchMovementModal sub («… · №EF-1»)", () => {
+    expect(clean(`${batchTitleNoHeight(general)} · №EF-2`)).toBe("Atirgul · №EF-2");
+  });
+  it("SupplierModal harakatlar jurnali («Chiqit · …»)", () => {
+    // ⚠️ ilgari `variant_detail?.name_uz ?? '#id'` edi — BO'SH SATR `??` dan O'TIB KETARDI
+    expect(clean(`Chiqit · ${batchTitleNoHeight(general)}`)).toBe("Chiqit · Atirgul");
+    expect(batchTitleNoHeight({ variant_detail: { name_uz: "", is_general: true } }, "#7")).toBe("#7");
+  });
+  it("KatalogViewModal tarkibi («🌸 …»)", () => {
+    expect(clean(`🌸 ${batchTitleNoHeight(general)}`)).toBe("🌸 Atirgul");
+  });
+  it("FloristCompositionPicker — YUPQA balans shakli", () => {
+    expect(clean(batchTitleNoHeight(flatGeneral, "Partiya #9"))).toBe("Atirgul");
+  });
+  it("CatalogRestoreDrawer tanlagichi («… · №EF · 100 dona»)", () => {
+    expect(clean(`${batchTitleNoHeight(general)} · №EF-2 · 100 dona`)).toBe("Atirgul · №EF-2 · 100 dona");
+  });
+  it("⚠️ ID NOM BO'LIB CHIQMAYDI — to'liq partiyada `variant` RAQAM (FK)", () => {
+    // yupqa shaklda `variant` NOM, to'liqda esa ID — bir xil kalit, ikki xil ma'no
+    expect(batchTitleNoHeight({ flower_name: "Atirgul", variant: 12 })).toBe("Atirgul");
+  });
 });

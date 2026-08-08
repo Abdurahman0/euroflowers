@@ -6,10 +6,12 @@ import { useStore } from "@/lib/store";
 import Drawer, { useDrawerClose } from "./Drawer";
 import Select from "./Select";
 import { fmt } from "@/lib/format";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import type { CatalogItem, FloristProfile, StockBatch, FlowerVariant } from "@/lib/types";
 
 const Lbl = ({ children }: { children: React.ReactNode }) => <div className="mb-1 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>{children}</div>;
-const variantLabel = (v?: FlowerVariant | null) => v ? `${v.flower_detail?.name_uz ?? "Gul"} ${v.name_uz ?? ""}${v.color_uz ? ` · ${v.color_uz}` : ""}`.trim() : "Gul";
+/** ⚠️ Nom YAGONA helper'dan — «general» navli yangi qatorda nav/rang BO'SH keladi. */
+const batchLabel = (b?: StockBatch | null) => batchTitleNoHeight(b);
 const floristName = (fp: FloristProfile) => { const u = fp.user_detail; return [u?.first_name, u?.last_name].filter(Boolean).join(" ") || u?.username || `#${fp.id}`; };
 
 /**
@@ -37,14 +39,14 @@ export default function CatalogRestoreDrawer({ item, onClose, onDone }: { item: 
 
   // ESKI gul — item tarkibidan (batch_detail bo'yicha), o'z hissasi (quantity_stems) bilan
   const oldOpts = useMemo(() => (item.composition ?? []).filter((c) => c.batch_detail?.id).map((c) => ({
-    value: String(c.batch_detail!.id), label: `${variantLabel(c.batch_detail!.variant_detail)} — ${c.quantity_stems} dona`,
+    value: String(c.batch_detail!.id), label: `${batchLabel(c.batch_detail)} — ${c.quantity_stems} dona`,
   })), [item.composition]);
   const oldComp = (item.composition ?? []).find((c) => c.batch_detail?.id === oldBatch);
   const oldMax = oldComp?.quantity_stems ?? 0;
 
   // YANGI gul — skladdagi qoldiqli partiyalar (tugaganlari yo'q)
   const newOpts = useMemo(() => batches.map((b) => ({
-    value: String(b.id), label: `${variantLabel(b.variant_detail)} · №${b.batch_number} · ${b.remaining_stems} dona`,
+    value: String(b.id), label: `${batchLabel(b)} · №${b.batch_number} · ${b.remaining_stems} dona`,
   })), [batches]);
   const newBatchObj = batches.find((b) => b.id === newBatch);
   const newMax = newBatchObj?.remaining_stems ?? 0;

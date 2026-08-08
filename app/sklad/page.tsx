@@ -588,7 +588,6 @@ export default function SkladPage() {
           </div>
           {fMoves.map((m) => {
             const isIn = MOVE_IN.has(m.movement_type);
-            const v = m.batch_detail?.variant_detail;
             const leadId = movementLeadId(m);
             const who = m.performed_by_detail
               ? [m.performed_by_detail.first_name, m.performed_by_detail.last_name].filter(Boolean).join(" ") || m.performed_by_detail.username

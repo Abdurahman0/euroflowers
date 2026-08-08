@@ -831,6 +831,10 @@ export function batchMatchesQuery(
     batch_number?: string | null;
     height_cm?: number | null;
     height_label?: string | null;
+    /** ⚠️ YANGI qatorda GUL to'g'ridan-to'g'ri shu yerda — nav «general» va BO'SH */
+    title?: string | null;
+    flower_name?: string | null;
+    flower_detail?: { name_uz?: string | null } | null;
     variant_detail?: {
       name_uz?: string | null;
       color_uz?: string | null;
@@ -843,6 +847,11 @@ export function batchMatchesQuery(
   if (tokens.length === 0) return true;
   const v = b.variant_detail;
   const fields = [
+    // ⚠️ «general» navli qatorda gul nomi FAQAT shu uch maydonda bo'ladi —
+    // ularsiz yangi partiyani nomi bo'yicha umuman topib bo'lmasdi.
+    b.title,
+    b.flower_name,
+    b.flower_detail?.name_uz,
     v?.flower_detail?.name_uz,
     v?.name_uz,
     v?.color_uz,

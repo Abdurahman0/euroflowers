@@ -9,6 +9,7 @@ import { api, ApiError } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtDate, fmtTime, movementRefLabel } from "@/lib/format";
 import { formatStemsAndBunches, roundingHint, isFreeBatch, batchCostLabel } from "@/lib/inventory";
+import { batchTitleNoHeight, variantColor } from "@/lib/stockLabel";
 import FreeBatchChip from "./FreeBatchChip";
 import type { StockBatch, StockMovement } from "@/lib/types";
 
@@ -95,14 +96,15 @@ export default function BatchDrawer({
     <Drawer
       onClose={onClose}
       width={560}
-      title={`${v?.flower_detail?.name_uz ?? ""} — ${v?.name_uz ?? ""}`}
+      title={batchTitleNoHeight(b)}
       sub={`Partiya №${b.batch_number}`}
       badges={
         <>
           {b.remaining_stems === 0 && <span className="rounded-full bg-[color:var(--surface-2)] px-2.5 py-0.5 text-[11px] font-bold">TUGADI</span>}
           {low && <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white" style={{ background: "var(--danger)" }}>KAM QOLDI</span>}
           {!b.is_active && <span className="rounded-full bg-[color:var(--surface-2)] px-2.5 py-0.5 text-[11px] font-bold">NOFAOL</span>}
-          <span className="rounded-full bg-[color:var(--hover)] px-2.5 py-0.5 text-[11px] font-bold text-[color:var(--text-2)]">{v?.color_uz}</span>
+          {/* ⚠️ rang FAQAT haqiqiy navda — aks holda bo'sh «pilyulya» qolardi */}
+          {variantColor(b) && <span className="rounded-full bg-[color:var(--hover)] px-2.5 py-0.5 text-[11px] font-bold text-[color:var(--text-2)]">{variantColor(b)}</span>}
           <span className="rounded-full bg-[color:var(--hover)] px-2.5 py-0.5 text-[11px] font-bold text-[color:var(--text-2)]">{b.height_cm} sm</span>
         </>
       }

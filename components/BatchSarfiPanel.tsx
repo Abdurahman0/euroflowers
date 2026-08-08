@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { isTestRecord } from "@/lib/finance";
 import { freshness, formatStemsAndBunches, stems as fmtStems, bunches as fmtBunches } from "@/lib/inventory";
 import EmptyState from "./EmptyState";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import type { BatchInventoryStat, StockBatch } from "@/lib/types";
 
 /**
@@ -97,7 +98,8 @@ export default function BatchSarfiPanel({ rows: rawStats }: { rows?: BatchInvent
       const total = hasReceived ? received : Math.max(out, 1);
       return {
         id: s.batch_id ?? i,
-        name: [s.flower, s.variant].filter(Boolean).join(" ") || s.variant || `Partiya ${s.batch_number ?? i}`,
+        // ⚠️ nom helper'dan — «general» qatorda `variant` bo'sh keladi
+        name: batchTitleNoHeight(b ?? { flower: s.flower, variant: s.variant, color: s.color }, `Partiya ${s.batch_number ?? i}`),
         color: s.color, batch_number: s.batch_number,
         supplier: s.supplier_name || b?.supplier_detail?.name || "",
         received_at: b?.received_at ?? null, spb: b?.stems_per_bunch,

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { batchTitle } from "@/lib/stockLabel";
+import { batchTitle, batchTitleNoHeight } from "@/lib/stockLabel";
 import { CalendarRange, Package, Truck, Wallet } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -297,7 +297,7 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
           {moves?.length === 0 && <Empty all="Harakat yo'q." />}
           {moves?.map((m) => (
             <div key={m.id} className="flex items-center justify-between gap-3 border-t py-2 text-[13px] first:border-t-0" style={{ borderColor: "var(--line2)" }}>
-              <span className="min-w-0 truncate">{MOVEMENT_LABEL[m.movement_type as MovementType] ?? m.movement_type} · {m.batch_detail?.variant_detail?.name_uz ?? `#${m.batch}`}</span>
+              <span className="min-w-0 truncate">{MOVEMENT_LABEL[m.movement_type as MovementType] ?? m.movement_type} · {batchTitleNoHeight(m.batch_detail, `#${m.batch}`)}</span>
               <span className="shrink-0 font-semibold tabular-nums">{stems(m.quantity_stems)}</span>
               <span className="shrink-0 text-[12px]" style={{ color: "var(--muted)" }}>{fmtDate(m.created_at)}</span>
             </div>

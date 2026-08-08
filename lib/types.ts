@@ -181,6 +181,11 @@ export type FlowerVariant = {
   image_url: string;
   is_active: boolean;
   flower: number;
+  /** ⚠️ TEXNIK («general») nav — kirimda gul tanlanganda server O'ZI yasaydi.
+      `name_uz`/`color_uz` BO'SH bo'ladi va bu nav foydalanuvchiga KO'RSATILMAYDI.
+      Ro'yxatlarda ham yashiringan (/api/flower-variants/ ni jonli tekshirdik:
+      36 qator, generallari 0). Nomni doim `lib/stockLabel` orqali chizing. */
+  is_general?: boolean;
 };
 
 /** Yetkazib beruvchi (backend: /api/suppliers/) */
@@ -259,7 +264,25 @@ export type FloristStatsSalaryEntry = {
 
 export type StockBatch = {
   id: number;
+  /** ⚠️ ESKI qatorlarda haqiqiy nav, YANGI qatorlarda «general» (bo'sh nom, `is_general: true`).
+      Nomni bu yerdan QO'LDA yig'MANG — `lib/stockLabel` ishlating. */
   variant_detail: FlowerVariant;
+  /** ⚠️ SERVER TAYYORLAGAN NOM — gul + bo'y, eski qatorlarda nav/rang ham
+      («Atirgul · Prut · Oq 80 sm» / «Atirgul 40 sm»). Ekranda ko'rsatiladigan
+      YAGONA ishonchli manba. GET javoblarida keladi. */
+  title?: string;
+  /** faqat gul nomi (navsiz) — server beradi */
+  flower_name?: string;
+  /** gul tafsiloti — endi partiya to'g'ridan-to'g'ri GULGA bog'langan */
+  flower_detail?: Flower | null;
+  /** ⚠️ FAQAT YOZISHDA (POST/PATCH) — GET javobida KELMAYDI.
+      Kirimda `variant` O'RNIGA shu yuboriladi (eskisi ham qabul qilinadi). */
+  flower?: number;
+  /** ⚠️ QO'SHILDIMI yoki YANGI QATOR — status DOIM 201, shuning uchun
+      natijani FAQAT shu maydondan bilib olamiz (POST javobida keladi). */
+  merged?: boolean;
+  /** shu kirimda qo'shilgan dona (merged=true bo'lganda) */
+  merged_stems?: number;
   branch_detail?: Branch;
   /** yetkazib beruvchi tafsiloti — mavjud bo'lsa */
   supplier_detail?: Supplier | null;

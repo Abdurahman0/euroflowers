@@ -4,6 +4,7 @@ import { Info, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import Select from "./Select";
 import { formatStemsAndBunches } from "@/lib/inventory";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import type { FloristStockBalance } from "@/lib/types";
 
 /**
@@ -47,7 +48,9 @@ export default function FloristCompositionPicker({ florist, value, onChange, err
     const bd = b.batch_detail;
     return {
       value: b.batch,
-      label: [bd?.flower, bd?.variant, bd?.color].filter(Boolean).join(" · ") || `Partiya #${b.batch}`,
+      // ⚠️ YUPQA balans shakli — `title` YO'Q, `variant` esa «general» qatorda bo'sh SATR.
+      // Helper bo'sh bo'laklarni tashlaydi, id ni esa nom sifatida o'qimaydi.
+      label: batchTitleNoHeight(bd, `Partiya #${b.batch}`),
       sub: `№${bd?.batch_number ?? b.batch}${bd?.height_label ? ` · ${bd.height_label}` : ""} · qoldiq: ${formatStemsAndBunches(b.remaining_stems, bd?.stems_per_bunch)}`,
     };
   }), [balances]);

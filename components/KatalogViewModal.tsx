@@ -4,6 +4,7 @@ import { ArrowLeftRight, Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine
 import Modal from "./Modal";
 import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
 import { KIND_LABEL, catalogWaiting } from "@/lib/inventory";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import { catalogRemaining, catalogCountsLabel, stockAlreadyDeducted } from "@/lib/rework";
 import { catalogHasCostData } from "@/lib/branch";
 import { api } from "@/lib/api";
@@ -206,21 +207,16 @@ export default function KatalogViewModal({
         <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[1.5px]" style={{ color: "var(--primary)" }}>Tarkibi</div>
         {full.composition?.length ? (
           <div className="flex flex-col gap-1">
-            {full.composition.map((c, i) => {
-              const v = c.batch_detail?.variant_detail;
-              return (
+            {full.composition.map((c, i) => (
                 <div key={i} className="flex justify-between gap-3 text-[13px]">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="min-w-0 truncate">
-                      🌸 {v?.flower_detail?.name_uz ?? "Gul"} {v?.name_uz ?? ""}
-                      {v?.color_uz ? ` · ${v.color_uz}` : ""}
-                    </span>
+                    {/* ⚠️ nom helper'dan — «general» navda qo'lda yig'ilsa «Atirgul » chiqardi */}
+                    <span className="min-w-0 truncate">🌸 {batchTitleNoHeight(c.batch_detail)}</span>
                     {c.batch_detail?.is_free && <FreeBatchChip />}
                   </span>
                   <span className="shrink-0 font-semibold">{c.quantity_stems} dona</span>
                 </div>
-              );
-            })}
+            ))}
           </div>
         ) : (
           <p className="text-[13px]" style={{ color: "var(--muted)" }}>Tarkib kiritilmagan.</p>

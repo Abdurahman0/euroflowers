@@ -13,6 +13,7 @@ import FreeBatchToggle from "./FreeBatchToggle";
 import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import { Icon } from "./icons";
 import { fmt, fmtDate } from "@/lib/format";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import { DELIVERY, perStemFromBunch, roundingNote, buildBatchEditPayload, batchEditIsRetroactive, formatStemsAndBunches, receivedEditConsequence, batchVariantLocked, VARIANT_LOCKED_HINT, variantChangeNeedsDialog, spbPriceRecompute, describeBatchDeleteResult, type BatchEditForm, type BatchEditOriginal } from "@/lib/inventory";
 import VariantChangeModal from "./VariantChangeModal";
 import type { BatchUsage, FlowerVariant, StockBatch, StockDelivery, Supplier } from "@/lib/types";
@@ -102,7 +103,6 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
     } finally { setUsageBusy(false); }
   };
   const orig: BatchEditOriginal = batch;
-  const v = batch.variant_detail;
   const spb = +f.stems_per_bunch || batch.stems_per_bunch || 20;
 
   // NARX preview (create bilan bir xil)
@@ -174,7 +174,7 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
 
   return (
     <Modal onClose={onClose} width={560}>
-      <ModalHeader icon={<Icon name="sklad" size={20} />} title="Partiyani tahrirlash" sub={`${v?.flower_detail?.name_uz ?? ""} — ${v?.name_uz ?? ""} · №${batch.batch_number}`} onClose={onClose} />
+      <ModalHeader icon={<Icon name="sklad" size={20} />} title="Partiyani tahrirlash" sub={`${batchTitleNoHeight(batch)} · №${batch.batch_number}`} onClose={onClose} />
 
       {/* PROVENANCE — read-only (Yuk/nav/qoldiq desync xavfli, o'zgartirilmaydi) */}
       <div className="mt-1 flex items-center gap-2.5 rounded-[13px] border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -214,7 +214,7 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
               <div className="flex items-center gap-2 rounded-[12px] border px-3 py-2.5 text-[13px] font-semibold"
                 style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
                 <Lock size={14} strokeWidth={2.1} style={{ color: "var(--muted)" }} />
-                <span className="min-w-0 truncate">{`${v?.flower_detail?.name_uz ?? "Gul"} · ${v?.name_uz ?? ""}${v?.color_uz ? ` · ${v.color_uz}` : ""}`}</span>
+                <span className="min-w-0 truncate">{batchTitleNoHeight(batch)}</span>
               </div>
               <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>
                 {VARIANT_LOCKED_HINT}

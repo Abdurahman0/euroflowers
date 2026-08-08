@@ -435,6 +435,25 @@ describe("batchMatchesQuery — ko'p so'zli qidiruv, BO'Y ham qamrab olinadi", (
     expect(batchMatchesQuery({ variant_detail: { flower_detail: { name_uz: "Prut" } } }, "prut")).toBe(true);
     expect(batchMatchesQuery({ variant_detail: { flower_detail: { name_uz: "Prut" } } }, "prut 40")).toBe(false);
   });
+
+  /**
+   * ⚠️ «GENERAL» NAVLI YANGI QATOR — nav BO'SH, gul nomi esa `title`/`flower_name`/
+   * `flower_detail` da. Bu maydonlarsiz yangi partiyani NOMI bo'yicha topib
+   * bo'lmasdi: qidiruv jimgina bo'sh natija berardi.
+   */
+  it("yangi qator — gul nomi `flower_name` dan topiladi (nav bo'sh)", () => {
+    const gen = {
+      title: "Atirgul 40 sm", flower_name: "Atirgul", height_cm: 40, height_label: "40 sm",
+      batch_number: "EF-GEN-01",
+      variant_detail: { name_uz: "", color_uz: "", flower_detail: { name_uz: "Atirgul" } },
+    };
+    expect(batchMatchesQuery(gen, "atirgul")).toBe(true);
+    expect(batchMatchesQuery(gen, "atirgul 40")).toBe(true);
+    expect(batchMatchesQuery(gen, "atirgul 60")).toBe(false);
+  });
+  it("nav butunlay yo'q bo'lsa ham — `flower_detail` yetarli", () => {
+    expect(batchMatchesQuery({ flower_detail: { name_uz: "Xrizantema" } }, "xrizantema")).toBe(true);
+  });
 });
 
 describe("compareCatalogNewestFirst — oxirgi qo'shilgan BIRINCHI", () => {

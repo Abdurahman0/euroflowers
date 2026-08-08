@@ -10,6 +10,7 @@ import DualQtyInput, { qtyPayload, defaultQtyMode, type QtyMode } from "./DualQt
 import { CalendarClock } from "lucide-react";
 import { Icon } from "./icons";
 import { fmtDate } from "@/lib/format";
+import { batchTitleNoHeight } from "@/lib/stockLabel";
 import { MOVEMENT_LABEL, MOVEMENT_HUE, stems, formatStemsAndBunches } from "@/lib/inventory";
 import type { MovementType, StockBatch, StockMovement } from "@/lib/types";
 
@@ -61,10 +62,9 @@ export function BatchMovementModal({ batch, onClose, onDone }: { batch: StockBat
     }
   };
 
-  const v = batch.variant_detail;
   return (
     <Modal onClose={onClose} width={440}>
-      <ModalHeader icon={<Icon name="sklad" size={20} />} title="Harakat qo'shish" sub={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} · №${batch.batch_number}`} onClose={onClose} />
+      <ModalHeader icon={<Icon name="sklad" size={20} />} title="Harakat qo'shish" sub={`${batchTitleNoHeight(batch)} · №${batch.batch_number}`} onClose={onClose} />
       {/* qoldiq: hozirgi → proyeksiya, ikki birlikda; nolga tushsa amber + bloklanadi */}
       <div
         className="mt-2 rounded-[12px] px-3 py-2 text-[12.5px] font-semibold transition-colors"
@@ -127,10 +127,9 @@ export function BatchMovesModal({ batch, onClose }: { batch: StockBatch; onClose
   useEffect(() => {
     api.stockMovements({ batch: batch.id, ordering: "-created_at" }).then(setMoves).catch(() => setMoves([]));
   }, [batch.id]);
-  const v = batch.variant_detail;
   return (
     <Modal onClose={onClose} width={460}>
-      <ModalHeader icon={<Icon name="audit" size={20} />} title="Partiya harakatlari" sub={`${v?.flower_detail?.name_uz ?? ""} ${v?.name_uz ?? ""} · №${batch.batch_number}`} onClose={onClose} />
+      <ModalHeader icon={<Icon name="audit" size={20} />} title="Partiya harakatlari" sub={`${batchTitleNoHeight(batch)} · №${batch.batch_number}`} onClose={onClose} />
       <div className="mt-2 flex flex-col gap-1.5">
         {moves == null && <p className="py-6 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
         {moves?.length === 0 && <p className="py-6 text-center text-[13px]" style={{ color: "var(--muted)" }}>Harakat yo&apos;q.</p>}
