@@ -5,15 +5,17 @@ import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
+import TotalsBar from "@/components/TotalsBar";
 import RefreshButton from "@/components/RefreshButton";
 import FlowerLoader from "@/components/FlowerLoader";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore, usePerm } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { dateAfterParam, fmt, fmtDate, fmtTime, movementLeadId, movementRefLabel, rangeParams } from "@/lib/format";
+import { totalsNum } from "@/lib/pagination";
 import DateChips from "@/components/DateChips";
 import BatchDrawer from "@/components/BatchDrawer";
 import StockBatchCard from "@/components/StockBatchCard";
@@ -163,6 +165,28 @@ export default function SkladPage() {
 
   // ⚠️ ESKIRGAN JAVOB YOZIB KETMASIN — listPaged bitta so'rovga IKKI marta javob beradi
   // (birinchi sahifa + to'lig'i), filtr esa shu orada o'zgarishi mumkin.
+  /**
+   * ⚠️ JAMILAR SERVERDAN — `GET /api/stock-batches/` javobidagi `totals` bloki
+   * (spec: FRONTEND_PAGINATION_TOTALS_API.md). Ilgari «Jami qoldiq» ekrandagi
+   * qatorlar yig'indisidan hisoblanardi; ro'yxat kesilsa yoki sahifalansa u
+   * jimgina noto'g'ri raqam ko'rsatardi.
+   * ⚠️ `totals` FILTRGA ergashadi — shuning uchun ro'yxat bilan AYNAN bir xil
+   * parametrlar yuboriladi; `page_size=1` — bizga faqat jamilar kerak.
+   */
+  const [totals, setTotals] = useState<Record<string, unknown> | undefined>();
+  const batchFilters = useMemo(() => ({
+    is_active: true,
+    ...(freeFilter ? { is_free: freeFilter } : {}),
+    ...(variantFilter ? { variant: variantFilter } : {}),
+  }), [freeFilter, variantFilter]);
+  useEffect(() => {
+    const ac = new AbortController();
+    api.stockBatchesPage({ ...batchFilters, page_size: 1 }, ac.signal)
+      .then((d) => setTotals(d.totals))
+      .catch(() => {});
+    return () => ac.abort();
+  }, [batchFilters]);
+
   const loadGen = useRef(0);
   const load = useCallback(async () => {
     const gen = ++loadGen.current;
@@ -219,7 +243,7 @@ export default function SkladPage() {
 
   // yetkazib beruvchilar — jurnal filtri uchun (bir marta)
   useEffect(() => {
-    api.suppliers({ is_active: true }).then(setSuppliers).catch(() => {});
+    api.suppliers({ is_active: true, page_size: "all" }).then(setSuppliers).catch(() => {});
   }, []);
 
   // material harakatlari — faqat Material manbasi tanlanganda, davr+tur filtri server tomonda
@@ -315,7 +339,8 @@ export default function SkladPage() {
   // kam qoldiq diqqati «Kam qolgan partiyalar» chipi orqali saqlanib qoldi.
   const fBatches = [...shown].sort(compareBatchNewestFirst);
   const depletedCount = searched.filter((b) => b.remaining_stems === 0).length;
-  const total = batches.reduce((a, b) => a + b.remaining_stems, 0);
+  // ⚠️ SERVERNING jamisi; javob hali kelmagan bo'lsa zaxira — ro'yxat yig'indisi
+  const total = totals ? totalsNum(totals, "remaining_stems") : batches.reduce((a, b) => a + b.remaining_stems, 0);
   const lows = batches.filter((b) => b.remaining_stems > 0 && b.remaining_stems <= b.minimum_sale_stems * 2);
   const fMoves = moves;
   // material turi — packaging_type bo'yicha KLIENT filtri (API'da faqat packaging id filtri bor)
@@ -678,8 +703,21 @@ export default function SkladPage() {
   return (
     <>
       {tabBar}
+      {/* ⚠️ HAMMA RAQAM SERVERNING `totals` blokidan — filtr o'zgarsa u ham o'zgaradi */}
+      <TotalsBar
+        items={[
+          { label: "Partiya", value: totalsNum(totals, "batches") },
+          { label: "Xil gul", value: totalsNum(totals, "flowers") },
+          { label: "Postavshik", value: totalsNum(totals, "suppliers") },
+          { label: "Skladda", value: totalsNum(totals, "remaining_stems"), unit: "dona" },
+          { label: "Qoldiq tannarxi", value: totalsNum(totals, "remaining_cost"), money: true },
+          { label: "Qoldiq sotuvda", value: totalsNum(totals, "remaining_sale_value"), money: true, hue: "var(--acc)" },
+        ]}
+        loading={!totals}
+      />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
+          {/* ⚠️ «Jami qoldiq» — SERVERNING totals.remaining_stems i (ro'yxat yig'indisi EMAS) */}
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">

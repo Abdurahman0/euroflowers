@@ -73,7 +73,7 @@ export default function FloristRateMatrix({ florist, onSaved }: { florist: Flori
   }, [florist.id, florist.staff_type, showToast]);
   useEffect(() => { load(); }, [load]);
   // nusxalash ro'yxati (joriy floristsiz)
-  useEffect(() => { api.florists({ is_active: true, ordering: "user" }).then((fs) => setFlorists(fs.filter((f) => f.id !== florist.id))).catch(() => {}); }, [florist.id]);
+  useEffect(() => { api.florists({ is_active: true, ordering: "user", page_size: "all" }).then((fs) => setFlorists(fs.filter((f) => f.id !== florist.id))).catch(() => {}); }, [florist.id]);
 
   const dirty = useMemo(() => JSON.stringify(grid) !== JSON.stringify(baseline), [grid, baseline]);
   const setCell = (k: string, patch: Partial<Cell>) => setGrid((g) => ({ ...g, [k]: { ...g[k], ...patch } }));

@@ -30,7 +30,7 @@ export default function FloristCompositionPicker({ florist, value, onChange, err
   useEffect(() => {
     if (!florist) { setBalances([]); return; }
     setBalances(null);
-    api.floristStockBalances({ florist }).then(setBalances).catch(() => setBalances([]));
+    api.floristStockBalances({ florist, page_size: "all" }).then(setBalances).catch(() => setBalances([]));
   }, [florist]);
 
   const held = useMemo(() => new Set((balances ?? []).map((b) => b.batch)), [balances]);

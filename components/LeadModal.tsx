@@ -136,8 +136,8 @@ export default function LeadModal({
   const needLists = editing || stockUsage.some((u) => !u.batch_detail) || packUsage.some((u) => !u.packaging_detail);
   useEffect(() => {
     if (!needLists) return;
-    api.stockBatches({ is_active: true }).then(setBatches).catch(() => {});
-    api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+    api.stockBatches({ is_active: true, page_size: "all" }).then(setBatches).catch(() => {});
+    api.materials({ is_active: true, page_size: "all" }).then(setMaterials).catch(() => {});
   }, [needLists]);
 
   const stockLabel = (u: (typeof stockUsage)[number]) => {

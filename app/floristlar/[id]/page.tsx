@@ -118,12 +118,12 @@ export default function FloristDetailPage() {
 
   const loadBalances = useCallback(() => {
     if (!id) return;
-    api.floristStockBalances({ florist: id, only_available: "false", ordering: "batch" }).then(setBalances).catch(() => setBalances([]));
+    api.floristStockBalances({ florist: id, only_available: "false", ordering: "batch", page_size: "all" }).then(setBalances).catch(() => setBalances([]));
   }, [id]);
   // ⚠️ Sklad partiyalari — chiqarish/qaytarish/chiqit'dan KEYIN qayta yuklanadi (qoldiq JONLI bo'lsin,
   //    tugagan partiya tanlagichda qolmasin). remaining>0 filtri ham shu yerda.
   const loadBatches = useCallback(() => {
-    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+    api.stockBatches({ is_active: true, page_size: "all" }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
   }, []);
 
   useEffect(() => {

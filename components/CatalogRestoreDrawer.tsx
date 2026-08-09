@@ -33,8 +33,8 @@ export default function CatalogRestoreDrawer({ item, onClose, onDone }: { item: 
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
-    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => (b.remaining_stems ?? 0) > 0))).catch(() => {});
+    api.florists({ is_active: true, ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {});
+    api.stockBatches({ is_active: true, page_size: "all" }).then((bs) => setBatches(bs.filter((b) => (b.remaining_stems ?? 0) > 0))).catch(() => {});
   }, []);
 
   // ESKI gul — item tarkibidan (batch_detail bo'yicha), o'z hissasi (quantity_stems) bilan

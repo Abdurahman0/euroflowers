@@ -39,7 +39,7 @@ export default function MaterialReceiveModal({ delivery, onClose, onReceived }: 
   // shu yukda SHU SESSIYADA nima kiritildi (yopmasdan ko'rsatamiz)
   const [added, setAdded] = useState<{ name: string; qty: number; costChanged: boolean }[]>([]);
 
-  const loadMaterials = () => api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+  const loadMaterials = () => api.materials({ is_active: true, page_size: "all" }).then(setMaterials).catch(() => {});
   useEffect(() => { loadMaterials(); }, []);
 
   const sel = materials.find((m) => m.id === packaging);

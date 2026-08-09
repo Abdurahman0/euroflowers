@@ -531,7 +531,7 @@ export default function MaterialSklad() {
   const load = useCallback(async () => {
     try {
       // barchasini olamiz — guruhlash va sanoqlar klient tomonda (chip filtri bilan)
-      setMaterials(await api.materials({ is_active: true }));
+      setMaterials(await api.materials({ is_active: true, page_size: "all" }));
     } catch (e) {
       setMaterials([]);
       showToast(e instanceof Error ? e.message : "Materiallarni yuklashda xatolik");

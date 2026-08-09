@@ -60,9 +60,9 @@ export default function RestavratsiyaModal({
       const list = r.filter((i) => catalogRemaining(i) > 0 || i.id === source?.id);
       setItems(source && !list.some((i) => i.id === source.id) ? [source, ...list] : list);
     }).catch(() => showToast("Katalogni yuklab bo'lmadi"));
-    api.stockBatches({ is_active: true }).then(setBatches).catch(() => {});
-    api.florists().then(setFlorists).catch(() => {});
-    api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+    api.stockBatches({ is_active: true, page_size: "all" }).then(setBatches).catch(() => {});
+    api.florists({ page_size: "all" }).then(setFlorists).catch(() => {});
+    api.materials({ is_active: true, page_size: "all" }).then(setMaterials).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source]);
 

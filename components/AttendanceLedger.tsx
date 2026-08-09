@@ -56,7 +56,7 @@ export default function AttendanceLedger() {
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load);
-  useEffect(() => { api.florists({ ordering: "user" }).then(setFlorists).catch(() => {}); }, []);
+  useEffect(() => { api.florists({ ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {}); }, []);
 
   useEffect(() => {
     if (focusId && focusRef.current) focusRef.current.scrollIntoView({ behavior: "smooth", block: "center" });

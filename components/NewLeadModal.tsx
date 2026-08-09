@@ -53,8 +53,8 @@ export default function NewLeadModal({
   const isCatalog = f.arrangement_type === "catalog";
 
   useEffect(() => {
-    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
-    api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+    api.stockBatches({ is_active: true, page_size: "all" }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+    api.materials({ is_active: true, page_size: "all" }).then(setMaterials).catch(() => {});
     api.catalog({ status: "available" }).then(setCatalogItems).catch(() => {});
     // florist xizmat haqi — biznes sozlamalaridagi standart qiymat bilan boshlanadi
     api.settings().then((s) => {

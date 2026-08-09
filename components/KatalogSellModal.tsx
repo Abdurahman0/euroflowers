@@ -123,8 +123,8 @@ export default function KatalogSellModal({
   const [saleImage, setSaleImage] = useState("");
   useEffect(() => {
     // ⚠️ §5: SARFLANADIGANLAR (Gupka/Lenta/Lak) sotuvda qo'shilmaydi — tanlagichdan chiqarib tashlanadi.
-    api.materials({ is_active: true }).then((ms) => setMaterials(usableInCatalog(ms))).catch(() => {});
-    api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
+    api.materials({ is_active: true, page_size: "all" }).then((ms) => setMaterials(usableInCatalog(ms))).catch(() => {});
+    api.florists({ is_active: true, ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {});
   }, []);
   const matOf = (id: number) => materials.find((m) => m.id === id);
   const matGroups = useMemo(() => {

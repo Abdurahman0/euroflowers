@@ -55,12 +55,12 @@ export default function StockBatchModal({ delivery = null, onClose, onSaved }: {
 
   useEffect(() => {
     // ⚠️ OLDINDAN TANLANMAYDI — operator gulni O'ZI tanlasin (tasodifan boshqa gul kirmasin)
-    api.flowers({ is_active: true, ordering: "name_uz" })
+    api.flowers({ is_active: true, ordering: "name_uz", page_size: "all" })
       .then(setFlowers)
       .catch(() => showToast("Gullarni yuklab bo'lmadi"));
     // Yuk ro'yxatini DOIM olamiz (eng yangi birinchi) — select butun modal davomida INTERAKTIV qoladi.
     // Pre-bound (prop) yuk ro'yxatda bo'lmasa oldiga qo'shamiz (o'zgartirilishi mumkin, lekin ko'rinadi).
-    api.stockDeliveries({ is_active: true, ordering: "-received_at" })
+    api.stockDeliveries({ is_active: true, ordering: "-received_at", page_size: "all" })
       .then((ds) => setDeliveries(delivery && !ds.some((d) => d.id === delivery.id) ? [delivery, ...ds] : ds))
       .catch(() => { if (delivery) setDeliveries([delivery]); });
   }, [showToast, delivery]);

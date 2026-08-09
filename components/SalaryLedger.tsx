@@ -41,7 +41,7 @@ export default function SalaryLedger() {
   }, [showToast, floristId, source, dateFilter, dateRange]);
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load);
-  useEffect(() => { api.florists({ ordering: "user" }).then(setFlorists).catch(() => {}); }, []);
+  useEffect(() => { api.florists({ ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {}); }, []);
 
   const floristName = (fp?: FloristProfile) => {
     const u = fp?.user_detail;

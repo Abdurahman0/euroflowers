@@ -49,8 +49,8 @@ export default function EditLeadModal({
 
   useEffect(() => {
     // to'liq ro'yxat: sarf qatorlari nomlari uchun ham kerak (tugagan partiya bo'lishi mumkin)
-    api.stockBatches({ is_active: true }).then(setBatches).catch(() => {});
-    api.materials({ is_active: true }).then(setMaterials).catch(() => {});
+    api.stockBatches({ is_active: true, page_size: "all" }).then(setBatches).catch(() => {});
+    api.materials({ is_active: true, page_size: "all" }).then(setMaterials).catch(() => {});
   }, []);
 
   // sklad narxlari bo'yicha jami — "qo'llash" tugmasi uchun

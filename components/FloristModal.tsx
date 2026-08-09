@@ -30,7 +30,7 @@ export default function FloristModal({ florist, onClose, onSaved }: { florist: F
   });
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { api.users().then(setUsers).catch(() => {}); }, []);
+  useEffect(() => { api.users({ page_size: "all" }).then(setUsers).catch(() => {}); }, []);
 
   const save = async () => {
     if (!f.user) return showToast("Foydalanuvchini tanlang");

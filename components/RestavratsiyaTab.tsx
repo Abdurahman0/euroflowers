@@ -47,7 +47,7 @@ export default function RestavratsiyaTab({ onOpenItem }: { onOpenItem: (catalogI
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<number | null>(null);
 
-  useEffect(() => { api.florists().then(setFlorists).catch(() => {}); }, []);
+  useEffect(() => { api.florists({ page_size: "all" }).then(setFlorists).catch(() => {}); }, []);
 
   // URL'dan o'qish (chuqur havola) — bir marta
   useEffect(() => {

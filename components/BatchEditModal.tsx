@@ -70,8 +70,8 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
   const [deliveries, setDeliveries] = useState<StockDelivery[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   useEffect(() => {
-    api.stockDeliveries({ is_active: true, ordering: "-received_at" }).then(setDeliveries).catch(() => {});
-    api.suppliers({ is_active: true }).then(setSuppliers).catch(() => {});
+    api.stockDeliveries({ is_active: true, ordering: "-received_at", page_size: "all" }).then(setDeliveries).catch(() => {});
+    api.suppliers({ is_active: true, page_size: "all" }).then(setSuppliers).catch(() => {});
   }, []);
   const [confirmDel, setConfirmDel] = useState(false);
   const [delBusy, setDelBusy] = useState(false);

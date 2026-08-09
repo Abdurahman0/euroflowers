@@ -69,7 +69,7 @@ export default function PostModal({
   const [batches, setBatches] = useState<StockBatch[]>([]);
   useEffect(() => {
     if (!withCatalog || batches.length) return;
-    api.stockBatches({ is_active: true }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
+    api.stockBatches({ is_active: true, page_size: "all" }).then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0))).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [withCatalog]);
 

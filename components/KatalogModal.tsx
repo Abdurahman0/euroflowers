@@ -112,15 +112,15 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     // BARCHA faol partiyalar saqlanadi (narx uchun kerak — florist rejimida sklad
     // qoldig'i 0 bo'lsa ham partiya narxi topilishi shart). Warehouse-rejim tanlagichi
     // usableBatches memo orqali faqat qoldig'i borlarni ko'rsatadi.
-    api.stockBatches({ is_active: true }).then((bs) => {
+    api.stockBatches({ is_active: true, page_size: "all" }).then((bs) => {
       const used = new Set((item?.composition ?? []).map((c) => c.stock_batch));
       const usable = bs.filter((b) => b.remaining_stems > 0 || used.has(b.id));
       setBatches(bs);
       setComp((c) => c.map((r) => ({ ...r, stock_batch: r.stock_batch || usable[0]?.id || 0 })));
     }).catch(() => showToast("Sklad partiyalarini yuklab bo'lmadi"));
     // ⚠️ §5: SARFLANADIGANLAR (Gupka/Lenta/Lak) katalogda ishlatilmaydi — tanlagichdan chiqarib tashlanadi.
-    api.materials({ is_active: true }).then((ms) => setMaterials(usableInCatalog(ms))).catch(() => {});
-    api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
+    api.materials({ is_active: true, page_size: "all" }).then((ms) => setMaterials(usableInCatalog(ms))).catch(() => {});
+    api.florists({ is_active: true, ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {});
     // FILIALLAR — faqat asosiy foydalanuvchi + yangi item uchun (tanlagich shu holatda chiqadi).
     if (canPickBranch) api.branches({ is_main: false, is_active: true }).then(setBranches).catch(() => setBranches([]));
   }, [showToast, item, canPickBranch]);

@@ -30,7 +30,7 @@ export default function MaterialDeliveryModal({ delivery, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
 
-  useEffect(() => { api.suppliers({ is_active: true }).then(setSuppliers).catch(() => {}); }, []);
+  useEffect(() => { api.suppliers({ is_active: true, page_size: "all" }).then(setSuppliers).catch(() => {}); }, []);
 
   const save = async () => {
     if (!number.trim()) { setErrs({ number: "Yuk raqamini kiriting" }); return showToast("Yuk raqamini kiriting"); }

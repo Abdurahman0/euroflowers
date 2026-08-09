@@ -121,7 +121,7 @@ export default function FloristStockIssuePage() {
    */
   const loadBatches = useCallback(() => {
     setBatchesLoading(true);
-    api.stockBatches({ is_active: true })
+    api.stockBatches({ is_active: true, page_size: "all" })
       .then((bs) => setBatches(bs.filter((b) => b.remaining_stems > 0)))
       .catch(() => {})
       .finally(() => setBatchesLoading(false));
@@ -145,7 +145,7 @@ export default function FloristStockIssuePage() {
   useEffect(() => {
     if (isFlorist) return; // florist chiqarish forma/ro'yxatini ko'rmaydi
     // ⚠️ partiyalar BU YERDA OLINMAYDI — faqat «Gul chiqarish» formasi ochilganda (openIssue)
-    api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {});
+    api.florists({ is_active: true, ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {});
   }, [isFlorist]);
 
   const scopedBalances = useMemo(() => (!balances ? null : isFlorist && myFloristId ? balances.filter((b) => b.florist === myFloristId) : balances), [balances, isFlorist, myFloristId]);

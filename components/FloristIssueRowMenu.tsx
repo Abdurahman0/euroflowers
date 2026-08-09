@@ -58,8 +58,8 @@ function EditModal({ issue, onClose, onDone }: { issue: FloristStockIssue; onClo
   const [skladNow, setSkladNow] = useState<number | null>(null);
   const [floristNow, setFloristNow] = useState<number | null>(null);
   useEffect(() => {
-    api.stockBatches({ is_active: true }).then((bs) => { const b = bs.find((x) => x.id === issue.batch); if (b) setSkladNow(b.remaining_stems); }).catch(() => {});
-    api.floristStockBalances({ florist: issue.florist, only_available: "false" }).then((bl) => { const r = bl.find((x) => x.batch === issue.batch); setFloristNow(r?.remaining_stems ?? 0); }).catch(() => {});
+    api.stockBatches({ is_active: true, page_size: "all" }).then((bs) => { const b = bs.find((x) => x.id === issue.batch); if (b) setSkladNow(b.remaining_stems); }).catch(() => {});
+    api.floristStockBalances({ florist: issue.florist, only_available: "false", page_size: "all" }).then((bl) => { const r = bl.find((x) => x.batch === issue.batch); setFloristNow(r?.remaining_stems ?? 0); }).catch(() => {});
   }, [issue.batch, issue.florist]);
 
   const newQty = Math.round(parseFloat(qty) || 0);

@@ -155,7 +155,7 @@ export default function KatalogPage() {
   const { refresh, loadedAt } = useAutoRefresh(load);
 
   // florist ro'yxati — filtr uchun (bir marta)
-  useEffect(() => { api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {}); }, []);
+  useEffect(() => { api.florists({ is_active: true, ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {}); }, []);
 
   // URL ?status= o'qish (ulashilgan link / refresh o'sha ko'rinishga tushadi) — mount'da bir marta
   useEffect(() => {
