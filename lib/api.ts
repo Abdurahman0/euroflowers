@@ -541,7 +541,34 @@ export function logout() {
  */
 type Period = { from?: string; to?: string };
 
+/**
+ * SAHIFALANGAN so'rov — `Paginated<T>` ni AYNAN serverdan qaytaradi
+ * (`page` / `total_pages` / `has_next` / `totals` bilan birga).
+ *
+ * ⚠️ `list()` dan FARQI: bu HECH QANDAY sahifani aylanib chiqmaydi va hech narsani
+ * kesmaydi — bitta so'rov, bitta sahifa. Jamilar `count` / `totals` dan olinadi.
+ * ⚠️ `signal` MAJBURIY emas, lekin ro'yxatlarda DOIM uzatiladi (eskirgan javob
+ * yangisining ustiga yozib ketmasin).
+ */
+const paged = <T,>(path: string) => (p?: Params, signal?: AbortSignal) =>
+  request<Paginated<T>>(`${path}${qs(p)}`, { signal });
+
 export const api = {
+  /* ===== SAHIFALANGAN RO'YXATLAR (spec: FRONTEND_PAGINATION_TOTALS_API.md) ===== */
+  auditPage: paged<AuditLog>("/api/audit/"),
+  catalogPage: paged<CatalogItem>("/api/catalog/"),
+  stockBatchesPage: paged<StockBatch>("/api/stock-batches/"),
+  stockDeliveriesPage: paged<StockDelivery>("/api/stock-deliveries/"),
+  materialsPage: paged<Packaging>("/api/materials/"),
+  materialDeliveriesPage: paged<MaterialDelivery>("/api/material-deliveries/"),
+  materialMovementsPage: paged<MaterialMovement>("/api/material-movements/"),
+  floristsPage: paged<FloristProfile>("/api/florists/"),
+  floristSalaryPage: paged<FloristSalaryEntry>("/api/florist-salary/"),
+  floristStockIssuesPage: paged<FloristStockIssue>("/api/florist-stock-issues/"),
+  floristStockBalancesPage: paged<FloristStockBalance>("/api/florist-stock-balances/"),
+  catalogTransfersPage: paged<CatalogTransfer>("/api/catalog-transfers/"),
+  customersPage: paged<Customer>("/api/customers/"),
+
   me: () => request<User>("/api/me/"),
   // ⚠️ date_to ASIMMETRIYASI (lib/format): dashboard/analytics EKSKLYUZIV → +1
   // (dashboardDateTo); accounting INKLYUZIV → xom (accountingDateTo). YAGONA manba.
@@ -890,7 +917,15 @@ export const api = {
   resumeAi: (id: number) =>
     request<Conversation>(`/api/conversations/${id}/resume_ai/`, { method: "POST", body: "{}" }),
 
-  notifications: (p?: Params) => list<Notification>("/api/notifications/", p),
+  /**
+   * ⚠️ BITTA SAHIFA — sahifalar bo'ylab YURMAYDI.
+   * `list()` bilan bu chaqiruv 378 ta bildirishnomada 4 ta HTTP so'rov yasardi va
+   * u har mount'da hamda har noma'lum WS kadrida takrorlanardi (jonli o'lchov:
+   * bitta sahifa ochilishida 13 ta so'rov). Sarlavhadagi qo'ng'iroq ro'yxati eng
+   * yangi 100 tadan boshqasini KO'RSATMAYDI ham.
+   */
+  notifications: (p?: Params) =>
+    request<Paginated<Notification>>(`/api/notifications/${qs({ page_size: 100, ...p })}`).then((d) => d.results),
   /** Bitta bildirishnomani o'qilgan qilish (yangi kanonik endpoint: mark-read/;
       eski /read/ ham ishlaydi, ikkisi bir xil — jonli tekshirilgan). */
   markNotificationRead: (id: number) =>

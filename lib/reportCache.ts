@@ -10,7 +10,10 @@ import type { Accounting, StockBatch } from "./types";
  * bir vaqtda ketayotgan so'rovlar bitta promise'ga birlashtiriladi (in-flight dedupe).
  * Ma'lumot o'zgarganда `invalidateReportCache()` chaqiriladi (ef:stock-changed va h.k.).
  */
-const TTL = 30_000; // 30s — "bugun nima bo'lyapti" uchun yetarlicha yangi
+// ⚠️ 5 daqiqa — bu FAQAT zaxira. Har mutatsiya notifyReportDataChanged() orqali
+// keshni DARHOL tozalaydi, shuning uchun qisqa TTL yangilik bermasdi, faqat
+// sahifadan sahifaga o'tganda ortiqcha so'rov yasardi (avval 30 s edi).
+const TTL = 300_000;
 type Entry = { at: number; p: Promise<unknown> };
 const cache = new Map<string, Entry>();
 

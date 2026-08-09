@@ -4,6 +4,7 @@ import { batchTitleNoHeight } from "@/lib/stockLabel";
 import clsx from "clsx";
 import { createPortal } from "react-dom";
 import EmptyState from "@/components/EmptyState";
+import RefreshButton from "@/components/RefreshButton";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
@@ -150,7 +151,8 @@ export default function KatalogPage() {
   }, [showToast, q, arrType, floristFilter, decorationFilter, kindFilter, customerFilter]);
 
   useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load); // jimgina davriy yangilash — real vaqt hissi
+  // ⚠️ avtomatik taymer YO'Q — «Yangilash» tugmasi orqali (RefreshButton)
+  const { refresh, loadedAt } = useAutoRefresh(load);
 
   // florist ro'yxati — filtr uchun (bir marta)
   useEffect(() => { api.florists({ is_active: true, ordering: "user" }).then(setFlorists).catch(() => {}); }, []);
@@ -329,6 +331,8 @@ export default function KatalogPage() {
       {tabBar}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* ⚠️ avtomatik yangilash o'chirilgan — eskirganini yashirmaslik uchun tugma + vaqt */}
+          <RefreshButton onRefresh={refresh} loadedAt={loadedAt} busy={loading} />
           <SearchInput value={search} onChange={setSearch} ariaLabel="Katalog qidirish" placeholder="Nomi, mijoz ismi yoki telefoni…" />
           {/* HOLAT chiplari — Sotuvda (default) · Sotilgan · Arxiv · Barchasi, sonlar bilan. KLIENT filtri. */}
           <div className="flex items-center gap-1 rounded-full border p-1" style={{ borderColor: "var(--border)" }}>

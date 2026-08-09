@@ -3,14 +3,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Globe, Minus, Package, Pencil, Plus, ShoppingBag, Trash2, Move } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
-import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmtTime } from "@/lib/format";
-import { auditActor, auditChanges, auditLabel, auditSummary, entityName, KIND_HUE, KIND_LABEL, type AuditKind } from "@/lib/audit";
+import { auditActor, auditChanges, auditLabel, auditSummary, entityName, KIND_HUE, KIND_LABEL, AUDIT_ACTION_OPTIONS, AUDIT_ENTITY_VALUES, type AuditKind } from "@/lib/audit";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
 import ClearFilters from "@/components/ClearFilters";
+import Pagination from "@/components/Pagination";
+import RefreshButton from "@/components/RefreshButton";
+import { usePagedList } from "@/lib/usePagedList";
 import DatePicker from "@/components/DatePicker";
 import Modal from "@/components/Modal";
 import { initials } from "@/lib/format";
@@ -48,64 +50,54 @@ export default function AuditPage() {
   const { canView } = usePerm();
   const showToast = useStore((s) => s.showToast);
   const visible = canView("audit");
-  const [rows, setRows] = useState<AuditLog[] | null>(null);
-  const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
-  const [q, setQ] = useState(""); // debounced — server `search`
-  const [kind, setKind] = useState(""); // lokal turkum (rang guruhi)
-  const [action, setAction] = useState(""); // server `action` — texnik kod
-  const [entity, setEntity] = useState(""); // server `entity_type`
-  const [user, setUser] = useState(""); // server `user`
-  const [from, setFrom] = useState(""); // server `created_at_after`
-  const [to, setTo] = useState(""); // server `created_at_before`
+  const [q, setQ] = useState("");        // debounced — SHU SAHIFA ichida qidiradi (pastdagi izohga qarang)
+  const [kind, setKind] = useState("");  // turkum — SHU SAHIFA ichida (backendda turkum tushunchasi yo'q)
+  const [action, setAction] = useState("");   // server `action`
+  const [entity, setEntity] = useState("");   // server `entity_type`
+  const [user, setUser] = useState("");       // server `user`
+  const [from, setFrom] = useState("");       // server `created_at_after`
+  const [to, setTo] = useState("");           // server `created_at_before`
   const [users, setUsers] = useState<User[]>([]);
   const [sel, setSel] = useState<AuditLog | null>(null);
-  const [shown, setShown] = useState(50); // «Yana ko'rsatish» qadami
 
   useEffect(() => {
-    const t = setTimeout(() => { setQ(search.trim()); setShown(50); }, 350);
+    const t = setTimeout(() => setQ(search.trim()), 350);
     return () => clearTimeout(t);
   }, [search]);
 
-  const load = useCallback(() => {
-    if (!visible) return;
-    api.audit({
-      page_size: 100,
+  /**
+   * ⚠️ HAQIQIY SERVER SAHIFALASHI. Ilgari `page_size: 100` bilan so'ralib,
+   * `list()` 5 sahifada to'xtardi: bazada 2482 yozuv bo'lsa ham 500 tasi kelardi
+   * va sarlavhada «500» deb turardi. O'tgan oydagi amalni topib bo'lmasdi va
+   * hech narsa ro'yxat kesilganini bildirmasdi.
+   * Endi: bitta sahifa = bitta so'rov, jami esa serverning `count`idan.
+   */
+  const list = usePagedList<AuditLog>({
+    enabled: visible,
+    fetcher: (query, signal) => api.auditPage(query, signal),
+    filters: {
       ordering: "-created_at",
       user: user || undefined,
       action: action || undefined,
       entity_type: entity || undefined,
-      search: q || undefined,
       created_at_after: from || undefined,
       created_at_before: to ? endOfDay(to) : undefined,
-    })
-      .then((r) => { setRows(r); setErr(""); })
-      .catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
-  }, [visible, user, action, entity, q, from, to]);
+    },
+  });
+  const rows = list.rows;
 
-  useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load); // jimgina davriy yangilash
-
-  // xodimlar ro'yxati — filtr uchun (bir marta).
-  // Developer hisoblari ro'yxatdan olib tashlanadi: ularning amallari auditga
-  // tushmaydi, tanlansa natija bo'sh chiqib foydalanuvchini chalg'itadi.
-  useEffect(() => {
-    if (!visible) return;
-    api.users({ page_size: 100, ordering: "username" })
-      .then((us) => setUsers(us.filter((u) => u.profile?.role !== "developer")))
-      .catch(() => {});
-  }, [visible]);
-
-  // amal va obyekt variantlari — kelgan yozuvlardan yig'iladi (backend enum bermaydi)
-  const actionOpts = useMemo(() => {
-    const map = new Map<string, string>();
-    (rows ?? []).forEach((r) => map.set(r.action, auditLabel(r).label));
-    return [{ value: "", label: "Barcha amallar" }, ...Array.from(map, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label))];
-  }, [rows]);
-
+  // ⚠️ TO'LIQ ro'yxat lib/audit.ts dan — ekrandagi sahifadan EMAS. Sahifada
+  // ko'rinmagan amalni ham tanlab, server bo'yicha filtrlash mumkin bo'lsin.
+  const actionOpts = useMemo(
+    () => [{ value: "", label: "Barcha amallar" }, ...AUDIT_ACTION_OPTIONS.map(({ value, label }) => ({ value, label }))],
+    []
+  );
+  // statik ro'yxat + shu sahifada ko'ringan noma'lum turlar (server yangi model qo'shsa ham tanlanadi)
   const entityOpts = useMemo(() => {
-    const uniq = Array.from(new Set((rows ?? []).map((r) => r.entity_type).filter(Boolean)));
-    return [{ value: "", label: "Barcha obyektlar" }, ...uniq.map((e) => ({ value: e, label: entityName(e) }))];
+    const vals = Array.from(new Set<string>([...AUDIT_ENTITY_VALUES, ...rows.map((r) => r.entity_type).filter(Boolean)]));
+    return [{ value: "", label: "Barcha obyektlar" },
+      ...vals.map((e) => ({ value: e, label: entityName(e) })).sort((a, b) => a.label.localeCompare(b.label))];
   }, [rows]);
 
   const userOpts = useMemo(
@@ -113,37 +105,56 @@ export default function AuditPage() {
     [users]
   );
 
-  // turkum filtri — lokal (backendda turkum tushunchasi yo'q)
-  const filtered = useMemo(() => (kind ? (rows ?? []).filter((r) => auditLabel(r).kind === kind) : rows ?? []), [rows, kind]);
+  /**
+   * ⚠️ TURKUM va QIDIRUV — FAQAT SHU SAHIFA ICHIDA, ataylab.
+   *   • «turkum» backendda umuman yo'q (u bir nechta `action` kodining guruhi),
+   *     `?action=` esa bittagina qiymat oladi (jonli tekshiruv: takroriy parametrda
+   *     oxirgisi yutadi, vergul 0 qaytaradi, `action__in` e'tiborsiz qoladi).
+   *   • `?search=` OpenAPI'da E'LON QILINGAN, lekin SERVER UNI E'TIBORGA OLMAYDI —
+   *     `search=zzzzqwerty` ham 2482 tani qaytaradi. Ya'ni bu qidiruv hech qachon
+   *     serverda ishlamagan; ilgari 500 qatorlik oynada ham hech narsa filtrlanmasdi.
+   * Shuning uchun ikkalasi ham «shu sahifada» deb OCHIQ belgilangan. Butun jurnal
+   * bo'yicha izlash uchun — Xodim / Amal / Obyekt / Sana (ular haqiqiy server filtri).
+   */
+  const filtered = useMemo(() => {
+    let xs = rows;
+    if (kind) xs = xs.filter((r) => auditLabel(r).kind === kind);
+    const needle = q.toLowerCase();
+    if (needle) xs = xs.filter((r) => `${auditActor(r)} ${auditLabel(r).label} ${entityName(r.entity_type)} ${r.summary ?? ""}`.toLowerCase().includes(needle));
+    return xs;
+  }, [rows, kind, q]);
+  const pageFiltered = !!(kind || q);
 
   const hasFilter = !!(search || kind || action || entity || user || from || to);
-  const clearAll = () => { setSearch(""); setQ(""); setKind(""); setAction(""); setEntity(""); setUser(""); setFrom(""); setTo(""); setShown(50); };
+  const clearAll = () => { setSearch(""); setQ(""); setKind(""); setAction(""); setEntity(""); setUser(""); setFrom(""); setTo(""); };
 
   if (!visible) return <EmptyState title="Ruxsat yo'q" sub="Bu sahifa uchun sizda ko'rish huquqi yo'q." />;
-  if (err) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--danger-ink)" }}>{err}</p>;
-  if (rows === null) return <FlowerLoader />;
-
-  const page = filtered.slice(0, shown);
+  if (list.error) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--danger-ink)" }}>{list.error}</p>;
+  if (!list.ready) return <FlowerLoader />;
 
   return (
     <>
       {/* FILTR PANELI — qidiruv, xodim, amal, obyekt, sana oralig'i */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
-          Audit jurnali ({filtered.length < rows.length ? `${filtered.length} / ${rows.length}` : rows.length}) — kim, nima qilgani va nima o&apos;zgargani
+          {/* ⚠️ JAMI — serverning `count`i. Ilgari bu yerda 500 qatorlik oynaning
+              uzunligi turardi va u «jami» deb o'qilardi (aslida 2482 ta edi). */}
+          Audit jurnali ({list.info.count.toLocaleString("ru")}) — kim, nima qilgani va nima o&apos;zgargani
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <SearchInput value={search} onChange={setSearch} ariaLabel="Jurnaldan qidirish" />
-          {users.length > 0 && <FilterSelect value={user} options={userOpts} onChange={(v) => { setUser(v); setShown(50); }} label="Xodim" />}
-          <FilterSelect value={action} options={actionOpts} onChange={(v) => { setAction(v); setShown(50); }} label="Amal" />
-          <FilterSelect value={kind} options={KIND_OPTS} onChange={setKind} label="Turkum" />
-          <FilterSelect value={entity} options={entityOpts} onChange={(v) => { setEntity(v); setShown(50); }} label="Obyekt" />
+          {/* ⚠️ «shu sahifada» — server `?search=` ni E'TIBORGA OLMAYDI (jonli tekshirildi) */}
+          <SearchInput value={search} onChange={setSearch} ariaLabel="Shu sahifada qidirish" placeholder="Shu sahifada qidirish…" />
+          {users.length > 0 && <FilterSelect value={user} options={userOpts} onChange={(v) => { setUser(v); }} label="Xodim" />}
+          <FilterSelect value={action} options={actionOpts} onChange={(v) => { setAction(v); }} label="Amal" />
+          <FilterSelect value={kind} options={KIND_OPTS} onChange={setKind} label="Turkum (shu sahifada)" />
+          <FilterSelect value={entity} options={entityOpts} onChange={(v) => { setEntity(v); }} label="Obyekt" />
           <div className="flex items-center gap-1.5">
-            <div className="w-[140px]"><DatePicker value={from} onChange={(v) => { setFrom(v); setShown(50); }} placeholder="Sanadan" ariaLabel="Boshlanish sanasi" /></div>
+            <div className="w-[140px]"><DatePicker value={from} onChange={(v) => { setFrom(v); }} placeholder="Sanadan" ariaLabel="Boshlanish sanasi" /></div>
             <span style={{ color: "var(--muted)" }}>–</span>
-            <div className="w-[140px]"><DatePicker value={to} onChange={(v) => { setTo(v); setShown(50); }} placeholder="Sanagacha" ariaLabel="Tugash sanasi" /></div>
+            <div className="w-[140px]"><DatePicker value={to} onChange={(v) => { setTo(v); }} placeholder="Sanagacha" ariaLabel="Tugash sanasi" /></div>
           </div>
           <ClearFilters show={hasFilter} onClear={clearAll} />
+          <RefreshButton onRefresh={list.refresh} loadedAt={list.loadedAt} busy={list.loading} />
         </div>
       </div>
 
@@ -151,7 +162,7 @@ export default function AuditPage() {
         <div className="grid min-w-[880px] grid-cols-[150px_1.1fr_1fr_1.5fr_140px] gap-2.5 border-b-[1.5px] bg-tint px-4 py-3.5 text-[11px] font-bold uppercase tracking-widest text-tintink" style={{ borderColor: "var(--line)" }}>
           <span>Xodim</span><span>Amal</span><span>Obyekt</span><span>O&apos;zgarish</span><span>Vaqt</span>
         </div>
-        {page.map((r, ri) => {
+        {filtered.map((r, ri) => {
           const def = auditLabel(r);
           const hue = KIND_HUE[def.kind];
           const Icon = KIND_ICON[def.kind];
@@ -206,17 +217,17 @@ export default function AuditPage() {
             </button>
           );
         })}
-        {filtered.length === 0 && <EmptyState title="Yozuv topilmadi" sub="Filtrlarni tozalab ko'ring — jurnal barcha amallarni saqlaydi." />}
-        {shown < filtered.length && (
-          <button
-            onClick={() => setShown((n) => n + 50)}
-            className="w-full border-t py-3 text-center text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]"
-            style={{ borderColor: "var(--line2)", color: "var(--primary)" }}
-          >
-            Yana {Math.min(50, filtered.length - shown)} ta ko&apos;rsatish
-          </button>
+        {filtered.length === 0 && (
+          /* ⚠️ «umuman yozuv yo'q» va «filtrga mos kelmadi» — BOSHQA-BOSHQA holat */
+          list.info.count === 0 && !hasFilter
+            ? <EmptyState title="Jurnal hozircha bo'sh" sub="Amallar bajarilgach shu yerda paydo bo'ladi." />
+            : pageFiltered && list.info.count > 0
+              ? <EmptyState title="Bu sahifada mos yozuv yo'q" sub="«Turkum» va qidiruv faqat shu sahifada ishlaydi — boshqa sahifaga o'ting yoki Xodim/Amal/Obyekt/Sana filtridan foydalaning." />
+              : <EmptyState title="Filtrga mos yozuv topilmadi" sub="Filtrlarni tozalab ko'ring — jurnal barcha amallarni saqlaydi." />
         )}
       </div>
+
+      <Pagination info={list.info} onPage={list.setPage} onPageSize={list.setPageSize} label="yozuv" busy={list.loading} />
 
       {sel && <AuditDetail row={sel} onClose={() => setSel(null)} onCopy={() => showToast("✓ JSON nusxalandi")} />}
     </>

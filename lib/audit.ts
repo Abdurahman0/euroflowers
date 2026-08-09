@@ -250,3 +250,25 @@ export const KIND_LABEL: Record<AuditKind, string> = {
   sale: "Sotuv",
   move: "Ko'chirish",
 };
+
+/* ===== FILTR TANLAGICHLARI — QATORLARDAN EMAS, STATIK RO'YXATDAN =====
+   ⚠️ Ilgari «Amal» va «Obyekt» variantlari EKRANDAGI qatorlardan yig'ilardi.
+   Server tomonda sahifalash yoqilgach bu jiddiy nosozlikka aylanadi: 30 qatorlik
+   sahifada faqat o'sha 30 tasining amallari ko'rinib, qolganini TANLAB HAM
+   BO'LMASDI. Endi ro'yxat shu fayldagi to'liq jadvaldan quriladi. */
+
+/** Barcha ma'lum amallar — turkumi bilan (server `?action=` ni AYNAN shu kod bilan oladi). */
+export const AUDIT_ACTION_OPTIONS: { value: string; label: string; kind: AuditKind }[] =
+  Object.entries(ACTIONS)
+    .map(([value, d]) => ({ value, label: d.label, kind: d.kind }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+/**
+ * Obyekt turlari — ⚠️ SERVER QIYMATLARI PascalCase (Django model nomi).
+ * Jonli tekshiruv: `entity_type=CatalogItem` ishlaydi, `catalogitem` esa 0 qaytaradi.
+ */
+export const AUDIT_ENTITY_VALUES = [
+  "CatalogItem", "StockBatch", "StockDelivery", "Packaging", "Lead", "Customer",
+  "User", "Flower", "FlowerVariant", "SocialPost", "LeadStatus", "Conversation",
+  "BusinessSettings", "FloristProfile",
+] as const;

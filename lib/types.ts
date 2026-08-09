@@ -1643,12 +1643,39 @@ export type FloristSalaryEntry = {
   updated_at?: string;
 };
 
+/**
+ * SAHIFALANGAN JAVOB — spec: FRONTEND_PAGINATION_TOTALS_API.md (deploy 09.08.2026).
+ *
+ * ⚠️ Sahifa raqamlari SERVERDAN olinadi: `page` / `total_pages` / `has_next` /
+ * `has_previous`. Ularni `next` havolasini tahlil qilib yoki `count / page_size`
+ * dan O'ZIMIZ hisoblab chiqarMAYMIZ — server nechta sahifa borligini biladi,
+ * biz esa oxirgi sahifa to'liqmi yoki yo'qmi degan savolda adashamiz.
+ *
+ * ⚠️ `totals` FAQAT ba'zi endpointlarda bor (katalog, sklad, floristlar va h.k.) —
+ * doim `body.totals?.x` deb o'qing. U SAHIFADAN emas, FILTRGA tushgan butun
+ * ro'yxatdan hisoblanadi: 2-sahifaga o'tsak o'zgarmaydi, `?status=sold` qo'ysak
+ * o'zgaradi.
+ *
+ * ⚠️ Pul — STRING ("26900000.00"). Hisoblashdan oldin Number(). Donalar — int.
+ */
 export type Paginated<T> = {
   count: number;
+  /** ⚠️ eski javoblarda YO'Q bo'lishi mumkin — shuning uchun ixtiyoriy */
+  page?: number;
+  page_size?: number;
+  total_pages?: number;
+  has_next?: boolean;
+  has_previous?: boolean;
   next: string | null;
   previous: string | null;
   results: T[];
+  totals?: Record<string, unknown>;
 };
+
+/** `by_status` / `by_type` / `by_kind` — FAQAT mavjud kalitlar keladi (`?? 0` bilan o'qing). */
+export type CountMap = Record<string, number>;
+/** `by_source` — har manba uchun {count, amount} (amount STRING). */
+export type SourceMap = Record<string, { count?: number; amount?: string }>;
 
 export type InstagramSettings = {
   id: number;

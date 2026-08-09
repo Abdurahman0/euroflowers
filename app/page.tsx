@@ -14,6 +14,7 @@ import { freshness } from "@/lib/inventory";
 import { statusBadgeProps, statusName, sourceLabel, SourceBadge } from "@/components/badges";
 import CountUp from "@/components/CountUp";
 import DateChips from "@/components/DateChips";
+import RefreshButton from "@/components/RefreshButton";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
 import type { Customer, Dashboard, Lead, StockBatch } from "@/lib/types";
@@ -61,7 +62,8 @@ export default function DashboardPage() {
   }, [from, to, today]);
 
   useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load);
+  // ⚠️ avtomatik taymer YO'Q — «Yangilash» tugmasi orqali (RefreshButton)
+  const { refresh, loadedAt } = useAutoRefresh(load);
 
   // ── client signallari (davr leadlaridan) ─────────────────────────
   // QAYTGAN mijoz = bu davrdan OLDIN ham murojaati bo'lgan. Aniqrog'i:
@@ -124,7 +126,11 @@ export default function DashboardPage() {
           <h2 className="text-[15px] font-bold" style={{ color: "var(--text-2)" }}>Bugun nima bo&apos;lyapti</h2>
           <p className="text-[12px] font-medium" style={{ color: "var(--muted)" }}>operatsion holat · mijozlar · diqqat talab qiladiganlar</p>
         </div>
-        <DateChips />
+        <div className="flex items-center gap-2">
+          {/* ⚠️ avtomatik yangilash o'chirilgan — tugma + oxirgi yuklash vaqti */}
+          <RefreshButton onRefresh={refresh} loadedAt={loadedAt} />
+          <DateChips />
+        </div>
       </motion.div>
 
       {/* OPERATSION KPI */}

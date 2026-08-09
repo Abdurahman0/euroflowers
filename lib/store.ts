@@ -64,6 +64,22 @@ let notifWS: WebSocket | null = null;
 let wsRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let wsRetryDelay = 1000;
 let wsWanted = false;
+/** ⚠️ Ketma-ket muvaffaqiyatsiz urinishlar — cheksiz aylanishning oldini oladi. */
+let wsFailures = 0;
+/** Shundan keyin qayta ulanish TO'XTAYDI: 60 s lik polling zaxirasi ishlaydi. */
+const WS_MAX_FAILURES = 6;
+/** Ulanish shu muddat TURIB QOLSAgina «muvaffaqiyatli» deb hisoblanadi. */
+const WS_STABLE_MS = 10_000;
+let wsOpenedAt = 0;
+/** Oxirgi bildirishnoma sinxroni — titragan soket qayta-qayta so'ratmasin. */
+let lastNotifSyncAt = 0;
+const NOTIF_SYNC_MIN_GAP_MS = 30_000;
+/** Eng ko'pi 30 soniyada bir marta bildirishnomalarni qayta o'qish. */
+const syncNotifsThrottled = (get: () => State) => {
+  if (Date.now() - lastNotifSyncAt < NOTIF_SYNC_MIN_GAP_MS) return;
+  lastNotifSyncAt = Date.now();
+  get().loadNotifs();
+};
 
 export const useStore = create<State>((set, get) => ({
   user: null,
@@ -156,10 +172,15 @@ export const useStore = create<State>((set, get) => ({
     notifWS = ws;
 
     ws.onopen = () => {
-      wsRetryDelay = 1000;
+      wsOpenedAt = Date.now();
       set({ wsConnected: true });
-      // uzilish paytida o'tkazib yuborilganlarni sinxronlaymiz
-      get().loadNotifs();
+      /**
+       * ⚠️ Bildirishnomalar FAQAT ulanish muvaffaqiyatli bo'lganda sinxronlanadi
+       * (uzilishda o'tkazib yuborilganini olish uchun) VA eng ko'pi 30 soniyada
+       * bir marta. Soket ochilib-uzilib turganda (jonli holat) har «onopen» da
+       * so'rov yuborilsa, 9 soniyada 13 ta so'rov chiqardi — endi 1 ta.
+       */
+      syncNotifsThrottled(get);
     };
 
     ws.onmessage = (ev) => {
@@ -180,24 +201,51 @@ export const useStore = create<State>((set, get) => ({
             window.dispatchEvent(new CustomEvent("ef:stock-changed", { detail: n }));
           }
         } else {
-          // noma'lum xabar turi — ro'yxatni qayta o'qish arzon va doim to'g'ri
-          get().loadNotifs();
+          /**
+           * ⚠️ NOMA'LUM KADR — «arzon» emas ekan. Server ulanish tasdig'i va
+           * keepalive kabi bildirishnoma BO'LMAGAN kadrlarni ham yuboradi; har
+           * biriga to'liq ro'yxatni qayta so'rash jonli o'lchovda 9 soniyada
+           * 13 ta so'rov bergan edi. Endi bunday kadr eng ko'pi 30 soniyada bir
+           * marta sinxronga sabab bo'ladi (haqiqiy bildirishnoma yuqorida,
+           * to'g'ridan-to'g'ri qo'shiladi va bu yo'lga umuman tushmaydi).
+           */
+          syncNotifsThrottled(get);
         }
       } catch {
-        get().loadNotifs();
+        syncNotifsThrottled(get);
       }
     };
 
+    /**
+     * ⚠️ TUZATILDI — qayta ulanish yo'lida BILDIRISHNOMA SO'RALMAYDI.
+     * Ilgari har urinishdan oldin `await loadNotifs()` bajarilardi. Soket umuman
+     * ko'tarilmaydigan holatda (muddati o'tgan token, wss'ni bloklaydigan proksi)
+     * bu foydalanuvchi hech narsa qilmasa ham 30 soniyada bir marta abadiy
+     * takrorlanadigan so'rov halqasiga aylanardi.
+     * Endi: ro'yxat FAQAT `onopen` da bir marta o'qiladi; soket tushib qolgan
+     * holatni Shell'dagi 60 soniyalik zaxira polling qoplaydi (u allaqachon
+     * `wsConnected` ni tekshiradi).
+     * ⚠️ Urinishlar CHEKLANGAN: WS_MAX_FAILURES dan keyin to'xtaymiz — aks holda
+     * auth muammosi cheksiz aylanardi.
+     */
     ws.onclose = () => {
       set({ wsConnected: false });
       notifWS = null;
       if (!wsWanted) return;
+      /**
+       * ⚠️ «TITRAGAN» SOKET. Hisoblagichni `onopen` da nolga tushirish YETMAYDI:
+       * server qo'l siqishdan keyin darhol uzsa, ochilish-uzilish aylanmasi
+       * cheksiz davom etardi va HAR ochilishda bildirishnomalar qayta so'ralardi
+       * (jonli o'lchov: 9 soniyada 13 ta so'rov). Shu bois ulanish FAQAT
+       * WS_STABLE_MS dan uzoq turgan bo'lsa muvaffaqiyatli sanaladi.
+       */
+      const stable = wsOpenedAt > 0 && Date.now() - wsOpenedAt >= WS_STABLE_MS;
+      if (stable) { wsFailures = 0; wsRetryDelay = 1000; }
+      wsOpenedAt = 0;
+      if (++wsFailures > WS_MAX_FAILURES) return;   // zaxira polling ishlayveradi
       if (wsRetryTimer) clearTimeout(wsRetryTimer);
-      wsRetryTimer = setTimeout(async () => {
+      wsRetryTimer = setTimeout(() => {
         wsRetryDelay = Math.min(wsRetryDelay * 2, 30000);
-        // access muddati o'tgan bo'lishi mumkin — REST chaqiruv 401→refresh
-        // zanjirini ishga tushiradi, keyin yangi token bilan ulanamiz
-        await get().loadNotifs();
         get().connectNotifWS();
       }, wsRetryDelay);
     };
@@ -207,6 +255,9 @@ export const useStore = create<State>((set, get) => ({
 
   disconnectNotifWS: () => {
     wsWanted = false;
+    wsFailures = 0;
+    wsRetryDelay = 1000;
+    wsOpenedAt = 0;
     if (wsRetryTimer) clearTimeout(wsRetryTimer);
     notifWS?.close();
     notifWS = null;

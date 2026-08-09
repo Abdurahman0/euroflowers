@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import useAutoRefresh from "@/lib/useAutoRefresh";
+import useVisiblePoll from "@/lib/useVisiblePoll";
 import { fmtTime, initials } from "@/lib/format";
 import { CONV_STATUS_LABEL } from "@/components/badges";
 import { Icon } from "@/components/icons";
@@ -305,16 +305,19 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => { loadList(); }, [loadList]);
-  // suhbatlar ro'yxati ham jimgina yangilanib turadi (ochiq suhbat quyida 7s'da)
-  useAutoRefresh(loadList, 15000);
+  // ⚠️ Ro'yxat — 30 s, FAQAT varaq ko'rinib turganda (ilgari 15 s va fonda ham ishlardi)
+  useVisiblePoll(loadList, 30_000, true);
 
   useEffect(() => {
     if (selId == null) return;
     setConv(null);
     loadConv(selId);
-    const t = setInterval(() => loadConv(selId), 7000);
-    return () => clearInterval(t);
   }, [selId, loadConv]);
+  /**
+   * ⚠️ OCHIQ SUHBAT — 10 s (ilgari 7 s va varaq yashiringanda ham ishlardi).
+   * Suhbat tanlanmagan bo'lsa taymer UMUMAN yaratilmaydi.
+   */
+  useVisiblePoll(() => { if (selId != null) loadConv(selId); }, 10_000, selId != null);
 
   /** joriy suhbatning yuborilmagan/yuborilayotgan xabarlari */
   const convPending = pending.filter((p) => p.conv === selId);

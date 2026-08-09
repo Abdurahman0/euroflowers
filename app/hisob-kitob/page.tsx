@@ -18,6 +18,7 @@ import type { PaymentMethod } from "@/lib/types";
 import { isBranchUser, accountingBranchParam, accountingRowView, branchSplitLine, type BranchSelection } from "@/lib/branch";
 import * as X from "@/lib/reportExports";
 import DateChips from "@/components/DateChips";
+import RefreshButton from "@/components/RefreshButton";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import Drawer from "@/components/Drawer";
@@ -221,7 +222,8 @@ export default function HisobKitobPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load);
+  // ⚠️ avtomatik taymer YO'Q — «Yangilash» tugmasi orqali (RefreshButton)
+  const { refresh, loadedAt } = useAutoRefresh(load);
   useEffect(() => {
     const h = () => { invalidateReportCache(); load(); }; // event kelganda kesh ham tozalanadi (WS push himoyasi)
     window.addEventListener("ef:stock-changed", h);
@@ -426,6 +428,8 @@ export default function HisobKitobPage() {
               ))}
             </div>
           )}
+          {/* ⚠️ avtomatik yangilash o'chirilgan — tugma + oxirgi yuklash vaqti */}
+          <RefreshButton onRefresh={refresh} loadedAt={loadedAt} />
           <DateChips />
           <button onClick={doExportAll} className="flex items-center gap-1.5 rounded-[13px] px-3.5 py-2 text-[13px] font-bold text-white transition-opacity hover:opacity-90" style={{ background: "var(--primary)" }} title="Barcha bo'limlar — bitta Excel kitobi (joriy filial + davr)">
             <Download size={15} strokeWidth={2} /> Barchasi

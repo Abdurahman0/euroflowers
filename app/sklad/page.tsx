@@ -5,6 +5,7 @@ import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
+import RefreshButton from "@/components/RefreshButton";
 import FlowerLoader from "@/components/FlowerLoader";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -254,7 +255,8 @@ export default function SkladPage() {
     load();
     if (tab === "jurnal") { if (jSource === "gul") loadMoves(); else loadMat(); }
   }, [load, tab, jSource, loadMoves, loadMat]);
-  useAutoRefresh(refreshVisible); // jimgina davriy yangilash — real vaqt hissi
+  // ⚠️ avtomatik taymer YO'Q — «Yangilash» tugmasi orqali (RefreshButton)
+  const { refresh, loadedAt } = useAutoRefresh(refreshVisible);
 
   // WS: supplier_stock (yangi partiya keldi) → sklad darhol yangilanadi.
   // Kesh ham tozalanadi (WS push invalidate qilmaydi) — mount holatida stale qolmasin.
@@ -681,6 +683,8 @@ export default function SkladPage() {
           Jami qoldiq: <b>{total.toLocaleString("ru")}</b> dona · {lows.length} pozitsiya minimal chegarada
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* ⚠️ avtomatik yangilash o'chirilgan — eskirganini yashirmaslik uchun tugma + vaqt */}
+          <RefreshButton onRefresh={refresh} loadedAt={loadedAt} busy={loading} />
           {depletedCount > 0 && !showFilter && (
             <button
               onClick={() => setShowDepleted((v) => !v)}
