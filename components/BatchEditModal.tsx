@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Archive, Lock, Repeat2, Truck } from "lucide-react";
+import { AlertTriangle, Archive, Lock, Truck } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore, usePerm } from "@/lib/store";
@@ -14,9 +14,8 @@ import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import { Icon } from "./icons";
 import { fmt, fmtDate } from "@/lib/format";
 import { batchTitleNoHeight } from "@/lib/stockLabel";
-import { DELIVERY, perStemFromBunch, roundingNote, buildBatchEditPayload, batchEditIsRetroactive, formatStemsAndBunches, receivedEditConsequence, batchVariantLocked, VARIANT_LOCKED_HINT, variantChangeNeedsDialog, spbPriceRecompute, describeBatchDeleteResult, type BatchEditForm, type BatchEditOriginal } from "@/lib/inventory";
-import VariantChangeModal from "./VariantChangeModal";
-import type { BatchUsage, FlowerVariant, StockBatch, StockDelivery, Supplier } from "@/lib/types";
+import { DELIVERY, perStemFromBunch, roundingNote, buildBatchEditPayload, batchEditIsRetroactive, formatStemsAndBunches, receivedEditConsequence, spbPriceRecompute, describeBatchDeleteResult, type BatchEditForm, type BatchEditOriginal } from "@/lib/inventory";
+import type { StockBatch, StockDelivery, Supplier } from "@/lib/types";
 
 const num = (n: string | number | undefined | null) => (n == null || n === "" ? "" : String(Math.round(+n)));
 const formFrom = (b: StockBatch): BatchEditForm => ({
@@ -24,7 +23,6 @@ const formFrom = (b: StockBatch): BatchEditForm => ({
   received_at: (b.received_at ?? "").slice(0, 10),
   height_cm: b.height_cm ? String(b.height_cm) : "",
   received_stems: b.received_stems != null ? String(b.received_stems) : "",
-  variant: b.variant ?? b.variant_detail?.id ?? 0,
   delivery: b.delivery ?? 0,
   height_from_cm: b.height_from_cm ? String(b.height_from_cm) : "",
   height_to_cm: b.height_to_cm ? String(b.height_to_cm) : "",
@@ -69,39 +67,14 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
   // ⚠️ KELGAN MIQDOR — pochka sukut bo'yicha (create formadagi konvensiya)
   const [qtyMode, setQtyMode] = useState<QtyMode>(() => defaultQtyMode(batch.stems_per_bunch));
   // §3 — nav va yuk tahriri uchun ro'yxatlar
-  const [variants, setVariants] = useState<FlowerVariant[]>([]);
   const [deliveries, setDeliveries] = useState<StockDelivery[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   useEffect(() => {
-    api.flowerVariants({ is_active: true }).then(setVariants).catch(() => {});
     api.stockDeliveries({ is_active: true, ordering: "-received_at" }).then(setDeliveries).catch(() => {});
     api.suppliers({ is_active: true }).then(setSuppliers).catch(() => {});
   }, []);
-  // ⚠️ NAV QULFI — ishlatilgan partiyada nav o'zgartirilmaydi (server ham 400 beradi).
-  // `serverLocked` — 400 kelgandan KEYIN qulflash uchun: bizning tekshiruv zaif taxmin,
-  // server «ishlatilgan»ni kengroq tushunadi (katalog/florist/lead/harakat).
-  const [serverLocked, setServerLocked] = useState(false);
-  const variantLocked = batchVariantLocked(batch) || serverLocked;
   const [confirmDel, setConfirmDel] = useState(false);
   const [delBusy, setDelBusy] = useState(false);
-  // ⚠️ NAVNI ALMASHTIRISH — usage/ AVVAL chaqiriladi, raqamlar TAXMIN qilinmaydi.
-  const [usage, setUsage] = useState<BatchUsage | null>(null);
-  const [usageBusy, setUsageBusy] = useState(false);
-  const [cvOpen, setCvOpen] = useState(false);
-  const openVariantChange = async () => {
-    setUsageBusy(true); setUsage(null);
-    try {
-      const u = await api.batchUsage(batch.id);
-      setUsage(u);
-      // `is_used: false` → tasdiq oynasi KERAK EMAS, oddiy PATCH yetarli (spec).
-      if (!variantChangeNeedsDialog(u)) {
-        setServerLocked(false);
-        showToast("Bu partiya hali ishlatilmagan — navni shu yerdan tanlab saqlayvering");
-      } else setCvOpen(true);
-    } catch (e) {
-      showToast(e instanceof ApiError ? e.message : "Ishlatilgan joylarni o'qib bo'lmadi");
-    } finally { setUsageBusy(false); }
-  };
   const orig: BatchEditOriginal = batch;
   const spb = +f.stems_per_bunch || batch.stems_per_bunch || 20;
 
@@ -145,7 +118,6 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
       // matnni AYNAN ko'rsatamiz VA maydonni o'shandan keyin qulflaymiz.
       if (e instanceof ApiError && e.fieldErrors) {
         setErrs(e.fieldErrors);
-        if (e.fieldErrors.variant) { setServerLocked(true); setF((p) => ({ ...p, variant: batch.variant ?? batch.variant_detail?.id ?? 0 })); }
         showToast(e.message);
       } else showToast(e instanceof ApiError ? e.message : "Saqlashda xatolik");
       setBusy(false);
@@ -206,57 +178,10 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
         <Field label="Bo'y — gacha (sm)"><input className="inp" type="number" value={f.height_to_cm} onChange={set("height_to_cm")} placeholder="Ixtiyoriy" /></Field>
         <Field label="Minimal sotuv (dona)"><input className="inp" type="number" value={f.minimum_sale_stems} onChange={set("minimum_sale_stems")} placeholder="Masalan: 5" /></Field>
         <Field label="Pochkada dona"><input className="inp" type="number" value={f.stems_per_bunch} onChange={set("stems_per_bunch")} placeholder="Masalan: 25" /></Field>
-        {/* 🔒 GUL NAVI — ishlatilgan partiyada QULFLANADI. Nav almashsa avval yasalgan
-            buketlar tarkibi ham qayta yozilardi (Prut → Alfalob bo'lib ko'rinardi). */}
-        <Field label="Gul navi" span>
-          {variantLocked ? (
-            <>
-              <div className="flex items-center gap-2 rounded-[12px] border px-3 py-2.5 text-[13px] font-semibold"
-                style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}>
-                <Lock size={14} strokeWidth={2.1} style={{ color: "var(--muted)" }} />
-                <span className="min-w-0 truncate">{batchTitleNoHeight(batch)}</span>
-              </div>
-              <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>
-                {VARIANT_LOCKED_HINT}
-              </span>
-              {/* ⚠️ ARXIVLASH endi CHORA EMAS — alohida «change-variant» amali bor. */}
-              {canManage && (
-                <button type="button" onClick={openVariantChange} disabled={usageBusy}
-                  className="mt-1.5 flex items-center gap-1.5 rounded-[10px] border-[1.5px] px-2.5 py-1.5 text-[12px] font-bold disabled:opacity-60"
-                  style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
-                  <Repeat2 size={13} strokeWidth={2.1} /> {usageBusy ? "Tekshirilmoqda…" : "Navni almashtirish"}
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              {/* ⚠️ BITTA BIRLASHGAN TANLAGICH — «Gul · Nav · Rang». Operator avval gulni
-                  tanlab, keyin ikkinchi ro'yxatni ochishi SHART EMAS: bitta qidiriladigan
-                  ro'yxat, «atirgul oq» deb yozilsa ham topiladi (label + sub bo'yicha qidiruv). */}
-              <Select value={f.variant} onChange={(vv) => setF((p) => ({ ...p, variant: +vv }))} searchable
-                placeholder="Gul · nav · rang tanlang" searchPlaceholder="Gul, nav yoki rang…"
-                options={variants.map((x) => ({
-                  value: x.id,
-                  label: [x.flower_detail?.name_uz, x.name_uz, x.color_uz].map((t) => (t ?? "").trim()).filter(Boolean).join(" · ") || `#${x.id}`,
-                  sub: `pochkada ${x.default_stems_per_bunch}`,
-                }))} />
-              <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>
-                Bu partiyadan hali gul ishlatilmagan — xato tanlangan nav tuzatilsa bo&apos;ladi.
-              </span>
-            </>
-          )}
-          <Err k="variant" />
-          {/* ⚠️ SERVER RAD ETDI — bizning zaif tekshiruv «tegilmagan» degan edi.
-              Jonli auditda 14 ta shunday partiyadan 2 tasi aslida is_used=true chiqdi.
-              Foydalanuvchini tupikda qoldirmaymiz: amalni SHU YERDA taklif qilamiz. */}
-          {errs.variant && canManage && (
-            <button type="button" onClick={openVariantChange} disabled={usageBusy}
-              className="mt-1.5 flex items-center gap-1.5 rounded-[10px] border-[1.5px] px-2.5 py-1.5 text-[12px] font-bold disabled:opacity-60"
-              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
-              <Repeat2 size={13} strokeWidth={2.1} /> {usageBusy ? "Tekshirilmoqda…" : "«Navni almashtirish» amalini ochish"}
-            </button>
-          )}
-        </Field>
+        {/* ⚠️ GUL NAVI MAYDONI OLIB TASHLANDI — kirim endi navsiz (`flower`), nav esa
+            API'da ixtiyoriy. Eski partiyaning navi sarlavhada KO'RINADI (batchTitleNoHeight),
+            lekin TAHRIRLANMAYDI va `variant` HECH QACHON yuborilmaydi.
+            ⚠️ Xato yozilgan gulni tuzatish → `change-flower` amali (hali ulanmagan). */}
         <Field label="Qaysi yukka" span>
           <Select value={f.delivery} onChange={(vv) => setF((p) => ({ ...p, delivery: +vv }))} searchable placeholder="Yukni tanlang"
             options={deliveries.map((d) => ({ value: d.id, label: DELIVERY.label(d.number, fmtDate(d.received_at)), sub: d.supplier_detail?.name ?? "postavshiksiz" }))} />
@@ -465,16 +390,6 @@ export default function BatchEditModal({ batch, onClose, onSaved }: {
           style={{ color: "var(--danger-ink)" }}>
           <Archive size={13} strokeWidth={2.1} /> Partiyani arxivlash / o&apos;chirish
         </button>
-      )}
-
-      {cvOpen && (
-        <VariantChangeModal
-          batch={batch}
-          usage={usage}
-          variants={variants}
-          onClose={() => setCvOpen(false)}
-          onDone={(upd) => { setCvOpen(false); onSaved(upd); onClose(); }}
-        />
       )}
 
       <ModalFooter>

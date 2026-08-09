@@ -216,9 +216,8 @@ export type BatchEditForm = {
   height_cm: string;
   /** ⚠️ KELGAN MIQDOR — xato kiritishni to'g'rilash uchun (dona; forma pochkada ham kiritadi). */
   received_stems: string;
-  /** GUL NAVI — noto'g'ri nav tanlangan bo'lsa tuzatiladi (RETROAKTIV: bu partiyadan
-      yasalgan kataloglarning gul nomi/navi ham o'zgargandek ko'rinadi). */
-  variant: number;
+  /** ⚠️ `variant` FORMADAN OLIB TASHLANDI — kirim navsiz (`flower`), nav esa API'da
+      ixtiyoriy. Eski partiyaning navi KO'RSATILADI, lekin TAHRIRLANMAYDI. */
   /** YUK — boshqa yukka ko'chirish. ⚠️ raqam/sana/POSTAVSHIK birga o'zgaradi. */
   delivery: number;
   /** TEKIN GUL — yoqilsa tannarx maydonlari yashiriladi va payload'ga tannarx QO'YILMAYDI. */
@@ -467,7 +466,6 @@ export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditFo
   if (form.is_active !== undefined && !!form.is_active !== (orig.is_active ?? true)) p.is_active = !!form.is_active;
   // ⚠️ GUL NAVI — ISHLATILGAN partiyada YUBORILMAYDI (server 400 beradi va bu to'g'ri:
   // nav almashsa avval yasalgan buketlar tarkibi ham qayta yozilardi).
-  if (!batchVariantLocked(orig) && form.variant > 0 && form.variant !== orig.variant) p.variant = form.variant;
   // ⚠️ YUK almashtirilsa partiya boshqa yukka ko'chadi: raqam/sana/POSTAVSHIK va shu bilan
   // qaysi postavshikning «Umumiy sotib olingan» summasiga kirishi ham o'zgaradi.
   if (form.delivery > 0 && form.delivery !== orig.delivery) p.delivery = form.delivery;
@@ -484,7 +482,7 @@ export function buildBatchEditPayload(orig: BatchEditOriginal, form: BatchEditFo
 /** RETROAKTIV o'zgarish bormi — tannarx/pochka-dona bo'linishi (avval yasalgan kataloglar tannarxiga ta'sir). */
 /** ⚠️ RETROAKTIV — tannarx/pochka-dona VA kelgan miqdor (partiya jami → yuk jamilari va tannarx raqamlari siljiydi). */
 export const batchEditIsRetroactive = (payload: Record<string, unknown>): boolean =>
-  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload || "received_stems" in payload || "is_free" in payload || "variant" in payload;
+  "cost_per_bunch" in payload || "cost_per_stem" in payload || "stems_per_bunch" in payload || "received_stems" in payload || "is_free" in payload;
 
 /* ===== yuborishdan oldin NORMALLASHTIRISH (katalog / social post) =====
    Bitta buket/savat = BITTA CatalogItem, ichida ko'p qatorli composition.

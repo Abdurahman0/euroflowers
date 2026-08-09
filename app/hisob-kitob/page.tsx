@@ -305,11 +305,33 @@ export default function HisobKitobPage() {
   const variantRows = useMemo(() => {
     type Agg = { name: string; purchasedStems: number; purchaseSum: number; soldStems: number; revenue: number; cost: number; wasteStems: number; wasteValue: number };
     const agg = new Map<number, Agg>();
-    const label = (b?: StockBatch) => b ? batchTitleNoHeight(b, "") : "—";
-    const ensure = (id: number, nm: string): Agg => { let a = agg.get(id); if (!a) { a = { name: nm, purchasedStems: 0, purchaseSum: 0, soldStems: 0, revenue: 0, cost: 0, wasteStems: 0, wasteValue: 0 }; agg.set(id, a); } return a; };
-    for (const b of cleanBatches) { const a = ensure(b.variant, label(b)); a.purchasedStems += b.received_stems; a.purchaseSum += b.received_stems * num(b.cost_per_stem); }
-    for (const s of mainSales) for (const l of saleLineAllocations(s, catalogById.get(s.catalog_id))) if (l.variantId != null) { const a = ensure(l.variantId, agg.get(l.variantId)?.name ?? "—"); a.soldStems += l.stems; a.revenue += l.revenue; a.cost += l.cost; }
-    for (const m of cleanWaste) { const vid = m.batch_detail?.variant; if (vid != null) { const a = ensure(vid, label(m.batch_detail)); const q = Math.abs(m.quantity_stems); a.wasteStems += q; a.wasteValue += q * num(m.batch_detail?.cost_per_stem); } }
+    /**
+     * ⚠️ NOM AVVAL YIG'ILADI, KEYIN GURUHLANADI (raqamlarga TEGMAYDI).
+     * Guruhlash kaliti — `variant` FK si, o'zgarmadi. Faqat YORLIQ tuzatildi:
+     *   • ilgari nom FAQAT `cleanBatches` dan olinardi; sotuv qatori shu davrda
+     *     partiyasi ko'rinmaydigan navga tegishli bo'lsa «—» chiqardi. Partiyalar
+     *     birlashib (merge) eskilari davr tashqarisiga chiqqani sari bu tez-tez
+     *     uchraydi. Endi nom KO'RINGAN HAMMA manbadan yig'iladi (partiya, chiqit
+     *     harakati, katalog tarkibi).
+     *   • «general» navli yangi qatorda nom — faqat GUL nomi («Atirgul»), eskisida
+     *     esa «Atirgul · Prut · Oq» (batchTitleNoHeight ikkala shaklni ham biladi).
+     */
+    const nameOf = new Map<number, string>();
+    const remember = (b?: StockBatch | null) => {
+      const vid = b?.variant ?? b?.variant_detail?.id;
+      if (vid == null || !b) return;
+      const nm = batchTitleNoHeight(b, "");
+      if (nm && !nameOf.has(vid)) nameOf.set(vid, nm);
+    };
+    for (const b of cleanBatches) remember(b);
+    for (const m of cleanWaste) remember(m.batch_detail);
+    catalogById.forEach((it) => { for (const c of it?.composition ?? []) remember(c.batch_detail); });
+    const label = (id: number) => nameOf.get(id) || "—";
+
+    const ensure = (id: number): Agg => { let a = agg.get(id); if (!a) { a = { name: label(id), purchasedStems: 0, purchaseSum: 0, soldStems: 0, revenue: 0, cost: 0, wasteStems: 0, wasteValue: 0 }; agg.set(id, a); } return a; };
+    for (const b of cleanBatches) { const a = ensure(b.variant); a.purchasedStems += b.received_stems; a.purchaseSum += b.received_stems * num(b.cost_per_stem); }
+    for (const s of mainSales) for (const l of saleLineAllocations(s, catalogById.get(s.catalog_id))) if (l.variantId != null) { const a = ensure(l.variantId); a.soldStems += l.stems; a.revenue += l.revenue; a.cost += l.cost; }
+    for (const m of cleanWaste) { const vid = m.batch_detail?.variant; if (vid != null) { const a = ensure(vid); const q = Math.abs(m.quantity_stems); a.wasteStems += q; a.wasteValue += q * num(m.batch_detail?.cost_per_stem); } }
     return Array.from(agg.values()).map((a) => ({ ...a, profit: a.revenue - a.cost, margin: a.revenue ? ((a.revenue - a.cost) / a.revenue) * 100 : 0 })).sort((x, y) => y.profit - x.profit);
   }, [cleanBatches, mainSales, catalogById, cleanWaste]);
 
@@ -722,7 +744,7 @@ export default function HisobKitobPage() {
           <div className="overflow-x-auto thin-scroll">
             <table className="w-full min-w-[760px] border-collapse text-[13px]">
               <thead><tr className="text-left" style={{ color: "var(--muted)" }}>
-                <th className="px-2 py-2 font-semibold">Gul navi</th>
+                <th className="px-2 py-2 font-semibold">Gul</th>
                 <th className="px-2 py-2 text-right font-semibold">Xarid</th>
                 <th className="px-2 py-2 text-right font-semibold">Sotuvga</th>
                 <th className="px-2 py-2 text-right font-semibold">Chiqit<Tip text="Chiqit dona × partiya tannarxi (cost_per_stem)." /></th>

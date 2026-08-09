@@ -157,7 +157,7 @@ const orig: BatchEditOriginal = {
   cost_per_bunch: "25000.00", sale_price_per_bunch: "50000.00", cost_per_stem: "1000.00", sale_price_per_stem: "2000.00",
 };
 const baseForm: BatchEditForm = {
-  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", variant: 41, delivery: 3, height_from_cm: "", height_to_cm: "", supplier: 0, is_active: true, is_free: false, remainingManual: false, remaining_stems: "", stems_per_bunch: "25",
+  batch_number: "EF-1", received_at: "2026-08-01", height_cm: "50", received_stems: "", delivery: 3, height_from_cm: "", height_to_cm: "", supplier: 0, is_active: true, is_free: false, remainingManual: false, remaining_stems: "", stems_per_bunch: "25",
   minimum_sale_stems: "5", notes: "old", image_url: "img.jpg",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false,
@@ -213,7 +213,7 @@ const ORIG: BatchEditOriginal = {
 };
 const FORM = (over: Partial<BatchEditForm> = {}): BatchEditForm => ({
   batch_number: "B-1", received_at: "2026-08-01", height_cm: "60",
-  received_stems: "100", variant: 41, delivery: 3, height_from_cm: "", height_to_cm: "", supplier: 0, is_active: true, is_free: false, remainingManual: false, remaining_stems: "20", stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
+  received_stems: "100", delivery: 3, height_from_cm: "", height_to_cm: "", supplier: 0, is_active: true, is_free: false, remainingManual: false, remaining_stems: "20", stems_per_bunch: "25", minimum_sale_stems: "1", notes: "", image_url: "",
   cost_per_bunch: "25000", sale_price_per_bunch: "50000", cost_per_stem: "1000", sale_price_per_stem: "2000",
   costManual: false, saleManual: false, ...over,
 });
@@ -532,15 +532,17 @@ describe("batchVariantLocked — ishlatilgan partiyada nav QULFLANADI", () => {
 });
 
 describe("buildBatchEditPayload — nav qulfi payload darajasida ham ushlanadi", () => {
-  it("⚠️ ISHLATILGAN partiyada nav o'zgartirilsa ham payload'ga TUSHMAYDI", () => {
-    // ORIG: received 100 / remaining 20 → 80 ishlatilgan → QULF
-    const p = buildBatchEditPayload(ORIG, FORM({ variant: 99 }));
-    expect("variant" in p).toBe(false);
-  });
-  it("TEGILMAGAN partiyada nav o'zgaradi", () => {
+  /**
+   * ⚠️ NAV ENDI UMUMAN YUBORILMAYDI. Ilgari «tegilmagan» partiyada nav PATCH'ga
+   * tushardi (va ishlatilganida qulflanardi). Endi forma navni SO'RAMAYDI —
+   * `variant` biror yo'l bilan payload'ga tushsa, eski partiyaning navi jimgina
+   * almashib, undan yasalgan buketlar boshqa gul bo'lib ko'rinib qolardi.
+   */
+  it("⚠️ nav HECH QANDAY holatda payload'ga TUSHMAYDI (tegilgan ham, tegilmagan ham)", () => {
+    expect("variant" in buildBatchEditPayload(ORIG, FORM({}))).toBe(false);
     const untouched: BatchEditOriginal = { ...ORIG, received_stems: 100, remaining_stems: 100 };
-    const p = buildBatchEditPayload(untouched, FORM({ received_stems: "100", remaining_stems: "100", variant: 99 }));
-    expect(p.variant).toBe(99);
+    const p = buildBatchEditPayload(untouched, FORM({ received_stems: "100", remaining_stems: "100" }));
+    expect("variant" in p).toBe(false);
   });
 });
 
