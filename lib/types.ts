@@ -137,6 +137,10 @@ export type Lead = {
   sort_order?: number;
   stock_usage?: LeadStockUsage[];
   packaging_usage?: LeadPackagingUsage[];
+  /** ⚠️ AI so'rov tafsilotlari — sxemasi OCHIQ obyekt (jonli OpenAPI: `details: {}`).
+      Eski leadlarda umuman bo'lmasligi mumkin. HAR DOIM `lib/leadDetails` orqali
+      o'qing — u yerda har kalit zaxira qiymat bilan olinadi. */
+  details?: import("./leadDetails").LeadDetails | null;
 };
 
 /** Lead yaratish/yangilash so'rovi — backend telefon orqali mijozni topadi yoki yaratadi */

@@ -1,5 +1,5 @@
 "use client";
-import { AlertCircle, ArrowLeft, Clock3, MoonStar, RotateCw, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Clock3, MoonStar, RotateCw, Sparkles, Trash2 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { InstagramIcon, TelegramIcon } from "@hugeicons/core-free-icons";
 import SearchInput from "@/components/SearchInput";
@@ -524,7 +524,18 @@ export default function ChatPage() {
                   {c.status === "operator" && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--warning-soft)", color: "var(--warning-ink)" }}>OPERATOR</span>}
                   {c.status === "closed" && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>YOPIQ</span>}
                 </div>
-                <div className="truncate text-xs" style={{ color: "var(--muted)" }}>{c.last_message?.text ?? "…"}</div>
+                {/* ⚠️ AI XULOSASI — operator uchun ro'yxatdagi ENG foydali satr: suhbatni
+                    ochmasdan nima gapligini ko'rsatadi. Lead hali yaratilmagan suhbatda
+                    bo'sh satr keladi → o'sha yerda oxirgi xabar ko'rinadi (bo'sh qator EMAS).
+                    Bir qatorda, to'lig'i tooltipda. */}
+                {c.ai_summary?.trim() ? (
+                  <div className="flex items-center gap-1" title={c.ai_summary}>
+                    <Sparkles size={10} strokeWidth={2.4} className="shrink-0" style={{ color: "var(--primary)" }} />
+                    <span className="min-w-0 flex-1 truncate text-xs font-semibold" style={{ color: "var(--text-2)" }}>{c.ai_summary}</span>
+                  </div>
+                ) : (
+                  <div className="truncate text-xs" style={{ color: "var(--muted)" }}>{c.last_message?.text ?? "…"}</div>
+                )}
               </div>
               <div className="text-right text-[11px]" style={{ color: "var(--muted)" }}>{fmtTime(c.last_message_at)}</div>
             </button>
@@ -551,7 +562,14 @@ export default function ChatPage() {
                   {custName(conv)}{" "}
                   <span className="text-[13px] font-medium" style={{ color: "var(--muted)" }}>@{conv.customer_detail?.instagram_username}</span>
                 </div>
-                {conv.ai_summary && <div className="truncate text-xs font-semibold" style={{ color: "var(--text-2)" }}>{conv.ai_summary}</div>}
+                {/* ⚠️ Xulosa — ro'yxatdagi ENG foydali satr. `truncate` bir qatorda qoldiradi,
+                    lekin blok butun kenglikni egallaydi va to'lig'i tooltipda ko'rinadi. */}
+                {conv.ai_summary?.trim() && (
+                  <div className="mt-0.5 flex items-center gap-1.5" title={conv.ai_summary}>
+                    <Sparkles size={11} strokeWidth={2.4} className="shrink-0" style={{ color: "var(--primary)" }} />
+                    <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>{conv.ai_summary}</span>
+                  </div>
+                )}
                 <div className="truncate text-xs" style={{ color: "var(--muted)" }}>{channelOf(conv) === "telegram" ? "Telegram" : "Instagram DM"} · {conv.customer_detail?.phone || conv.customer_detail?.masked_phone || "tel yo'q"}</div>
               </div>
               <span
@@ -597,6 +615,22 @@ export default function ChatPage() {
                 <Trash2 size={16} strokeWidth={1.75} />
               </button>
             </div>
+
+            {/* ⚠️ AI XULOSASI — operator suhbatni ochmasdan nima gapligini bilishi uchun.
+                Lead hali yaratilmagan suhbatda bo'sh satr keladi → qator UMUMAN chizilmaydi
+                (bo'sh joy qoldirmaydi). Bir qator, to'lig'i tooltipda. */}
+            {conv.ai_summary?.trim() && (
+              <div
+                className="flex items-center gap-2 border-b px-5 py-2"
+                style={{ borderColor: "var(--line2)", background: "var(--surface-2)" }}
+                title={conv.ai_summary}
+              >
+                <Sparkles size={13} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--primary)" }} />
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold" style={{ color: "var(--text-2)" }}>
+                  {conv.ai_summary}
+                </span>
+              </div>
+            )}
 
             {/* xabarlar */}
             <div ref={listRef} data-lenis-prevent className="flex flex-1 flex-col overflow-y-auto overscroll-contain px-5 pb-4 pt-2">

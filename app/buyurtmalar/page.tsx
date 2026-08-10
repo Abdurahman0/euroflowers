@@ -19,8 +19,10 @@ import LeadModal from "@/components/LeadModal";
 import NewLeadModal from "@/components/NewLeadModal";
 import EditLeadModal from "@/components/EditLeadModal";
 import LeadStatusManager from "@/components/LeadStatusManager";
-import { Clock, Pencil, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import LeadPhotos from "@/components/LeadPhotos";
+import { Clock, Pencil, Plus, SlidersHorizontal, Tag, Trash2 } from "lucide-react";
 import type { Customer, Lead, LeadStatus, LeadStatusDef } from "@/lib/types";
+import { OPERATOR_PRICE_TEXT, TOPIC_HUE, leadPriceDisplay, parseLeadDetails, topicLabel } from "@/lib/leadDetails";
 
 /** Buyurtmalar — alohida sahifa (ilgari CRM ichida "Leadlar" edi).
     Kanban ustunlari ENDI BACKENDDAN keladi (/api/lead-statuses/) — nomi,
@@ -50,6 +52,8 @@ const notePreview = (t: string): string => {
     (drag ghost) AYNAN bir xil ko'rinishi uchun bitta joyda. */
 function CardBody({ l, onEdit, onDelete }: { l: Lead; onEdit?: () => void; onDelete?: () => void }) {
   const name = l.customer_detail?.name || `@${l.customer_detail?.instagram_username ?? "—"}`;
+  const ld = parseLeadDetails(l.details);
+  const price = leadPriceDisplay(l.estimated_price, ld.topic);
   return (
     <>
       <div className="flex items-center justify-between gap-2">
@@ -82,9 +86,34 @@ function CardBody({ l, onEdit, onDelete }: { l: Lead; onEdit?: () => void; onDel
           <SourceBadge source={l.source} className="shrink-0" />
         </span>
       </div>
+      {/* ⚠️ RASM SO'ROVIDA RASM ENG TEPADA — so'rovning butun mazmuni shu (spec) */}
+      {ld.topic === "photo_request" && ld.photoUrls.length > 0 && (
+        <div className="mt-2"><LeadPhotos urls={ld.photoUrls} compact /></div>
+      )}
+      {/* MAVZU — `details.topic || null`; eski/qo'lda yaratilgan leadda umuman chizilmaydi */}
+      {ld.topic && (
+        <span className="mt-1.5 inline-flex items-center rounded-full border px-2 py-[3px] text-[11px] font-bold leading-none"
+          style={{
+            background: `color-mix(in srgb, ${TOPIC_HUE[ld.topic]} 13%, transparent)`,
+            borderColor: `color-mix(in srgb, ${TOPIC_HUE[ld.topic]} 28%, transparent)`,
+            color: `color-mix(in srgb, ${TOPIC_HUE[ld.topic]} 72%, var(--text))`,
+          }}>
+          {topicLabel(ld.topic)}
+        </span>
+      )}
       <p className="clamp-3 mt-1 text-[13px] leading-snug" style={{ color: "var(--mut)" }}>{notePreview(l.request_uz || l.request_ru || "")}</p>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="min-w-0 truncate text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(l.estimated_price)}</span>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        {/* ⚠️ NARX — `lib/leadDetails.leadPriceDisplay`. Yasatma buyurtmada AI narx
+            QO'YMAYDI: bo'sh «—» o'rniga operatorga VAZIFA ko'rsatiladi. */}
+        {price.kind === "operator" ? (
+          <span className="flex min-w-0 items-center gap-1 truncate text-[12.5px] font-bold" style={{ color: "var(--warning-ink, #8a6d1f)" }} title={OPERATOR_PRICE_TEXT}>
+            <Tag size={12} strokeWidth={2.2} className="shrink-0" /> {OPERATOR_PRICE_TEXT}
+          </span>
+        ) : (
+          <span className="min-w-0 truncate text-[14px] font-bold" style={{ color: "var(--acc)" }}>
+            {price.kind === "price" ? fmt(price.amount) : "—"}
+          </span>
+        )}
         <span className="shrink-0 text-[11px]" style={{ color: "var(--mut)" }}>{fmtTime(l.created_at)}</span>
       </div>
       <div className="mt-0.5 flex items-center justify-between gap-2">

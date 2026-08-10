@@ -4220,3 +4220,38 @@ hhh. **`POST /api/florists/{id}/decoration/` OpenAPI'da faqat `200` e'lon qiling
    holbuki spec `201` (yangi qator) va `200` (birlashdi) ni ajratadi va butun UX
    shunga qurilgan. Kod haqiqiy kodni o'qiydi, lekin sxema chalg'ituvchi.
    SETTLE: `201` javobi sxemaga qo'shilsinmi?
+
+---
+
+# LIST 2 — YANGI SAVOL (10.08.2026): `lead_revenue` YASATMA BUYURTMALARDA PASAYADI
+
+**Spec:** FRONTEND_AI_OPERATOR_LEADS_API.md — AI endi `topic: "custom_order"` leadga
+`estimated_price` QO'YMAYDI (null yoki 0).
+
+## Frontend tekshiruvi — biz hech qanday jamini buzmaymiz
+
+Butun kod bo'ylab tekshirildi: **klientda lead narxlarini yig'adigan birorta jami YO'Q.**
+- `app/bronlar/page.tsx:82` da `estimated_price` yig'iladi, lekin u **`Reservation`**,
+  lead emas — bronlar operator tomonidan yaratiladi va bu o'zgarish ularga tegmaydi.
+- Lead narxi FAQAT bittalab ko'rsatiladi: kanban kartasi, lead detali, dashboard
+  «Bugungi yetkazishlar», `ClientModal` dagi mijoz leadlari. Null qiymat `fmt()` dan
+  o'tib **«—»** bo'lib chiqadi (bo'sh ham, 0 ham, NaN ham emas).
+
+## ⚠️ SERVERDA hisoblanadigan raqamlar PASAYADI — bu bizning tuzatadigan narsamiz emas
+
+| Raqam | Qayerda ko'rinadi | Nima bo'ladi |
+|---|---|---|
+| `period_lead_revenue` / `lead_revenue_today` | Dashboard — «kutilayotgan» | Yasatma buyurtmalar 0 sifatida qo'shiladi |
+| `lead_revenue` (`daily_stats`) | Analitika — «Kutilayotgan buyurtmalar» va «Kunlik savdo» grafigi | Xuddi shunday |
+
+Bu **jimgina** pasayish: raqam xato bo'lmaydi (lead haqiqatan narxsiz), lekin
+«kutilayotgan tushum» endi yasatma buyurtmalarni umuman hisobga olmaydi va grafik
+o'tgan davrlar bilan taqqoslaganda tushib ketgandek ko'rinadi.
+
+**Savol backendga:** `lead_revenue` narx qo'yilmagan leadlarni qanday hisoblasin?
+Variantlar: (a) hozirgicha 0 — lekin UI'da «narx qo'yilmagan N ta lead» deb alohida
+ko'rsatilsin; (b) operator narx qo'ygandan keyingina hisobga kirsin va shu ochiq
+aytilsin; (c) `totals` ga `leads_without_price` qo'shilsin, biz uni chizamiz.
+
+⚠️ **Biz raqamni O'ZIMIZ to'ldirmadik** — taxminiy narx o'ylab topish hisobotni
+buzardi. Hozircha faqat lead kartasida «Narxni operator belgilaydi» ko'rsatilyapti.

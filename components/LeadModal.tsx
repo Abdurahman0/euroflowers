@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Tag, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { fmt, fmtDate, fmtTime, initials } from "@/lib/format";
 import { api, ApiError } from "@/lib/api";
@@ -8,7 +8,9 @@ import { usePerm, useStore } from "@/lib/store";
 import Modal from "./Modal";
 import { StockUsagePicker, MaterialUsagePicker, batchLabel, type PackRow, type StockRow } from "./UsagePicker";
 import { ARRANGEMENT_LABEL, statusBadgeProps, statusName, SourceBadge } from "./badges";
+import LeadPhotos from "./LeadPhotos";
 import type { Lead, LeadStatus, LeadStatusDef, Packaging, StockBatch } from "@/lib/types";
+import { OPERATOR_PRICE_TEXT, TOPIC_HUE, leadPriceDisplay, parseLeadDetails, topicLabel } from "@/lib/leadDetails";
 
 // zaxira amallar — statuslar prop kelmasa (eski chaqiruvlar uchun)
 const FALLBACK_ACTIONS: { key: string; name_uz: string }[] = [
@@ -220,6 +222,9 @@ export default function LeadModal({
     onStatus(st);
   };
 
+  const ld = parseLeadDetails(lead.details);
+  const price = leadPriceDisplay(lead.estimated_price, ld.topic);
+
   const Row = ({ k, v, accent, hint }: { k: string; v: string; accent?: boolean; hint?: string }) => (
     <div className="flex justify-between gap-3.5 border-t border-[color:var(--border)] px-4 py-3 first:border-t-0">
       <span className="flex items-center gap-1 text-[13px] text-[color:var(--text-2)]">
@@ -239,6 +244,17 @@ export default function LeadModal({
           <div className="text-[13px] text-[color:var(--text-2)]">{lead.customer_detail?.phone || lead.customer_detail?.masked_phone || "telefon yo'q"}</div>
         </div>
         <SourceBadge source={lead.source} />
+        {/* MAVZU — eski/qo'lda yaratilgan leadda chizilmaydi (`details.topic || null`) */}
+        {ld.topic && (
+          <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-bold leading-none"
+            style={{
+              background: `color-mix(in srgb, ${TOPIC_HUE[ld.topic]} 13%, transparent)`,
+              borderColor: `color-mix(in srgb, ${TOPIC_HUE[ld.topic]} 30%, transparent)`,
+              color: `color-mix(in srgb, ${TOPIC_HUE[ld.topic]} 72%, var(--text))`,
+            }}>
+            {topicLabel(ld.topic)}
+          </span>
+        )}
         {(() => {
           const det = lead.status_detail ?? statuses?.find((s) => s.key === lead.status);
           const bp = statusBadgeProps(lead.status, det);
@@ -322,8 +338,41 @@ export default function LeadModal({
         )}
       </div>
 
+      {/* ⚠️ RASM SO'ROVIDA RASMLAR ENG TEPADA — so'rovning butun mazmuni shu (spec) */}
+      {ld.photoUrls.length > 0 && (
+        <div className="mt-3 rounded-2xl border border-[color:var(--border)] p-3.5">
+          <div className="mb-2 text-[11px] font-bold uppercase tracking-[1.5px]" style={{ color: "var(--primary)" }}>
+            Mijoz yuborgan rasm{ld.photoUrls.length > 1 ? ` (${ld.photoUrls.length})` : ""}
+          </div>
+          <LeadPhotos urls={ld.photoUrls} />
+        </div>
+      )}
+
+      {/* MIJOZNING O'Z SO'ZI — AYNAN ko'rsatiladi, qayta yozilmaydi. Bo'sh bo'lsa qator YO'Q. */}
+      {(ld.flowersText || ld.sizeText || ld.note) && (
+        <div className="mt-3 rounded-2xl border border-[color:var(--border)]">
+          {ld.flowersText && <Row k="Gul" v={ld.flowersText} />}
+          {ld.sizeText && <Row k="Hajm" v={ld.sizeText} />}
+          {ld.note && <Row k="Izoh" v={ld.note} />}
+        </div>
+      )}
+
       <div className="mt-3 rounded-2xl border border-[color:var(--border)]">
-        <Row k="Taxminiy narx" v={fmt(lead.estimated_price)} accent hint="Gullar + florist haqi (to'liq summa). Mijoz chatda faqat gullar summasini ko'rgan." />
+        {/* ⚠️ NARX — AI yasatma buyurtmaga narx QO'YMAYDI (spec). Bo'sh «—» o'rniga
+            operatorga vazifa ko'rsatiladi va narx qo'yish yo'li SHU YERDA ochiladi:
+            bu endi tuzatish emas, ODATDAGI oqim. */}
+        {price.kind === "operator" ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--border)] px-4 py-3 first:border-t-0">
+            <span className="flex items-center gap-1.5 text-[13px] font-bold" style={{ color: "var(--warning-ink, #8a6d1f)" }}>
+              <Tag size={14} strokeWidth={2.2} /> {OPERATOR_PRICE_TEXT}
+            </span>
+            {onEdit && (
+              <button type="button" onClick={onEdit} className="btn-secondary btn-sm !flex-none">Narx qo&apos;yish</button>
+            )}
+          </div>
+        ) : (
+          <Row k="Taxminiy narx" v={price.kind === "price" ? fmt(price.amount) : "—"} accent hint="Gullar + florist haqi (to'liq summa). Mijoz chatda faqat gullar summasini ko'rgan." />
+        )}
         {lead.florist_fee != null && <Row k="Florist haqi" v={fmt(lead.florist_fee)} hint="Mijoz chatda faqat gullar summasini ko'rgan — florist haqi qo'shilmagan. Yakuniy narxni operator aytadi." />}
         <Row k="Turi" v={lead.arrangement_type ? ARRANGEMENT_LABEL[lead.arrangement_type] ?? lead.arrangement_type : "—"} />
         <Row k="Instagram" v={lead.customer_detail?.instagram_username ? `@${lead.customer_detail.instagram_username}` : "—"} />

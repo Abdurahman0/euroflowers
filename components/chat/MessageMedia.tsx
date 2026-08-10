@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Download, ExternalLink, File as FileIcon, Pause, Play, Play as PlayIcon, RotateCcw, X } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { InstagramIcon } from "@hugeicons/core-free-icons";
+import { PHOTO_EXPIRED_TEXT } from "@/lib/leadDetails";
 import type { Message } from "@/lib/types";
 
 /**
@@ -353,7 +354,9 @@ function ImageBubble({ url, ribbon, onOpen, onReady }: { url: string; ribbon?: s
   const [err, setErr] = useState(false);
   const [nonce, setNonce] = useState(0);
   // signed IG lookaside link muddati o'tishi mumkin — xatoda "asl havola" beriladi
-  if (err) return <MediaFailed onLight onRetry={() => { setErr(false); setNonce((n) => n + 1); }} label="Media ochilmadi" url={url} />;
+  // ⚠️ Havola Instagram/Telegram CDN'idan — u BIZDA saqlanmaydi va muddati o'tadi.
+  // Shu bois «ochilmadi» degan texnik xabar emas, operatorga NIMA QILISH kerakligi.
+  if (err) return <MediaFailed onLight onRetry={() => { setErr(false); setNonce((n) => n + 1); }} label={PHOTO_EXPIRED_TEXT} url={url} />;
   return (
     <button
       ref={ref}
