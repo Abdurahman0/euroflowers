@@ -6,7 +6,7 @@ import FreeBatchChip from "@/components/FreeBatchChip";
 import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown, BookmarkCheck, Info } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
-import { accountingCached, stockBatchesCached, invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
+import { stockBatchesCached, invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
 import { fmt, fmtDate, dateAfterParam, dateBeforeParam } from "@/lib/format";
@@ -24,9 +24,11 @@ import FlowerLoader from "@/components/FlowerLoader";
 import Drawer from "@/components/Drawer";
 import DatePicker from "@/components/DatePicker";
 import Select from "@/components/Select";
+import Pagination from "@/components/Pagination";
 import { Field } from "@/components/Modal";
 import { Plus, Pencil } from "lucide-react";
-import type { Accounting, AccountingByBranch, AccountingFigures, Analytics, Branch, CatalogItem, FloristProfile, FloristSalaryEntry, FloristStockIssue, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
+import { usePagedList } from "@/lib/usePagedList";
+import type { Accounting, AccountingByBranch, AccountingFigures, AccountingSale, Analytics, Branch, CatalogItem, FloristProfile, FloristSalaryEntry, FloristStockIssue, Paginated, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
 
 const METHOD_OPTS: { value: SupplierPaymentMethod; label: string }[] = [
   { value: "cash", label: "Naqd" }, { value: "card", label: "Karta" }, { value: "transfer", label: "O'tkazma" },
@@ -147,6 +149,19 @@ function Ari({ label, v, bold, strong, sub, tip }: { label: string; v: number; b
 
 type SortKey = "net" | "margin" | "date";
 
+/** Accounting javobining summary shakli saqlanadi, faqat `history` sahifalangan. */
+const accountingHistoryPage = (data: Accounting): Paginated<AccountingSale> => ({
+  count: data.history_pagination?.count ?? data.history.length,
+  page: data.history_pagination?.page,
+  page_size: data.history_pagination?.page_size,
+  total_pages: data.history_pagination?.total_pages,
+  has_next: data.history_pagination?.has_next,
+  has_previous: data.history_pagination?.has_previous,
+  next: null,
+  previous: null,
+  results: data.history,
+});
+
 export default function HisobKitobPage() {
   const { dateFilter, dateRange, showToast } = useStore();
   const { canView } = usePerm();
@@ -167,8 +182,6 @@ export default function HisobKitobPage() {
   const [salary, setSalary] = useState<FloristSalaryEntry[]>([]);
   // §5: bron to'lovlari (zaklad cashflow) — reservations'dan tekislab, davr bo'yicha filtrlaymiz
   const [resvPays, setResvPays] = useState<{ id: number; date: string; amount: number; method: PaymentMethod; customer: string; request: string; reservationId: number }[]>([]);
-  const [err, setErr] = useState("");
-
   const [catSort, setCatSort] = useState<SortKey>("net");
   const [catGrouped, setCatGrouped] = useState(false);
   const [openCat, setOpenCat] = useState<number | null>(null);
@@ -191,9 +204,32 @@ export default function HisobKitobPage() {
   const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
   const to = dateRange ? dateRange.to : ymd(new Date());
 
-  const load = useCallback(() => {
+  /**
+   * Katta sotuv jadvali — bitta sahifa, bitta so'rov. Server `history`ni
+   * SQL/ORM darajasida `page` + `page_size` bilan kesadi; bu yerda `.slice()`
+   * yoki barcha sahifani yig'ish mutlaqo yo'q.
+   */
+  const historyList = usePagedList<AccountingSale>({
+    enabled: visible,
+    fetcher: async (query, signal) => {
+      const data = await api.accounting(query, signal);
+      setAcc(data);
+      return accountingHistoryPage(data);
+    },
+    filters: {
+      from,
+      to,
+      branch: branchParam,
+      // Qatorlar joriy tanlangan saralashda serverdan keladi; sahifalar orasida
+      // lokal sort natijasi aralashib ketmaydi.
+      ordering: catSort === "net" ? "-net_profit" : catSort === "margin" ? "-margin" : "-sold_at",
+    },
+  });
+  const refreshHistory = historyList.refresh;
+
+  // History sahifasini almashtirish boshqa hisobot manbalarini qayta yuklamaydi.
+  const loadSupportingData = useCallback(() => {
     if (!visible) return;
-    accountingCached(from, to, branchParam).then((d) => { setAcc(d); setErr(""); }).catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
     api.catalog().then(setCatalog).catch(() => setCatalog([]));
     stockBatchesCached().then(setBatches).catch(() => setBatches([]));
     api.suppliers().then(setSuppliers).catch(() => setSuppliers([]));
@@ -213,7 +249,7 @@ export default function HisobKitobPage() {
       out.sort((a, b) => (a.date < b.date ? 1 : -1));
       setResvPays(out);
     }).catch(() => setResvPays([]));
-  }, [visible, from, to, branchParam]);
+  }, [visible, from, to]);
 
   // to'lov CRUD dan keyin — suppliers (rollup) va payments qayta yuklanadi
   const refreshSuppliers = useCallback(() => {
@@ -221,19 +257,24 @@ export default function HisobKitobPage() {
     api.supplierPayments().then(setPayments).catch(() => {});
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadSupportingData(); }, [loadSupportingData]);
   // ⚠️ avtomatik taymer YO'Q — «Yangilash» tugmasi orqali (RefreshButton)
-  const { refresh, loadedAt } = useAutoRefresh(load);
+  const refreshAll = useCallback(() => {
+    invalidateReportCache();
+    refreshHistory();
+    loadSupportingData();
+  }, [refreshHistory, loadSupportingData]);
+  const { refresh, loadedAt } = useAutoRefresh(refreshAll);
   useEffect(() => {
-    const h = () => { invalidateReportCache(); load(); }; // event kelganda kesh ham tozalanadi (WS push himoyasi)
+    const h = () => refreshAll(); // event kelganda kesh ham tozalanadi (WS push himoyasi)
     window.addEventListener("ef:stock-changed", h);
     return () => window.removeEventListener("ef:stock-changed", h);
-  }, [load]);
+  }, [refreshAll]);
 
   const catalogById = useMemo(() => new Map(catalog.map((i) => [i.id, i])), [catalog]);
   // GUARD: ZZZ_TEST_ yozuvlar hisobotdan chiqariladi (dev-toggle bilan qaytariladi).
   // Backend test partiyalari/harakatlarini o'chira olmaydi (soft-delete/405) — shu filtr himoya.
-  const sales = useMemo(() => excludeTest(acc?.history ?? [], (s) => s.catalog_name, includeTest), [acc, includeTest]);
+  const sales = useMemo(() => excludeTest(historyList.rows, (s) => s.catalog_name, includeTest), [historyList.rows, includeTest]);
   // ⚠️ ATRIBUTSIYA (gul-nav/yetkazib-beruvchi) FAQAT asosiy filial sotuvlari bo'yicha:
   // filiallarda sklad yo'q, filial sotuvining guli ASOSIY skladdan katalog yaratilganda
   // yechilgan. saleLineAllocations filial sotuvi uchun bo'sh qaytaradi (item topilmaydi) —
@@ -389,7 +430,7 @@ export default function HisobKitobPage() {
   };
 
   if (!visible) return <div className="mt-10"><EmptyState title="Ruxsat yo'q" sub="Hisob-kitobni ko'rish uchun ruxsatingiz yo'q." /></div>;
-  if (err) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--danger-ink)" }}>{err}</p>;
+  if (historyList.error) return <p className="mt-10 text-center text-sm font-bold" style={{ color: "var(--danger-ink)" }}>{historyList.error}</p>;
   if (!acc) return <FlowerLoader />;
 
   const s = acc.summary;
@@ -739,6 +780,12 @@ export default function HisobKitobPage() {
             </table>
           </div>
         )}
+        <Pagination
+          info={historyList.info}
+          onPage={(page) => { setOpenCat(null); historyList.setPage(page); }}
+          label="sotuv"
+          busy={historyList.loading}
+        />
       </SectionCard>
 
       {/* ═══ SECTION 3 — GUL TURLARI ═══ */}

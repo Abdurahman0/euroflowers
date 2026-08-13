@@ -575,8 +575,16 @@ export const api = {
   dashboard: (p?: Period) => request<Dashboard>(`/api/dashboard/${qs({ from: p?.from, to: dashboardDateTo(p?.to), date_from: p?.from, date_to: dashboardDateTo(p?.to) })}`),
   analytics: (p?: Period) => request<Analytics>(`/api/analytics/${qs({ from: p?.from, to: dashboardDateTo(p?.to), date_from: p?.from, date_to: dashboardDateTo(p?.to) })}`),
 
-  /** Hisob-kitob — date_to INKLYUZIV (o'zgarishsiz). branch: "all"|"main"|"<id>". */
-  accounting: (p?: Period & { branch?: string }) => request<Accounting>(`/api/accounting/${qs({ date_from: p?.from, date_to: accountingDateTo(p?.to), from: p?.from, to: accountingDateTo(p?.to), branch: p?.branch })}`),
+  /**
+   * Hisob-kitob — date_to INKLYUZIV. `history` bazada sahifalanadi;
+   * summary/by_* bloklari esa tanlangan davrning to'liq jamisi bo'lib qoladi.
+   * branch: "all"|"main"|"<id>".
+   */
+  accounting: (p?: Period & { branch?: string; page?: number; page_size?: number; ordering?: string }, signal?: AbortSignal) =>
+    request<Accounting>(`/api/accounting/${qs({
+      date_from: p?.from, date_to: accountingDateTo(p?.to), from: p?.from, to: accountingDateTo(p?.to),
+      branch: p?.branch, page: p?.page, page_size: p?.page_size, ordering: p?.ordering,
+    })}`, { signal }),
   /** Excel eksportlar — fayl (blob) sifatida yuklab olinadi */
   exportFlorist: (p?: { date_from?: string; date_to?: string; florist?: number }) => downloadFile("/api/exports/florist/", p, "florist-hisobot"),
   exportFlorists: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florists/", p, "floristlar-hisobot"),

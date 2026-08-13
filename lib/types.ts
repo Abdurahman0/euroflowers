@@ -928,6 +928,19 @@ export type AccountingSale = {
       ixtiyoriy va faqat ko'rsatish uchun ishlatiladi. */
   paid_from_debt?: boolean;
 };
+/**
+ * Hisob-kitobdagi katta `history` ro'yxatining server metama'lumoti.
+ * Hisobotning summary/by_* bloklari bitta javobda qoladi; faqat jadval qatorlari
+ * sahifalanadi. Shu sabab bu umumiy `Paginated<T>` javobi emas.
+ */
+export type AccountingHistoryPagination = {
+  count: number;
+  page?: number;
+  page_size?: number;
+  total_pages?: number;
+  has_next?: boolean;
+  has_previous?: boolean;
+};
 export type Accounting = {
   period: AccountingPeriod;
   branch_filter?: AccountingBranchFilter; // yangi — sukut bo'yicha "all"
@@ -936,11 +949,15 @@ export type Accounting = {
   by_kind: AccountingByKind[];
   by_payment: AccountingByPayment[];
   by_volume: AccountingByVolume[];
-  discounted_sales: AccountingSale[];
+  /** Hisob-kitob ekrani ishlatmaydi; paginatsiyalangan history so'rovida server
+      bu dublikat katta ro'yxatni yubormaydi. */
+  discounted_sales?: AccountingSale[];
   /** ⚠️ TOP-LEVEL — davr ichidagi rasxodlar RO'YXATI.
       (`expenses_by_category` OLIB TASHLANDI — `category` modeldan chiqarilgan.) */
   expenses?: Expense[];
   history: AccountingSale[];
+  /** `history` uchun serverning sahifa raqamlari. */
+  history_pagination?: AccountingHistoryPagination;
   /** ⚠️ BRON to'lovlari — ALOHIDA cashflow (sotuv EMAS). Sotuv full narxda savdoga kiradi;
       zaklad/oldindan to'lov shu yerda ko'rinadi. Server dinamik qo'shadi (OpenAPI'da yo'q). */
   reservation_payments_summary?: ReservationPaymentSummary;
