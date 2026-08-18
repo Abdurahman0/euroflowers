@@ -127,12 +127,17 @@ export default function KatalogSellModal({
     api.florists({ is_active: true, ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {});
   }, []);
   const matOf = (id: number) => materials.find((m) => m.id === id);
+  const accessories = useMemo(() => materials.filter((m) => m.packaging_type === "other"), [materials]);
   const matGroups = useMemo(() => {
     const g = new Map<string, Packaging[]>();
     materials.forEach((m) => { (g.get(m.packaging_type) ?? g.set(m.packaging_type, []).get(m.packaging_type)!).push(m); });
     return g;
   }, [materials]);
-  const addSaleMat = () => { const used = new Set(saleMats.map((m) => m.packaging)); const next = materials.find((p) => !used.has(p.id)); setSaleMats([...saleMats, { packaging: next?.id ?? 0, qty: "1" }]); };
+  const addSaleItem = (source: Packaging[]) => { const used = new Set(saleMats.map((m) => m.packaging)); const next = source.find((p) => !used.has(p.id)); if (next) setSaleMats([...saleMats, { packaging: next.id, qty: "1" }]); };
+  const addSaleMat = () => addSaleItem(materials.filter((m) => m.packaging_type !== "other"));
+  const addSaleAccessory = () => addSaleItem(accessories);
+  const selectedMaterialCount = saleMats.filter((m) => matOf(m.packaging)?.packaging_type !== "other").length;
+  const selectedAccessoryCount = saleMats.filter((m) => matOf(m.packaging)?.packaging_type === "other").length;
   const decoObj = florists.find((fp) => fp.id === saleDeco);
   const decoFee = Math.round(+(decoObj?.decoration_fee ?? 0) || 0);
   const decoFeeMissing = saleDeco > 0 && decoFee <= 0;
@@ -549,7 +554,7 @@ export default function KatalogSellModal({
         {extraOpen && (
           <div className="border-t px-3.5 py-3" style={{ borderColor: "var(--border)" }}>
             {/* MATERIALLAR — 1 dona sotuvga; server × quantity qiladi */}
-            <div className="mb-1 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>Qo&apos;shimcha materiallar</div>
+            <div className="mb-1 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>Qo&apos;shimcha material va aksessuarlar</div>
             <div className="flex flex-col gap-2">
               {saleMats.map((m, i) => {
                 const p = matOf(m.packaging);
@@ -570,9 +575,14 @@ export default function KatalogSellModal({
                   </div>
                 );
               })}
-              <button type="button" onClick={addSaleMat} disabled={materials.length === 0} className="self-start rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3 py-1.5 text-[12px] font-bold disabled:opacity-50">
-                <Plus size={14} strokeWidth={1.75} /> Material qo&apos;shish
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={addSaleMat} disabled={!materials.some((m) => m.packaging_type !== "other") || selectedMaterialCount >= materials.filter((m) => m.packaging_type !== "other").length} className="rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3 py-1.5 text-[12px] font-bold disabled:opacity-50">
+                  <Plus size={14} strokeWidth={1.75} className="mr-1 inline" /> Material qo&apos;shish
+                </button>
+                <button type="button" onClick={addSaleAccessory} disabled={accessories.length === 0 || selectedAccessoryCount >= accessories.length} className="rounded-full border px-3 py-1.5 text-[12px] font-bold disabled:opacity-50" style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
+                  <Plus size={14} strokeWidth={1.75} className="mr-1 inline" /> Aksessuar qo&apos;shish
+                </button>
+              </div>
             </div>
 
             {/* OFORMLENIYA floristi — sale_decoration salary (catalog-yaratishdagi decoration'dan ALOHIDA) */}
