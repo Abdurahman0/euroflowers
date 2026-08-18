@@ -547,6 +547,9 @@ export default function KatalogSellModal({
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={(e) => { e.stopPropagation(); setExtraOpen(true); addSaleAccessory(); }} className="rounded-full border px-2.5 py-1 text-[11px] font-bold" style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
+              <Plus size={13} className="mr-1 inline" />Aksessuar qo&apos;shish
+            </button>
             {(validSaleMats.length > 0 || saleDeco > 0 || !!saleImage) && <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>{validSaleMats.length + (saleDeco > 0 ? 1 : 0) + (saleImage ? 1 : 0)}</span>}
             <ChevronDown size={16} className="transition-transform duration-200" style={{ transform: extraOpen ? "rotate(180deg)" : undefined, color: "var(--muted)" }} />
           </span>
