@@ -40,25 +40,27 @@ const normType = (t: string): PackagingType => (GROUP_ORDER.includes(t as Packag
  * bog'lab kirim qilish mumkin (POST /api/materials/ `delivery` + birlikka mos maydonlar).
  * `lockedDelivery` berilsa (yuk detalidan ochilgan) — yuk oldindan tanlangan va QULFLANGAN.
  */
-export function MaterialModal({ material, onClose, onSaved, lockedDelivery = null }: {
+export function MaterialModal({ material, onClose, onSaved, lockedDelivery = null, accessoryOnly = false }: {
   material: Packaging | null;
   onClose: () => void;
   onSaved: (m: Packaging) => void;
   lockedDelivery?: MaterialDelivery | null;
+  accessoryOnly?: boolean;
 }) {
   const { showToast } = useStore();
   const [f, setF] = useState({
     name_uz: material?.name_uz ?? "",
     name_ru: material?.name_ru ?? "",
-    packaging_type: normType(material?.packaging_type ?? "wrap"),
+    packaging_type: accessoryOnly ? "other" : normType(material?.packaging_type ?? "wrap"),
     size: material?.size ?? "",
-    unit: (material?.unit === "bunch" ? "bunch" : "piece") as MaterialUnit,
+    unit: (accessoryOnly ? "piece" : material?.unit === "bunch" ? "bunch" : "piece") as MaterialUnit,
     units_per_bunch: material?.units_per_bunch ? String(material.units_per_bunch) : "",
     basket_material: (material?.basket_material ?? "") as BasketMaterial | "",
     cost_price: material ? String(Math.round(+(material.cost_price ?? 0))) : "",
     sale_price: material ? String(Math.round(+(material.sale_price ?? 0))) : "",
     quantity: material ? String(material.quantity) : "",
     image_url: material?.image_url ?? "",
+    is_active: material?.is_active ?? true,
   });
   // §3 YUKGA BOG'LASH — faqat YANGI materialda (mavjudini yukka kiritish «Material kiritish» orqali)
   const [linkOn, setLinkOn] = useState(!!lockedDelivery);
@@ -85,6 +87,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
 
   const save = async () => {
     if (!f.name_uz.trim()) return showToast("Nomini kiriting");
+    if (accessoryOnly && !(+f.sale_price > 0)) return showToast("Sotuv narxini kiriting");
     if (f.unit === "bunch" && upb <= 1) return showToast("Pochkadagi dona sonini (1 pochka = nechta dona) kiriting");
     if (linkOn && !deliveryId) return showToast("Yukni tanlang");
     if (linkOn && preview && !preview.ok) return showToast(preview.reason);
@@ -94,7 +97,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
       const payload: Record<string, unknown> = {
         name_uz: f.name_uz.trim(),
         name_ru: f.name_ru.trim() || f.name_uz.trim(),
-        packaging_type: f.packaging_type,
+        packaging_type: accessoryOnly ? "other" : f.packaging_type,
         unit: f.unit,
         ...(f.unit === "bunch" ? { units_per_bunch: upb } : {}),
         ...(f.packaging_type === "basket" && f.basket_material ? { basket_material: f.basket_material } : {}),
@@ -102,7 +105,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
         // UMUMAN YUBORILMAYDI (bo'sh satr/0 emas — zero-is-a-value intizomi). Mavjud wrap
         // materialini tahrirlaganda saqlangan qiymatlar SHU SABABLI tegilmay qoladi.
         ...(hidesSizeAndSale ? {} : { size: f.size.trim(), sale_price: f.sale_price ? String(+f.sale_price) : "0" }),
-        is_active: true,
+        is_active: f.is_active,
         image_url: f.image_url,
       };
       if (!material) {
@@ -129,24 +132,24 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
 
   return (
     <Modal onClose={onClose} width={480}>
-      <ModalHeader icon={<Icon name="sklad" size={20} />} title={material ? "Materialni tahrirlash" : "Yangi material"} sub="O'ram, savat, quti yoki aksessuar" onClose={onClose} />
+      <ModalHeader icon={<Icon name={accessoryOnly ? "aiCatalog" : "sklad"} size={20} />} title={material ? accessoryOnly ? "Aksessuarni tahrirlash" : "Materialni tahrirlash" : accessoryOnly ? "Yangi aksessuar" : "Yangi material"} sub={accessoryOnly ? "Sovg'a va qo'shimcha mahsulot" : "O'ram, savat, quti yoki aksessuar"} onClose={onClose} />
       <Section>Asosiy</Section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nomi (uz)" span>
           <input className="inp" value={f.name_uz} onChange={(e) => setF({ ...f, name_uz: e.target.value })} placeholder="Masalan: Kraft o'ram" autoFocus={!material} />
         </Field>
         <Field label="Rasm" span><ImageInput value={f.image_url} onChange={(image_url) => setF({ ...f, image_url })} /></Field>
-        <Field label="Turi">
+        {!accessoryOnly && <Field label="Turi">
           <Select
             value={f.packaging_type}
             onChange={(v) => setF({ ...f, packaging_type: v as PackagingType })}
             options={GROUP_ORDER.map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
           />
-        </Field>
+        </Field>}
         {/* O'LCHOV BIRLIGI — kirim shakli SHUNDAN kelib chiqadi (dona vs pochka) */}
-        <Field label="O'lchov birligi">
+        {!accessoryOnly && <Field label="O'lchov birligi">
           <Select value={f.unit} onChange={(v) => setF({ ...f, unit: v as MaterialUnit })} options={(["piece", "bunch"] as const).map((u) => ({ value: u, label: MATERIAL_UNIT_LABEL[u] }))} />
-        </Field>
+        </Field>}
         {f.unit === "bunch" && (
           <Field label="1 pochka = nechta dona" span>
             <input className="inp" inputMode="numeric" value={f.units_per_bunch} onChange={(e) => setF({ ...f, units_per_bunch: e.target.value.replace(/\D/g, "") })} placeholder="Masalan: 20" />
@@ -163,7 +166,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
           </Field>
         )}
         {/* ⚠️ O'LCHAM — buket qog'ozida so'ralmaydi (o'lcham tushunchasi yo'q) */}
-        {!hidesSizeAndSale && (
+        {!accessoryOnly && !hidesSizeAndSale && (
           <Field label="O'lcham">
             <input className="inp" value={f.size} onChange={(e) => setF({ ...f, size: e.target.value })} placeholder="Masalan: M" />
           </Field>
@@ -175,7 +178,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
           </Field>
         )}
         {/* ⚠️ SOTUV NARXI — buket qog'ozi sotilmaydi (faqat ishlatiladi) → so'ralmaydi */}
-        {!hidesSizeAndSale && (
+        {(accessoryOnly || !hidesSizeAndSale) && (
           <Field label="Sotuv narxi (so'm)">
             <input className="inp" type="number" value={f.sale_price} onChange={(e) => setF({ ...f, sale_price: e.target.value })} placeholder="Masalan: 20000" />
           </Field>
@@ -186,6 +189,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
           </Field>
         )}
       </div>
+      {accessoryOnly && <label className="mt-3 flex cursor-pointer items-center gap-2 text-[13px] font-semibold"><input type="checkbox" checked={f.is_active} onChange={(e) => setF({ ...f, is_active: e.target.checked })} className="h-4 w-4 accent-[var(--primary)]" /> Faol</label>}
 
       {/* ═══ §3 YUKGA BOG'LASH — yangi materialni darrov kirim qilish ═══ */}
       {!material && (
@@ -513,7 +517,7 @@ function MaterialCard({ m, control, onEdit, onMove, onDetail }: { m: Packaging; 
   );
 }
 
-function AccessorySellModal({ material, onClose, onDone }: { material: Packaging; onClose: () => void; onDone: () => void }) {
+export function AccessorySellModal({ material, onClose, onDone }: { material: Packaging; onClose: () => void; onDone: () => void }) {
   const showToast = useStore((s) => s.showToast); const [quantity, setQuantity] = useState("1"); const [price, setPrice] = useState(String(material.sale_price ?? "")); const [reason, setReason] = useState(""); const [payment, setPayment] = useState("cash"); const [busy, setBusy] = useState(false);
   const save = async () => { const q = Math.floor(+quantity || 0); if (q < 1 || q > material.quantity) return showToast(`Qoldiq ${material.quantity} dona`); setBusy(true); try { await api.sellPackaging(material.id, { quantity: q, sale_price: price || undefined, payment_type: payment, reason: reason.trim() || undefined, sold_at: new Date().toISOString() }); showToast("✓ Accessory sotildi"); onDone(); } catch (e) { showToast(e instanceof ApiError ? e.message : "Sotib bo'lmadi"); } finally { setBusy(false); } };
   return <Modal onClose={onClose} width={440}><ModalHeader icon={<ShoppingCart size={20} />} title="Accessory sotish" sub={`${material.name_uz || material.name_ru} · qoldiq ${material.quantity} dona`} onClose={onClose} /><div className="grid gap-3"><Field label="Soni"><input className="inp" type="number" min="1" max={material.quantity} value={quantity} onChange={(e) => setQuantity(e.target.value)} /></Field><Field label="Sotuv narxi"><input className="inp" type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} /></Field><Field label="To'lov turi"><select className="inp" value={payment} onChange={(e) => setPayment(e.target.value)}><option value="cash">Naqd</option><option value="card">Karta</option><option value="debt">Qarz</option><option value="mixed">Aralash</option></select></Field><Field label="Sabab"><input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ixtiyoriy" /></Field></div><ModalFooter><button onClick={onClose} className="btn-ghost">Bekor</button><button onClick={save} disabled={busy} className="btn-primary">{busy ? "Saqlanmoqda…" : "Sotish"}</button></ModalFooter></Modal>;

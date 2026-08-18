@@ -27,6 +27,7 @@ import MaterialDeliveryModal from "@/components/MaterialDeliveryModal";
 import MaterialDeliveryDrawer from "@/components/MaterialDeliveryDrawer";
 import { SupplierDetail } from "@/components/SupplierModal";
 import MaterialSklad from "@/components/MaterialSklad";
+import AccessorySklad from "@/components/AccessorySklad";
 import clsx from "clsx";
 import { Icon } from "@/components/icons";
 import { DELIVERY, MATERIAL_DELIVERY, MOVEMENT_HUE, stems as fmtStems, bunches as fmtBunches, formatStemsAndBunches, freshness, PACKAGING_LABEL, compareBatchNewestFirst, compareDeliveryNewestFirst, batchMatchesQuery } from "@/lib/inventory";
@@ -89,7 +90,7 @@ function MovesSummary({ moves, floristWaste = [] }: { moves: StockMovement[]; fl
 }
 
 /** Material jurnali xulosasi — plain dona (gul emas, pochka yo'q). */
-function MatSummary({ moves }: { moves: MaterialMovement[] }) {
+function MatSummary({ moves, totals }: { moves: MaterialMovement[]; totals?: Record<string, unknown> }) {
   const sum = (pred: (m: MaterialMovement) => boolean) =>
     moves.reduce((a, m) => (pred(m) ? a + (m.quantity || 0) : a), 0);
   const cards = [
@@ -112,6 +113,7 @@ function MatSummary({ moves }: { moves: MaterialMovement[] }) {
           </div>
         );
       })}
+      {Number(totals?.sale_total ?? 0) > 0 && <div className="glass !rounded-[16px] p-3.5" style={{ borderLeft: "3px solid var(--acc)" }}><div className="flex items-center gap-1.5 text-[12px] font-bold" style={{ color: "var(--acc)" }}>Accessory sotuvlari</div><div className="mt-1 text-[18px] font-extrabold tabular-nums">{fmt(Number(totals?.sale_total ?? 0))} so&apos;m</div><div className="text-[11.5px]" style={{ color: "var(--mut)" }}>alohida sotuv jami</div></div>}
     </div>
   );
 }
@@ -125,7 +127,7 @@ export default function SkladPage() {
   const { canControl } = usePerm();
   const canManage = canControl("inventory");
   // bo'limlar: yuklar, gul sklad (partiyalar), material sklad va kirim-chiqim jurnali
-  const [tab, setTab] = useState<"gul" | "yuklar" | "material" | "jurnal">("gul");
+  const [tab, setTab] = useState<"gul" | "yuklar" | "material" | "accessory" | "jurnal">("gul");
   const [deliveries, setDeliveries] = useState<StockDelivery[] | null>(null);
   const [selDelivery, setSelDelivery] = useState<StockDelivery | null>(null);
   const [newDeliveryOpen, setNewDeliveryOpen] = useState(false);
@@ -159,6 +161,7 @@ export default function SkladPage() {
   // jurnal manbasi — Gul sklad / Material sklad (sahifada saqlanadi)
   const [jSource, setJSource] = useState<"gul" | "material">("gul");
   const [matMoves, setMatMoves] = useState<MaterialMovement[]>([]);
+  const [matMoveTotals, setMatMoveTotals] = useState<Record<string, unknown> | undefined>();
   const [matType, setMatType] = useState(""); // material turi — KLIENT filtri (packaging_type)
   // partiya batafsil (view) modali — barcha amallar shu yerda
   const [supplierDetail, setSupplierDetail] = useState<Supplier | null>(null);
@@ -249,13 +252,16 @@ export default function SkladPage() {
   // material harakatlari — faqat Material manbasi tanlanganda, davr+tur filtri server tomonda
   const loadMat = useCallback(async () => {
     try {
-      setMatMoves(await api.materialMovements({
+      const d = await api.packagingMovementsPage({
         ordering: "-created_at",
         ...(dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) }),
         movement_type: moveType || undefined,
-      }));
+        packaging__packaging_type: matType || undefined,
+      });
+      setMatMoves(d.results);
+      setMatMoveTotals(d.totals);
     } catch { /* jimgina */ }
-  }, [dateFilter, dateRange, moveType]);
+  }, [dateFilter, dateRange, moveType, matType]);
   useEffect(() => { if (tab === "jurnal" && jSource === "material") loadMat(); }, [tab, jSource, loadMat]);
 
   // YUKLAR — faqat shu tab ochilganda (server ordering: eng yangi birinchi)
@@ -350,10 +356,10 @@ export default function SkladPage() {
 
   if (loading) return <FlowerLoader />;
 
-  const TAB_LABEL = { gul: "Partiyalar", yuklar: DELIVERY.many, material: "Material sklad", jurnal: "Kirim-chiqim jurnali" } as const;
+  const TAB_LABEL = { gul: "Partiyalar", yuklar: DELIVERY.many, material: "Material sklad", accessory: "Aksessuarlar", jurnal: "Kirim-chiqim jurnali" } as const;
   const tabBar = (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      {(["gul", "yuklar", "material", "jurnal"] as const).map((t) => (
+      {(["gul", "yuklar", "material", "accessory", "jurnal"] as const).map((t) => (
         <button
           key={t}
           onClick={() => setTab(t)}
@@ -526,6 +532,15 @@ export default function SkladPage() {
     );
   }
 
+  if (tab === "accessory") {
+    return (
+      <>
+        {tabBar}
+        <AccessorySklad />
+      </>
+    );
+  }
+
   if (tab === "jurnal") {
     const isGul = jSource === "gul";
     return (
@@ -590,7 +605,7 @@ export default function SkladPage() {
         </div>
 
         {/* xulosa — manba bo'yicha (gul: dona+pochka, material: dona) */}
-        {isGul ? <MovesSummary moves={fMoves} floristWaste={floristWaste} /> : <MatSummary moves={fMatMoves} />}
+        {isGul ? <MovesSummary moves={fMoves} floristWaste={floristWaste} /> : <MatSummary moves={fMatMoves} totals={matMoveTotals} />}
 
         {/* MATERIAL harakatlari — timeline */}
         {!isGul && (

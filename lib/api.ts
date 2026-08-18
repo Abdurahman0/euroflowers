@@ -984,6 +984,7 @@ export const api = {
   },
 
   packaging: (p?: Params) => list<Packaging>("/api/packaging/", p),
+  packagingPage: (p?: Params, signal?: AbortSignal) => request<Paginated<Packaging>>(`/api/packaging/${qs(p)}`, { signal }),
   createPackaging: (data: Partial<Packaging>) =>
     request<Packaging>("/api/packaging/", { method: "POST", body: JSON.stringify(data) }),
   updatePackaging: (id: number, data: Partial<Packaging>) =>
@@ -1001,6 +1002,8 @@ export const api = {
   materialMovement: (id: number, data: { movement_type: string; quantity: number; reason?: string }) =>
     request<Packaging>(`/api/materials/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
   materialMovements: (p?: Params) => list<MaterialMovement>("/api/material-movements/", p),
+  packagingMovements: (p?: Params) => list<MaterialMovement>("/api/packaging-movements/", p),
+  packagingMovementsPage: (p?: Params, signal?: AbortSignal) => request<Paginated<MaterialMovement>>(`/api/packaging-movements/${qs(p)}`, { signal }),
 
   /* ===== MATERIAL YUKI (material-deliveries) — kirimlarni guruhlaydi (gul Yuki twin'i) ===== */
   materialDeliveries: (p?: Params) => list<MaterialDelivery>("/api/material-deliveries/", p),
