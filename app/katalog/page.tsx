@@ -8,7 +8,7 @@ import RefreshButton from "@/components/RefreshButton";
 import FlowerLoader from "@/components/FlowerLoader";
 import SearchInput from "@/components/SearchInput";
 import FilterSelect from "@/components/FilterSelect";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
@@ -28,6 +28,8 @@ import { isBranchUser } from "@/lib/branch";
 import CatalogSalesTab from "@/components/CatalogSalesTab";
 import RestavratsiyaTab from "@/components/RestavratsiyaTab";
 import RestavratsiyaModal from "@/components/RestavratsiyaModal";
+import Pagination from "@/components/Pagination";
+import { usePagedList } from "@/lib/usePagedList";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 
 /** Florist ismi (user_detail'dan) — bo'lmasa bo'sh */
@@ -80,7 +82,6 @@ export default function KatalogPage() {
   const [transferItem, setTransferItem] = useState<CatalogItem | null>(null);
   const [restoreItem, setRestoreItem] = useState<CatalogItem | null>(null);
   const [items, setItems] = useState<CatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   // ko'rish / tahrirlash / o'chirish
@@ -118,39 +119,27 @@ export default function KatalogPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // ⚠️ ESKIRGAN JAVOB YOZIB KETMASIN — bosqichma-bosqich yuklashda bitta so'rov IKKI marta
-  // javob qaytaradi, filtr esa shu orada o'zgargan bo'lishi mumkin. Har yuklashning o'z
-  // raqami bor; faqat ENG OXIRGISI ro'yxatga yozadi.
-  const loadGen = useRef(0);
-  const load = useCallback(async () => {
-    const gen = ++loadGen.current;
-    try {
-      // ⚠️ status server'ga YUBORILMAYDI — hamma holat kelib, klientda «Holat» ko'rinishi bo'yicha
-      // ajratiladi (Sotuvda default = sold/archived/soni-to'lgan yashirin). Chip sonlari uchun kerak.
-      // ⚠️ VA SERVERNIKI XATO: jonli tekshiruv (08.08.2026) — 6 ta yozuv `status: available`
-      // bo'lsa-da soni to'lgan (#318, #316, #257, #227, #189, #188). `?status=` bo'yicha
-      // sahifalasak o'sha sotilgan buketlar «Sotuvda» javoniga qaytib chiqardi.
-      await api.catalogPaged({
-        ordering: "-created_at",
-        search: q || undefined,
-        arrangement_type: arrType || undefined,
-        florist: floristFilter || undefined,
-        decoration_florist: decorationFilter || undefined,
-        catalog_kind: kindFilter || undefined,
-        customer: customerFilter?.id || undefined,
-      }, (rows, done) => {
-        if (gen !== loadGen.current) return;   // eskirgan yuklash — jimgina tashlanadi
-        setItems(rows);
-        if (!done) setLoading(false);          // birinchi sahifa — ekran DARHOL to'ladi
-      });
-    } catch (e) {
-      if (gen === loadGen.current) showToast(e instanceof Error ? e.message : "Yuklashda xatolik");
-    } finally {
-      if (gen === loadGen.current) setLoading(false);
-    }
-  }, [showToast, q, arrType, floristFilter, decorationFilter, kindFilter, customerFilter]);
-
-  useEffect(() => { load(); }, [load]);
+  // ⚠️ BITTA SAHIFA = BITTA SO'ROV. Keyingi sahifa faqat foydalanuvchi bosganda olinadi.
+  const catalogFilters = useMemo(() => ({
+    ordering: "-created_at",
+    search: q || undefined,
+    arrangement_type: arrType || undefined,
+    florist: floristFilter || undefined,
+    decoration_florist: decorationFilter || undefined,
+    catalog_kind: kindFilter || undefined,
+    customer: customerFilter?.id || undefined,
+  }), [q, arrType, floristFilter, decorationFilter, kindFilter, customerFilter]);
+  const paged = usePagedList<CatalogItem>({
+    fetcher: (query, signal) => api.catalogPage(query, signal),
+    filters: catalogFilters,
+    defaultPageSize: 50,
+  });
+  const loading = paged.loading;
+  const load = paged.refresh;
+  useEffect(() => { setItems(paged.rows); }, [paged.rows]);
+  useEffect(() => {
+    if (paged.error) showToast(paged.error);
+  }, [paged.error, showToast]);
   // ⚠️ avtomatik taymer YO'Q — «Yangilash» tugmasi orqali (RefreshButton)
   const { refresh, loadedAt } = useAutoRefresh(load);
 
@@ -184,12 +173,13 @@ export default function KatalogPage() {
   }, []);
 
   // HOLAT bo'yicha sonlar (chip yorliqlari) + tanlangan ko'rinish bo'yicha filtrlangan ro'yxat
-  const statusCounts = useMemo(() => ({
-    sotuvda: items.filter(isAvailableForSale).length,
-    sold: items.filter(isSold).length,
-    archived: items.filter(isArchived).length,
-    all: items.length,
-  }), [items]);
+  const statusTotals = paged.totals?.by_status as Record<string, unknown> | undefined;
+  const statusCounts = useMemo(() => {
+    const sold = Number(statusTotals?.sold ?? 0);
+    const archived = Number(statusTotals?.archived ?? 0);
+    const all = paged.info.count;
+    return { sotuvda: Math.max(all - sold - archived, 0), sold, archived, all };
+  }, [statusTotals, paged.info.count]);
   const statusFiltered = useMemo(() => {
     if (statusView === "sold") return items.filter(isSold);
     if (statusView === "archived") return items.filter(isArchived);
@@ -276,7 +266,7 @@ export default function KatalogPage() {
     }
   };
 
-  if (loading) return <FlowerLoader />;
+  if (!paged.ready && loading) return <FlowerLoader />;
 
   const tabBar = (
     <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -396,6 +386,15 @@ export default function KatalogPage() {
           <button type="button" onClick={() => setCustomerFilter(null)} className="ml-auto shrink-0 rounded-full p-1 hover:bg-[color:var(--hover)]" title="Filtrni olib tashlash"><X size={15} /></button>
         </div>
       )}
+
+      <div className="mb-4 rounded-[18px] border px-4 py-2.5 shadow-[0_8px_30px_rgba(58,35,25,.04)]" style={{ borderColor: "var(--line)", background: "color-mix(in srgb, var(--surface-solid) 72%, transparent)" }}>
+        <Pagination
+          info={paged.info}
+          onPage={paged.setPage}
+          label="katalog"
+          busy={paged.loading}
+        />
+      </div>
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(275px,1fr))" }}>
         {shownItems.map((k) => {

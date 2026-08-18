@@ -1,5 +1,5 @@
 "use client";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { PAGE_SIZE_OPTIONS, pageNumbers, type PageInfo } from "@/lib/pagination";
 
 /**
@@ -16,12 +16,14 @@ export default function Pagination({
   info,
   onPage,
   onPageSize,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
   label = "yozuv",
   busy = false,
 }: {
   info: PageInfo;
   onPage: (page: number) => void;
   onPageSize?: (size: number) => void;
+  pageSizeOptions?: readonly number[];
   /** «154 ta yozuv» dagi so'z */
   label?: string;
   busy?: boolean;
@@ -30,7 +32,7 @@ export default function Pagination({
   // ⚠️ Bitta sahifa va tanlagich kerak bo'lmasa — umuman chizmaymiz (bo'sh panel qolmasin)
   if (totalPages <= 1 && !onPageSize) return null;
 
-  const btn = "flex h-8 min-w-8 items-center justify-center rounded-[10px] border px-2 text-[12.5px] font-bold transition-colors duration-150 disabled:opacity-40";
+  const btn = "flex h-9 min-w-9 items-center justify-center rounded-[12px] border px-2 text-[12.5px] font-bold transition-all duration-150 hover:-translate-y-px hover:shadow-sm disabled:pointer-events-none disabled:opacity-35";
 
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5">
@@ -39,24 +41,32 @@ export default function Pagination({
         {count > 0 ? <>{from}–{to} / <b style={{ color: "var(--text-2)" }}>{count.toLocaleString("ru")}</b> {label}</> : `0 ${label}`}
       </span>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
         {onPageSize && (
-          <select
-            value={info.pageSize}
-            onChange={(e) => onPageSize(Number(e.target.value))}
-            aria-label="Sahifadagi yozuvlar soni"
-            className="h-8 rounded-[10px] border bg-transparent px-2 text-[12.5px] font-semibold"
-            style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
-          >
-            {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n} ta</option>)}
-          </select>
+          <label className="relative flex h-9 items-center rounded-[12px] border px-3 transition-colors hover:border-[color:var(--primary)]" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+            <span className="mr-2 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>Ko&apos;rsatish</span>
+            <select
+              value={info.pageSize}
+              onChange={(e) => onPageSize(Number(e.target.value))}
+              aria-label="Sahifadagi yozuvlar soni"
+              className="appearance-none bg-transparent pr-5 text-[12.5px] font-bold outline-none"
+              style={{ color: "var(--text-2)" }}
+            >
+              {pageSizeOptions.map((n) => <option key={n} value={n}>{n} ta</option>)}
+            </select>
+            <ChevronDown size={14} strokeWidth={2.3} className="pointer-events-none absolute right-2" style={{ color: "var(--primary)" }} />
+          </label>
         )}
+
+        <span className="rounded-[12px] border px-3 py-2 text-[12px] font-bold tabular-nums" style={{ borderColor: "var(--line)", color: "var(--text-2)", background: "var(--surface-2)" }}>
+          Sahifa <b style={{ color: "var(--primary)" }}>{page}</b> / {totalPages}
+        </span>
 
         {totalPages > 1 && (
           <>
-            <button type="button" className={btn} style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+            <button type="button" className={btn} style={{ borderColor: "var(--border-strong)", color: "var(--primary)" }}
               onClick={() => onPage(page - 1)} disabled={!hasPrevious || busy} aria-label="Oldingi sahifa">
-              <ChevronLeft size={15} strokeWidth={2.2} />
+              <ChevronLeft size={18} strokeWidth={2.4} />
             </button>
 
             {pageNumbers(page, totalPages).map((n, i) =>
@@ -72,9 +82,9 @@ export default function Pagination({
                 </button>
               ))}
 
-            <button type="button" className={btn} style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+            <button type="button" className={btn} style={{ borderColor: "var(--border-strong)", color: "var(--primary)" }}
               onClick={() => onPage(page + 1)} disabled={!hasNext || busy} aria-label="Keyingi sahifa">
-              <ChevronRight size={15} strokeWidth={2.2} />
+              <ChevronRight size={18} strokeWidth={2.4} />
             </button>
           </>
         )}
