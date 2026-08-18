@@ -155,6 +155,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
 
   const batchOf = (id: number) => batches.find((b) => b.id === id);
   const matOf = (id: number) => materials.find((m) => m.id === id);
+  const accessories = useMemo(() => materials.filter((m) => m.packaging_type === "other"), [materials]);
   const spbOf = (id: number) => batchOf(id)?.stems_per_bunch || 1;
   // MAVJUD miqdor — sklad qoldig'idan (warehouse rejimi)
   const availOf = (id: number) => batchOf(id)?.remaining_stems ?? 0;
@@ -217,10 +218,15 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       return merged;
     });
   };
-  const addMat = () => {
+  const addMaterial = () => {
     const used = new Set(mats.map((m) => m.packaging));
-    const next = materials.find((p) => !used.has(p.id)) ?? materials[0];
-    setMats([...mats, { packaging: next?.id ?? 0, qty: "1" }]);
+    const next = materials.find((p) => p.packaging_type !== "other" && !used.has(p.id));
+    if (next) setMats([...mats, { packaging: next.id, qty: "1" }]);
+  };
+  const addAccessory = () => {
+    const used = new Set(mats.map((m) => m.packaging));
+    const next = accessories.find((p) => !used.has(p.id));
+    if (next) setMats([...mats, { packaging: next.id, qty: "1" }]);
   };
 
   // TANLANGAN FLORISTNING hajm+turi uchun tarifini topadi (per-florist model).
@@ -838,9 +844,14 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                 </div>
               );
             })}
-            <button type="button" onClick={addMat} className="btn-secondary btn-sm self-start">
-              <Plus size={15} strokeWidth={1.75} /> Material qo&apos;shish
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={addMaterial} disabled={!materials.some((m) => m.packaging_type !== "other")} className="btn-secondary btn-sm self-start disabled:opacity-50">
+                <Plus size={15} strokeWidth={1.75} /> Material qo&apos;shish
+              </button>
+              <button type="button" onClick={addAccessory} disabled={!accessories.length} className="btn-secondary btn-sm self-start disabled:opacity-50" style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
+                <Plus size={15} strokeWidth={1.75} /> Aksessuar qo&apos;shish
+              </button>
+            </div>
           </div>
         </>
       )}
