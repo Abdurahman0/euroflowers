@@ -1,5 +1,5 @@
 "use client";
-import { ArrowDown, ArrowUp, Box, Newspaper, Pencil, Plus, ShoppingBasket, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Box, Newspaper, Pencil, Plus, ShoppingBasket, ShoppingCart, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
@@ -10,6 +10,7 @@ import EmptyState from "./EmptyState";
 import FlowerLoader from "./FlowerLoader";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import Select from "./Select";
+import ImageInput from "./ImageInput";
 import { api, ApiError } from "@/lib/api";
 import { notifyReportDataChanged } from "@/lib/reportCache";
 import { usePerm, useStore } from "@/lib/store";
@@ -57,6 +58,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
     cost_price: material ? String(Math.round(+(material.cost_price ?? 0))) : "",
     sale_price: material ? String(Math.round(+(material.sale_price ?? 0))) : "",
     quantity: material ? String(material.quantity) : "",
+    image_url: material?.image_url ?? "",
   });
   // §3 YUKGA BOG'LASH — faqat YANGI materialda (mavjudini yukka kiritish «Material kiritish» orqali)
   const [linkOn, setLinkOn] = useState(!!lockedDelivery);
@@ -101,6 +103,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
         // materialini tahrirlaganda saqlangan qiymatlar SHU SABABLI tegilmay qoladi.
         ...(hidesSizeAndSale ? {} : { size: f.size.trim(), sale_price: f.sale_price ? String(+f.sale_price) : "0" }),
         is_active: true,
+        image_url: f.image_url,
       };
       if (!material) {
         if (linkOn && deliveryId && n > 0) {
@@ -132,6 +135,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
         <Field label="Nomi (uz)" span>
           <input className="inp" value={f.name_uz} onChange={(e) => setF({ ...f, name_uz: e.target.value })} placeholder="Masalan: Kraft o'ram" autoFocus={!material} />
         </Field>
+        <Field label="Rasm" span><ImageInput value={f.image_url} onChange={(image_url) => setF({ ...f, image_url })} /></Field>
         <Field label="Turi">
           <Select
             value={f.packaging_type}
@@ -503,12 +507,16 @@ function MaterialCard({ m, control, onEdit, onMove, onDetail }: { m: Packaging; 
         ) : "—"}
       </div>
       {control && (
-        <button onClick={(e) => { e.stopPropagation(); onMove(); }} className="rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-tint" style={{ borderColor: "var(--line)" }}>
-          Chiqim
-        </button>
+        <div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); onMove(); }} className="flex-1 rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-tint" style={{ borderColor: "var(--line)" }}>Chiqim</button>{normType(m.packaging_type) === "other" && <button onClick={(e) => { e.stopPropagation(); (m as Packaging & { __sell?: () => void }).__sell?.(); }} className="flex-1 rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint" style={{ borderColor: "var(--primary)", color: "var(--primary)" }}><ShoppingCart size={14} className="mr-1 inline" /> Sotish</button>}</div>
       )}
     </article>
   );
+}
+
+function AccessorySellModal({ material, onClose, onDone }: { material: Packaging; onClose: () => void; onDone: () => void }) {
+  const showToast = useStore((s) => s.showToast); const [quantity, setQuantity] = useState("1"); const [price, setPrice] = useState(String(material.sale_price ?? "")); const [reason, setReason] = useState(""); const [payment, setPayment] = useState("cash"); const [busy, setBusy] = useState(false);
+  const save = async () => { const q = Math.floor(+quantity || 0); if (q < 1 || q > material.quantity) return showToast(`Qoldiq ${material.quantity} dona`); setBusy(true); try { await api.sellPackaging(material.id, { quantity: q, sale_price: price || undefined, payment_type: payment, reason: reason.trim() || undefined, sold_at: new Date().toISOString() }); showToast("✓ Accessory sotildi"); onDone(); } catch (e) { showToast(e instanceof ApiError ? e.message : "Sotib bo'lmadi"); } finally { setBusy(false); } };
+  return <Modal onClose={onClose} width={440}><ModalHeader icon={<ShoppingCart size={20} />} title="Accessory sotish" sub={`${material.name_uz || material.name_ru} · qoldiq ${material.quantity} dona`} onClose={onClose} /><div className="grid gap-3"><Field label="Soni"><input className="inp" type="number" min="1" max={material.quantity} value={quantity} onChange={(e) => setQuantity(e.target.value)} /></Field><Field label="Sotuv narxi"><input className="inp" type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} /></Field><Field label="To'lov turi"><select className="inp" value={payment} onChange={(e) => setPayment(e.target.value)}><option value="cash">Naqd</option><option value="card">Karta</option><option value="debt">Qarz</option><option value="mixed">Aralash</option></select></Field><Field label="Sabab"><input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ixtiyoriy" /></Field></div><ModalFooter><button onClick={onClose} className="btn-ghost">Bekor</button><button onClick={save} disabled={busy} className="btn-primary">{busy ? "Saqlanmoqda…" : "Sotish"}</button></ModalFooter></Modal>;
 }
 
 export default function MaterialSklad() {
@@ -527,6 +535,7 @@ export default function MaterialSklad() {
   const [formM, setFormM] = useState<{ open: boolean; edit: Packaging | null }>({ open: false, edit: null });
   const [moveM, setMoveM] = useState<Packaging | null>(null);
   const [detailM, setDetailM] = useState<Packaging | null>(null); // batafsil + kirim tarixi
+  const [sellM, setSellM] = useState<Packaging | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -651,7 +660,7 @@ export default function MaterialSklad() {
                 </div>
                 <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(235px,1fr))" }}>
                   {items.map((m) => (
-                    <MaterialCard key={m.id} m={m} control={control} onEdit={() => setFormM({ open: true, edit: m })} onMove={() => setMoveM(m)} onDetail={() => setDetailM(m)} />
+                    <MaterialCard key={m.id} m={{ ...m, __sell: () => setSellM(m) } as Packaging & { __sell: () => void }} control={control} onEdit={() => setFormM({ open: true, edit: m })} onMove={() => setMoveM(m)} onDetail={() => setDetailM(m)} />
                   ))}
                 </div>
               </section>
@@ -680,6 +689,7 @@ export default function MaterialSklad() {
         />
       )}
       {detailM && <MaterialDetailModal material={detailM} onClose={() => setDetailM(null)} />}
+      {sellM && <AccessorySellModal material={sellM} onClose={() => setSellM(null)} onDone={() => { setSellM(null); notifyReportDataChanged(); load(); }} />}
     </>
   );
 }

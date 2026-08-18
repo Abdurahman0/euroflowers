@@ -14,7 +14,7 @@ import {
   EMPTY_RANGE, createdAtQuery, hasRange, inDateRange, rangeLabel, rangeToParams, readRange,
   supplierTotals, type DateRange,
 } from "@/lib/supplierRange";
-import type { MovementType, StockBatch, StockMovement, Supplier, SupplierPayment } from "@/lib/types";
+import type { MaterialDelivery, MovementType, StockBatch, StockMovement, Supplier, SupplierPayment } from "@/lib/types";
 
 /** Yetkazib beruvchi — yaratish/tahrirlash (o'ng drawer). */
 export function SupplierForm({ supplier, onClose, onSaved }: { supplier: Supplier | null; onClose: () => void; onSaved: (s: Supplier) => void }) {
@@ -94,8 +94,9 @@ const StatChip = ({ label, value }: { label: string; value: string }) => (
  *   To'lovlar → KLIENTDA `paid_at` bo'yicha; serverda faqat ANIQ kun (`paid_at=`).
  */
 export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { supplier: Supplier; onClose: () => void; onEdit?: () => void; onOpenBatch?: (b: StockBatch) => void }) {
-  const [tab, setTab] = useState<"batches" | "moves" | "payments">("batches");
+  const [tab, setTab] = useState<"batches" | "materials" | "moves" | "payments">("batches");
   const [batches, setBatches] = useState<StockBatch[] | null>(null);
+  const [materialDeliveries, setMaterialDeliveries] = useState<MaterialDelivery[]>(supplier.material_deliveries ?? []);
   const [moves, setMoves] = useState<StockMovement[] | null>(null);
   const [payments, setPayments] = useState<SupplierPayment[] | null>(null);
   // ⚠️ URL'dan boshlang'ich oraliq — ulashilgan havola/yangilash oralig'ni SAQLAYDI
@@ -123,6 +124,7 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
     api.stockBatches({ supplier: supplier.id, ordering: "-received_at" }).then((bs) => setBatches([...bs].sort(compareBatchNewestFirst))).catch(() => setBatches([]));
     // TO'LOVLAR — serverda faqat ANIQ kun filtri bor (`paid_at=`), oraliq yo'q → klientda
     api.supplierPayments({ supplier: supplier.id, ordering: "-paid_at" }).then(setPayments).catch(() => setPayments([]));
+    api.supplier(supplier.id).then((s) => setMaterialDeliveries(s.material_deliveries ?? [])).catch(() => {});
   }, [supplier.id]);
 
   useEffect(() => {
@@ -246,9 +248,9 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
 
       {/* segment: tashqi --r-md, ichki --r-sm (modal tugmalari bilan bir oila) */}
       <div className="mt-3 flex gap-1 rounded-md border p-1" style={{ borderColor: "var(--border)" }}>
-        {(["batches", "moves", "payments"] as const).map((t) => (
+        {(["batches", "materials", "moves", "payments"] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className="flex-1 rounded-sm py-1.5 text-[12.5px] font-bold transition-colors duration-150" style={tab === t ? { background: "var(--primary)", color: "#fff" } : { color: "var(--muted)" }}>
-            {t === "batches" ? "Partiyalar" : t === "moves" ? "Harakatlar" : "To'lovlar"}
+            {t === "batches" ? "Gul yuklari" : t === "materials" ? "Material / accessory" : t === "moves" ? "Harakatlar" : "To'lovlar"}
           </button>
         ))}
       </div>
@@ -288,6 +290,17 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
                   );
                 })}
               </div>
+            </div>
+          ))}
+        </div>
+      ) : tab === "materials" ? (
+        <div className="mt-3 flex flex-col gap-3">
+          {materialDeliveries.length === 0 && <Empty all="Material/accessory yuki yo'q." />}
+          {materialDeliveries.map((d) => (
+            <div key={d.id} className="rounded-[14px] border p-3" style={{ borderColor: "var(--border)" }}>
+              <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-bold">{d.number}</span><span className="text-[12px]" style={{ color: "var(--muted)" }}>{fmtDate(d.received_at)}</span></div>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[11.5px] font-bold"><span className="rounded-full bg-tint px-2.5 py-1">{d.total_quantity} dona</span><span className="rounded-full bg-mint px-2.5 py-1 text-mintink">{fmt(d.total_cost)}</span><span className="rounded-full bg-tint px-2.5 py-1">{d.item_count} tur</span></div>
+              {d.items?.length ? <div className="mt-2 border-t pt-2" style={{ borderColor: "var(--line2)" }}>{d.items.map((x) => <div key={x.movement_id} className="flex justify-between gap-2 py-1 text-[12px]"><span className="truncate">{x.name_uz} <span style={{ color: "var(--muted)" }}>· {x.packaging_type ?? "material"}</span></span><span className="shrink-0 font-semibold">{x.quantity} · {fmt(x.unit_cost)}</span></div>)}</div> : null}
             </div>
           ))}
         </div>

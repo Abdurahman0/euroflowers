@@ -158,6 +158,7 @@ export default function SuppliersPage() {
               <div className="flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold text-tintink">{s.batches_count} partiya</span>
                 <span className="rounded-full bg-tint px-2.5 py-0.5 text-[12px] font-semibold text-tintink">{stems(s.total_received_stems)}</span>
+                {(s.material_deliveries_count ?? 0) > 0 && <span className="rounded-full px-2.5 py-0.5 text-[12px] font-semibold" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>{s.material_deliveries_count} material yuk</span>}
                 {/* ⚠️ QARZ USTUNI OLIB TASHLANDI — backend `outstanding`ni butunlay chiqarmaydi
                     (har xarid to'liq to'lanadi). O'rniga neytral «Umumiy sotib olingan». */}
                 {+(s.purchase_total ?? 0) > 0 && (

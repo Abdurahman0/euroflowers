@@ -39,9 +39,9 @@ const floristName = (fp?: FloristProfile | null): string => {
 };
 
 const compositionText = (k: CatalogItem) =>
-  k.composition
+  (k.composition ?? [])
     .map((c) => `${batchTitleNoHeight(c.batch_detail, "")} ${c.quantity_stems} dona`.trim())
-    .join(" · ") || "Tarkib kiritilmagan";
+    .join(" · ") || "Tarkibni batafsil ko'rish mumkin";
 
 /** KUTAYAPTI: florist katalogi, gul tanlangan lekin soni 0 (chiqim yopilmagan). ⚠️ §0c: material
     va florist haqi ALLAQACHON tannarxda — faqat GUL tannarxi hali qo'shilmagan. «Gul taqsimlanmagan» chip. */
@@ -96,7 +96,11 @@ export default function KatalogPage() {
   const [arrType, setArrType] = useState("");
   // HOLAT KO'RINISHI — KLIENT filtri (Sotuvda default). Sotilgan/arxiv/soni-to'lgan sukut YASHIRINADI.
   // URL ?status= da saqlanadi (ulashiladi + refresh'dan omon qoladi). Server hammasini qaytaradi.
-  const [statusView, setStatusView] = useState<StatusView>("sotuvda");
+  const [statusView, setStatusView] = useState<StatusView>(() => {
+    if (typeof window === "undefined") return "sotuvda";
+    const s = new URLSearchParams(window.location.search).get("status");
+    return s === "sold" || s === "archived" || s === "all" || s === "sotuvda" ? s : "sotuvda";
+  });
   // ⚠️ ?tab= konvensiyasi — «Katalog» SUKUT, «Sotuvlar» va «Restavratsiya» qo'shimcha
   const [tab, setTab] = useState<"katalog" | "sotuvlar" | "restavratsiya">("katalog");
   useEffect(() => {
@@ -122,13 +126,14 @@ export default function KatalogPage() {
   // ⚠️ BITTA SAHIFA = BITTA SO'ROV. Keyingi sahifa faqat foydalanuvchi bosganda olinadi.
   const catalogFilters = useMemo(() => ({
     ordering: "-created_at",
+    status_group: statusView === "sotuvda" ? "available" : statusView,
     search: q || undefined,
     arrangement_type: arrType || undefined,
     florist: floristFilter || undefined,
     decoration_florist: decorationFilter || undefined,
     catalog_kind: kindFilter || undefined,
     customer: customerFilter?.id || undefined,
-  }), [q, arrType, floristFilter, decorationFilter, kindFilter, customerFilter]);
+  }), [statusView, q, arrType, floristFilter, decorationFilter, kindFilter, customerFilter]);
   const paged = usePagedList<CatalogItem>({
     fetcher: (query, signal) => api.catalogPage(query, signal),
     filters: catalogFilters,
@@ -173,19 +178,19 @@ export default function KatalogPage() {
   }, []);
 
   // HOLAT bo'yicha sonlar (chip yorliqlari) + tanlangan ko'rinish bo'yicha filtrlangan ro'yxat
-  const statusTotals = paged.totals?.by_status as Record<string, unknown> | undefined;
+  const statusTotals = (paged.totals?.status_counts ?? paged.totals?.by_status) as Record<string, unknown> | undefined;
   const statusCounts = useMemo(() => {
-    const sold = Number(statusTotals?.sold ?? 0);
-    const archived = Number(statusTotals?.archived ?? 0);
-    const all = paged.info.count;
-    return { sotuvda: Math.max(all - sold - archived, 0), sold, archived, all };
-  }, [statusTotals, paged.info.count]);
-  const statusFiltered = useMemo(() => {
-    if (statusView === "sold") return items.filter(isSold);
-    if (statusView === "archived") return items.filter(isArchived);
-    if (statusView === "all") return items;
-    return items.filter(isAvailableForSale); // sotuvda (default)
-  }, [items, statusView]);
+    const all = Number(statusTotals?.all ?? paged.totals?.items ?? paged.info.count);
+    return {
+      sotuvda: Number(statusTotals?.available ?? paged.totals?.available_count ?? 0),
+      sold: Number(statusTotals?.sold ?? paged.totals?.sold_count ?? 0),
+      archived: Number(statusTotals?.archived ?? paged.totals?.archived_count ?? 0),
+      all,
+    };
+  }, [statusTotals, paged.totals, paged.info.count]);
+  // Status filtering is done by the API. Filtering the current page again on
+  // the client would make server page totals and page numbers look wrong.
+  const statusFiltered = items;
   const undistribCount = statusFiltered.filter(isUndistributed).length;
   // ⚠️ OXIRGI QO'SHILGAN BIRINCHI (chapdan). Server `?ordering=-created_at` ni qabul
   // qiladi, lekin bir XIL created_at da tartib BEQAROR — orqaga sanalgan kataloglar
@@ -391,6 +396,7 @@ export default function KatalogPage() {
         <Pagination
           info={paged.info}
           onPage={paged.setPage}
+          alwaysShow
           label="katalog"
           busy={paged.loading}
         />
@@ -414,8 +420,8 @@ export default function KatalogPage() {
                 className="relative h-[190px] cursor-pointer bg-bg2"
                 role="button"
                 tabIndex={0}
-                onClick={() => setViewItem(k)}
-                onKeyDown={(e) => e.key === "Enter" && setViewItem(k)}
+                onClick={() => api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi"))}
+                onKeyDown={(e) => e.key === "Enter" && api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi"))}
                 title="Batafsil ko'rish"
               >
                 {k.image_url && <img src={k.image_url} alt={k.name_uz} className="h-full w-full object-cover" />}

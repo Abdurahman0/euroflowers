@@ -6,6 +6,7 @@ import { usePerm, useStore, useTheme } from "@/lib/store";
 import type { PermissionPage } from "@/lib/types";
 import { isLoggedIn } from "@/lib/api";
 import Sidebar from "./Sidebar";
+import FloristSidebar from "./FloristSidebar";
 import Header from "./Header";
 import Toast from "./Toast";
 import NotifToast from "./NotifToast";
@@ -28,6 +29,7 @@ const ROUTE_PERM: Record<string, PermissionPage> = {
   "/rasxodlar": "expenses",
   "/chat": "conversations",
   "/ai": "ai_settings",
+  "/ai-katalog": "catalog",
   "/crm": "crm",
   "/buyurtmalar": "crm",
   "/mijozlar": "customers",
@@ -52,11 +54,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, userLoading, loadMe, loadNotifs, setTheme, setDark, gardenPosterOnly, bgMode, setBgMode, sideOpen, toggleSide, uiMode, setUiMode } = useStore();
   const isLogin = pathname.startsWith("/login");
+  const staffRole = user?.profile.role === "florist" || user?.profile.role === "apprentice";
+  const staffPath = pathname.startsWith("/florist/") || pathname === "/profile";
   const { canView } = usePerm();
   const permPage = ROUTE_PERM[pathname];
   // ⚠️ FILIAL ALLOWLIST OLIB TASHLANDI — route guard endi FAQAT ruxsatga qaraydi,
   // ya'ni nav bilan AYNAN bir mezon (menyuda yo'q sahifa URL orqali ham ochilmaydi).
-  const routeAllowed = !user || !permPage || canView(permPage);
+  const routeAllowed = staffRole ? staffPath : (!user || !permPage || canView(permPage));
+
+  useEffect(() => {
+    if (user && staffRole && !staffPath) router.replace("/florist/dashboard");
+  }, [user, staffRole, staffPath, router]);
 
   // video rejimda element krossfeyd tugaguncha (400ms) DOM'da qoladi;
   // "rasm" bilan yangi ochilishda esa umuman mount bo'lmaydi (mp4 so'rovi yo'q)
@@ -245,7 +253,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           aria-hidden
         />
       )}
-      <Sidebar />
+      {staffRole ? <FloristSidebar /> : <Sidebar />}
       <main className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[26px]">
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
           <Header />

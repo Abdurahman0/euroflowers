@@ -6,6 +6,11 @@ import {
 } from "./pagination";
 import type { Paginated } from "./types";
 
+// Stable empty value: returning `[]` inline from the hook creates a new
+// reference on every render and can retrigger consumers' synchronization
+// effects before the first response arrives.
+const EMPTY_ROWS: never[] = [];
+
 /**
  * SAHIFALANGAN RO'YXAT — YAGONA so'rov yordamchisi.
  *
@@ -133,8 +138,14 @@ export function usePagedList<T>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey, effPage, state.pageSize, nonce, enabled]);
 
-  // faqat KOMPONENT YOPILGANDA — uchayotgan so'rovni bekor qilamiz
-  useEffect(() => () => acRef.current?.abort(), []);
+  // KOMPONENT yopilganda — uchayotgan so'rovni bekor qilamiz. Reset the
+  // duplicate guard too: React Strict Mode performs an effect cleanup/setup
+  // cycle in development; without resetting it, the aborted first request
+  // could suppress the legitimate second request.
+  useEffect(() => () => {
+    acRef.current?.abort();
+    lastKey.current = "";
+  }, []);
 
   // URL — sahifa va hajm (sukut qiymatlar yozilmaydi, havola toza qoladi)
   useEffect(() => {
@@ -152,7 +163,7 @@ export function usePagedList<T>({
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
   return {
-    rows: body?.results ?? [],
+    rows: body?.results ?? (EMPTY_ROWS as T[]),
     info,
     totals: body?.totals,
     loading, ready, error,

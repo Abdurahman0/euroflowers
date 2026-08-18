@@ -1,6 +1,6 @@
 "use client";
 import type {
-  Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult,
+  Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult, AICatalogInput, AICatalogItem,
   CloseIssuePreview, CloseIssueInput, CloseIssueResult,
   AISettings, Analytics, AuditLog, BatchUsage, Branch, BranchReport, BusinessSettings, CatalogItem, CatalogTransfer, CatalogTransferInput, Conversation, Customer, Dashboard, Debt, DebtByCustomer,
   Expense, ExpenseOptions, ExpenseSummary, Flower, FloristAttendance, FloristInput, FloristProfile, FloristSalaryEntry, FloristStockBalance, FloristStockIssue, FloristStockIssueInput, FloristStockReturnInput, FloristVolumeRate, FlowerVariant,
@@ -988,6 +988,8 @@ export const api = {
     request<Packaging>("/api/packaging/", { method: "POST", body: JSON.stringify(data) }),
   updatePackaging: (id: number, data: Partial<Packaging>) =>
     request<Packaging>(`/api/packaging/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  sellPackaging: (id: number, data: { quantity?: number; sale_price?: string; payment_type?: string; reason?: string; sold_at?: string }) =>
+    request<MaterialMovement>(`/api/packaging/${id}/sell/`, { method: "POST", body: JSON.stringify(data) }),
 
   /** Material sklad — /api/materials/* aliaslar (ichkarida Packaging modeli) */
   materials: (p?: Params) => list<Packaging>("/api/materials/", p),
@@ -1014,6 +1016,14 @@ export const api = {
   materialReceive: (id: number, data: MaterialReceiveInput) =>
     request<MaterialMovement>(`/api/material-deliveries/${id}/receive/`, { method: "POST", body: JSON.stringify(data) }),
 
+  /* ===== AI KATALOG — mijozga ko'rsatiladigan katalog, ichki katalogdan alohida ===== */
+  aiCatalog: (p?: Params) => list<AICatalogItem>("/api/ai-catalog/", p),
+  createAICatalogItem: (data: AICatalogInput) =>
+    request<AICatalogItem>("/api/ai-catalog/", { method: "POST", body: JSON.stringify(data) }),
+  updateAICatalogItem: (id: number, data: Partial<AICatalogInput>) =>
+    request<AICatalogItem>(`/api/ai-catalog/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteAICatalogItem: (id: number) => request<void>(`/api/ai-catalog/${id}/`, { method: "DELETE" }),
+
   /** Audit jurnali. Filtrlar SERVER tomonda:
       user (yoki user_id), action, entity_type, created_at_after/before, search */
   audit: (p?: Params) => list<AuditLog>("/api/audit/", p),
@@ -1021,6 +1031,10 @@ export const api = {
   /** Florist keldi-ketdi yozuvlari — check-in bildirishnomasidan o'tish uchun */
   attendance: (p?: Params) => list<FloristAttendance>("/api/florist-attendance/", p),
   attendanceEntry: (id: number) => request<FloristAttendance>(`/api/florist-attendance/${id}/`),
+  attendanceCheckIn: (data?: { latitude?: number; longitude?: number }) =>
+    request<FloristAttendance>("/api/florist-attendance/check-in/", { method: "POST", body: JSON.stringify(data ?? {}) }),
+  attendanceCheckOut: (data?: { latitude?: number; longitude?: number }) =>
+    request<FloristAttendance>("/api/florist-attendance/check-out/", { method: "POST", body: JSON.stringify(data ?? {}) }),
 
   // Eslatma: /api/mini-app/* endpointlari Telegram mini-ilova uchun
   // (init_data imzosi talab qilinadi) — CRM interfeysidan chaqirilmaydi.

@@ -119,6 +119,9 @@ export const useStore = create<State>((set, get) => ({
         console.warn("[branch] /api/me/ profile has no `branch` key — treating as MAIN (unrestricted). If this is a branch user, nav/route gating FAILS OPEN.");
       }
       set({ user, permissions: user.permission_matrix ?? user.permissions ?? [], userLoading: false });
+      // /api/me va notificationlar parallel boshlanishi mumkin; user aniqlangach
+      // florist workspace uchun ruxsat etilgan notificationlarni qayta sinxronlaymiz.
+      if (user.profile.role === "florist" || user.profile.role === "apprentice") get().loadNotifs();
     } catch {
       set({ user: null, permissions: [], userLoading: false });
     }
@@ -126,7 +129,11 @@ export const useStore = create<State>((set, get) => ({
 
   loadNotifs: async () => {
     try {
-      const notifs = await api.notifications({ ordering: "-created_at" });
+      const rawNotifs = await api.notifications({ ordering: "-created_at" });
+      const role = get().user?.profile.role;
+      const notifs = role === "florist" || role === "apprentice"
+        ? rawNotifs.filter((n) => ["florist_salary", "attendance", "florist_catalog"].includes(n.notification_type))
+        : rawNotifs;
       // polling fallback ham yangi bildirishnomani toast qiladi (WS'siz rejim)
       if (seenNotifIds) {
         const fresh = notifs.find((n) => !n.is_read && !seenNotifIds!.has(n.id));
@@ -189,6 +196,8 @@ export const useStore = create<State>((set, get) => ({
         // moslashuvchan format: {notification: {...}} yoki bildirishnomaning o'zi
         const n = (data?.notification ?? data) as Partial<Notification>;
         if (n && typeof n.id === "number" && n.notification_type) {
+          const staff = get().user?.profile.role === "florist" || get().user?.profile.role === "apprentice";
+          if (staff && !["florist_salary", "attendance", "florist_catalog"].includes(n.notification_type)) return;
           set((s) => ({
             notifs: s.notifs.some((x) => x.id === n.id)
               ? s.notifs.map((x) => (x.id === n.id ? ({ ...x, ...n } as Notification) : x))
@@ -302,8 +311,8 @@ const ROLE_FALLBACK: Record<Role, PermissionPage[]> = {
   developer: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "ai_settings", "integrations", "users", "mini_app", "audit"],
   admin: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "users", "audit"],
   operator: ["dashboard", "crm", "customers", "conversations", "catalog", "social_posts", "notifications"],
-  florist: ["dashboard", "inventory", "catalog", "notifications", "attendance"],
-  apprentice: ["dashboard", "inventory", "catalog", "notifications", "attendance"],
+  florist: ["notifications", "attendance", "florists"],
+  apprentice: ["notifications", "attendance", "florists"],
   supervisor: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "suppliers", "florists", "attendance", "notifications"],
   warehouse: ["dashboard", "inventory", "catalog", "notifications", "suppliers"],
   content: ["dashboard", "catalog", "social_posts", "notifications"],

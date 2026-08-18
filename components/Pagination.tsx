@@ -17,6 +17,7 @@ export default function Pagination({
   onPage,
   onPageSize,
   pageSizeOptions = PAGE_SIZE_OPTIONS,
+  alwaysShow = false,
   label = "yozuv",
   busy = false,
 }: {
@@ -24,13 +25,15 @@ export default function Pagination({
   onPage: (page: number) => void;
   onPageSize?: (size: number) => void;
   pageSizeOptions?: readonly number[];
+  /** Show the page status even when a filtered result has only one page. */
+  alwaysShow?: boolean;
   /** «154 ta yozuv» dagi so'z */
   label?: string;
   busy?: boolean;
 }) {
   const { page, totalPages, hasNext, hasPrevious, count, from, to } = info;
   // ⚠️ Bitta sahifa va tanlagich kerak bo'lmasa — umuman chizmaymiz (bo'sh panel qolmasin)
-  if (totalPages <= 1 && !onPageSize) return null;
+  if (totalPages <= 1 && !onPageSize && !(alwaysShow && count > 0)) return null;
 
   const btn = "flex h-9 min-w-9 items-center justify-center rounded-[12px] border px-2 text-[12.5px] font-bold transition-all duration-150 hover:-translate-y-px hover:shadow-sm disabled:pointer-events-none disabled:opacity-35";
 

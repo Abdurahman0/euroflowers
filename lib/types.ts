@@ -206,6 +206,11 @@ export type Supplier = {
   /** «Umumiy sotib olingan» — Σ received_stems × cost_per_stem.
       ⚠️ TEKIN gul (is_free) tannarxi 0 → bu summaga KIRMAYDI: faqat haqiqatda pul to'langan gul. */
   purchase_total?: string;
+  material_deliveries_count?: number;
+  material_received_quantity?: number;
+  flower_purchase_total?: string;
+  material_purchase_total?: string;
+  material_deliveries?: MaterialDelivery[];
   /** Yozib borilgan to'lovlar yig'indisi (/api/supplier-payments/). ⚠️ QARZ EMAS —
       backend `outstanding` maydonini butunlay olib tashladi (har xarid to'liq to'lanadi),
       shuning uchun buni purchase_total dan AYIRMANG. */
@@ -1178,7 +1183,27 @@ export type MaterialMovement = {
   delivery?: number | null;
   /** o'sha kirimdagi dona tannarxi. Eski yozuvlarda bo'lmaydi. */
   unit_cost?: string | null;
+  unit_price?: string | null;
+  payment_type?: PaymentType | string | null;
 };
+
+/** AI mijoz katalogi — ichki ishlab chiqarish katalogidan alohida. */
+export type AICatalogItem = {
+  id: number;
+  name: string;
+  arrangement_type: string;
+  quantity: number;
+  volume: string;
+  price: string;
+  note: string;
+  image_url: string;
+  instagram_link: string;
+  is_active: boolean;
+  created_by?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+export type AICatalogInput = Partial<Omit<AICatalogItem, "id" | "created_at" | "updated_at" | "created_by">> & { name: string; price: string };
 
 /** MATERIAL YUKI (delivery) — kirimlarni guruhlaydigan yozuv (raqam·sana·postavshik).
     ⚠️ `number` TAKRORLANADI — id keys/lookup, sana raqam yonida. Gul Yuki twin'i. */
@@ -1199,6 +1224,7 @@ export type MaterialDelivery = {
   item_count: number;
   total_quantity: number;
   total_cost: string | number;
+  items?: { movement_id: number; packaging: number; name_uz: string; packaging_type?: PackagingType | string; quantity: number; unit_cost: string | number }[];
 };
 export type MaterialDeliveryInput = { number: string; received_at?: string; supplier?: number | null; note?: string };
 /** ⚠️ cost_price berilsa materialning tannarxini QAYTA YOZADI; berilmasa o'zgarmaydi (zero≠bo'sh).
@@ -1785,7 +1811,7 @@ export type InstagramEvent = {
 
 export type ThemeId = "pushti" | "navy" | "bordo" | "zumrad" | "binafsha";
 export type Theme = { id: ThemeId; nomi: string; accent: string; strong: string; accL: string; light: string; dark: string };
-export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "crm" | "bronlar" | "mijozlar" | "qarzdorlar" | "rasxodlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "floristStock" | "branchReport" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
+export type ScreenId = "dashboard" | "analitika" | "hisob" | "chat" | "ai" | "aiCatalog" | "crm" | "bronlar" | "mijozlar" | "qarzdorlar" | "rasxodlar" | "sklad" | "suppliers" | "gullar" | "katalog" | "floristlar" | "floristStock" | "branchReport" | "postlar" | "bildirishnomalar" | "xodimlar" | "integratsiyalar" | "audit" | "sozlamalar";
 export type DateFilter = "bugun" | "hafta" | "oy";
 /** Maxsus davr — YYYY-MM-DD (ikkalasi ham kiritilgan kun bilan) */
 export type DateRange = { from: string; to: string };
