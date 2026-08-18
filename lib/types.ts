@@ -1102,7 +1102,7 @@ export type FloristAttendance = {
   updated_at?: string;
 };
 
-export type PackagingType = "wrap" | "basket" | "box" | "other" | "accessory";
+export type PackagingType = "wrap" | "basket" | "box" | "material" | "other" | "accessory";
 
 /** Materialning OXIRGI kirim partiyasi — materialda doimiy postavshik YO'Q, u shundan olinadi.
     ⚠️ null = hech qachon kirim bo'lmagan (toza tire ko'rsatiladi, "null" emas). */

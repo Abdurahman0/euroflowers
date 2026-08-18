@@ -118,7 +118,7 @@ function MatSummary({ moves, totals }: { moves: MaterialMovement[]; totals?: Rec
   );
 }
 
-const MAT_TYPES: PackagingType[] = ["wrap", "basket", "box", "other"];
+const MAT_TYPES: PackagingType[] = ["wrap", "basket", "box", "material", "other"];
 
 export default function SkladPage() {
   const router = useRouter();

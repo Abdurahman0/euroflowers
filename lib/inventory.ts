@@ -547,6 +547,7 @@ export const PACKAGING_LABEL: Record<PackagingType, string> = {
   wrap: "Buket qog'ozi",
   basket: "Savat",
   box: "Quti",
+  material: "Material",
   other: "Aksessuarlar",
   accessory: "Aksessuarlar",
 };

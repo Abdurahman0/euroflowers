@@ -1,5 +1,5 @@
 "use client";
-import { ArrowDown, ArrowUp, Box, Newspaper, Pencil, Plus, ShoppingBasket, ShoppingCart, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Box, Newspaper, Package as PackageIcon, Pencil, Plus, ShoppingBasket, ShoppingCart, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
@@ -25,15 +25,13 @@ import type { BasketMaterial, MaterialDelivery, MaterialMovement, MaterialUnit, 
 /**
  * Material sklad — Buket qog'ozi / Savat / Quti / Aksessuarlar bo'yicha bo'limlangan
  * (backend: /api/materials/*, ichkarida Packaging modeli, packaging_type enum:
- * wrap|basket|box|other). Kirim-chiqim movement orqali yuritiladi.
+ * wrap|basket|box|material|other). Kirim-chiqim movement orqali yuritiladi.
  */
 
-// backend enumi: wrap|basket|box|other (accessory YO'Q — eski qiymat other'ga tushiriladi)
-const GROUP_ORDER: PackagingType[] = ["wrap", "basket", "box", "other"];
-const GROUP_ICON: Record<string, LucideIcon> = { wrap: Newspaper, basket: ShoppingBasket, box: Box, other: Sparkles };
+const GROUP_ORDER: PackagingType[] = ["wrap", "basket", "box", "material", "other"];
+const GROUP_ICON: Record<string, LucideIcon> = { wrap: Newspaper, basket: ShoppingBasket, box: Box, material: PackageIcon, other: Sparkles };
 const TYPE_LABEL = PACKAGING_LABEL;
-/** har qanday qiymatni backend enumiga tushiradi (eski "accessory" → "other") */
-const normType = (t: string): PackagingType => (GROUP_ORDER.includes(t as PackagingType) ? (t as PackagingType) : "other");
+const normType = (t: string): PackagingType => (t === "accessory" ? "other" : GROUP_ORDER.includes(t as PackagingType) ? (t as PackagingType) : "material");
 
 /**
  * MATERIAL yaratish/tahrirlash. §3: yangi material YARATILAYOTGANDA uni darrov bir yukka
@@ -51,7 +49,7 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
   const [f, setF] = useState({
     name_uz: material?.name_uz ?? "",
     name_ru: material?.name_ru ?? "",
-    packaging_type: accessoryOnly ? "other" : normType(material?.packaging_type ?? "wrap"),
+    packaging_type: accessoryOnly ? "other" : normType(material?.packaging_type ?? "material"),
     size: material?.size ?? "",
     unit: (accessoryOnly ? "piece" : material?.unit === "bunch" ? "bunch" : "piece") as MaterialUnit,
     units_per_bunch: material?.units_per_bunch ? String(material.units_per_bunch) : "",

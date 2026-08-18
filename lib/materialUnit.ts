@@ -166,7 +166,7 @@ export function buildReceivePayload(v: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   §5 SARFLANADIGAN MATERIALLAR — katalog/sotuv tanlagichlaridan CHIQARIB TASHLASH
+   §5 MATERIAL VA AKSESSUARLAR — katalog/sotuv tanlagichlarida ikkalasi ham ishlatiladi
    ═══════════════════════════════════════════════════════════════════════════
    Gupka / Lenta / Lak FAQAT kirim uchun — ular buketga «qo'shiladigan» material emas.
 
@@ -187,10 +187,10 @@ export function buildReceivePayload(v: {
    (MATERIALS_GAPS.md GAP 5). Yangi sarflanadigan material "other"dan boshqa turga
    qo'yilsa — bu evristika buziladi. Shu bayroq kelganda SHU FUNKSIYA o'zgartiriladi,
    chaqiruvchilar (kompozitor + sotuv) tegilmaydi. */
-export const isConsumableOnly = (m: Pick<Packaging, "packaging_type">): boolean => m.packaging_type === "other";
+export const isConsumableOnly = (_m: Pick<Packaging, "packaging_type">): boolean => false;
 
 /** Katalog/sotuvda ISHLATILADIGAN materiallar (sarflanadiganlarsiz). */
-export const usableInCatalog = <T extends Pick<Packaging, "packaging_type">>(list: T[]): T[] => list.filter((m) => !isConsumableOnly(m));
+export const usableInCatalog = <T extends Pick<Packaging, "packaging_type">>(list: T[]): T[] => list;
 
 /** Tannarx 0 qilinmoqdami — ogohlantirish uchun (katalog tannarxi retroaktiv siljiydi). */
 export const receiveZeroCost = (cost: string | number | null | undefined): boolean => {

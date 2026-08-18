@@ -128,13 +128,14 @@ export default function KatalogSellModal({
   }, []);
   const matOf = (id: number) => materials.find((m) => m.id === id);
   const accessories = useMemo(() => materials.filter((m) => m.packaging_type === "other"), [materials]);
+  const catalogMaterials = useMemo(() => materials.filter((m) => m.packaging_type !== "other"), [materials]);
   const matGroups = useMemo(() => {
     const g = new Map<string, Packaging[]>();
     materials.forEach((m) => { (g.get(m.packaging_type) ?? g.set(m.packaging_type, []).get(m.packaging_type)!).push(m); });
     return g;
   }, [materials]);
   const addSaleItem = (source: Packaging[]) => { const used = new Set(saleMats.map((m) => m.packaging)); const next = source.find((p) => !used.has(p.id)); if (next) setSaleMats([...saleMats, { packaging: next.id, qty: "1" }]); };
-  const addSaleMat = () => addSaleItem(materials.filter((m) => m.packaging_type !== "other"));
+  const addSaleMat = () => addSaleItem(catalogMaterials);
   const addSaleAccessory = () => addSaleItem(accessories);
   const selectedMaterialCount = saleMats.filter((m) => matOf(m.packaging)?.packaging_type !== "other").length;
   const selectedAccessoryCount = saleMats.filter((m) => matOf(m.packaging)?.packaging_type === "other").length;
@@ -579,7 +580,7 @@ export default function KatalogSellModal({
                 );
               })}
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={addSaleMat} disabled={!materials.some((m) => m.packaging_type !== "other") || selectedMaterialCount >= materials.filter((m) => m.packaging_type !== "other").length} className="rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3 py-1.5 text-[12px] font-bold disabled:opacity-50">
+                <button type="button" onClick={addSaleMat} disabled={!catalogMaterials.length || selectedMaterialCount >= catalogMaterials.length} className="rounded-full border border-[color:var(--border-strong)] bg-[color:var(--hover)] px-3 py-1.5 text-[12px] font-bold disabled:opacity-50">
                   <Plus size={14} strokeWidth={1.75} className="mr-1 inline" /> Material qo&apos;shish
                 </button>
                 <button type="button" onClick={addSaleAccessory} disabled={accessories.length === 0 || selectedAccessoryCount >= accessories.length} className="rounded-full border px-3 py-1.5 text-[12px] font-bold disabled:opacity-50" style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
