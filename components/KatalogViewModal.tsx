@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import FreeBatchChip from "./FreeBatchChip";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import type { CatalogHistory, CatalogHistoryAction, CatalogItem } from "@/lib/types";
+import { deductionState } from "@/lib/catalogStock";
 
 /**
  * Katalog yozuvining BATAFSIL ko'rinishi — rasm, tarkib (skladdan),
@@ -65,9 +66,12 @@ export default function KatalogViewModal({
   }, [item]);
 
   const total = full.quantity_total ?? 1;
-  const sold = full.quantity_sold ?? (full.status === "sold" ? total : 0);
-  const dedu = full.quantity_stock_deducted ?? (full.stock_deducted_at ? sold : 0);
-  const pending = Math.max(sold - dedu, 0);
+  // ⚠️ Modal AVVAL ro'yxat yozuvi bilan chiziladi (u yerda yechish maydonlari YO'Q),
+  // keyin detal javobiga almashadi. `deductionState` bilmagan holatni 0 qiladi —
+  // shu bois bir lahzaga bo'lsa ham yolg'on «Chiqim kutilmoqda» chiqmaydi.
+  const ded = deductionState(full);
+  const sold = ded.sold;
+  const pending = ded.pending;
   // ⚠️ QOLDIQ — chiqit va RESTAVRATSIYA ham ayriladi (lib/rework)
   const left = catalogRemaining(full);
   const discount = Math.round(+(full.discount_amount ?? 0) || 0);

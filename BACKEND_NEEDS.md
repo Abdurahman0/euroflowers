@@ -123,3 +123,65 @@ long-lived, add `POST /api/auth/token/blacklist/` (simplejwt blacklist app).
 | Social posts, notifications + `read`, packaging, branches | OK |
 
 *Test artifacts left in DB: stock batch `E2E-TEST-1` (id 13) — deactivated with 0 stems; one `in +5 (E2E test restore)` movement on batch 1 offsetting the test deduction; a few test messages in conversation 1.*
+
+---
+
+## ⚠️ 2026-08-19 — `/api/catalog/` ro'yxatida ikkita maydon yetishmayapti (XAVFLI)
+
+**So'rov:** `quantity_stock_deducted` va `stock_deducted_at` ni katalog RO'YXAT
+serializeriga qo'shing (detalda ular allaqachon bor).
+
+### Nima bo'lgan
+
+Ro'yxat javobi yengil serializerdan chiqadi va 17 ta maydonni tashlab ketadi —
+shular orasida yuqoridagi ikkitasi ham bor:
+
+| So'rov | `quantity_stock_deducted` | `stock_deducted_at` |
+|---|---|---|
+| `GET /api/catalog/` (har qanday `page_size`, `status` bilan ham) | **YO'Q** | **YO'Q** |
+| `GET /api/catalog/{id}/` | `4` | `2026-08-19T20:07:42+05:00` |
+
+Katalog kartasi ro'yxatdan o'qiydi. Maydon kelmagani uchun «yechilgan» 0 deb
+qabul qilinib, kartada shunday yozuv chiqardi:
+
+```
+⚠ 3 ta sotuv skladdan hali kamaytirilmagan. Kamaytirilsinmi?
+   [ Ha, kamaytirish (3 ta) ]
+```
+
+**290 katalogdan 261 tasida** shu ogohlantirish turgan. Tekshirdik — hammasi
+YOLG'ON. Detal endpoint bo'yicha o'sha yozuvlar allaqachon yechilgan:
+
+```
+#539  sotilgan 4   yechilgan 4    2026-08-19T20:07:42
+#537  sotilgan 3   yechilgan 9    2026-08-19T20:04:42
+#532  sotilgan 13  yechilgan 22   2026-08-19T19:41:13
+#523  sotilgan 10  yechilgan 10   2026-08-19T08:49:31
+... tekshirilgan 10 tadan haqiqatan yechilmagani: 0 ta
+```
+
+Tugma `POST /api/catalog/{id}/deduct_stock/` yuboradi — ya'ni operator uni
+bosgan bo'lsa **sklad IKKINCHI marta kamaygan** bo'lardi. Bu qaytarib
+bo'lmaydigan zarar.
+
+### Frontend tomonda nima qilindi
+
+`lib/catalogStock.ts` qo'shildi: maydon KELMAGAN bo'lsa `known: false` va
+`pending: 0` — biz bilmagan holda buzadigan amalni TAKLIF QILMAYMIZ. Ya'ni
+ogohlantirish endi faqat detal ma'lumoti bo'lganda va haqiqatan yechilmaganda
+chiqadi.
+
+⚠️ Bu **vaqtinchalik qalqon**: ro'yxatda maydon bo'lmagani uchun haqiqatan
+yechilmagan yozuv ham ro'yxatda ogohlantirish BERMAYDI (faqat kartani ochganda
+ko'rinadi). To'liq tiklanishi uchun serializer tuzatilishi kerak.
+
+### Yana bir savol
+
+`quantity_stock_deducted` ba'zan `quantity_sold` dan KATTA:
+`#537` sotilgan 3 / yechilgan 9, `#532` sotilgan 13 / yechilgan 22 — ya'ni
+yechish butun `quantity_total` bo'yicha bajarilganga o'xshaydi. Shundaymi?
+Agar shunday bo'lsa, `sold - deducted` formulasi umuman to'g'ri o'lchov emas va
+«kutilmoqda» ni qanday hisoblash kerakligini aytib bering.
+
+**Va:** `deduct_stock/` takroriy bosilganda himoyalanganmi (idempotent)? Biz
+buni sinab ko'rmadik — jonli skladga yozish bo'lardi.

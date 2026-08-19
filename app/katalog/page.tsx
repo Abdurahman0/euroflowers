@@ -31,6 +31,7 @@ import RestavratsiyaModal from "@/components/RestavratsiyaModal";
 import Pagination from "@/components/Pagination";
 import { usePagedList } from "@/lib/usePagedList";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
+import { deductionState } from "@/lib/catalogStock";
 
 /** Florist ismi (user_detail'dan) — bo'lmasa bo'sh */
 const floristName = (fp?: FloristProfile | null): string => {
@@ -406,9 +407,12 @@ export default function KatalogPage() {
         {shownItems.map((k) => {
           // yangi kontrakt: soni bilan ishlash; eski yozuvlar uchun statusga tayanamiz
           const total = k.quantity_total ?? 1;
-          const sold = k.quantity_sold ?? (k.status === "sold" ? total : 0);
-          const dedu = k.quantity_stock_deducted ?? (k.stock_deducted_at ? sold : 0);
-          const pending = Math.max(sold - dedu, 0);
+          // ⚠️ `pending` — `lib/catalogStock` dan. Ro'yxat javobida `quantity_stock_deducted`
+          // va `stock_deducted_at` UMUMAN kelmaydi, shuning uchun bu yerda ularni to'g'ridan-
+          // to'g'ri o'qish 261 ta yozuvda YOLG'ON «kamaytirilmagan» ogohlantirishi bergan edi.
+          const ded = deductionState(k);
+          const sold = ded.sold;
+          const pending = ded.pending;
           // ⚠️ QOLDIQ — YAGONA manba: sotilgan + chiqit + RESTAVRATSIYA ayriladi.
           const left = catalogRemaining(k);
           const sellable = left > 0 && (k.status === "available" || k.status === "reserved" || k.status === "draft");
