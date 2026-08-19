@@ -32,12 +32,12 @@ import Pagination from "@/components/Pagination";
 import { usePagedList } from "@/lib/usePagedList";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 import { deductionState } from "@/lib/catalogStock";
+import { floristLabel, type FloristLike } from "@/lib/floristLabel";
 
-/** Florist ismi (user_detail'dan) — bo'lmasa bo'sh */
-const floristName = (fp?: FloristProfile | null): string => {
-  const u = fp?.user_detail;
-  return fp ? [u?.first_name, u?.last_name].filter(Boolean).join(" ") || u?.username || `#${fp.id}` : "";
-};
+/** ⚠️ Florist ismi — `lib/floristLabel` dan. Katalog javobidagi `florist_detail`
+    YUPQA shaklda keladi (`{id, name}`, `user_detail` YO'Q), shuning uchun faqat
+    `user_detail` ni o'qiydigan eski helper ekranga «#4» chiqarardi. */
+const floristName = (fp?: FloristLike, readyName?: string | null): string => floristLabel(fp, readyName);
 
 const compositionText = (k: CatalogItem) =>
   (k.composition ?? [])
@@ -53,10 +53,6 @@ const isUndistributed = (k: CatalogItem) => catalogWaiting(k);
 // ⚠️ BROWSING FILTRI (server hisobotlariga TA'SIR QILMAYDI — sotilgan itemlar tarixiy fakt).
 // StatusBcdEnum = draft/available/reserved/sold/archived. «Sotilgan» = status sold YOKI soni to'lgan
 // (quantity_sold >= quantity_total) — soni AVTORITATIV, status «available» qolib ketgan bo'lsa ham.
-const isArchived = (k: CatalogItem) => k.status === "archived";
-const isSold = (k: CatalogItem) =>
-  !isArchived(k) && (k.status === "sold" || (k.quantity_total != null && k.quantity_total > 0 && (k.quantity_sold ?? 0) >= k.quantity_total));
-const isAvailableForSale = (k: CatalogItem) => !isArchived(k) && !isSold(k);
 type StatusView = "sotuvda" | "sold" | "archived" | "all";
 const STATUS_VIEWS: { value: StatusView; label: string }[] = [
   { value: "sotuvda", label: "Sotuvda" },
@@ -416,8 +412,16 @@ export default function KatalogPage() {
           // ⚠️ QOLDIQ — YAGONA manba: sotilgan + chiqit + RESTAVRATSIYA ayriladi.
           const left = catalogRemaining(k);
           const sellable = left > 0 && (k.status === "available" || k.status === "reserved" || k.status === "draft");
-          // sotilgan/arxiv item ko'rsatilganda MUTED — sotuvdagi tovar bilan chalkashmasin (status chip qoladi)
-          const dimmed = isSold(k) || isArchived(k);
+          /**
+           * ⚠️ XIRALASHTIRISH — FAQAT SERVER holati bo'yicha.
+           * Ilgari klient `isSold` qoidasi ishlatilardi (`quantity_sold >= quantity_total`),
+           * va u `status: "available"` bo'lgan mahsulotni ham sotilgandek xiralashtirardi:
+           * server «Sotuvda» guruhiga qo'ygan qator ekranda o'chgan holda ko'rinardi
+           * (jonli: #443 1/1, #348 3/3, #257 4/4 — hammasi `available`).
+           * Guruhlashni endi server hal qiladi (`?status_group=`), shu bois ko'rinish ham
+           * uning holatiga ergashadi.
+           */
+          const dimmed = k.status === "sold" || k.status === "archived";
           return (
             <article key={k.id} className="glass card-hover group flex flex-col overflow-hidden !rounded-[20px]" style={dimmed ? { opacity: 0.6 } : undefined}>
               <div
@@ -494,17 +498,17 @@ export default function KatalogPage() {
                     (florist kimligi asosiy filial ishi; catalogHasCostData bilan gate). */}
                 {catalogHasCostData(k) && (k.florist_detail ? (
                   <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>
-                    <span className="avatar-lead flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold">{initials(floristName(k.florist_detail))}</span>
-                    <span className="truncate" title={floristName(k.florist_detail)}>{floristName(k.florist_detail)}</span>
+                    <span className="avatar-lead flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold">{initials(floristName(k.florist_detail, k.florist_name))}</span>
+                    <span className="truncate" title={floristName(k.florist_detail, k.florist_name)}>{floristName(k.florist_detail, k.florist_name)}</span>
                   </span>
                 ) : (
                   <span className="text-[12px] italic" style={{ color: "var(--muted)" }}>Florist ko&apos;rsatilmagan</span>
                 ))}
                 {/* OFORMLENIYA floristi — ALOHIDA chip (accent + Sparkles), yasovchidan farqlansin */}
                 {catalogHasCostData(k) && k.decoration_florist_detail && (
-                  <span className="flex min-w-0 items-center gap-1 text-[11.5px] font-semibold" style={{ color: "var(--acc)" }} title={`Oformleniya: ${floristName(k.decoration_florist_detail)}`}>
+                  <span className="flex min-w-0 items-center gap-1 text-[11.5px] font-semibold" style={{ color: "var(--acc)" }} title={`Oformleniya: ${floristName(k.decoration_florist_detail, k.decoration_florist_name)}`}>
                     <Sparkles size={12} strokeWidth={2} className="shrink-0" />
-                    <span className="truncate">{floristName(k.decoration_florist_detail)}</span>
+                    <span className="truncate">{floristName(k.decoration_florist_detail, k.decoration_florist_name)}</span>
                   </span>
                 )}
                 {/* KUTAYAPTI: material+haq hisobda, faqat gul tannarxi yopilganda qo'shiladi → foyda hali to'liq emas */}
@@ -675,7 +679,7 @@ export default function KatalogPage() {
                 </p>
               ) : (
                 <p className="mt-2 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold leading-snug" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
-                  ↩ Gullar <b>skladga emas, {confirmDel.florist_detail ? floristName(confirmDel.florist_detail) : "floristning"} qo&apos;liga</b> qaytadi.
+                  ↩ Gullar <b>skladga emas, {confirmDel.florist_detail ? floristName(confirmDel.florist_detail, confirmDel.florist_name) : "floristning"} qo&apos;liga</b> qaytadi.
                 </p>
               )
             ) : null}

@@ -40,9 +40,19 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [rates, setRates] = useState<FloristVolumeRate[]>([]);
   const [kind, setKind] = useState<CatalogKind>(item?.catalog_kind ?? "standard");
   const [volume, setVolume] = useState<CatalogVolume | "">(item?.volume ?? "");
-  const [florist, setFlorist] = useState<number>(item?.florist ?? 0);
+  /**
+   * ⚠️ `florist` IKKI XIL KELADI va bu tanlagichni buzardi:
+   *      RO'YXAT javobi  → "Abror"  (ISM, satr)
+   *      DETAL javobi    → 4        (id, son)
+   * Tahrirlash oynasi RO'YXAT qatoridan ochiladi, ya'ni bu yerga ism tushardi —
+   * `<Select value="Abror">` hech bir variantga mos kelmay, florist TANLANMAGAN
+   * bo'lib ko'rinardi. Shu bois id DOIM `florist_detail.id` dan olinadi.
+   */
+  const floristId = (v: unknown, det?: { id?: number | null } | null): number =>
+    typeof v === "number" ? v : det?.id ?? 0;
+  const [florist, setFlorist] = useState<number>(floristId(item?.florist, item?.florist_detail));
   // OFORMLENIYA floristi — yasagandan ALOHIDA, ixtiyoriy. Haq = decoration_fee × quantity_total (backend yozadi).
-  const [decorationFlorist, setDecorationFlorist] = useState<number>(item?.decoration_florist ?? 0);
+  const [decorationFlorist, setDecorationFlorist] = useState<number>(floristId(item?.decoration_florist, item?.decoration_florist_detail));
   // ORQAGA SANA — create'da yig'iq (sukut bugun); TAHRIRda doim ochiq (mavjud sanadan boshlanadi).
   // ⚠️ Bu KATALOG YARATILGAN sana (created_at). SOTUV sanasi (sold_at) — ALOHIDA maydon, sotish oynasida.
   const [dateOn, setDateOn] = useState(false);

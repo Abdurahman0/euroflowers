@@ -532,12 +532,18 @@ export type CatalogItem = {
   /** florist OYLIGIGA yoziladigan summa — maxsus katalogda fee'dan AJRATILGAN
       (backend: custom'da florist_fee avtomatik oylikka qo'shilmaydi). ⚠️ FILIALGA null. */
   florist_salary_amount?: string | null;
-  /** ⚠️ FILIALGA null — kim yasagani asosiy filial ishi. */
-  florist?: number | null;
-  florist_detail?: FloristProfile | null;
+  /** ⚠️ FILIALGA null — kim yasagani asosiy filial ishi.
+      ⚠️ RO'YXAT javobida bu maydon ISM (satr) bo'lib keladi, id EMAS. */
+  florist?: number | string | null;
+  /** ⚠️ Katalog javobida YUPQA shakl: `{id, name, staff_type, phone, user}` —
+      `user_detail` YO'Q. Ismni DOIM `lib/floristLabel` orqali o'qing. */
+  florist_detail?: (FloristProfile & { name?: string | null }) | { id: number; name?: string | null } | null;
+  /** server tayyorlagan ism — eng ishonchli manba */
+  florist_name?: string | null;
   /** OFORMLENIYA floristi — bezash uchun (yasagandan ALOHIDA, ixtiyoriy). */
-  decoration_florist?: number | null;
-  decoration_florist_detail?: FloristProfile | null;
+  decoration_florist?: number | string | null;
+  decoration_florist_detail?: (FloristProfile & { name?: string | null }) | { id: number; name?: string | null } | null;
+  decoration_florist_name?: string | null;
   /** backend AVTOMATIK yozadi (tanlangan decoration_florist decoration_fee × quantity_total).
       «read-only kabi» ishlating — yubormang; server hisoblaydi. ⚠️ FILIALGA null (tannarx). */
   decoration_salary_amount?: string | null;

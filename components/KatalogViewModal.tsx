@@ -12,6 +12,7 @@ import FreeBatchChip from "./FreeBatchChip";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import type { CatalogHistory, CatalogHistoryAction, CatalogItem } from "@/lib/types";
 import { deductionState } from "@/lib/catalogStock";
+import { floristLabel } from "@/lib/floristLabel";
 
 /**
  * Katalog yozuvining BATAFSIL ko'rinishi — rasm, tarkib (skladdan),
@@ -185,13 +186,13 @@ export default function KatalogViewModal({
         {showCost && full.florist_detail && (
           <Row
             k="Florist (yasagan)"
-            v={[full.florist_detail.user_detail?.first_name, full.florist_detail.user_detail?.last_name].filter(Boolean).join(" ") || full.florist_detail.user_detail?.username || `#${full.florist_detail.id}`}
+            v={floristLabel(full.florist_detail, full.florist_name)}
           />
         )}
         {showCost && full.decoration_florist_detail && (
           <Row
             k="Oformleniya floristi"
-            v={[full.decoration_florist_detail.user_detail?.first_name, full.decoration_florist_detail.user_detail?.last_name].filter(Boolean).join(" ") || full.decoration_florist_detail.user_detail?.username || `#${full.decoration_florist_detail.id}`}
+            v={floristLabel(full.decoration_florist_detail, full.decoration_florist_name)}
           />
         )}
         {full.customer_detail && (

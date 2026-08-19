@@ -54,14 +54,16 @@ export const buildFloristComposition = (batchIds: number[]): { stock_batch: numb
 /** «Chiqim yopilishini kutayapti» — florist katalogi, gul tanlangan lekin soni hali 0.
     Spec: composition.some(row => quantity_stems === 0). ESKI bo'sh-kompozitsiyali florist
     itemlarni ham qamraydi (comp.length === 0). Operator (floristsiz) katalogi HECH QACHON waiting emas. */
-export const catalogWaiting = (item: { florist?: number | null; composition?: ({ quantity_stems?: number } | null)[] | null }): boolean => {
+// ⚠️ `florist` — ro'yxat javobida ISM (satr), detalda id (son). Bu yerda faqat
+// «bormi-yo'qmi» tekshiriladi, shuning uchun ikkalasi ham qabul qilinadi.
+export const catalogWaiting = (item: { florist?: number | string | null; composition?: ({ quantity_stems?: number } | null)[] | null }): boolean => {
   if (!item.florist) return false;
   const comp = item.composition ?? [];
   return comp.length === 0 || comp.some((c) => ((c?.quantity_stems ?? 0) === 0));
 };
 
 /** Florist katalogi YOPILGANMI — hamma qatorda soni > 0 (qisman to'lgani hali kutayapti). */
-export const catalogClosed = (item: { florist?: number | null; composition?: ({ quantity_stems?: number } | null)[] | null }): boolean =>
+export const catalogClosed = (item: { florist?: number | string | null; composition?: ({ quantity_stems?: number } | null)[] | null }): boolean =>
   !!item.florist && (item.composition?.length ?? 0) > 0 && (item.composition ?? []).every((c) => ((c?.quantity_stems ?? 0) > 0));
 
 export const DELIVERY = {
