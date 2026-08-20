@@ -97,12 +97,18 @@ export function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
  *
  * Savatlar tartibi: hajm bo'yicha (kichik → o'rta → katta → hajmsiz), ichida yangisi oldinda.
  */
-export function splitCatalogView(items: CatalogItem[]): { groups: CatalogGroup[]; singles: CatalogItem[] } {
-  const bouquets = items.filter((k) => typeOf(k) === "bouquet");
-  const rest = items.filter((k) => typeOf(k) !== "bouquet");
+export function splitCatalogView(items: CatalogItem[]): { groups: CatalogGroup[]; singles: CatalogItem[]; customs: CatalogItem[] } {
+  // ⚠️ MAXSUS (custom) katalog HECH QACHON guruhga qo'shilmaydi — u mijoz uchun bir marta
+  //    yasalgan buyum, o'z kartasi bilan «Maxsus katalog» bo'limida turadi.
+  const isCustom = (k: CatalogItem) => k.catalog_kind === "custom";
   const rank = (k: CatalogItem) => VOLUME_ORDER.indexOf(volumeOf(k));
-  const singles = [...rest].sort((a, b) => rank(a) - rank(b) || b.id - a.id);
-  return { groups: groupCatalog(bouquets), singles };
+  const bySize = (a: CatalogItem, b: CatalogItem) => rank(a) - rank(b) || b.id - a.id;
+  const std = items.filter((k) => !isCustom(k));
+  return {
+    groups: groupCatalog(std.filter((k) => typeOf(k) === "bouquet")),
+    singles: std.filter((k) => typeOf(k) !== "bouquet").sort(bySize),
+    customs: items.filter(isCustom).sort(bySize),
+  };
 }
 
 /**

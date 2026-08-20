@@ -142,3 +142,37 @@ describe("CG4 — savat guruhlanmaydi, alohida karta bo'ladi", () => {
     expect(groups).toHaveLength(1);
   });
 });
+
+describe("CG5 — MAXSUS (custom) katalog guruhga qo'shilmaydi", () => {
+  const items = [
+    item({ id: 1, volume: "large", arrangement_type: "bouquet" }),
+    item({ id: 2, volume: "large", arrangement_type: "bouquet", catalog_kind: "custom" }),
+    item({ id: 3, volume: "small", arrangement_type: "basket" }),
+    item({ id: 4, volume: "small", arrangement_type: "basket", catalog_kind: "custom" }),
+  ];
+
+  it("custom buket guruhga TUSHMAYDI — alohida ro'yxatda", () => {
+    const { groups, customs } = splitCatalogView(items);
+    expect(groups.flatMap((g) => g.items.map((k) => k.id))).toEqual([1]);
+    expect(customs.map((k) => k.id)).toEqual([4, 2]); // kichik → katta
+  });
+
+  it("custom savat «Savatlar» ro'yxatiga ham tushmaydi", () => {
+    expect(splitCatalogView(items).singles.map((k) => k.id)).toEqual([3]);
+  });
+
+  it("custom yo'q bo'lsa ro'yxat bo'sh, qolganlari o'zgarmaydi", () => {
+    const { groups, singles, customs } = splitCatalogView([items[0], items[2]]);
+    expect(customs).toEqual([]);
+    expect(groups).toHaveLength(1);
+    expect(singles).toHaveLength(1);
+  });
+
+  it("guruh sonlariga custom KIRMAYDI (qoldiq yolg'on oshmasin)", () => {
+    const gs = splitCatalogView([
+      item({ id: 1, volume: "large", quantity_total: 5 }),
+      item({ id: 2, volume: "large", quantity_total: 7, catalog_kind: "custom" }),
+    ]).groups;
+    expect(gs[0].remaining).toBe(5);
+  });
+});

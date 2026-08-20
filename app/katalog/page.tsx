@@ -56,12 +56,16 @@ const isUndistributed = (k: CatalogItem) => catalogWaiting(k);
 // ⚠️ BROWSING FILTRI (server hisobotlariga TA'SIR QILMAYDI — sotilgan itemlar tarixiy fakt).
 // StatusBcdEnum = draft/available/reserved/sold/archived. «Sotilgan» = status sold YOKI soni to'lgan
 // (quantity_sold >= quantity_total) — soni AVTORITATIV, status «available» qolib ketgan bo'lsa ham.
-type StatusView = "sotuvda" | "sold" | "archived" | "all";
+/** ⚠️ «custom» — HOLAT emas, KATALOG TURI: maxsus (mijoz uchun bir marta yasalgan)
+    yozuvlarni holatidan qat'i nazar ko'rsatadi. Chip qatorida turishi ataylab:
+    operator uchun bu ham xuddi «Sotuvda / Arxiv» kabi bitta ko'rinish. */
+type StatusView = "sotuvda" | "sold" | "archived" | "all" | "custom";
 const STATUS_VIEWS: { value: StatusView; label: string }[] = [
   { value: "sotuvda", label: "Sotuvda" },
   { value: "sold", label: "Sotilgan" },
   { value: "archived", label: "Arxiv" },
   { value: "all", label: "Barchasi" },
+  { value: "custom", label: "Maxsus katalog" },
 ];
 
 const ARR_OPTS = [
@@ -114,6 +118,7 @@ export default function KatalogPage() {
   const [floristFilter, setFloristFilter] = useState("");
   const [decorationFilter, setDecorationFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
+  const [customCount, setCustomCount] = useState(0);
   const [florists, setFlorists] = useState<FloristProfile[]>([]);
   // MIJOZ filtri — URL ?customer=<id> orqali (mijoz sahifasidan / chipdan); tozalanadigan banner
   const [customerFilter, setCustomerFilter] = useState<{ id: number; label: string } | null>(null);
@@ -126,12 +131,14 @@ export default function KatalogPage() {
   // ⚠️ BITTA SAHIFA = BITTA SO'ROV. Keyingi sahifa faqat foydalanuvchi bosganda olinadi.
   const catalogFilters = useMemo(() => ({
     ordering: "-created_at",
-    status_group: statusView === "sotuvda" ? "available" : statusView,
+    // ⚠️ «Maxsus katalog» ko'rinishi: holat bo'yicha CHEKLAMAYMIZ (sotilgani ham ko'rinsin),
+    //    faqat catalog_kind=custom qo'llanadi.
+    status_group: statusView === "custom" ? "all" : statusView === "sotuvda" ? "available" : statusView,
     search: q || undefined,
     arrangement_type: arrType || undefined,
     florist: floristFilter || undefined,
     decoration_florist: decorationFilter || undefined,
-    catalog_kind: kindFilter || undefined,
+    catalog_kind: statusView === "custom" ? "custom" : kindFilter || undefined,
     customer: customerFilter?.id || undefined,
   }), [statusView, q, arrType, floristFilter, decorationFilter, kindFilter, customerFilter]);
   const paged = usePagedList<CatalogItem>({
@@ -151,11 +158,19 @@ export default function KatalogPage() {
   // florist ro'yxati — filtr uchun (bir marta)
   useEffect(() => { api.florists({ is_active: true, ordering: "user", page_size: "all" }).then(setFlorists).catch(() => {}); }, []);
 
+  // ⚠️ «Maxsus katalog» chipidagi son — bitta kichik so'rov (page_size=1), holatlardan qat'i nazar.
+  //    Ro'yxat yangilanganda (yangi maxsus katalog qo'shilishi mumkin) qayta so'raladi.
+  useEffect(() => {
+    api.catalogPage({ catalog_kind: "custom", status_group: "all", page_size: 1 })
+      .then((r) => setCustomCount(Number(r.count ?? 0)))
+      .catch(() => setCustomCount(0));
+  }, [loadedAt]);
+
   // URL ?status= o'qish (ulashilgan link / refresh o'sha ko'rinishga tushadi) — mount'da bir marta
   useEffect(() => {
     if (typeof window === "undefined") return;
     const s = new URLSearchParams(window.location.search).get("status");
-    if (s === "sold" || s === "archived" || s === "all" || s === "sotuvda") setStatusView(s);
+    if (s === "sold" || s === "archived" || s === "all" || s === "sotuvda" || s === "custom") setStatusView(s);
   }, []);
   const changeStatusView = (v: StatusView) => {
     setStatusView(v);
@@ -186,8 +201,11 @@ export default function KatalogPage() {
       sold: Number(statusTotals?.sold ?? paged.totals?.sold_count ?? 0),
       archived: Number(statusTotals?.archived ?? paged.totals?.archived_count ?? 0),
       all,
+      // ⚠️ `by_kind` FAQAT joriy filtr ichini sanaydi (sotuvdagi 21 yozuvda custom yo'q ≠ umuman yo'q),
+      //    shuning uchun maxsus yozuvlar soni ALOHIDA, holatlardan qat'i nazar so'raladi.
+      custom: customCount,
     };
-  }, [statusTotals, paged.totals, paged.info.count]);
+  }, [statusTotals, paged.totals, paged.info.count, customCount]);
   // Status filtering is done by the API. Filtering the current page again on
   // the client would make server page totals and page numbers look wrong.
   const statusFiltered = items;
@@ -219,7 +237,7 @@ export default function KatalogPage() {
   // «Sotish» — modal orqali: soni + ixtiyoriy chegirma narxi va sababi
   // ⚠️ HAJM GURUHLARI — ko'rinib turgan yozuvlardan (filtr + sahifa) yig'iladi.
   // ⚠️ BUKETLAR — hajm bo'yicha 3 ta guruh kartasi; SAVAT/QUTI — alohida rasmli kartalar.
-  const { groups, singles } = useMemo(() => splitCatalogView(shownItems), [shownItems]);
+  const { groups, singles, customs } = useMemo(() => splitCatalogView(shownItems), [shownItems]);
   // ⚠️ Bir vaqtda BITTA guruh ochiladi va u butun qatorni egallaydi (akkordeon).
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
@@ -475,6 +493,45 @@ export default function KatalogPage() {
             ))}
           </div>
         </>
+      )}
+
+      {/* ⚠️ MAXSUS KATALOG — mijoz uchun bir marta yasalgan buyumlar. Guruhga QO'SHILMAYDI
+          (savat kabi har biri alohida karta) va o'z chipida holatidan qat'i nazar ko'rinadi. */}
+      {customs.length > 0 && (
+        <>
+          <div className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-[1.5px]" style={{ color: "var(--muted)" }}>
+            Maxsus katalog <span className="font-semibold normal-case tracking-normal opacity-80">· mijoz uchun yasalgan, har biri alohida</span>
+          </div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(275px,1fr))" }}>
+            {customs.map((k) => (
+              <CatalogItemCard
+                key={k.id}
+                k={k}
+                actions={{
+                  onSell: setSellItem,
+                  onView: (x) => api.catalogItem(x.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi")),
+                  onEdit: setEditItem,
+                  onDelete: setConfirmDel,
+                  onRework: (x) => setReworkOpen({ source: x }),
+                  onTransfer: setTransferItem,
+                  onDeduct: deduct,
+                  onCustomer: (id, label) => setCustomerFilter({ id, label }),
+                  busyId,
+                  control,
+                  mainUser,
+                  costVisible: catalogHasCostData,
+                  undistributed: isUndistributed,
+                  composition: compositionText,
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ⚠️ «Maxsus katalog» chipida yozuv bo'lmasa — bo'sh ekran emas, sabab aytiladi. */}
+      {statusView === "custom" && customs.length === 0 && !loading && (
+        <EmptyState title="Maxsus katalog yo'q" sub="Mijoz uchun alohida yasalgan buyum qo'shilsa shu yerda ko'rinadi." />
       )}
 
       {sellItem && (
