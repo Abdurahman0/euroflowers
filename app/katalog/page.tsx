@@ -30,7 +30,8 @@ import RestavratsiyaTab from "@/components/RestavratsiyaTab";
 import RestavratsiyaModal from "@/components/RestavratsiyaModal";
 import Pagination from "@/components/Pagination";
 import CatalogGroupCard from "@/components/CatalogGroupCard";
-import { groupCatalog } from "@/lib/catalogGroups";
+import CatalogItemCard from "@/components/CatalogItemCard";
+import { splitCatalogView } from "@/lib/catalogGroups";
 import { usePagedList } from "@/lib/usePagedList";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 import { deductionState } from "@/lib/catalogStock";
@@ -217,7 +218,8 @@ export default function KatalogPage() {
 
   // «Sotish» — modal orqali: soni + ixtiyoriy chegirma narxi va sababi
   // ⚠️ HAJM GURUHLARI — ko'rinib turgan yozuvlardan (filtr + sahifa) yig'iladi.
-  const groups = useMemo(() => groupCatalog(shownItems), [shownItems]);
+  // ⚠️ BUKETLAR — hajm bo'yicha 3 ta guruh kartasi; SAVAT/QUTI — alohida rasmli kartalar.
+  const { groups, singles } = useMemo(() => splitCatalogView(shownItems), [shownItems]);
   // ⚠️ Bir vaqtda BITTA guruh ochiladi va u butun qatorni egallaydi (akkordeon).
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
@@ -440,6 +442,40 @@ export default function KatalogPage() {
         ))}
         {shownItems.length === 0 && <div className="col-span-full"><EmptyState title={floristFilter ? "Bu floristda katalog yo'q" : "Katalog hozircha bo'sh"} sub={floristFilter ? "Boshqa floristni tanlang." : "Birinchi tayyor guldastani qo'shing — story havolasi bilan."} /></div>}
       </div>
+
+      {/* ⚠️ SAVAT / QUTI — guruhlanmaydi: har biri alohida tovar, RASMI bilan chiziladi.
+          Buket guruhlaridan KEYIN turadi. */}
+      {singles.length > 0 && (
+        <>
+          <div className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-[1.5px]" style={{ color: "var(--muted)" }}>
+            Savatlar va qutilar <span className="font-semibold normal-case tracking-normal opacity-80">· har biri alohida</span>
+          </div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(275px,1fr))" }}>
+            {singles.map((k) => (
+              <CatalogItemCard
+                key={k.id}
+                k={k}
+                actions={{
+                  onSell: setSellItem,
+                  onView: (x) => api.catalogItem(x.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi")),
+                  onEdit: setEditItem,
+                  onDelete: setConfirmDel,
+                  onRework: (x) => setReworkOpen({ source: x }),
+                  onTransfer: setTransferItem,
+                  onDeduct: deduct,
+                  onCustomer: (id, label) => setCustomerFilter({ id, label }),
+                  busyId,
+                  control,
+                  mainUser,
+                  costVisible: catalogHasCostData,
+                  undistributed: isUndistributed,
+                  composition: compositionText,
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       {sellItem && (
         <KatalogSellModal

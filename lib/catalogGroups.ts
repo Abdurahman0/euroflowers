@@ -86,6 +86,25 @@ export function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
   return out;
 }
 
+
+/**
+ * KO'RINISH BO'LINISHI — BUKETLAR guruhlanadi, SAVAT/QUTI esa alohida kartada.
+ *
+ * ⚠️ Savat har biri o'ziga xos tovar (narxi ham, ko'rinishi ham har xil), shuning
+ *    uchun u guruhga yig'ilmaydi — surati bilan alohida karta bo'lib chiqadi.
+ *    Buket esa aksincha: bir xil tovar bir necha marta kiritilgan, hajm bo'yicha
+ *    bitta karta yetarli («Katta buket 15 ta»).
+ *
+ * Savatlar tartibi: hajm bo'yicha (kichik → o'rta → katta → hajmsiz), ichida yangisi oldinda.
+ */
+export function splitCatalogView(items: CatalogItem[]): { groups: CatalogGroup[]; singles: CatalogItem[] } {
+  const bouquets = items.filter((k) => typeOf(k) === "bouquet");
+  const rest = items.filter((k) => typeOf(k) !== "bouquet");
+  const rank = (k: CatalogItem) => VOLUME_ORDER.indexOf(volumeOf(k));
+  const singles = [...rest].sort((a, b) => rank(a) - rank(b) || b.id - a.id);
+  return { groups: groupCatalog(bouquets), singles };
+}
+
 /**
  * Guruhdan SOTILADIGAN pozitsiyani tanlaydi («qaysi biridan yechilishi muhim emas»).
  * Qoldig'i ENG KO'P pozitsiya olinadi — bitta yozuv oxirigacha sotilib, yarim ochiq

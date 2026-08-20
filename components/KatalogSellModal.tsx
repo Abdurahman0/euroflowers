@@ -19,7 +19,7 @@ import { catalogRemaining } from "@/lib/rework";
 import { withTashkentOffset, todayTashkent } from "@/lib/backdate";
 import type { CatalogItem, FloristProfile, Packaging, PaymentType, Reservation } from "@/lib/types";
 
-type SaleMat = { packaging: number; qty: string };
+type SaleMat = { packaging: number; qty: string; kind: "material" | "accessory" };
 const floristName = (fp: FloristProfile) => { const u = fp.user_detail; return [u?.first_name, u?.last_name].filter(Boolean).join(" ") || u?.username || `#${fp.id}`; };
 
 const custLabel = (r: Reservation) => r.customer_detail?.name || r.customer_name || `Bron #${r.id}`;
@@ -137,9 +137,10 @@ export default function KatalogSellModal({
     materials.forEach((m) => { (g.get(m.packaging_type) ?? g.set(m.packaging_type, []).get(m.packaging_type)!).push(m); });
     return g;
   }, [materials]);
-  const addSaleItem = (source: Packaging[]) => { const used = new Set(saleMats.map((m) => m.packaging)); const next = source.find((p) => !used.has(p.id)); if (next) setSaleMats([...saleMats, { packaging: next.id, qty: "1" }]); };
-  const addSaleMat = () => addSaleItem(catalogMaterials);
-  const addSaleAccessory = () => addSaleItem(accessories);
+  // ⚠️ Qator TURI eslab qolinadi — tanlagichda faqat shu turdagi variantlar chiqadi.
+  const addSaleItem = (source: Packaging[], kind: "material" | "accessory") => { const used = new Set(saleMats.map((m) => m.packaging)); const next = source.find((p) => !used.has(p.id)); if (next) setSaleMats([...saleMats, { packaging: next.id, qty: "1", kind }]); };
+  const addSaleMat = () => addSaleItem(catalogMaterials, "material");
+  const addSaleAccessory = () => addSaleItem(accessories, "accessory");
   const selectedMaterialCount = saleMats.filter((m) => matOf(m.packaging)?.packaging_type !== "other").length;
   const selectedAccessoryCount = saleMats.filter((m) => matOf(m.packaging)?.packaging_type === "other").length;
   const decoObj = florists.find((fp) => fp.id === saleDeco);
@@ -563,7 +564,16 @@ export default function KatalogSellModal({
                 return (
                   <div key={i}>
                     <div className="grid grid-cols-[1fr_74px_30px] items-center gap-2">
-                      <Select value={m.packaging} onChange={(v) => setSaleMats(saleMats.map((x, j) => (j === i ? { ...x, packaging: +v } : x)))} options={Array.from(matGroups.entries()).flatMap(([g, list]) => list.map((pk) => ({ value: pk.id, label: pk.name_uz, sub: `${PACKAGING_LABEL[g as keyof typeof PACKAGING_LABEL] ?? g} · ${pk.quantity} dona bor` })))} />
+                      <Select
+                        value={m.packaging}
+                        onChange={(v) => setSaleMats(saleMats.map((x, j) => (j === i ? { ...x, packaging: +v } : x)))}
+                        options={(m.kind === "accessory" ? accessories : catalogMaterials).map((pk) => ({
+                          value: pk.id,
+                          label: pk.name_uz,
+                          sub: `${PACKAGING_LABEL[pk.packaging_type as keyof typeof PACKAGING_LABEL] ?? pk.packaging_type} · ${pk.quantity} dona bor`,
+                          img: pk.image_url || undefined,
+                        }))}
+                      />
                       <input className="inp !py-1.5" type="number" value={m.qty} onChange={(e) => setSaleMats(saleMats.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} placeholder="1" />
                       <button type="button" onClick={() => setSaleMats(saleMats.filter((_, j) => j !== i))} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={14} strokeWidth={1.75} /></button>
                     </div>

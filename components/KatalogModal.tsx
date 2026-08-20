@@ -22,7 +22,10 @@ import FloristCompositionPicker from "./FloristCompositionPicker";
 import type { ArrangementType, Branch, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; mode: "stems" | "bunches"; qty: string };
-type MatRow = { packaging: number; qty: string };
+/** ⚠️ Qator TURI eslab qolinadi: «Material qo'shish» bosilsa tanlagichda FAQAT material,
+    «Aksessuar qo'shish» bosilsa FAQAT aksessuar (packaging_type = "other") chiqadi. */
+type MatKind = "material" | "accessory";
+type MatRow = { packaging: number; qty: string; kind: MatKind };
 
 const EMPTY = {
   name_uz: "", arrangement_type: "bouquet" as ArrangementType, height_cm: "",
@@ -94,7 +97,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
   const [comp, setComp] = useState<CompRow[]>(
     item?.composition?.length ? item.composition.map((c) => ({ stock_batch: c.stock_batch, mode: "stems" as const, qty: String(c.quantity_stems) })) : [{ stock_batch: 0, mode: "bunches", qty: "" }]
   );
-  const [mats, setMats] = useState<MatRow[]>(item?.materials?.length ? item.materials.map((m) => ({ packaging: m.packaging, qty: String(m.quantity) })) : []);
+  const [mats, setMats] = useState<MatRow[]>(item?.materials?.length ? item.materials.map((m) => ({ packaging: m.packaging, qty: String(m.quantity), kind: "material" as MatKind })) : []);
   // ⚠️ FLORIST katalogi: gul(lar) tanlanadi (soni EMAS). Kutayotgan (soni 0) itemni tahrirlashда
   // gullar prefill; yopilgan (soni > 0) item read-only (isFloristClosed). Yangi item → bo'sh.
   const [floristBatches, setFloristBatches] = useState<number[]>(
@@ -258,15 +261,26 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       return merged;
     });
   };
+  // ⚠️ Tahrirlashda: saqlangan qatorning turi packaging ro'yxati kelgach aniqlanadi
+  //    (aks holda aksessuar qatori material ro'yxatini ko'rsatib turardi).
+  useEffect(() => {
+    if (!materials.length) return;
+    setMats((rows) => rows.map((r) => {
+      const p = materials.find((m) => m.id === r.packaging);
+      const kind: MatKind = p?.packaging_type === "other" ? "accessory" : "material";
+      return r.kind === kind ? r : { ...r, kind };
+    }));
+  }, [materials]);
+
   const addMaterial = () => {
     const used = new Set(mats.map((m) => m.packaging));
     const next = catalogMaterials.find((p) => !used.has(p.id));
-    if (next) setMats([...mats, { packaging: next.id, qty: "1" }]);
+    if (next) setMats([...mats, { packaging: next.id, qty: "1", kind: "material" }]);
   };
   const addAccessory = () => {
     const used = new Set(mats.map((m) => m.packaging));
     const next = accessories.find((p) => !used.has(p.id));
-    if (next) setMats([...mats, { packaging: next.id, qty: "1" }]);
+    if (next) setMats([...mats, { packaging: next.id, qty: "1", kind: "accessory" }]);
   };
 
   // TANLANGAN FLORISTNING hajm+turi uchun tarifini topadi (per-florist model).
@@ -906,7 +920,20 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
                   style={{ background: flashing ? "color-mix(in srgb, var(--primary) 12%, transparent)" : undefined, boxShadow: flashing ? "inset 0 0 0 1.5px var(--primary)" : undefined }}
                 >
                   <div className="grid grid-cols-[1fr_72px_32px] items-center gap-2">
-                    <div className="min-w-0"><Select value={m.packaging} onChange={(v) => setMatAt(i, +v)} options={Array.from(matGroups.entries()).flatMap(([g, list]) => list.map((pk) => ({ value: pk.id, label: pk.name_uz, sub: `${PACKAGING_LABEL[g as keyof typeof PACKAGING_LABEL] ?? g} · ${pk.quantity} dona bor` })))} /></div>
+                    {/* ⚠️ Tanlagichda FAQAT shu qator turidagi variantlar: aksessuar qatorida
+                        aksessuarlar, material qatorida materiallar. Rasmi bo'lsa — ko'rsatiladi. */}
+                    <div className="min-w-0">
+                      <Select
+                        value={m.packaging}
+                        onChange={(v) => setMatAt(i, +v)}
+                        options={(m.kind === "accessory" ? accessories : catalogMaterials).map((pk) => ({
+                          value: pk.id,
+                          label: pk.name_uz,
+                          sub: `${PACKAGING_LABEL[pk.packaging_type as keyof typeof PACKAGING_LABEL] ?? pk.packaging_type} · ${pk.quantity} dona bor`,
+                          img: pk.image_url || undefined,
+                        }))}
+                      />
+                    </div>
                     <input className="inp !py-1.5" type="number" value={m.qty} onChange={(e) => setMats(mats.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} placeholder="1" />
                     <button type="button" onClick={() => setMats(mats.filter((_, j) => j !== i))} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={15} strokeWidth={1.75} /></button>
                   </div>

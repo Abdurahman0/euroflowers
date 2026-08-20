@@ -11,7 +11,27 @@ export type SelectOption = {
       (masalan, sklad qoldig'i: "410 dona") */
   hint?: string;
   dot?: string; // rang nuqtasi (hex) — ixtiyoriy
+  /** ⚠️ Kichik rasm (aksessuar/material surati) — bo'lsa ro'yxatda ham, tanlangач
+      trigger'da ham chiziladi. Rasm YUKLANMASA jimgina yashiriladi (buzilgan
+      ikonka ko'rsatilmaydi). */
+  img?: string;
 };
+
+/** Variant rasmi — yuklanmasa o'zini olib tashlaydi. */
+function OptImg({ src, size = 22 }: { src: string; size?: number }) {
+  const [bad, setBad] = useState(false);
+  if (bad) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      onError={() => setBad(true)}
+      className="shrink-0 rounded-[6px] object-cover"
+      style={{ width: size, height: size, background: "var(--surface-2)" }}
+    />
+  );
+}
 
 /**
  * Qo'lda yasalgan select — modal glass dizayniga mos, native <select> o'rniga.
@@ -48,6 +68,7 @@ export default function Select({
   return (
     <div ref={rootRef} className="relative">
       <button type="button" onClick={() => (open ? close() : setOpen(true))} aria-expanded={open} className="inp flex items-center gap-2 text-left normal-case tracking-normal">
+        {sel?.img && <OptImg src={sel.img} size={20} />}
         {sel?.dot && <span className="h-3 w-3 shrink-0 rounded-full border border-[color:var(--border-strong)]" style={{ background: sel.dot }} />}
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
           {sel ? sel.label : <span className="opacity-50">{placeholder}</span>}
@@ -96,6 +117,7 @@ export default function Select({
             onClick={() => { onChange(o.value); close(); }}
             className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left normal-case tracking-normal hover:bg-[color:var(--hover)] ${o.value === value ? "bg-[color:var(--primary-soft)]" : ""}`}
           >
+            {o.img && <OptImg src={o.img} />}
             {o.dot && <span className="h-3 w-3 shrink-0 rounded-full border border-[color:var(--border-strong)]" style={{ background: o.dot }} />}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-semibold">{o.label}</span>

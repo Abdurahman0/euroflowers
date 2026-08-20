@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupCatalog, pickSellItem, uniformPrice } from "./catalogGroups";
+import { groupCatalog, pickSellItem, uniformPrice, splitCatalogView } from "./catalogGroups";
 import type { CatalogItem } from "./types";
 
 // Do'kon ma'lumoti (jonli, 20.08.2026): 6 ta KATTA buket — hammasi 800 000 so'm,
@@ -108,5 +108,37 @@ describe("CG3 — «qaysi biridan yechilishi muhim emas» tanlovi", () => {
       item({ id: 2, quantity_total: 5, quantity_reworked: 1 }),
     ]);
     expect(chosen?.id).toBe(2);
+  });
+});
+
+describe("CG4 — savat guruhlanmaydi, alohida karta bo'ladi", () => {
+  const items = [
+    item({ id: 540, volume: "small", arrangement_type: "bouquet" }),
+    item({ id: 536, volume: "medium", arrangement_type: "basket" }),
+    item({ id: 524, volume: "small", arrangement_type: "basket" }),
+    item({ id: 518, volume: "large", arrangement_type: "bouquet" }),
+    item({ id: 400, volume: "large", arrangement_type: "box" }),
+  ];
+
+  it("guruhlarda FAQAT buket qoladi", () => {
+    const { groups } = splitCatalogView(items);
+    expect(groups.map((g) => g.key)).toEqual(["small|bouquet", "large|bouquet"]);
+    expect(groups.every((g) => g.items.every((k) => k.arrangement_type === "bouquet"))).toBe(true);
+  });
+
+  it("savat va quti alohida kartalarga chiqadi", () => {
+    expect(splitCatalogView(items).singles.map((k) => k.id)).toEqual([524, 536, 400]);
+  });
+
+  it("savatlar hajm bo'yicha tartiblanadi (kichik → o'rta → katta)", () => {
+    const { singles } = splitCatalogView(items);
+    expect(singles.map((k) => k.volume)).toEqual(["small", "medium", "large"]);
+  });
+
+  it("savat yo'q bo'lsa ro'yxat bo'sh, guruhlar o'zgarmaydi", () => {
+    const only = [item({ id: 1, volume: "small", arrangement_type: "bouquet" })];
+    const { groups, singles } = splitCatalogView(only);
+    expect(singles).toEqual([]);
+    expect(groups).toHaveLength(1);
   });
 });
