@@ -193,6 +193,62 @@ export type FlowerVariant = {
 };
 
 /** Yetkazib beruvchi (backend: /api/suppliers/) */
+/**
+ * BUKET HAJMI BO'YICHA UMUMIY (`catalog.totals.bouquet_volume_summary`).
+ * ⚠️ FAQAT BUKETLAR uchun — savat va boshqa turlar bu yerga kirmaydi (spec).
+ */
+export type BouquetVolumeSummary = {
+  volume: string;
+  volume_label: string;
+  /** server tayyorlagan sarlavha, masalan «Katta buket 13 ta» */
+  label: string;
+  items_count: number;
+  quantity_total: number;
+  quantity_sold: number;
+  quantity_remaining: number;
+};
+
+/** Postavshik balansi holati (server hisoblaydi). */
+/**
+ * EXCEL USLUBIDAGI KUNLIK JADVALLAR (`dashboard.excel_stats`).
+ *
+ * ⚠️ USTUNLAR QAT'IY EMAS. `rasxod` jadvalidagi ustunlar — FLORIST ISMLARI
+ * (jonli: ABO, BEGZOD, ISO, BAKIR, FATXULLO, ZAFAR …). Xodim qo'shilsa ustun ham
+ * qo'shiladi. Shu bois ustunlar QATOR KALITLARIDAN o'qiladi, kodda ro'yxat
+ * qilib qotirilmaydi.
+ * ⚠️ Qiymatlar son yoki satr bo'lishi mumkin.
+ */
+export type ExcelRow = Record<string, string | number | null>;
+export type ExcelStats = {
+  sovda?: ExcelRow[];
+  rasxod?: ExcelRow[];
+  yandex?: ExcelRow[];
+  totals?: Record<string, string | number | null>;
+};
+
+export type SupplierBalanceStatus = "debt" | "overpaid" | "closed";
+
+/**
+ * QO'LDA QO'SHILGAN QARZ — /api/supplier-debts/ (deploy 20.08.2026).
+ * ⚠️ Bu partiya/yuk emas: eski, tizimga kiritilmagan qarzni qo'lda yozish uchun.
+ * U `balance_total` ga QO'SHILADI.
+ */
+export type SupplierDebt = {
+  id: number;
+  supplier: number;
+  supplier_detail?: { id: number; name?: string } | null;
+  /** ⚠️ STRING decimal */
+  amount: string;
+  /** qaysi kunga yozilgan (YYYY-MM-DD) */
+  adjusted_at?: string;
+  note?: string;
+  created_by?: number | null;
+  created_by_detail?: User | null;
+  created_at: string;
+  updated_at: string;
+};
+export type SupplierDebtInput = { supplier: number; amount: string; adjusted_at?: string; note?: string };
+
 export type Supplier = {
   id: number;
   name: string;
@@ -211,10 +267,26 @@ export type Supplier = {
   flower_purchase_total?: string;
   material_purchase_total?: string;
   material_deliveries?: MaterialDelivery[];
-  /** Yozib borilgan to'lovlar yig'indisi (/api/supplier-payments/). ⚠️ QARZ EMAS —
-      backend `outstanding` maydonini butunlay olib tashladi (har xarid to'liq to'lanadi),
-      shuning uchun buni purchase_total dan AYIRMANG. */
+  /** Yozib borilgan to'lovlar yig'indisi (/api/supplier-payments/).
+      ⚠️ ESKI IZOH BEKOR QILINDI: ilgari bu yerda «qarz tushunchasi yo'q, ayirmang»
+      deb yozilgan edi. 20.08.2026 deploy'idan keyin backend BALANSNI O'ZI beradi
+      (pastdagi maydonlar) — biz uni HISOBLAMAYMIZ, faqat ko'rsatamiz. */
   paid_total?: string;
+  /* ===== BALANS (deploy 20.08.2026) — server hisoblaydi, biz emas =====
+     balance_total = purchase_total + manual_debt_total − paid_total
+     debt_total    = max(balance_total, 0)
+     overpaid_total= max(−balance_total, 0)
+     ⚠️ Qiymatlar STRING ("112763500.00") — `Number()` dan o'tkazing.
+     ⚠️ `?date_from=&date_to=` bilan DAVR bo'yicha hisoblanadi. */
+  /** qo'lda kiritilgan qo'shimcha qarzlar (/api/supplier-debts/) */
+  manual_debt_total?: string | number;
+  /** xarid + qo'lda qarz − to'lov (manfiy bo'lishi MUMKIN — ortiqcha to'lov) */
+  balance_total?: string | number;
+  /** faqat MUSBAT qism — qarz */
+  debt_total?: string | number;
+  /** faqat MANFIY qism — ortiqcha to'langan */
+  overpaid_total?: string | number;
+  balance_status?: SupplierBalanceStatus;
   last_payment_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -1289,6 +1361,19 @@ export type Dashboard = {
   catalog_sales_revenue_today?: number | string; catalog_sales_revenue_7d?: number | string; period_catalog_sales_revenue?: number | string;
   catalog_sales_orders_today?: number; catalog_sales_quantity_today?: number; period_catalog_sales_orders?: number; period_catalog_sales_quantity?: number;
   lead_revenue_today?: number | string; lead_revenue_7d?: number | string; period_lead_revenue?: number | string;
+  /* ===== POSTAVSHIK BALANSI (deploy 20.08.2026) =====
+     ⚠️ Dashboard bularni SON qilib beradi (296982015.0), postavshik ro'yxati esa
+     SATR ("112763500.00"). Ikkalasini ham `Number()` orqali o'qing. */
+  supplier_purchase_total?: number | string;
+  supplier_flower_purchase_total?: number | string;
+  supplier_material_purchase_total?: number | string;
+  supplier_paid_total?: number | string;
+  supplier_manual_debt_total?: number | string;
+  supplier_debt_total?: number | string;
+  supplier_overpaid_total?: number | string;
+  supplier_debtors_count?: number;
+  /** Excel shablonidagi kunlik jadvallar — pastdagi izohga qarang */
+  excel_stats?: ExcelStats;
   conversion_rate: number;
   active_leads: number;
   new_leads_today: number;

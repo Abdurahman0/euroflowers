@@ -4,7 +4,7 @@ import { batchTitle } from "@/lib/stockLabel";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { AlertTriangle, Clock, Truck, Users } from "lucide-react";
+import { AlertTriangle, Clock, Download, Truck, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { stockBatchesCached } from "@/lib/reportCache";
 import { useStore } from "@/lib/store";
@@ -17,6 +17,7 @@ import DateChips from "@/components/DateChips";
 import RefreshButton from "@/components/RefreshButton";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
+import SupplierBalanceCards from "@/components/SupplierBalanceCards";
 import type { Customer, Dashboard, Lead, StockBatch } from "@/lib/types";
 
 const fmtMoney = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -34,6 +35,8 @@ const EMPTY_AUX: Aux = { topCustomers: [], periodLeads: [], batches: [], deliver
 export default function DashboardPage() {
   const router = useRouter();
   const { dateFilter, dateRange } = useStore();
+  const showToast = useStore((st) => st.showToast);
+  const [exporting, setExporting] = useState(false);
   const [d, setD] = useState<Dashboard | null>(null);
   const [aux, setAux] = useState<Aux>(EMPTY_AUX);
   const [err, setErr] = useState("");
@@ -41,6 +44,21 @@ export default function DashboardPage() {
   // davr filtri (Bugun/7/30 yoki maxsus oraliq). `to` — INKLYUZIV; API qatlami moslaydi.
   const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
   const to = dateRange ? dateRange.to : ymd(new Date());
+  /** ⚠️ Excel — SOVDA / RASXOD / YANDEX varaqlari. Fayl nomi serverning
+      Content-Disposition sarlavhasidan olinadi (api.exportDashboard). */
+  const doExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await api.exportDashboard({ date_from: from, date_to: to });
+      showToast("✓ Excel yuklab olindi");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Eksport qilib bo'lmadi");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const today = ymd(new Date());
 
   const load = useCallback(() => {
@@ -129,6 +147,19 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           {/* ⚠️ avtomatik yangilash o'chirilgan — tugma + oxirgi yuklash vaqti */}
           <RefreshButton onRefresh={refresh} loadedAt={loadedAt} />
+          {/* ⚠️ EKSPORT AYNAN EKRANDAGI DAVRNI oladi (from/to) — aks holda yuklab
+              olingan fayl ekrandagi raqamlarga mos kelmasdi. */}
+          <button
+            type="button"
+            onClick={doExport}
+            disabled={exporting}
+            title={`Excel: ${from} — ${to} (SOVDA · RASXOD · YANDEX)`}
+            className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors duration-150 hover:bg-[var(--hover)] disabled:opacity-60"
+            style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+          >
+            <Download size={13} strokeWidth={2.2} className={exporting ? "animate-pulse" : undefined} />
+            <span className="hidden sm:inline">{exporting ? "Tayyorlanmoqda…" : "Excel"}</span>
+          </button>
           <DateChips />
         </div>
       </motion.div>
@@ -212,6 +243,11 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
+      </motion.div>
+
+      {/* POSTAVSHIK BALANSI — serverning hisoblagan raqamlari (biz hisoblamaymiz) */}
+      <motion.div variants={rise}>
+        <SupplierBalanceCards d={d} />
       </motion.div>
 
       {/* DIQQAT TALAB QILADI — operatsion alertlar */}

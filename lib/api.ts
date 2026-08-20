@@ -7,7 +7,7 @@ import type {
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   Reservation, ReservationInput, ReservationPayment, ReservationPaymentInput, CatalogRestoreFlowersInput, FloristStockBulkIssueInput,
-  CatalogSalesPage, CatalogSalesList, CatalogRework, SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
+  CatalogSalesPage, CatalogSalesList, CatalogRework, SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierDebt, SupplierDebtInput, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
 import { dashboardDateTo, accountingDateTo } from "./format";
 
@@ -588,6 +588,9 @@ export const api = {
   /** Excel eksportlar — fayl (blob) sifatida yuklab olinadi */
   exportFlorist: (p?: { date_from?: string; date_to?: string; florist?: number }) => downloadFile("/api/exports/florist/", p, "florist-hisobot"),
   exportFlorists: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/florists/", p, "floristlar-hisobot"),
+  /** ⚠️ Dashboard Excel — SOVDA / RASXOD / YANDEX varaqlari (deploy 20.08.2026).
+      Fayl nomi Content-Disposition dan olinadi (downloadFile shuni o'qiydi). */
+  exportDashboard: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/dashboard/export/", p, "dashboard"),
   exportProfit: (p?: { date_from?: string; date_to?: string }) => downloadFile("/api/exports/profit/", p, "hisob-kitob"),
 
   /** Dinamik lead statuslari — kanban ustunlari shu yerdan chiziladi.
@@ -738,6 +741,17 @@ export const api = {
   suppliers: (p?: Params) => list<Supplier>("/api/suppliers/", p),
   /** Yetkazib beruvchi to'lovlari — CRUD (backend 0082). on_delete=PROTECT postavshikda. */
   supplierPayments: (p?: Params) => list<SupplierPayment>("/api/supplier-payments/", p),
+
+  /* ===== QO'LDA QO'SHILGAN QARZ — /api/supplier-debts/ (deploy 20.08.2026) =====
+     ⚠️ Bu partiya/yuk EMAS. Tizimga kiritilmagan eski qarzni qo'lda yozish uchun;
+     u postavshikning `balance_total` iga qo'shiladi. */
+  supplierDebts: (p?: Params) => list<SupplierDebt>("/api/supplier-debts/", p),
+  supplierDebtsPage: paged<SupplierDebt>("/api/supplier-debts/"),
+  createSupplierDebt: (data: SupplierDebtInput) =>
+    request<SupplierDebt>("/api/supplier-debts/", { method: "POST", body: JSON.stringify(data) }),
+  updateSupplierDebt: (id: number, data: Partial<SupplierDebtInput>) =>
+    request<SupplierDebt>(`/api/supplier-debts/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteSupplierDebt: (id: number) => request<void>(`/api/supplier-debts/${id}/`, { method: "DELETE" }),
   createSupplierPayment: (data: SupplierPaymentInput) =>
     request<SupplierPayment>("/api/supplier-payments/", { method: "POST", body: JSON.stringify(data) }),
   updateSupplierPayment: (id: number, data: Partial<SupplierPaymentInput>) =>

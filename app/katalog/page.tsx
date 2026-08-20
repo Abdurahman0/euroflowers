@@ -29,8 +29,9 @@ import CatalogSalesTab from "@/components/CatalogSalesTab";
 import RestavratsiyaTab from "@/components/RestavratsiyaTab";
 import RestavratsiyaModal from "@/components/RestavratsiyaModal";
 import Pagination from "@/components/Pagination";
+import BouquetVolumeSummary from "@/components/BouquetVolumeSummary";
 import { usePagedList } from "@/lib/usePagedList";
-import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
+import type { BouquetVolumeSummary as BouquetVolumeRow, CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 import { deductionState } from "@/lib/catalogStock";
 import { floristLabel, type FloristLike } from "@/lib/floristLabel";
 
@@ -379,6 +380,10 @@ export default function KatalogPage() {
           </button>
         )}
       </div>
+
+      {/* ⚠️ BUKET HAJMI UMUMIYSI — serverning `totals.bouquet_volume_summary` idan.
+          Filtrga ergashadi (status/qidiruv o'zgarsa sonlar ham o'zgaradi). */}
+      <BouquetVolumeSummary rows={paged.totals?.bouquet_volume_summary as BouquetVolumeRow[] | undefined} />
 
       {customerFilter && (
         <div className="mb-3 flex items-center gap-2 rounded-[12px] border px-3.5 py-2 text-[13px]" style={{ borderColor: "var(--primary)", background: "var(--primary-soft)" }}>
