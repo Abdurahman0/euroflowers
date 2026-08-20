@@ -8,7 +8,7 @@ import FilterSelect from "@/components/FilterSelect";
 import PauseAIModal from "@/components/PauseAIModal";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -17,6 +17,8 @@ import { fmtTime, initials } from "@/lib/format";
 import { CONV_STATUS_LABEL } from "@/components/badges";
 import { Icon } from "@/components/icons";
 import MessageMedia, { MediaLightbox, mediaBodyText, parseMedia } from "@/components/chat/MessageMedia";
+import RichText from "@/components/chat/RichText";
+import { readDeepLinkConv, chatUrlFor } from "@/lib/chatDeepLink";
 import CatalogAlbum from "@/components/chat/CatalogAlbum";
 import { parseAlbum } from "@/lib/aiAlbum";
 import type { Conversation, Message } from "@/lib/types";
@@ -109,7 +111,7 @@ function MessageRow({
     return (
       <div className="flex justify-center">
         <span className="max-w-full break-words rounded-full border px-3 py-1 text-center text-[11px] font-medium" style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)", overflowWrap: "anywhere" }}>
-          {m.text} · {fmtTime(m.created_at)}
+          <RichText text={m.text} /> · {fmtTime(m.created_at)}
         </span>
       </div>
     );
@@ -189,7 +191,9 @@ function MessageRow({
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{fileName}</span>
             </span>
           )}
-          {bodyText}
+          {/* ⚠️ Havolalar BOSILADIGAN — AI media handoff'da mijozning story/reel havolasi
+              shu pufakda keladi (MEDIA pufagida URL matndan olib tashlangan bo'ladi). */}
+          <RichText text={bodyText} tone={isLeft ? "plain" : "brand"} />
         </div>
 
         {/* YUBORILMADI — aniq xato, qayta yuborish va matnni tahrirlash */}
@@ -242,10 +246,22 @@ export default function ChatPage() {
   const showToast = useStore((s) => s.showToast);
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  // ?conv=<id> — mijoz kartasidagi «Chatga o'tish» shu suhbatni ochadi
-  const deepConv = typeof window !== "undefined" ? Number(new URLSearchParams(window.location.search).get("conv")) || null : null;
+  /**
+   * ⚠️ DEEP-LINK — `?conversation_id=<id>` (AI media handoff: operator Telegram
+   *    guruhidagi «CRM chatni ochish» tugmasi) va eski `?conv=<id>`.
+   *    Faqat MOUNT paytida o'qiladi: keyin URL ochiq suhbat bo'yicha yangilanadi.
+   */
+  const deepConv = useMemo(() => (typeof window !== "undefined" ? readDeepLinkConv(window.location.search) : null), []);
   const [selId, setSelId] = useState<number | null>(deepConv);
   const [conv, setConv] = useState<Conversation | null>(null);
+  /** Suhbatni ochib bo'lmadi (o'chirilgan/noto'g'ri id) — deep-link uchun ANIQ xato kerak,
+      aks holda operator «Suhbat yuklanmoqda…» yozuvi bilan qolib ketardi. */
+  const [convErr, setConvErr] = useState<{ id: number; msg: string } | null>(null);
+  /** Deep-link suhbati ro'yxatda ko'rinmayapti (filtr yoki eskirgan ro'yxat) — chap panelda tanlangan qator yo'q. */
+  const [deepMissing, setDeepMissing] = useState(false);
+  const deepDone = useRef(false);
+  const deepRowRef = useRef<HTMLButtonElement | null>(null);
+  const deepScrolled = useRef(false);
   const [confirmDel, setConfirmDel] = useState(false);
   // <768px: bitta panel ko'rinadi — ro'yxat yoki suhbat (orqaga bilan qaytiladi)
   const [mobileConv, setMobileConv] = useState(false);
@@ -287,8 +303,15 @@ export default function ChatPage() {
       const cs = await api.conversations({ ordering: "-last_message_at", status: statusF || undefined, source: chanF || undefined });
       setConvs(cs);
       setSelId((id) => id ?? cs[0]?.id ?? null);
-      // deep-link kelgan bo'lsa — mobil ko'rinishda darhol suhbat paneli ochiladi
-      if (deepConv && cs.some((c) => c.id === deepConv)) setMobileConv(true);
+      // ⚠️ DEEP-LINK: mobil ko'rinishda suhbat paneli DARHOL ochiladi — ro'yxatda
+      //    topilmasa ham (detal API orqali ochiladi). Ilgari faqat ro'yxatda bor
+      //    suhbat uchun ochilardi: Telegramdan kelgan operator telefonida ro'yxatni
+      //    ko'rib, qaysi chatga tushishini o'zi qidirishga majbur bo'lardi.
+      if (deepConv && !deepDone.current) {
+        deepDone.current = true;
+        setMobileConv(true);
+      }
+      if (deepConv) setDeepMissing(!cs.some((c) => c.id === deepConv));
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Suhbatlarni yuklab bo'lmadi");
     } finally {
@@ -296,11 +319,25 @@ export default function ChatPage() {
     }
   }, [showToast, statusF, chanF, deepConv]);
 
-  const loadConv = useCallback(async (id: number) => {
+  /**
+   * Suhbat detali. `strict` — deep-link uchun: xato JIM YUTILMAYDI, operatorga aytiladi.
+   * ⚠️ Jonli tekshiruv (2026-08-20): `GET /api/conversations/{id}/` mavjud va yo'q id uchun
+   *    404 beradi — shuning uchun spec §3 dagi «detal API bo'lmasa» zaxira yo'li kerak emas.
+   *    404 da BIR MARTA ro'yxat qayta so'raladi (endigina yaratilgan suhbat holati uchun).
+   */
+  const loadConv = useCallback(async (id: number, strict = false) => {
     try {
       setConv(await api.conversation(id));
-    } catch {
-      /* ro'yxat yangilanganda qayta urinadi */
+      setConvErr(null);
+    } catch (e) {
+      if (!strict) return; // fon so'rovi — ro'yxat yangilanganda qayta urinadi
+      const notFound = e instanceof ApiError && e.status === 404;
+      setConvErr({
+        id,
+        msg: notFound
+          ? "Bu suhbat topilmadi — o'chirilgan bo'lishi yoki havoladagi raqam noto'g'ri bo'lishi mumkin."
+          : e instanceof Error ? e.message : "Suhbatni ochib bo'lmadi.",
+      });
     }
   }, []);
 
@@ -311,13 +348,31 @@ export default function ChatPage() {
   useEffect(() => {
     if (selId == null) return;
     setConv(null);
-    loadConv(selId);
-  }, [selId, loadConv]);
+    setConvErr(null);
+    // deep-link suhbati — xato JIM YUTILMAYDI (strict)
+    loadConv(selId, deepConv === selId);
+  }, [selId, loadConv, deepConv]);
+
+  /** ⚠️ URL ochiq suhbatni ko'rsatib turadi: yangilash/ulashish o'sha chatni ochadi,
+      Telegramdan kelgan uzun `?conversation_id=` esa qisqa `?conv=` ga normallashadi.
+      `replaceState` — tarixga yozuv qo'shmaydi (orqaga tugmasi buzilmaydi). */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const next = chatUrlFor(selId);
+    if (window.location.pathname + window.location.search !== next) window.history.replaceState(null, "", next);
+  }, [selId]);
   /**
    * ⚠️ OCHIQ SUHBAT — 10 s (ilgari 7 s va varaq yashiringanda ham ishlardi).
    * Suhbat tanlanmagan bo'lsa taymer UMUMAN yaratilmaydi.
    */
-  useVisiblePoll(() => { if (selId != null) loadConv(selId); }, 10_000, selId != null);
+  useVisiblePoll(() => { if (selId != null) loadConv(selId); }, 10_000, selId != null && convErr == null);
+
+  // deep-link qatori chizilishi bilan BIR MARTA ko'rinadigan joyga suriladi
+  useEffect(() => {
+    if (deepConv == null || deepScrolled.current || !deepRowRef.current) return;
+    deepScrolled.current = true;
+    deepRowRef.current.scrollIntoView({ block: "nearest" });
+  }, [deepConv, convs]);
 
   /** joriy suhbatning yuborilmagan/yuborilayotgan xabarlari */
   const convPending = pending.filter((p) => p.conv === selId);
@@ -508,6 +563,8 @@ export default function ChatPage() {
           {fConvs.map((c) => (
             <button
               key={c.id}
+              /* ⚠️ Deep-link suhbati uzun ro'yxatning ichida qolib ketmasin — ko'rinadigan joyga suriladi */
+              ref={c.id === deepConv ? deepRowRef : undefined}
               onClick={() => { setSelId(c.id); setMobileConv(true); }}
               className={clsx(
                 "flex items-center gap-2.5 rounded-[12px] p-2.5 text-left transition-colors duration-200",
@@ -571,6 +628,19 @@ export default function ChatPage() {
                   </div>
                 )}
                 <div className="truncate text-xs" style={{ color: "var(--muted)" }}>{channelOf(conv) === "telegram" ? "Telegram" : "Instagram DM"} · {conv.customer_detail?.phone || conv.customer_detail?.masked_phone || "tel yo'q"}</div>
+                {/* ⚠️ Havola orqali ochilgan, ammo chap ro'yxatda qatori YO'Q (filtr yoki
+                    eskirgan ro'yxat) — operator «qaysi chatdaman?» deb qolmasin. */}
+                {deepMissing && deepConv != null && conv.id === deepConv && selId === deepConv && (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11.5px] font-semibold" style={{ color: "var(--warning-ink, #8a6d1f)" }}>
+                    <span className="rounded-full px-2 py-0.5" style={{ background: "var(--warning-soft)" }}>Havola orqali ochildi · #{conv.id}</span>
+                    <span style={{ color: "var(--muted)" }}>chap ro&apos;yxatda ko&apos;rinmaydi</span>
+                    {!!(search || statusF || chanF) && (
+                      <button onClick={() => { setSearch(""); setStatusF(""); setChanF(""); }} className="underline underline-offset-2" style={{ color: "var(--primary)" }}>
+                        Filtrlarni tozalash
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <span
                 className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-bold"
@@ -716,6 +786,37 @@ export default function ChatPage() {
               </div>
             </div>
           </>
+        ) : convErr ? (
+          /* ⚠️ DEEP-LINK XATOSI — Telegramdagi «CRM chatni ochish» eskirgan/o'chirilgan
+             suhbatga olib kelishi mumkin. Ilgari bu holat «Suhbat yuklanmoqda…» bo'lib
+             abadiy osilib turardi: operator nima bo'lganini bilmasdi. */
+          <div className="m-auto flex max-w-[340px] flex-col items-center gap-3 px-5 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>
+              <AlertCircle size={20} strokeWidth={2} />
+            </span>
+            <div>
+              <p className="text-[14px] font-bold" style={{ color: "var(--text)" }}>Suhbat ochilmadi · #{convErr.id}</p>
+              <p className="mt-1 text-[13px] leading-relaxed" style={{ color: "var(--text-2)" }}>{convErr.msg}</p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                onClick={() => loadConv(convErr.id, true)}
+                className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]"
+                style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+              >
+                <RotateCw size={12} strokeWidth={2.2} /> Qayta urinish
+              </button>
+              {convs.length > 0 && (
+                <button
+                  onClick={() => { setConvErr(null); setDeepMissing(false); setSelId(convs[0]?.id ?? null); setMobileConv(false); }}
+                  className="rounded-full px-3 py-1.5 text-[12.5px] font-bold text-white transition-opacity duration-150 hover:opacity-90"
+                  style={{ background: "var(--primary)" }}
+                >
+                  Suhbatlar ro&apos;yxati
+                </button>
+              )}
+            </div>
+          </div>
         ) : (
           <p className="m-auto max-w-[290px] text-center text-[14px] leading-relaxed" style={{ color: "var(--muted)" }}>
             {convs.length ? "Suhbat yuklanmoqda…" : "Hozircha suhbat yo'q — Instagram webhook ulanganda DM'lar shu yerda ko'rinadi."}
