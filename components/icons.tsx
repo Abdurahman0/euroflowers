@@ -39,6 +39,9 @@ import {
   ViewOffIcon,
   VolumeHighIcon,
   VolumeOffIcon,
+  MoneySend01Icon,
+  MoneyReceive01Icon,
+  Store01Icon,
 } from "@hugeicons/core-free-icons";
 
 /**
@@ -58,9 +61,15 @@ const ICONS: Record<string, typeof FlowerIcon> = {
   suppliers: DeliveryTruck01Icon,
   floristlar: Scissor01Icon,
   floristStock: PackageAddIcon,
-  branchReport: DeliveryTruck01Icon,
+  // ⚠️ Filial hisoboti — ilgari yetkazib beruvchilar bilan BIR XIL yuk mashinasi edi;
+  //    ikki xil bo'lim bir xil ikonka bilan turardi.
+  branchReport: Store01Icon,
   katalog: FlowerIcon,
   gullar: FlowerPotIcon,
+  // ⚠️ Bu ikkisi ILGARI IKONKASIZ edi (ICONS'da kaliti yo'q → Icon null qaytarardi):
+  //    yon menyuda «Rasxodlar» va «Qarzdorlar» yorliqlari bo'sh joydan boshlanardi.
+  rasxodlar: MoneySend01Icon,   // pul CHIQIMI
+  qarzdorlar: MoneyReceive01Icon, // olinadigan pul
   bildirishnomalar: Notification03Icon,
   postlar: Image01Icon,
   xodimlar: UserGroup03Icon,

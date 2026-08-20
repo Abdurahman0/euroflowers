@@ -9,21 +9,23 @@ export const NAV: NavItem[] = [
   { id: "katalog", href: "/katalog", label: "Katalog", pages: ["catalog"], top: true },
   { id: "floristlar", href: "/floristlar", label: "Floristlar", pages: ["florists", "attendance", "settings"], top: true },
   { id: "floristStock", href: "/floristlarga-chiqarilgan", label: "Floristlarga chiqarilgan", pages: ["inventory"], top: true },
+  // ⚠️ Yetkazib beruvchilar — gul oqimining boshi (partiya shu yerdan keladi), shuning
+  //    uchun sklad/florist guruhida, chiziqdan YUQORIDA turadi.
+  { id: "suppliers", href: "/suppliers", label: "Yetkazib beruvchilar", pages: ["suppliers", "inventory"], top: true },
   { id: "gullar", href: "/gullar", label: "Gullar", pages: ["inventory"], top: true },
-  { id: "chat", href: "/chat", label: "AI chatlar", pages: ["conversations"], top: true },
-  // qolganlari — joriy nisbiy tartibda
+  // ── chiziqdan pastda: avval MIJOZ bilan ishlash (mijoz → buyurtma → chat → bron), keyin qolganlari
+  { id: "mijozlar", href: "/mijozlar", label: "Mijozlar", pages: ["customers"] },
+  { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", pages: ["crm"] },
+  { id: "chat", href: "/chat", label: "AI chatlar", pages: ["conversations"] },
+  { id: "bronlar", href: "/bronlar", label: "Bronlar", pages: ["crm"] },
   { id: "analitika", href: "/analitika", label: "Analitika", pages: ["dashboard"] },
   { id: "hisob", href: "/hisob-kitob", label: "Hisob-kitob", pages: ["dashboard"] },
   { id: "branchReport", href: "/filial-hisoboti", label: "Filial hisoboti", pages: ["dashboard"] },
   // ⚠️ RASXODLAR — o'z ruxsat kaliti (`expenses`), pul sahifasi bo'lgani uchun Hisob-kitob yonida.
   { id: "rasxodlar", href: "/rasxodlar", label: "Rasxodlar", pages: ["expenses"] },
-  { id: "ai", href: "/ai", label: "AI yordamchi", pages: ["ai_settings"] },
-  { id: "crm", href: "/buyurtmalar", label: "Buyurtmalar", pages: ["crm"] },
-  { id: "bronlar", href: "/bronlar", label: "Bronlar", pages: ["crm"] },
-  { id: "mijozlar", href: "/mijozlar", label: "Mijozlar", pages: ["customers"] },
-  // ⚠️ Qarzdorlar — ruxsat `crm` (inventory EMAS). Mijozlar yonida: ikkalasi ham «kim» haqida.
+  // ⚠️ Qarzdorlar — ruxsat `crm` (inventory EMAS).
   { id: "qarzdorlar", href: "/qarzdorlar", label: "Qarzdorlar", pages: ["crm"] },
-  { id: "suppliers", href: "/suppliers", label: "Yetkazib beruvchilar", pages: ["suppliers", "inventory"] },
+  { id: "ai", href: "/ai", label: "AI yordamchi", pages: ["ai_settings"] },
   { id: "postlar", href: "/postlar", label: "Postlar", pages: ["social_posts"] },
   { id: "bildirishnomalar", href: "/bildirishnomalar", label: "Bildirishnomalar", pages: ["notifications"] },
   { id: "xodimlar", href: "/xodimlar", label: "Xodimlar", pages: ["users"] },

@@ -13,6 +13,7 @@ import FreeBatchChip from "./FreeBatchChip";
 import DatePicker from "./DatePicker";
 import SupplierBalance from "./SupplierBalance";
 import SupplierDebtModal from "./SupplierDebtModal";
+import SupplierPaymentModal from "./SupplierPaymentModal";
 import {
   EMPTY_RANGE, createdAtQuery, hasRange, inDateRange, rangeLabel, rangeToParams, readRange,
   supplierTotals, type DateRange,
@@ -112,6 +113,7 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
   const [srv, setSrv] = useState<Supplier | null>(null);
   const [debts, setDebts] = useState<SupplierDebt[] | null>(null);
   const [debtOpen, setDebtOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
   // ⚠️ URL'dan boshlang'ich oraliq — ulashilgan havola/yangilash oralig'ni SAQLAYDI
   const [range, setRange] = useState<DateRange>(() => (typeof window === "undefined" ? EMPTY_RANGE : readRange(window.location.search)));
   const filtered = hasRange(range);
@@ -344,6 +346,16 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
         </div>
       ) : tab === "payments" ? (
         <div className="mt-3 flex flex-col gap-1.5">
+          {/* ⚠️ «Qo'lda qarz» dagi kabi — to'lov ham shu yerdan qo'shiladi (ilgari faqat
+              Hisob-kitob sahifasida mumkin edi). Yo'nalish oynada ochiq yozilgan. */}
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[12px] leading-snug" style={{ color: "var(--muted)" }}>
+              Postavshikka berilgan pul. Balansdan <b>ayiriladi</b>.
+            </span>
+            <button type="button" onClick={() => setPayOpen(true)} className="btn-secondary btn-sm !flex-none">
+              <Wallet size={13} strokeWidth={2} /> To&apos;lov qo&apos;shish
+            </button>
+          </div>
           {payments == null && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
           {payments != null && shownPayments.length === 0 && <Empty all="To'lov yo'q." />}
           {shownPayments.length > 0 && (
@@ -384,6 +396,15 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
             </div>
           ))}
         </div>
+      )}
+
+      {payOpen && (
+        <SupplierPaymentModal
+          supplier={srv ?? supplier}
+          debtTotal={Number((srv ?? supplier).debt_total ?? 0)}
+          onClose={() => setPayOpen(false)}
+          onSaved={() => { setPayOpen(false); reloadBalance(); notifyReportDataChanged(); }}
+        />
       )}
 
       {debtOpen && (
