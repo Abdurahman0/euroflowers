@@ -757,7 +757,11 @@ export const api = {
   updateSupplierPayment: (id: number, data: Partial<SupplierPaymentInput>) =>
     request<SupplierPayment>(`/api/supplier-payments/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteSupplierPayment: (id: number) => request<void>(`/api/supplier-payments/${id}/`, { method: "DELETE" }),
-  supplier: (id: number) => request<Supplier>(`/api/suppliers/${id}/`),
+  /** ⚠️ `date_from`/`date_to` — balans (purchase/paid/debt) SHU DAVR bo'yicha
+      hisoblanadi (deploy 20.08.2026). Ilgari bu endpointda sana filtri YO'Q edi va
+      jamilar klientda yig'ilardi. */
+  supplier: (id: number, p?: { date_from?: string; date_to?: string }) =>
+    request<Supplier>(`/api/suppliers/${id}/${qs(p)}`),
   createSupplier: (data: SupplierInput) =>
     request<Supplier>("/api/suppliers/", { method: "POST", body: JSON.stringify(data) }),
   updateSupplier: (id: number, data: SupplierInput) =>

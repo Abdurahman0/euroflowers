@@ -18,6 +18,7 @@ import RefreshButton from "@/components/RefreshButton";
 import FlowerLoader from "@/components/FlowerLoader";
 import MiniBloom from "@/components/MiniBloom";
 import SupplierBalanceCards from "@/components/SupplierBalanceCards";
+import ExcelStatsTables from "@/components/ExcelStatsTables";
 import type { Customer, Dashboard, Lead, StockBatch } from "@/lib/types";
 
 const fmtMoney = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -243,6 +244,12 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
+      </motion.div>
+
+      {/* EXCEL HISOBOTI — SOVDA / RASXOD / YANDEX. Ustunlar SERVER qatorlaridan
+          o'qiladi (rasxodda ular florist ismlari va o'zgarib turadi). */}
+      <motion.div variants={rise}>
+        <ExcelStatsTables stats={d.excel_stats} />
       </motion.div>
 
       {/* POSTAVSHIK BALANSI — serverning hisoblagan raqamlari (biz hisoblamaymiz) */}

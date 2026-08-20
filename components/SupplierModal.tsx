@@ -1,20 +1,23 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { batchTitle, batchTitleNoHeight } from "@/lib/stockLabel";
-import { CalendarRange, Package, Truck, Wallet } from "lucide-react";
+import { CalendarRange, HandCoins, Package, Truck, Wallet } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import { notifyReportDataChanged } from "@/lib/reportCache";
 import Modal, { ModalFooter, ModalHeader, Section, Field } from "./Modal";
 import StemGauge from "./StemGauge";
 import { fmt, fmtDate, fmtLocalDate } from "@/lib/format";
 import { stems, freshness, MOVEMENT_LABEL, DELIVERY, compareBatchNewestFirst, isFreeBatch } from "@/lib/inventory";
 import FreeBatchChip from "./FreeBatchChip";
 import DatePicker from "./DatePicker";
+import SupplierBalance from "./SupplierBalance";
+import SupplierDebtModal from "./SupplierDebtModal";
 import {
   EMPTY_RANGE, createdAtQuery, hasRange, inDateRange, rangeLabel, rangeToParams, readRange,
   supplierTotals, type DateRange,
 } from "@/lib/supplierRange";
-import type { MaterialDelivery, MovementType, StockBatch, StockMovement, Supplier, SupplierPayment } from "@/lib/types";
+import type { MaterialDelivery, MovementType, StockBatch, StockMovement, Supplier, SupplierDebt, SupplierPayment } from "@/lib/types";
 
 /** Yetkazib beruvchi — yaratish/tahrirlash (o'ng drawer). */
 export function SupplierForm({ supplier, onClose, onSaved }: { supplier: Supplier | null; onClose: () => void; onSaved: (s: Supplier) => void }) {
@@ -79,10 +82,11 @@ const StatChip = ({ label, value }: { label: string; value: string }) => (
  * Yetkazib beruvchi tafsiloti — sana oralig'i + 3 tab (Partiyalar / Harakatlar / To'lovlar).
  *
  * ⚠️ IKKI XIL DAVR BIR EKRANDA — ADASHTIRMASLIK SHART:
- *   • YUQORIDAGI JAMILAR (`batches_count`, `total_received_stems`, `purchase_total`,
- *     `paid_total`) — `/api/suppliers/` da HECH QANDAY sana parametri YO'Q (jonli
- *     OpenAPI: is_active, ordering, page, page_size, search, supplier_type). Ular
- *     BUTUN DAVR raqamlari va shunday YOZIB QO'YILGAN.
+ *   • YUQORIDAGI CHIPLAR (`batches_count`, `total_received_stems`) — butun davr.
+ *   • BALANS BLOKI — endi SERVERDAN va DAVRGA ERGASHADI: `/api/suppliers/{id}/`
+ *     `date_from`/`date_to` ni QABUL QILADI (20.08.2026 deploy). ⚠️ Bu fayldagi
+ *     eski izoh «sana parametri YO'Q» der edi — u endi TO'G'RI EMAS, shu bois
+ *     balansni klientda yig'ish kerak emas.
  *   • PASTDAGI RO'YXATLAR — tanlangan oraliq bo'yicha, sarlavhada davr ko'rsatiladi.
  * Ikkalasi bir xil davrni tasvirlayotgandek ko'rinmasligi uchun har biri O'Z yorlig'i
  * bilan chiqadi (talab §3).
@@ -94,11 +98,20 @@ const StatChip = ({ label, value }: { label: string; value: string }) => (
  *   To'lovlar → KLIENTDA `paid_at` bo'yicha; serverda faqat ANIQ kun (`paid_at=`).
  */
 export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { supplier: Supplier; onClose: () => void; onEdit?: () => void; onOpenBatch?: (b: StockBatch) => void }) {
-  const [tab, setTab] = useState<"batches" | "materials" | "moves" | "payments">("batches");
+  const [tab, setTab] = useState<"batches" | "materials" | "moves" | "payments" | "debts">("batches");
   const [batches, setBatches] = useState<StockBatch[] | null>(null);
   const [materialDeliveries, setMaterialDeliveries] = useState<MaterialDelivery[]>(supplier.material_deliveries ?? []);
   const [moves, setMoves] = useState<StockMovement[] | null>(null);
   const [payments, setPayments] = useState<SupplierPayment[] | null>(null);
+  /**
+   * ⚠️ BALANS SERVERDAN — `/api/suppliers/{id}/?date_from=&date_to=`.
+   * Bu endpoint ilgari sana filtrini QABUL QILMASDI (shu fayldagi eski izohga
+   * qarang) va jamilar klientda yig'ilardi. 20.08.2026 deploy'idan keyin server
+   * balansni davr bo'yicha O'ZI hisoblaydi — biz endi faqat ko'rsatamiz.
+   */
+  const [srv, setSrv] = useState<Supplier | null>(null);
+  const [debts, setDebts] = useState<SupplierDebt[] | null>(null);
+  const [debtOpen, setDebtOpen] = useState(false);
   // ⚠️ URL'dan boshlang'ich oraliq — ulashilgan havola/yangilash oralig'ni SAQLAYDI
   const [range, setRange] = useState<DateRange>(() => (typeof window === "undefined" ? EMPTY_RANGE : readRange(window.location.search)));
   const filtered = hasRange(range);
@@ -115,6 +128,13 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
     for (const [k, v] of Object.entries(rangeToParams(range))) u.searchParams.set(k, v);
     window.history.replaceState(null, "", u);
   }, [supplier.id, range]);
+
+  const reloadBalance = useCallback(() => {
+    api.supplier(supplier.id, rangeToParams(range)).then(setSrv).catch(() => {});
+    api.supplierDebts({ supplier: supplier.id, ordering: "-adjusted_at", page_size: "all" })
+      .then(setDebts).catch(() => setDebts([]));
+  }, [supplier.id, range]);
+  useEffect(() => { reloadBalance(); }, [reloadBalance]);
 
   useEffect(() => {
     // ⚠️ PARTIYALAR — server'ga sana YUBORILMAYDI. Yagona oraliq filtri `created_at`
@@ -220,6 +240,10 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
         {(head.purchase > 0 || filtered) && <StatChip label="Sotib olingan" value={fmt(head.purchase)} />}
         {(head.paid > 0 || filtered) && <StatChip label="To'langan" value={fmt(head.paid)} />}
       </div>
+
+      {/* ⚠️ BALANS — SERVERNING raqamlari (biz hisoblamaymiz). Oraliq tanlansa
+          `/api/suppliers/{id}/?date_from=&date_to=` o'sha davr bo'yicha qaytaradi. */}
+      <SupplierBalance s={srv ?? supplier} note={filtered ? rangeLabel(range) : "butun davr"} />
       {filtered && (
         // ⚠️ Bu raqamlar SERVERDAN kelmadi — quyidagi qatorlardan yig'ildi. Aytib qo'yamiz.
         <p className="mt-1.5 text-[11px] leading-snug" style={{ color: "var(--muted)" }}>
@@ -248,9 +272,9 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
 
       {/* segment: tashqi --r-md, ichki --r-sm (modal tugmalari bilan bir oila) */}
       <div className="mt-3 flex gap-1 rounded-md border p-1" style={{ borderColor: "var(--border)" }}>
-        {(["batches", "materials", "moves", "payments"] as const).map((t) => (
+        {(["batches", "materials", "moves", "payments", "debts"] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className="flex-1 rounded-sm py-1.5 text-[12.5px] font-bold transition-colors duration-150" style={tab === t ? { background: "var(--primary)", color: "#fff" } : { color: "var(--muted)" }}>
-            {t === "batches" ? "Gul yuklari" : t === "materials" ? "Material / accessory" : t === "moves" ? "Harakatlar" : "To'lovlar"}
+            {t === "batches" ? "Gul yuklari" : t === "materials" ? "Material / accessory" : t === "moves" ? "Harakatlar" : t === "payments" ? "To'lovlar" : "Qo'lda qarz"}
           </button>
         ))}
       </div>
@@ -316,7 +340,7 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
             </div>
           ))}
         </div>
-      ) : (
+      ) : tab === "payments" ? (
         <div className="mt-3 flex flex-col gap-1.5">
           {payments == null && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
           {payments != null && shownPayments.length === 0 && <Empty all="To'lov yo'q." />}
@@ -335,6 +359,37 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
             </div>
           ))}
         </div>
+      ) : (
+        /* QO'LDA QO'SHILGAN QARZLAR — /api/supplier-debts/ */
+        <div className="mt-3 flex flex-col gap-1.5">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[12px] leading-snug" style={{ color: "var(--muted)" }}>
+              Tizimga kirmagan eski qarzlar. Balansga <b>qo&apos;shiladi</b>.
+            </span>
+            <button type="button" onClick={() => setDebtOpen(true)} className="btn-secondary btn-sm !flex-none">
+              <HandCoins size={13} strokeWidth={2} /> Qarz qo&apos;shish
+            </button>
+          </div>
+          {debts == null && <p className="py-4 text-center text-[13px]" style={{ color: "var(--muted)" }}>Yuklanmoqda…</p>}
+          {debts != null && debts.length === 0 && (
+            <p className="py-6 text-center text-[13px]" style={{ color: "var(--muted)" }}>Qo&apos;lda qo&apos;shilgan qarz yo&apos;q.</p>
+          )}
+          {(debts ?? []).map((x) => (
+            <div key={x.id} className="flex items-center justify-between gap-3 border-t py-2 text-[13px] first:border-t-0" style={{ borderColor: "var(--line2)" }}>
+              <span className="min-w-0 truncate">{x.note || "Qo'lda qo'shilgan qarz"}</span>
+              <span className="shrink-0 font-semibold tabular-nums" style={{ color: "var(--danger-ink)" }}>+{fmt(x.amount)}</span>
+              <span className="shrink-0 text-[12px]" style={{ color: "var(--muted)" }}>{fmtLocalDate(x.adjusted_at ?? x.created_at)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {debtOpen && (
+        <SupplierDebtModal
+          supplier={srv ?? supplier}
+          onClose={() => setDebtOpen(false)}
+          onSaved={() => { setDebtOpen(false); reloadBalance(); notifyReportDataChanged(); }}
+        />
       )}
     </Modal>
   );

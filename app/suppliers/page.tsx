@@ -14,6 +14,7 @@ import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
 import { SupplierForm, SupplierDetail } from "@/components/SupplierModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { SupplierBalanceBadge } from "@/components/SupplierBalance";
 import type { Supplier } from "@/lib/types";
 
 /** Yetkazib beruvchilar — partiyalar shu manbaga bog'lanadi (backend: /api/suppliers/). */
@@ -139,10 +140,20 @@ export default function SuppliersPage() {
                   <Truck size={20} strokeWidth={1.75} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-bold" title={s.name}>{s.name}</div>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-[15px] font-bold" title={s.name}>{s.name}</span>
+                    {/* ⚠️ QARZ HOLATI — serverning `balance_status`i. Qarzdorni ro'yxatdan
+                        ko'rish uchun: ilgari har birini ochib chiqish kerak edi. */}
+                    <SupplierBalanceBadge status={s.balance_status} />
+                  </div>
                   <div className="flex items-center gap-1 truncate text-[12.5px]" style={{ color: "var(--muted)" }}>
                     <Phone size={12} strokeWidth={2} /> {s.phone || "—"}
                   </div>
+                  {Number(s.debt_total) > 0 && (
+                    <div className="text-[12px] font-bold tabular-nums" style={{ color: "var(--danger-ink)" }}>
+                      Qarz {fmt(s.debt_total)}
+                    </div>
+                  )}
                 </div>
                 {control && (
                   <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
