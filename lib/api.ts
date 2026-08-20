@@ -557,6 +557,8 @@ export const api = {
   /* ===== SAHIFALANGAN RO'YXATLAR (spec: FRONTEND_PAGINATION_TOTALS_API.md) ===== */
   auditPage: paged<AuditLog>("/api/audit/"),
   catalogPage: paged<CatalogItem>("/api/catalog/"),
+  /** AI KATALOG sahifasi — server sahifalash + `totals` (spec §6). */
+  aiCatalogPage: paged<AICatalogItem>("/api/ai-catalog/"),
   stockBatchesPage: paged<StockBatch>("/api/stock-batches/"),
   stockDeliveriesPage: paged<StockDelivery>("/api/stock-deliveries/"),
   materialsPage: paged<Packaging>("/api/materials/"),

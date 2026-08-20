@@ -7,6 +7,12 @@ export const NAV: NavItem[] = [
   { id: "dashboard", href: "/", label: "Dashboard", pages: ["dashboard"], top: true },
   { id: "sklad", href: "/sklad", label: "Sklad", pages: ["inventory"], top: true },
   { id: "katalog", href: "/katalog", label: "Katalog", pages: ["catalog"], top: true },
+  // ⚠️ AI KATALOG — CRM katalogidan ALOHIDA sahifa (spec §7/§8): AI mijozga ko'rsatadigan
+  //    vitrina. Sahifa bor edi, lekin yon menyuda YO'Q edi — havolasiz turardi.
+  //    ⚠️ RUXSAT: `ai_settings` (katalog EMAS). Bu sahifa AI mijozga NIMA ko'rsatishini
+  //    boshqaradi — kunlik sotuv ishi emas; filial operatori katalogga kira olgani bilan
+  //    do'konning AI vitrinasini tahrirlashi kerak emas.
+  { id: "aiCatalog", href: "/ai-katalog", label: "AI katalog", pages: ["ai_settings"], top: true },
   { id: "floristlar", href: "/floristlar", label: "Floristlar", pages: ["florists", "attendance", "settings"], top: true },
   { id: "floristStock", href: "/floristlarga-chiqarilgan", label: "Floristlarga chiqarilgan", pages: ["inventory"], top: true },
   // ⚠️ Yetkazib beruvchilar — gul oqimining boshi (partiya shu yerdan keladi), shuning

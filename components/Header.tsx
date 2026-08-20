@@ -25,6 +25,7 @@ const TITLES: Record<string, string> = {
   "/floristlar": "Floristlar",
   "/gullar": "Gullar va navlar",
   "/katalog": "Kunlik katalog",
+  "/ai-katalog": "AI katalog — mijozga ko‘rsatiladigan vitrina",
   "/postlar": "Instagram postlar",
   "/bildirishnomalar": "Bildirishnomalar",
   "/xodimlar": "Xodimlar — jamoa",
