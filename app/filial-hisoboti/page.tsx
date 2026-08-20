@@ -9,12 +9,15 @@ import DateChips from "@/components/DateChips";
 import FilterSelect from "@/components/FilterSelect";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
-import { fmt } from "@/lib/format";
+import { dateAfterParam, fmt } from "@/lib/format";
 import { exportWorkbook, exportName } from "@/lib/xlsx";
 import type { BranchReport, CatalogTransfer } from "@/lib/types";
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const dateAfter = (f: string) => { const d = new Date(); if (f === "hafta") d.setDate(d.getDate() - 7); else if (f === "oy") d.setDate(d.getDate() - 30); return ymd(d); };
+// ⚠️ O'Z NUSXASI OLIB TASHLANDI. U «hafta» ni −7, «oy» ni −30 deb hisoblardi,
+// umumiy helper esa −6 / oy boshi deb — ya'ni bu sahifa boshqa sahifalardan
+// BIR KUN farq qiladigan davrni so'rardi. Endi yagona manba: lib/format.
+const dateAfter = (f: string) => dateAfterParam(f as "bugun" | "hafta" | "oy");
 // ikki bo'lim — chip-almashtirish (florist stock sahifasi bilan bir xil pattern; u app/floristlar'dan)
 const TAB_LABEL = { hisobot: "Hisobot", tarix: "Yuborilganlar tarixi" } as const;
 type Tab = keyof typeof TAB_LABEL;

@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import clsx from "clsx";
 import Popover from "./Popover";
 import { useStore } from "@/lib/store";
+import { dateFilterStart } from "@/lib/format";
 import type { DateFilter, DateRange } from "@/lib/types";
 
 /**
@@ -16,10 +17,12 @@ import type { DateFilter, DateRange } from "@/lib/types";
  * segment bosilsa oraliq bekor bo'ladi (store shunday qiladi).
  */
 
-const OPTS: [DateFilter, string, number][] = [
-  ["bugun", "Bugun", 0],
-  ["hafta", "7 kun", 6],
-  ["oy", "30 kun", 29],
+/** ⚠️ «oy» — SURILUVCHI 30 kun EMAS, KALENDAR OYI: 1-sanadan bugungacha.
+    Boshlanish sanasi `dateFilterStart` da (lib/format) — yagona manba. */
+const OPTS: [DateFilter, string][] = [
+  ["bugun", "Bugun"],
+  ["hafta", "7 kun"],
+  ["oy", "Shu oy"],
 ];
 const MONTHS_S = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "okt", "noy", "dek"];
 const MONTHS_F = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
@@ -130,15 +133,16 @@ export default function DateChips() {
   const [calOpen, setCalOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const days = OPTS.find(([id]) => id === dateFilter)?.[2] ?? 29;
+  // ⚠️ Ko'rsatiladigan oraliq so'rovga ketadigan sana bilan AYNAN bir xil bo'lishi
+  // uchun `dateFilterStart` dan olinadi (ilgari bu yerda kun soni alohida sanalardi).
   const now = new Date();
-  const from = new Date(now);
-  from.setDate(now.getDate() - days);
+  const from = dateFilterStart(dateFilter);
+  const sameDay = ymd(from) === ymd(now);
   const range = dateRange
     ? dateRange.from === dateRange.to
       ? fmtShort(dateRange.from)
       : `${fmtShort(dateRange.from)} — ${fmtShort(dateRange.to)}`
-    : days === 0
+    : sameDay
       ? fmtShort(ymd(now))
       : `${fmtShort(ymd(from))} — ${fmtShort(ymd(now))}`;
 

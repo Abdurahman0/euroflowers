@@ -71,13 +71,30 @@ export const fmtDate = (iso: string | null | undefined): string => {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
 };
 
-/** DateFilter → backend `created_at_after` qiymati (YYYY-MM-DD).
-    Chip ko'rsatadigan oraliq bilan AYNAN bir xil: "7 kun" = bugun bilan 7 kun
-    (bugun−6), "30 kun" = bugun−29 — bitta ortiqcha kun qo'shilmaydi. */
-export const dateAfterParam = (filter: "bugun" | "hafta" | "oy"): string => {
+/**
+ * DateFilter → davr BOSHLANISH sanasi. Chip ko'rsatadigan oraliq bilan
+ * AYNAN bir xil bo'lishi uchun YAGONA manba shu funksiya.
+ *
+ *   bugun  → bugun
+ *   hafta  → bugun−6  (ya'ni bugun bilan birga 7 kun)
+ *   oy     → ⚠️ SHU OYNING 1-KUNI (oxirgi 30 kun EMAS)
+ *
+ * ⚠️ «oy» endi SURILUVCHI 30 kun emas, KALENDAR OYI: 1-sanadan bugungacha.
+ * Sabab: hisobot va kassa oy bo'yicha yuritiladi — 19-avgustda «oxirgi 30 kun»
+ * iyul oyining yarmini ham qo'shib yuborardi va oylik jamilar hech qachon
+ * kassa bilan mos tushmasdi.
+ */
+export const dateFilterStart = (filter: "bugun" | "hafta" | "oy"): Date => {
   const d = new Date();
+  d.setHours(0, 0, 0, 0);
   if (filter === "hafta") d.setDate(d.getDate() - 6);
-  if (filter === "oy") d.setDate(d.getDate() - 29);
+  else if (filter === "oy") d.setDate(1);
+  return d;
+};
+
+/** DateFilter → backend `created_at_after` qiymati (YYYY-MM-DD). */
+export const dateAfterParam = (filter: "bugun" | "hafta" | "oy"): string => {
+  const d = dateFilterStart(filter);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
