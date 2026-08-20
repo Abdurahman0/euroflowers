@@ -429,18 +429,29 @@ export default function KatalogPage() {
           const dimmed = k.status === "sold" || k.status === "archived";
           return (
             <article key={k.id} className="glass card-hover group flex flex-col overflow-hidden !rounded-[20px]" style={dimmed ? { opacity: 0.6 } : undefined}>
+              {/* ⚠️ RASM KO'RSATILMAYDI (so'rov: ro'yxat ixcham bo'lsin) — o'rniga bir qatorli
+                  sarlavha chizig'i: holat + qoldiq nishoni chapda, amallar o'ngda.
+                  Rasm bloki ilgari FAQAT surat emas, shu nishonlar va amallar uyi ham edi. */}
               <div
-                className="relative h-[190px] cursor-pointer bg-bg2"
-                role="button"
-                tabIndex={0}
-                onClick={() => api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi"))}
-                onKeyDown={(e) => e.key === "Enter" && api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi"))}
-                title="Batafsil ko'rish"
+                className="flex items-center gap-2 border-b px-3 py-2"
+                style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
               >
-                {k.image_url && <img src={k.image_url} alt={k.name_uz} className="h-full w-full object-cover" />}
-                {/* tahrirlash / o'chirish / filialga yuborish — rasm ustida, hover'da */}
+                <span
+                  className="shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold"
+                  style={k.status === "available"
+                    ? { borderColor: "var(--border-strong)", background: "var(--surface-solid)", color: "var(--text-2)" }
+                    : { borderColor: "transparent", background: "var(--acc)", color: "#fff" }}
+                >
+                  {(CATALOG_STATUS_LABEL[k.status] ?? k.status).toUpperCase()}
+                </span>
+                {/* nechta gul qoldi — kartaning yuqorisida darhol ko'rinadi */}
+                {k.quantity_total != null && left > 0 && (
+                  <span className="shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold" style={{ borderColor: "var(--border-strong)", background: "var(--surface-solid)", color: "var(--text-2)" }}>
+                    {left} TA QOLDI
+                  </span>
+                )}
                 {control && (
-                  <span className="absolute bottom-2.5 right-2.5 flex items-center gap-1 rounded-[11px] p-1 opacity-0 backdrop-blur-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100" style={{ background: "color-mix(in srgb, var(--surface-solid) 82%, transparent)" }}>
+                  <span className="ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
                     {/* RESTAVRATSIYA — qoldig'i bor mahsulotni buzib yangisini yasash */}
                     {catalogRemaining(k) > 0 && (
                       <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setReworkOpen({ source: k }); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setReworkOpen({ source: k }); } }} title="Restavratsiya — buzib yangi mahsulot yasash" aria-label={`${k.name_uz || k.name_ru} — restavratsiya`} className="icon-btn !h-7 !w-7">
@@ -477,19 +488,20 @@ export default function KatalogPage() {
                     </span>
                   </span>
                 )}
-                <span className={`absolute left-2.5 top-2.5 -rotate-2 rounded-full border border-[color:var(--border-strong)] px-2.5 py-1 text-[11px] font-bold ${k.status === "available" ? "bg-white/85 text-[#221833]" : "text-white"}`} style={k.status !== "available" ? { background: "var(--acc)" } : undefined}>
-                  {(CATALOG_STATUS_LABEL[k.status] ?? k.status).toUpperCase()}
-                </span>
-                {/* nechta gul qoldi — kartaning yuqorisida darhol ko'rinadi */}
-                {k.quantity_total != null && left > 0 && (
-                  <span className="absolute right-2.5 top-2.5 rotate-2 rounded-full border border-[color:var(--border-strong)] bg-white/85 px-2.5 py-1 text-[11px] font-bold text-[#221833]">
-                    {left} TA QOLDI
-                  </span>
-                )}
               </div>
               <div className="flex flex-1 flex-col gap-1.5 p-4">
                 <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-[16px] font-bold tracking-tight">{k.name_uz || k.name_ru}</h3>
+                  {/* ⚠️ Rasm olib tashlangach «batafsil» ni SHU NOM ochadi (ilgari rasm bosilardi) */}
+                  <h3
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi"))}
+                    onKeyDown={(e) => e.key === "Enter" && api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi"))}
+                    title="Batafsil ko'rish"
+                    className="cursor-pointer text-[16px] font-bold tracking-tight underline-offset-2 hover:underline"
+                  >
+                    {k.name_uz || k.name_ru}
+                  </h3>
                   <span className="whitespace-nowrap text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(k.price)}</span>
                 </div>
                 <p className="text-[13px] leading-relaxed" style={{ color: "var(--mut)" }}>
