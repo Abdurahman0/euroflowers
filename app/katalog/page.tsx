@@ -29,9 +29,10 @@ import CatalogSalesTab from "@/components/CatalogSalesTab";
 import RestavratsiyaTab from "@/components/RestavratsiyaTab";
 import RestavratsiyaModal from "@/components/RestavratsiyaModal";
 import Pagination from "@/components/Pagination";
-import BouquetVolumeSummary from "@/components/BouquetVolumeSummary";
+import CatalogGroupCard from "@/components/CatalogGroupCard";
+import { groupByVolume } from "@/lib/catalogGroups";
 import { usePagedList } from "@/lib/usePagedList";
-import type { BouquetVolumeSummary as BouquetVolumeRow, CatalogItem, FloristProfile, Reservation } from "@/lib/types";
+import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 import { deductionState } from "@/lib/catalogStock";
 import { floristLabel, type FloristLike } from "@/lib/floristLabel";
 
@@ -215,6 +216,11 @@ export default function KatalogPage() {
   };
 
   // «Sotish» — modal orqali: soni + ixtiyoriy chegirma narxi va sababi
+  // ⚠️ HAJM GURUHLARI — ko'rinib turgan yozuvlardan (filtr + sahifa) yig'iladi.
+  const groups = useMemo(() => groupByVolume(shownItems), [shownItems]);
+  // ⚠️ Bir vaqtda BITTA guruh ochiladi va u butun qatorni egallaydi (akkordeon).
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+
   const [sellItem, setSellItem] = useState<CatalogItem | null>(null);
   // §2 Bron bilan sotish — Bronlar sahifasidan «Katalogdan sotish» (?reservation=&item=) orqali
   const [presetResv, setPresetResv] = useState<Reservation | null>(null);
@@ -381,9 +387,6 @@ export default function KatalogPage() {
         )}
       </div>
 
-      {/* ⚠️ BUKET HAJMI UMUMIYSI — serverning `totals.bouquet_volume_summary` idan.
-          Filtrga ergashadi (status/qidiruv o'zgarsa sonlar ham o'zgaradi). */}
-      <BouquetVolumeSummary rows={paged.totals?.bouquet_volume_summary as BouquetVolumeRow[] | undefined} />
 
       {customerFilter && (
         <div className="mb-3 flex items-center gap-2 rounded-[12px] border px-3.5 py-2 text-[13px]" style={{ borderColor: "var(--primary)", background: "var(--primary-soft)" }}>
@@ -404,217 +407,37 @@ export default function KatalogPage() {
         />
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(275px,1fr))" }}>
-        {shownItems.map((k) => {
-          // yangi kontrakt: soni bilan ishlash; eski yozuvlar uchun statusga tayanamiz
-          const total = k.quantity_total ?? 1;
-          // ⚠️ `pending` — `lib/catalogStock` dan. Ro'yxat javobida `quantity_stock_deducted`
-          // va `stock_deducted_at` UMUMAN kelmaydi, shuning uchun bu yerda ularni to'g'ridan-
-          // to'g'ri o'qish 261 ta yozuvda YOLG'ON «kamaytirilmagan» ogohlantirishi bergan edi.
-          const ded = deductionState(k);
-          const sold = ded.sold;
-          const pending = ded.pending;
-          // ⚠️ QOLDIQ — YAGONA manba: sotilgan + chiqit + RESTAVRATSIYA ayriladi.
-          const left = catalogRemaining(k);
-          const sellable = left > 0 && (k.status === "available" || k.status === "reserved" || k.status === "draft");
-          /**
-           * ⚠️ XIRALASHTIRISH — FAQAT SERVER holati bo'yicha.
-           * Ilgari klient `isSold` qoidasi ishlatilardi (`quantity_sold >= quantity_total`),
-           * va u `status: "available"` bo'lgan mahsulotni ham sotilgandek xiralashtirardi:
-           * server «Sotuvda» guruhiga qo'ygan qator ekranda o'chgan holda ko'rinardi
-           * (jonli: #443 1/1, #348 3/3, #257 4/4 — hammasi `available`).
-           * Guruhlashni endi server hal qiladi (`?status_group=`), shu bois ko'rinish ham
-           * uning holatiga ergashadi.
-           */
-          const dimmed = k.status === "sold" || k.status === "archived";
-          return (
-            <article key={k.id} className="glass card-hover group flex flex-col overflow-hidden !rounded-[20px]" style={dimmed ? { opacity: 0.6 } : undefined}>
-              {/* ⚠️ RASM KO'RSATILMAYDI (so'rov: ro'yxat ixcham bo'lsin) — o'rniga bir qatorli
-                  sarlavha chizig'i: holat + qoldiq nishoni chapda, amallar o'ngda.
-                  Rasm bloki ilgari FAQAT surat emas, shu nishonlar va amallar uyi ham edi. */}
-              <div
-                className="flex items-center gap-2 border-b px-3 py-2"
-                style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-              >
-                <span
-                  className="shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold"
-                  style={k.status === "available"
-                    ? { borderColor: "var(--border-strong)", background: "var(--surface-solid)", color: "var(--text-2)" }
-                    : { borderColor: "transparent", background: "var(--acc)", color: "#fff" }}
-                >
-                  {(CATALOG_STATUS_LABEL[k.status] ?? k.status).toUpperCase()}
-                </span>
-                {/* nechta gul qoldi — kartaning yuqorisida darhol ko'rinadi */}
-                {k.quantity_total != null && left > 0 && (
-                  <span className="shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold" style={{ borderColor: "var(--border-strong)", background: "var(--surface-solid)", color: "var(--text-2)" }}>
-                    {left} TA QOLDI
-                  </span>
-                )}
-                {control && (
-                  <span className="ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
-                    {/* RESTAVRATSIYA — qoldig'i bor mahsulotni buzib yangisini yasash */}
-                    {catalogRemaining(k) > 0 && (
-                      <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setReworkOpen({ source: k }); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setReworkOpen({ source: k }); } }} title="Restavratsiya — buzib yangi mahsulot yasash" aria-label={`${k.name_uz || k.name_ru} — restavratsiya`} className="icon-btn !h-7 !w-7">
-                        <Recycle size={13} strokeWidth={1.9} />
-                      </span>
-                    )}
-                    {/* Filialga yuborish — FAQAT asosiy filial admini, sotilmagan qismi bor bo'lsa */}
-                    {mainUser && catalogRemaining(k) > 0 && (
-                      <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setTransferItem(k); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setTransferItem(k); } }} title="Filialga yuborish" aria-label={`${k.name_uz || k.name_ru} — filialga yuborish`} className="icon-btn !h-7 !w-7">
-                        <Send size={13} strokeWidth={1.9} />
-                      </span>
-                    )}
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); setEditItem(k); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setEditItem(k); } }}
-                      title="Tahrirlash"
-                      aria-label={`${k.name_uz || k.name_ru} — tahrirlash`}
-                      className="icon-btn !h-7 !w-7"
-                    >
-                      <Pencil size={13.5} strokeWidth={1.75} />
-                    </span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); setConfirmDel(k); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setConfirmDel(k); } }}
-                      title="O'chirish"
-                      aria-label={`${k.name_uz || k.name_ru} — o'chirish`}
-                      className="icon-btn icon-btn-danger !h-7 !w-7"
-                    >
-                      <Trash2 size={13.5} strokeWidth={1.75} />
-                    </span>
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-1 flex-col gap-1.5 p-4">
-                <div className="flex items-baseline justify-between gap-2">
-                  {/* ⚠️ Rasm olib tashlangach «batafsil» ni SHU NOM ochadi (ilgari rasm bosilardi) */}
-                  <h3
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi"))}
-                    onKeyDown={(e) => e.key === "Enter" && api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi"))}
-                    title="Batafsil ko'rish"
-                    className="cursor-pointer text-[16px] font-bold tracking-tight underline-offset-2 hover:underline"
-                  >
-                    {k.name_uz || k.name_ru}
-                  </h3>
-                  <span className="whitespace-nowrap text-[14px] font-bold" style={{ color: "var(--acc)" }}>{fmt(k.price)}</span>
-                </div>
-                <p className="text-[13px] leading-relaxed" style={{ color: "var(--mut)" }}>
-                  {compositionText(k)}
-                  {k.height_cm ? ` · bo'yi ${k.height_cm} sm` : ""} · {ARRANGEMENT_LABEL[k.arrangement_type] ?? k.arrangement_type}
-                </p>
-                {(k.description_uz || k.description_ru) && (
-                  <p className="text-[13px] italic" style={{ color: "var(--mut)" }}>{k.description_uz || k.description_ru}</p>
-                )}
-                {/* florist chipi (kim tayyorladi) — ⚠️ FILIAL foydalanuvchisiga UMUMAN chizilmaydi
-                    (florist kimligi asosiy filial ishi; catalogHasCostData bilan gate). */}
-                {catalogHasCostData(k) && (k.florist_detail ? (
-                  <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>
-                    <span className="avatar-lead flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold">{initials(floristName(k.florist_detail, k.florist_name))}</span>
-                    <span className="truncate" title={floristName(k.florist_detail, k.florist_name)}>{floristName(k.florist_detail, k.florist_name)}</span>
-                  </span>
-                ) : (
-                  <span className="text-[12px] italic" style={{ color: "var(--muted)" }}>Florist ko&apos;rsatilmagan</span>
-                ))}
-                {/* OFORMLENIYA floristi — ALOHIDA chip (accent + Sparkles), yasovchidan farqlansin */}
-                {catalogHasCostData(k) && k.decoration_florist_detail && (
-                  <span className="flex min-w-0 items-center gap-1 text-[11.5px] font-semibold" style={{ color: "var(--acc)" }} title={`Oformleniya: ${floristName(k.decoration_florist_detail, k.decoration_florist_name)}`}>
-                    <Sparkles size={12} strokeWidth={2} className="shrink-0" />
-                    <span className="truncate">{floristName(k.decoration_florist_detail, k.decoration_florist_name)}</span>
-                  </span>
-                )}
-                {/* KUTAYAPTI: material+haq hisobda, faqat gul tannarxi yopilganda qo'shiladi → foyda hali to'liq emas */}
-                {isUndistributed(k) && (
-                  <span className="flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #b3873a 16%, transparent)", color: "var(--warning-ink, #8a6d1f)" }} title="Material va florist haqi allaqachon tannarxda; faqat gul tannarxi chiqim yopilganda qo'shiladi — foyda shundan keyin to'liq bo'ladi">
-                    <Info size={11} strokeWidth={2.4} /> Gul taqsimlanmagan
-                  </span>
-                )}
-                {/* mijoz chipi (kim sotib oldi) — bosilsa shu mijoz bo'yicha filtr */}
-                {k.customer_detail && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setCustomerFilter({ id: k.customer_detail!.id, label: `${k.customer_detail!.name || "Mijoz"}${k.customer_detail!.masked_phone ? ` · ${k.customer_detail!.masked_phone}` : ""}` }); }}
-                    className="flex min-w-0 items-center gap-1.5 self-start rounded-full border px-2 py-0.5 text-[11.5px] font-bold transition-colors hover:border-[color:var(--primary)]"
-                    style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
-                    title={`Mijoz: ${k.customer_detail.name}${k.customer_detail.masked_phone ? ` · ${k.customer_detail.masked_phone}` : ""} — bo'yicha filtrlash`}
-                  >
-                    <User size={11} strokeWidth={2.2} style={{ color: "var(--primary)" }} />
-                    <span className="truncate">{k.customer_detail.name || "Mijoz"}</span>
-                    {k.customer_detail.masked_phone && <span className="shrink-0 opacity-70">{k.customer_detail.masked_phone}</span>}
-                  </button>
-                )}
-                {/* ichki izoh — bir qatorli preview, to'liq matn tooltip'da */}
-                {k.note && (
-                  <p className="truncate text-[12.5px] italic" style={{ color: "var(--mut)" }} title={k.note}>✎ {k.note}</p>
-                )}
-                {k.instagram_story_url && (
-                  <a href={k.instagram_story_url.startsWith("http") ? k.instagram_story_url : `https://${k.instagram_story_url}`} target="_blank" className="text-[13px] font-semibold">
-                    ↗ Instagram story ({fmtTime(k.created_at)})
-                  </a>
-                )}
-
-                {/* soni: qoldiq / jami / sotildi (+ chiqim kutilmoqda) */}
-                {k.quantity_total != null && (
-                  <div className="flex flex-wrap gap-1.5 text-[11.5px] font-bold">
-                    <span className="rounded-full bg-mint px-2.5 py-0.5 text-mintink">Qoldiq: {left}</span>
-                    <span className="rounded-full bg-tint px-2.5 py-0.5">Jami: {total}</span>
-                    <span className="rounded-full bg-tint px-2.5 py-0.5">Sotildi: {sold}</span>
-                    {/* ⚠️ RESTAVRATSIYADA — buzilgan donalar sotuvda KO'RINMAYDI (spec kartochka qatori) */}
-                    {(k.quantity_reworked ?? 0) > 0 && (
-                      <span className="rounded-full px-2.5 py-0.5" style={{ background: "color-mix(in srgb, var(--acc) 15%, transparent)", color: "var(--acc)" }}
-                        title="Restavratsiyada buzilgan — sotuvda ko'rinmaydi">Restavratsiyada: {k.quantity_reworked}</span>
-                    )}
-                    {(k.quantity_wasted ?? 0) > 0 && (
-                      <span className="rounded-full px-2.5 py-0.5" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>Chiqit: {k.quantity_wasted}</span>
-                    )}
-                    {pending > 0 && <span className="rounded-full bg-peach px-2.5 py-0.5 text-peachink">Kutilmoqda: {pending}</span>}
-                    {/* chegirmada sotilgan — ⚠️ FILIALGA yashiriladi (komponent narxidan hisoblanadi, tannarxni oshkor qiladi) */}
-                    {catalogHasCostData(k) && +(k.discount_amount ?? 0) > 0 && (
-                      <span
-                        className="rounded-full px-2.5 py-0.5"
-                        style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}
-                        title={k.discount_reason || "Chegirma bilan sotilgan"}
-                      >
-                        Chegirma: {fmt(k.discount_amount)}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {pending > 0 && (
-                  <div className="rounded-[13px] border-[1.5px] bg-tint p-3" style={{ borderColor: "var(--line)" }}>
-                    <p className="mb-2 text-[13px] font-bold">⚠ {pending} ta sotuv skladdan hali kamaytirilmagan. Kamaytirilsinmi?</p>
-                    <div className="flex gap-2">
-                      <button onClick={() => deduct(k)} disabled={busyId === k.id} className="flex-1 rounded-[10px] py-2 text-[13px] font-bold text-white disabled:opacity-60" style={{ background: "var(--side)" }}>
-                        {busyId === k.id ? "…" : `Ha, kamaytirish (${pending} ta)`}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {sold > 0 && pending === 0 && k.stock_deducted_at && (
-                  <div className="rounded-[11px] bg-mint px-3 py-2 text-xs font-bold text-mintink">✓ Sklad kamaytirilgan · {fmtTime(k.stock_deducted_at)}</div>
-                )}
-
-                {/* «Sotish» — modal: soni, ixtiyoriy chegirma narxi va sababi */}
-                {sellable && (
-                  <button
-                    onClick={() => setSellItem(k)}
-                    className="mt-auto rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint"
-                    style={{ borderColor: "var(--line)" }}
-                  >
-                    Sotish
-                  </button>
-                )}
-              </div>
-            </article>
-          );
-        })}
+      {/* ⚠️ KATALOG «UMUMIY» KO'RINISHDA — bitta karta = bitta HAJM (Kichik/O'rta/Katta).
+          Do'konda bir xil tovar bir necha marta kiritilgan («kotta», «KOTTA 100 TALI ATIR» —
+          hammasi 800 000 so'm), operator uchun esa bu bitta tovar: «katta 15 ta bor».
+          Pozitsiyalar YO'QOLMAYDI — karta ochilib, har biri o'z amallari bilan chiqadi.
+          Guruh FAQAT hozir ko'rinib turgan (filtr + sahifa) yozuvlardan yig'iladi. */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))" }}>
+        {groups.map((g) => (
+          <div key={g.volume || "none"} style={openGroup === (g.volume || "none") ? { gridColumn: "1 / -1" } : undefined}>
+          <CatalogGroupCard
+            group={g}
+            open={openGroup === (g.volume || "none")}
+            onToggle={(v) => setOpenGroup(v ? g.volume || "none" : null)}
+            actions={{
+              onSell: setSellItem,
+              onView: (k) => api.catalogItem(k.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi")),
+              onEdit: setEditItem,
+              onDelete: setConfirmDel,
+              onRework: (k) => setReworkOpen({ source: k }),
+              onTransfer: setTransferItem,
+              onDeduct: deduct,
+              onCustomer: (id, label) => setCustomerFilter({ id, label }),
+              busyId,
+              control,
+              mainUser,
+              costVisible: catalogHasCostData,
+              undistributed: isUndistributed,
+              composition: compositionText,
+            }}
+          />
+          </div>
+        ))}
         {shownItems.length === 0 && <div className="col-span-full"><EmptyState title={floristFilter ? "Bu floristda katalog yo'q" : "Katalog hozircha bo'sh"} sub={floristFilter ? "Boshqa floristni tanlang." : "Birinchi tayyor guldastani qo'shing — story havolasi bilan."} /></div>}
       </div>
 
