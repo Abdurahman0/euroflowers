@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupByVolume, pickSellItem, uniformPrice } from "./catalogGroups";
+import { groupCatalog, pickSellItem, uniformPrice } from "./catalogGroups";
 import type { CatalogItem } from "./types";
 
 // Do'kon ma'lumoti (jonli, 20.08.2026): 6 ta KATTA buket — hammasi 800 000 so'm,
@@ -11,7 +11,7 @@ const item = (p: Partial<CatalogItem> & { id: number }): CatalogItem =>
     ...p,
   } as CatalogItem);
 
-describe("CG1 — hajm bo'yicha guruhlash", () => {
+describe("CG1 — hajm VA tur bo'yicha guruhlash", () => {
   const items = [
     item({ id: 518, volume: "large", price: "800000", quantity_total: 7 }),
     item({ id: 542, volume: "large", price: "800000", quantity_total: 2 }),
@@ -20,30 +20,45 @@ describe("CG1 — hajm bo'yicha guruhlash", () => {
     item({ id: 537, volume: "medium", price: "400000", quantity_total: 5 }),
   ];
 
-  it("uchta guruh, kichikdan kattaga", () => {
-    expect(groupByVolume(items).map((g) => g.volume)).toEqual(["small", "medium", "large"]);
+  it("SAVAT buketdan ALOHIDA karta bo'ladi", () => {
+    const gs = groupCatalog(items);
+    expect(gs.map((g) => g.label)).toEqual(["Kichik buket", "O'rta buket", "O'rta savat", "Katta buket"]);
   });
 
-  it("qoldiq guruh bo'yicha yig'iladi", () => {
-    const large = groupByVolume(items).find((g) => g.volume === "large")!;
+  it("har bir guruhda BITTA tur", () => {
+    for (const g of groupCatalog(items)) {
+      expect(new Set(g.items.map((k) => k.arrangement_type ?? "bouquet")).size).toBe(1);
+    }
+  });
+
+  it("o'rta savat va o'rta buket sonlari ARALASHMAYDI", () => {
+    const gs = groupCatalog(items);
+    const savat = gs.find((g) => g.key === "medium|basket")!;
+    const buket = gs.find((g) => g.key === "medium|bouquet")!;
+    expect(savat.remaining).toBe(4);
+    expect(buket.remaining).toBe(5);
+    expect(uniformPrice(savat)).toBe(1000000);
+    expect(uniformPrice(buket)).toBe(400000);
+  });
+
+  it("bir xil hajm+turdagi yozuvlar bitta kartaga yig'iladi", () => {
+    const large = groupCatalog(items).find((g) => g.key === "large|bouquet")!;
+    expect(large.items.map((k) => k.id).sort()).toEqual([518, 542]);
     expect(large.remaining).toBe(9);
-    expect(large.items).toHaveLength(2);
   });
 
-  it("narx bitta bo'lsa — aniq narx, har xil bo'lsa oraliq", () => {
-    const gs = groupByVolume(items);
-    expect(uniformPrice(gs.find((g) => g.volume === "large")!)).toBe(800000);
-    expect(uniformPrice(gs.find((g) => g.volume === "medium")!)).toBeNull();
-    expect(gs.find((g) => g.volume === "medium")!.prices).toEqual([400000, 1000000]);
-  });
-
-  it("tur bo'yicha sanoq — «1 buket · 1 savat»", () => {
-    const med = groupByVolume(items).find((g) => g.volume === "medium")!;
-    expect(med.typeCounts).toEqual({ bouquet: 1, basket: 1, box: 0 });
+  it("tartib: kichik → o'rta → katta, ichida buket → savat → quti", () => {
+    const gs = groupCatalog([
+      item({ id: 1, volume: "large", arrangement_type: "basket" }),
+      item({ id: 2, volume: "small", arrangement_type: "box" }),
+      item({ id: 3, volume: "small", arrangement_type: "bouquet" }),
+      item({ id: 4, volume: "large", arrangement_type: "bouquet" }),
+    ]);
+    expect(gs.map((g) => g.key)).toEqual(["small|bouquet", "small|box", "large|bouquet", "large|basket"]);
   });
 
   it("sotilib bo'lgan yozuv narx oralig'ini kengaytirmaydi", () => {
-    const gs = groupByVolume([
+    const gs = groupCatalog([
       item({ id: 1, volume: "small", price: "200000", quantity_total: 5 }),
       item({ id: 2, volume: "small", price: "999000", quantity_total: 3, quantity_sold: 3 }),
     ]);
@@ -54,17 +69,18 @@ describe("CG1 — hajm bo'yicha guruhlash", () => {
 
 describe("CG2 — hajmsiz yozuvlar YO'QOLMAYDI", () => {
   it("bo'sh/notanish hajm oxirgi guruhga tushadi", () => {
-    const gs = groupByVolume([
+    const gs = groupCatalog([
       item({ id: 1, volume: "large" }),
       item({ id: 2, volume: "" as never }),
       item({ id: 3, volume: "XXL" as never }),
     ]);
-    expect(gs.map((g) => g.volume)).toEqual(["large", ""]);
+    expect(gs.map((g) => g.key)).toEqual(["large|bouquet", "|bouquet"]);
+    expect(gs[1].label).toBe("Hajmi belgilanmagan buket");
     expect(gs[1].items.map((k) => k.id)).toEqual([2, 3]);
   });
 
   it("bo'sh ro'yxat → guruh yo'q", () => {
-    expect(groupByVolume([])).toEqual([]);
+    expect(groupCatalog([])).toEqual([]);
   });
 });
 

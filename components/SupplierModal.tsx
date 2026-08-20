@@ -272,7 +272,9 @@ export function SupplierDetail({ supplier, onClose, onEdit, onOpenBatch }: { sup
 
       {/* segment: tashqi --r-md, ichki --r-sm (modal tugmalari bilan bir oila) */}
       <div className="mt-3 flex gap-1 rounded-md border p-1" style={{ borderColor: "var(--border)" }}>
-        {(["batches", "materials", "moves", "payments", "debts"] as const).map((t) => (
+        {/* ⚠️ TARTIB: to'lov va qarz — eng ko'p ishlatiladigan ikki bo'lim, shuning uchun
+            gul yuklaridan keyin DARROV turadi (ilgari oxirida edi). */}
+        {(["batches", "payments", "debts", "materials", "moves"] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className="flex-1 rounded-sm py-1.5 text-[12.5px] font-bold transition-colors duration-150" style={tab === t ? { background: "var(--primary)", color: "#fff" } : { color: "var(--muted)" }}>
             {t === "batches" ? "Gul yuklari" : t === "materials" ? "Material / accessory" : t === "moves" ? "Harakatlar" : t === "payments" ? "To'lovlar" : "Qo'lda qarz"}
           </button>

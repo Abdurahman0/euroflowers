@@ -67,7 +67,10 @@ export default function KatalogSellModal({
 
   const [qty, setQty] = useState(1);
   const [payment, setPayment] = useState<PaymentType>("cash");
-  const [discountOn, setDiscountOn] = useState(false);
+  // ⚠️ NARX DOIM QO'LDA: ilgari «Arzonroq sotish» belgisi qo'yilmaguncha narx maydoni
+  //    umuman ko'rinmasdi va katalog narxi jimgina ketardi. Endi maydon ochiq turadi va
+  //    katalog narxi bilan to'ldiriladi — operator har sotuvda summani o'zi tasdiqlaydi
+  //    (guruh kartasida bir nechta narx bo'lishi mumkin).
   const [price, setPrice] = useState(String(listPrice));
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -154,7 +157,7 @@ export default function KatalogSellModal({
     if (!resv) return;
     if (resv.customer_detail && !hadCustomer) setCust({ mode: "existing", id: resv.customer_detail.id, detail: resv.customer_detail });
     const est = Math.round(+(resv.estimated_price ?? 0) || 0);
-    if (est > 0 && est !== listPrice && !discountOn) { setDiscountOn(true); setPrice(String(est)); }
+    if (est > 0 && est !== listPrice) setPrice(String(est));
     setQty(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resv?.id]);
@@ -171,7 +174,7 @@ export default function KatalogSellModal({
     return q ? xs.filter((r) => custLabel(r).toLowerCase().includes(q) || (r.request_uz || "").toLowerCase().includes(q)) : xs;
   }, [resvList, resvQ]);
 
-  const salePrice = discountOn ? Math.round(+price || 0) : listPrice;
+  const salePrice = Math.round(+price || 0);
   const calc = useMemo(() => {
     const unitDiscount = Math.max(listPrice - salePrice, 0);
     return {
@@ -182,7 +185,8 @@ export default function KatalogSellModal({
     };
   }, [listPrice, salePrice, qty]);
 
-  const needsReason = discountOn && calc.unitDiscount > 0;
+  // sabab FAQAT katalog narxidan PAST sotilganda majburiy (backend ham shuni talab qiladi)
+  const needsReason = calc.unitDiscount > 0;
 
   // ⚠️ JAMI o'zgardi (dona / chegirma) → FAQAT tegilmagan maydon qayta hisoblanadi.
   // ⚠️ 2026-08-04 QOIDA O'ZGARDI: `sale_price` MIJOZDAN OLINADIGAN TO'LIQ pul bo'lib,
@@ -210,7 +214,7 @@ export default function KatalogSellModal({
    */
   useEffect(() => {
     setErrs((x) => (Object.keys(x).length ? {} : x));
-  }, [payment, mixed.cash, mixed.card, qty, discountOn, price, delivery, cust.mode]);
+  }, [payment, mixed.cash, mixed.card, qty, price, delivery, cust.mode]);
 
   // §4 SOTUVDA QO'SHILGAN iqtisodi: material qoldiqni × qty (server ko'paytiradi), tannarx va oformleniya haqi.
   const validSaleMats = saleMats.filter((m) => m.packaging > 0 && +m.qty > 0);
@@ -220,7 +224,7 @@ export default function KatalogSellModal({
 
   const submit = async () => {
     const next: Record<string, string> = {};
-    if (discountOn && (!price || salePrice <= 0)) next.sale_price = "Narxni kiriting";
+    if (!price || salePrice <= 0) next.sale_price = "Narxni kiriting";
     if (needsReason && !reason.trim()) next.discount_reason = "Chegirma sababini yozing";
     // ⚠️ QARZ: mijoz majburiy — serverning 400'ini kutmasdan shu yerda to'xtatamiz
     // (matn AYNAN serverникi, ikki xil ibora bo'lmasin).
@@ -258,7 +262,10 @@ export default function KatalogSellModal({
       const updated = await api.sellCatalogItem(item.id, {
         quantity: qty,
         payment_type: payment,
-        ...(discountOn ? { sale_price: salePrice.toFixed(2), discount_reason: reason.trim() || undefined } : {}),
+        // ⚠️ `sale_price` DOIM yuboriladi — maydondagi summa aynan shu (sukut bo'yicha
+        //    katalog narxi). Sabab faqat past narxda majburiy.
+        sale_price: salePrice.toFixed(2),
+        ...(reason.trim() ? { discount_reason: reason.trim() } : {}),
         // ⚠️ DatePicker offsetsiz "YYYY-MM-DDTHH:mm" beradi — server uni UTC deb o'qib
         // 23:30 ni ERTANGI kunga tashlab yuborishi mumkin. Offset ANIQ yoziladi.
         ...(dateOn && soldAt ? { sold_at: withTashkentOffset(soldAt) } : {}),
@@ -476,21 +483,8 @@ export default function KatalogSellModal({
         )}
       </Field>
 
-      {/* CHEGIRMA — ixtiyoriy */}
-      <label className="mt-4 flex cursor-pointer items-center justify-between gap-3 rounded-[14px] border px-3.5 py-3" style={{ borderColor: discountOn ? "var(--primary)" : "var(--border)", background: discountOn ? "var(--primary-soft)" : undefined }}>
-        <span className="min-w-0">
-          <span className="block text-[13px] font-bold">Arzonroq sotish</span>
-          <span className="block text-[11.5px]" style={{ color: "var(--muted)" }}>Chegirma sotuv tarixiga yoziladi</span>
-        </span>
-        <input
-          type="checkbox"
-          checked={discountOn}
-          onChange={(e) => { setDiscountOn(e.target.checked); if (!e.target.checked) { setPrice(String(listPrice)); setReason(""); setErrs({}); } }}
-          className="h-4 w-4 shrink-0 accent-[var(--primary)]"
-        />
-      </label>
-
-      {discountOn && (
+      {/* ⚠️ SOTUV NARXI — DOIM ochiq, katalog narxi bilan to'ldirilgan. */}
+      {(
         <div className="mt-3 grid grid-cols-1 gap-3">
           <Field label="Sotuv narxi — dona (so'm)" span>
             <input
@@ -499,8 +493,10 @@ export default function KatalogSellModal({
               value={price}
               onChange={(e) => { setPrice(e.target.value.replace(/\D/g, "")); setErrs((x) => { const n = { ...x }; delete n.sale_price; return n; }); }}
               placeholder={String(listPrice)}
-              autoFocus
             />
+            <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>
+              Katalog narxi {fmt(listPrice)}{salePrice > listPrice ? " — undan yuqori sotilyapti" : calc.unitDiscount > 0 ? ` — ${fmt(calc.unitDiscount)} arzon` : ""}
+            </span>
             {errs.sale_price && <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.sale_price}</span>}
           </Field>
           <Field label={needsReason ? "Chegirma sababi (majburiy)" : "Chegirma sababi"} span>

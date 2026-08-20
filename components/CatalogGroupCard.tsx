@@ -3,7 +3,6 @@ import { useState } from "react";
 import { ChevronDown, Info, Pencil, Recycle, Send, Sparkles, Trash2, User } from "lucide-react";
 import { fmt } from "@/lib/format";
 import { initials } from "@/lib/format";
-import { VOLUME_LABEL } from "@/lib/inventory";
 import { catalogRemaining } from "@/lib/rework";
 import { deductionState } from "@/lib/catalogStock";
 import { floristLabel as floristName } from "@/lib/floristLabel";
@@ -65,26 +64,17 @@ export default function CatalogGroupCard({
   open: boolean;
   onToggle: (open: boolean) => void;
 }) {
-  const [priceHint, setPriceHint] = useState(false);
+
   const g = group;
   const hue = VOLUME_HUE[g.volume] ?? "var(--muted)";
-  const title = g.volume ? VOLUME_LABEL[g.volume] : "Hajmi belgilanmagan";
+  const title = g.label; // «Kichik savat» — hajm + tur (savat buketdan alohida karta)
   const price = uniformPrice(g);
   const sellables = g.items.filter(sellable);
   const target = pickSellItem(sellables);
   const pending = g.items.reduce((s, k) => s + deductionState(k).pending, 0);
-  const types = [
-    g.typeCounts.bouquet ? `${g.typeCounts.bouquet} buket` : "",
-    g.typeCounts.basket ? `${g.typeCounts.basket} savat` : "",
-    g.typeCounts.box ? `${g.typeCounts.box} quti` : "",
-  ].filter(Boolean).join(" · ");
-
-  const sell = () => {
-    if (!target) return;
-    // narxlar har xil — jimgina tanlamaymiz, ro'yxatni ochamiz
-    if (price == null) { onToggle(true); setPriceHint(true); return; }
-    actions.onSell(target);
-  };
+  // ⚠️ Narx SOTUV OYNASIDA qo'lda kiritiladi (dona narxi maydoni doim ochiq), shuning uchun
+  //    har xil narxli guruh ham sotishni BLOKLAMAYDI — kartada oraliq ko'rsatiladi, xolos.
+  const sell = () => { if (target) actions.onSell(target); };
 
   return (
     <article className="glass flex flex-col overflow-hidden !rounded-[20px]" style={{ borderLeft: `3px solid ${hue}` }}>
@@ -105,7 +95,7 @@ export default function CatalogGroupCard({
         <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11.5px] font-semibold" style={{ color: "var(--mut)" }}>
           <span>Jami {g.total.toLocaleString("ru")}</span>
           <span>Sotildi {g.sold.toLocaleString("ru")}</span>
-          {types && <span>{types}</span>}
+          <span>{g.items.length} pozitsiya</span>
         </div>
 
         {/* ⚠️ Skladdan kamaytirilmagan sotuvlar — guruhda ko'rinib tursin (yechish pozitsiya ichida) */}
@@ -132,7 +122,7 @@ export default function CatalogGroupCard({
             </button>
           )}
           <button
-            onClick={() => { onToggle(!open); setPriceHint(false); }}
+            onClick={() => onToggle(!open)}
             aria-expanded={open}
             className="flex items-center gap-1 rounded-xl border px-3 py-2 text-[12.5px] font-bold transition-colors hover:bg-[var(--hover)]"
             style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
@@ -142,11 +132,6 @@ export default function CatalogGroupCard({
           </button>
         </div>
 
-        {priceHint && (
-          <p className="text-[11.5px] font-semibold" style={{ color: "var(--warning-ink, #8a6d1f)" }}>
-            Bu hajmda narxlar har xil — qaysi biri sotilishini tanlang.
-          </p>
-        )}
       </div>
 
       {open && (

@@ -1,70 +1,89 @@
 import { catalogRemaining } from "@/lib/rework";
-import type { CatalogItem, CatalogVolume } from "@/lib/types";
+import { VOLUME_LABEL } from "@/lib/inventory";
+import type { ArrangementType, CatalogItem, CatalogVolume } from "@/lib/types";
 
 /**
- * KATALOGNI HAJM BO'YICHA GURUHLASH — ro'yxat «umumiy» ko'rinishda chiziladi:
- * bitta karta = bitta hajm (Kichik / O'rta / Katta), ichida shu hajmdagi BARCHA
- * pozitsiyalar.
+ * KATALOGNI HAJM + TUR bo'yicha guruhlash — ro'yxat «umumiy» ko'rinishda chiziladi:
+ * bitta karta = bitta hajm va bitta tur («Kichik buket», «Kichik savat»…).
  *
- * ⚠️ NEGA: do'konda bir xil mahsulot bir necha marta kiritilgan («kotta»,
+ * ⚠️ NEGA HAJM: do'konda bir xil tovar bir necha marta kiritilgan («kotta»,
  *    «KOTTA 100 TALI ATIR», «kotta buket» — hammasi 800 000 so'm). Operator uchun
  *    ular BITTA tovar: «katta buket 15 ta bor». Qaysi yozuvdan yechilishi muhim emas.
  *
- * ⚠️ HAJMSIZ yozuvlar YO'QOLMAYDI — alohida guruhga tushadi (`volume: ""`),
- *    aks holda sotiladigan tovar ekranda umuman ko'rinmay qolardi.
+ * ⚠️ NEGA TUR: SAVAT buketdan ALOHIDA karta bo'lishi kerak — narxi ham, tayyorlanishi
+ *    ham boshqa (jonli: o'rta savat 1 000 000, o'rta buket 400 000). Bir kartaga
+ *    qo'shilsa qoldiq soni ham, narx ham chalkashardi.
+ *
+ * ⚠️ HAJMSIZ yozuvlar YO'QOLMAYDI — o'z guruhiga tushadi (`volume: ""`), aks holda
+ *    sotiladigan tovar ekranda umuman ko'rinmay qolardi.
  *
  * ⚠️ Guruh FAQAT hozir ko'rinib turgan (filtr + sahifa) yozuvlardan yig'iladi —
  *    sonlar ro'yxat bilan bir xil bo'lishi uchun.
  */
 export type CatalogGroup = {
+  /** `${volume}|${type}` — React key va akkordeon holati uchun */
+  key: string;
   volume: CatalogVolume | "";
+  type: ArrangementType;
+  /** ko'rinadigan sarlavha: «Kichik savat», «Hajmi belgilanmagan buket» */
+  label: string;
   items: CatalogItem[];
-  /** sotishga tayyor qoldiq (barcha pozitsiyalar yig'indisi) */
+  /** sotishga tayyor qoldiq (guruhdagi barcha pozitsiyalar yig'indisi) */
   remaining: number;
   total: number;
   sold: number;
   /** har xil narxlar (o'sish tartibida) — bitta bo'lsa kartada aniq narx chiqadi */
   prices: number[];
-  /** tur bo'yicha pozitsiyalar soni — «6 buket · 2 savat» satri uchun */
-  typeCounts: { bouquet: number; basket: number; box: number };
 };
 
-/** Ko'rsatiladigan tartib — kichikdan kattaga; hajmsizlar OXIRIDA. */
-const ORDER: (CatalogVolume | "")[] = ["small", "medium", "large", ""];
+/** Hajm tartibi — kichikdan kattaga; hajmsizlar OXIRIDA. */
+const VOLUME_ORDER: (CatalogVolume | "")[] = ["small", "medium", "large", ""];
+/** Tur tartibi — buket, savat, quti. */
+const TYPE_ORDER: ArrangementType[] = ["bouquet", "basket", "box"];
+const TYPE_WORD: Record<ArrangementType, string> = { bouquet: "buket", basket: "savat", box: "quti" };
 
 const volumeOf = (k: CatalogItem): CatalogVolume | "" => {
   const v = (k.volume ?? "").trim().toLowerCase();
   return v === "small" || v === "medium" || v === "large" ? v : "";
 };
+const typeOf = (k: CatalogItem): ArrangementType =>
+  k.arrangement_type === "basket" || k.arrangement_type === "box" ? k.arrangement_type : "bouquet";
 
-export function groupByVolume(items: CatalogItem[]): CatalogGroup[] {
-  const map = new Map<CatalogVolume | "", CatalogItem[]>();
+export const groupKey = (volume: CatalogVolume | "", type: ArrangementType) => `${volume}|${type}`;
+
+export const groupLabel = (volume: CatalogVolume | "", type: ArrangementType) =>
+  `${volume ? VOLUME_LABEL[volume] : "Hajmi belgilanmagan"} ${TYPE_WORD[type]}`;
+
+export function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
+  const map = new Map<string, CatalogItem[]>();
   for (const k of items) {
-    const v = volumeOf(k);
-    const cur = map.get(v);
+    const key = groupKey(volumeOf(k), typeOf(k));
+    const cur = map.get(key);
     if (cur) cur.push(k);
-    else map.set(v, [k]);
+    else map.set(key, [k]);
   }
-  return ORDER.filter((v) => map.has(v)).map((volume) => {
-    const list = map.get(volume) ?? [];
-    const typeCounts = { bouquet: 0, basket: 0, box: 0 };
-    for (const k of list) {
-      if (k.arrangement_type === "basket") typeCounts.basket++;
-      else if (k.arrangement_type === "box") typeCounts.box++;
-      else typeCounts.bouquet++;
+  const out: CatalogGroup[] = [];
+  for (const volume of VOLUME_ORDER) {
+    for (const type of TYPE_ORDER) {
+      const key = groupKey(volume, type);
+      const list = map.get(key);
+      if (!list) continue;
+      out.push({
+        key,
+        volume,
+        type,
+        label: groupLabel(volume, type),
+        items: list,
+        remaining: list.reduce((s, k) => s + catalogRemaining(k), 0),
+        total: list.reduce((s, k) => s + (k.quantity_total ?? 1), 0),
+        sold: list.reduce((s, k) => s + (k.quantity_sold ?? 0), 0),
+        // ⚠️ FAQAT qoldig'i bor pozitsiyalarning narxi — sotilib bo'lgan eski yozuv
+        //    narx oralig'ini yolg'on kengaytirmasin.
+        prices: Array.from(new Set(list.filter((k) => catalogRemaining(k) > 0).map((k) => Math.round(+(k.price ?? 0))))).sort((a, b) => a - b),
+      });
     }
-    return {
-      volume,
-      items: list,
-      remaining: list.reduce((s, k) => s + catalogRemaining(k), 0),
-      total: list.reduce((s, k) => s + (k.quantity_total ?? 1), 0),
-      sold: list.reduce((s, k) => s + (k.quantity_sold ?? 0), 0),
-      // ⚠️ FAQAT qoldig'i bor pozitsiyalarning narxi — sotilib bo'lgan eski yozuv
-      //    narx oralig'ini yolg'on kengaytirmasin.
-      prices: Array.from(new Set(list.filter((k) => catalogRemaining(k) > 0).map((k) => Math.round(+(k.price ?? 0))))).sort((a, b) => a - b),
-      typeCounts,
-    };
-  });
+  }
+  return out;
 }
 
 /**
@@ -84,5 +103,6 @@ export function pickSellItem(items: CatalogItem[]): CatalogItem | null {
   }, usable[0]);
 }
 
-/** Guruhda narx bitta bo'lsa — o'sha; har xil bo'lsa null (kartada oraliq chiqadi). */
+/** Guruhda narx bitta bo'lsa — o'sha; har xil bo'lsa null (kartada oraliq chiqadi).
+    ⚠️ Sotishni BLOKLAMAYDI: narx sotuv oynasida qo'lda kiritiladi. */
 export const uniformPrice = (g: CatalogGroup): number | null => (g.prices.length === 1 ? g.prices[0] : null);

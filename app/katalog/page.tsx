@@ -30,7 +30,7 @@ import RestavratsiyaTab from "@/components/RestavratsiyaTab";
 import RestavratsiyaModal from "@/components/RestavratsiyaModal";
 import Pagination from "@/components/Pagination";
 import CatalogGroupCard from "@/components/CatalogGroupCard";
-import { groupByVolume } from "@/lib/catalogGroups";
+import { groupCatalog } from "@/lib/catalogGroups";
 import { usePagedList } from "@/lib/usePagedList";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 import { deductionState } from "@/lib/catalogStock";
@@ -217,7 +217,7 @@ export default function KatalogPage() {
 
   // «Sotish» — modal orqali: soni + ixtiyoriy chegirma narxi va sababi
   // ⚠️ HAJM GURUHLARI — ko'rinib turgan yozuvlardan (filtr + sahifa) yig'iladi.
-  const groups = useMemo(() => groupByVolume(shownItems), [shownItems]);
+  const groups = useMemo(() => groupCatalog(shownItems), [shownItems]);
   // ⚠️ Bir vaqtda BITTA guruh ochiladi va u butun qatorni egallaydi (akkordeon).
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
@@ -414,7 +414,7 @@ export default function KatalogPage() {
           Guruh FAQAT hozir ko'rinib turgan (filtr + sahifa) yozuvlardan yig'iladi. */}
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))" }}>
         {groups.map((g) => (
-          <div key={g.volume || "none"} style={openGroup === (g.volume || "none") ? { gridColumn: "1 / -1" } : undefined}>
+          <div key={g.key} style={openGroup === g.key ? { gridColumn: "1 / -1" } : undefined}>
           <CatalogGroupCard
             group={g}
             open={openGroup === (g.volume || "none")}

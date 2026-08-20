@@ -149,11 +149,18 @@ export default function SuppliersPage() {
                   <div className="flex items-center gap-1 truncate text-[12.5px]" style={{ color: "var(--muted)" }}>
                     <Phone size={12} strokeWidth={2} /> {s.phone || "—"}
                   </div>
-                  {Number(s.debt_total) > 0 && (
-                    <div className="text-[12px] font-bold tabular-nums" style={{ color: "var(--danger-ink)" }}>
-                      Qarz {fmt(s.debt_total)}
-                    </div>
-                  )}
+                  {/* ⚠️ BERILGAN PUL — `paid_total` (serverdan, satr ko'rinishidagi decimal).
+                      Qarz yonida turadi: operator kimga qancha berilganini ro'yxatdayoq
+                      ko'rsin, har birini ochib chiqmasin. */}
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[12px] font-bold tabular-nums">
+                    <span style={{ color: "var(--success-ink, #3d8a5f)" }}>Berilgan {fmt(s.paid_total ?? 0)}</span>
+                    {Number(s.debt_total) > 0 && (
+                      <span style={{ color: "var(--danger-ink)" }}>Qarz {fmt(s.debt_total)}</span>
+                    )}
+                    {Number(s.overpaid_total) > 0 && (
+                      <span style={{ color: "var(--acc)" }}>Ortiqcha {fmt(s.overpaid_total)}</span>
+                    )}
+                  </div>
                 </div>
                 {control && (
                   <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
