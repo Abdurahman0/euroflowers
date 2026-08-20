@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Download, TrendingUp, TrendingDown, PackagePlus, RotateCcw, Trash2, Info } from "lucide-react";
+import { ArrowLeft, Download, TrendingUp, TrendingDown, PackagePlus, RotateCcw, Trash2, Info, Wallet } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore, usePerm } from "@/lib/store";
 import { fmt, fmtDate, fmtTime, dateAfterParam, initials } from "@/lib/format";
@@ -17,7 +17,8 @@ import FloristStockReturnDrawer from "@/components/FloristStockReturnDrawer";
 import StockLine, { lineFromBatchDetail } from "@/components/StockLine";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
-import type { FloristProfile, FloristStats, FloristStockBalance, StockBatch } from "@/lib/types";
+import FloristPaymentModal from "@/components/FloristPaymentModal";
+import type { FloristPayment, FloristProfile, FloristStats, FloristStockBalance, StockBatch } from "@/lib/types";
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 /** joriy [from..to] (inklyuziv) uchun AVVALGI teng uzunlikdagi oyna (deltalar uchun). */
@@ -103,6 +104,12 @@ export default function FloristDetailPage() {
   const [exporting, setExporting] = useState(false);
   const [dayMode, setDayMode] = useState<"oylik" | "sotuvdan">("oylik");
   const [issueOpen, setIssueOpen] = useState(false);
+  // FLORISTGA PUL BERISH (backend 76b3b72) — hisoblangan oylikdan ALOHIDA: qo'lga berilgan pul
+  const [payOpen, setPayOpen] = useState(false);
+  const [payments, setPayments] = useState<FloristPayment[]>([]);
+  const loadPayments = useCallback((fid: number) => {
+    api.floristPayments({ florist: fid, ordering: "-paid_at", page_size: 100 }).then(setPayments).catch(() => setPayments([]));
+  }, []);
   const [returnTarget, setReturnTarget] = useState<{ balance: FloristStockBalance; kind: "return" | "waste" } | null>(null);
 
   const from = dateRange ? dateRange.from : dateAfterParam(dateFilter);
@@ -133,6 +140,7 @@ export default function FloristDetailPage() {
     loadBatches();
   }, [id, loadBatches]);
   useEffect(() => { loadStats(); }, [loadStats]);
+  useEffect(() => { if (id) loadPayments(id); }, [id, loadPayments]);
   useEffect(() => { loadBalances(); }, [loadBalances]);
 
   const doExport = async () => {
@@ -303,7 +311,42 @@ export default function FloristDetailPage() {
               {florist ? <FloristRateMatrix florist={florist} /> : <p className="text-[13px]" style={{ color: "var(--muted)" }}>Florist ma&apos;lumoti yuklanmadi.</p>}
             </Section>
 
-            {/* g) ISH HAQI TARIXI */}
+            {/* ⚠️ BERILGAN PUL — hisoblangan ish haqidan ALOHIDA bo'lim. Ikkisining farqi
+                floristga qolgan qarz; bitta jadvalga qo'shilsa raqamlar chalkashardi. */}
+            <Section
+              id="payments"
+              title="Berilgan pul"
+              right={
+                <button type="button" onClick={() => setPayOpen(true)} className="btn-secondary btn-sm !flex-none">
+                  <Wallet size={13} strokeWidth={2} /> Pul berish
+                </button>
+              }
+            >
+              <p className="mb-2 text-[12px]" style={{ color: "var(--muted)" }}>
+                Qo&apos;lga berilgan pul. Yuqoridagi <b>hisoblangan</b> ish haqidan alohida yuritiladi.
+              </p>
+              {payments.length === 0 ? (
+                <EmptyState title="To'lov yo'q" sub="Bu floristga hali pul berilmagan." />
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <div className="mb-1 flex items-center justify-between gap-2 rounded-[11px] px-3 py-1.5 text-[12.5px] font-bold" style={{ background: "var(--surface-2)" }}>
+                    <span>Jami berilgan</span>
+                    <span className="tabular-nums" style={{ color: "var(--acc)" }}>
+                      {fmt(payments.reduce((a, x) => a + Math.round(+x.amount || 0), 0))}
+                    </span>
+                  </div>
+                  {payments.map((x) => (
+                    <div key={x.id} className="flex items-center justify-between gap-3 border-t py-2 text-[13px] first:border-t-0" style={{ borderColor: "var(--line2)" }}>
+                      <span className="min-w-0 truncate">{x.method_label || x.method}{x.note ? ` · ${x.note}` : ""}</span>
+                      <span className="shrink-0 font-semibold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(x.amount)}</span>
+                      <span className="shrink-0 text-[12px]" style={{ color: "var(--muted)" }}>{fmtDate(x.paid_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            {/* g) ISH HAQI TARIXI — hisoblangan haq (BERILGAN pul yuqorida, alohida) */}
             <Section id="salary" title="Ish haqi tarixi">
               {stats.salary_entries.length === 0 ? <EmptyState title="Yozuv yo'q" sub="Bu davrda ish haqi yozuvi yo'q." /> : (
                 <div className="overflow-x-auto thin-scroll">
@@ -401,6 +444,14 @@ export default function FloristDetailPage() {
       {/* ⚠️ OFORMLENIYA NARXI — YAGONA input shu formada (takrorlanmaydi) */}
       {editFee && florist && (
         <FloristModal florist={florist} onClose={() => setEditFee(false)} onSaved={(f) => { setFlorist(f); setEditFee(false); loadStats(); }} />
+      )}
+      {/* ⚠️ Saqlangach to'lovlar ro'yxati ham, statistika ham qayta so'raladi */}
+      {payOpen && florist && (
+        <FloristPaymentModal
+          florist={florist}
+          onClose={() => setPayOpen(false)}
+          onSaved={() => { setPayOpen(false); if (id) loadPayments(id); loadStats(); }}
+        />
       )}
     </div>
   );

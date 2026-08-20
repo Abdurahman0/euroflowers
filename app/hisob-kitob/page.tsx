@@ -3,12 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { batchTitleNoHeight } from "@/lib/stockLabel";
 import Link from "next/link";
 import FreeBatchChip from "@/components/FreeBatchChip";
-import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown, BookmarkCheck, Info } from "lucide-react";
+import { ChevronRight, Download, Trash2, Package, Flower2, Coins, Users2, TrendingDown, BookmarkCheck, Info, Wallet } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { stockBatchesCached, invalidateReportCache, notifyReportDataChanged } from "@/lib/reportCache";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
+import AccountingOwnerBlocks from "@/components/AccountingOwnerBlocks";
+import FloristPaymentModal from "@/components/FloristPaymentModal";
 import { fmt, fmtDate, dateAfterParam, dateBeforeParam } from "@/lib/format";
 import { KIND_LABEL, VOLUME_LABEL, salarySourceLabel } from "@/lib/inventory";
 import { ARRANGEMENT_LABEL } from "@/components/badges";
@@ -28,7 +30,7 @@ import Pagination from "@/components/Pagination";
 import { Field } from "@/components/Modal";
 import { Plus, Pencil } from "lucide-react";
 import { usePagedList } from "@/lib/usePagedList";
-import type { Accounting, AccountingByBranch, AccountingFigures, AccountingSale, Analytics, Branch, CatalogItem, FloristProfile, FloristSalaryEntry, FloristStockIssue, Paginated, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
+import type { Accounting, AccountingByBranch, AccountingFigures, AccountingSale, Analytics, Branch, CatalogItem, FloristPayment, FloristProfile, FloristSalaryEntry, FloristStockIssue, Paginated, StockBatch, StockMovement, Supplier, SupplierPayment, SupplierPaymentMethod } from "@/lib/types";
 
 const METHOD_OPTS: { value: SupplierPaymentMethod; label: string }[] = [
   { value: "cash", label: "Naqd" }, { value: "card", label: "Karta" }, { value: "transfer", label: "O'tkazma" },
@@ -226,6 +228,14 @@ export default function HisobKitobPage() {
     },
   });
   const refreshHistory = historyList.refresh;
+  const [floPays, setFloPays] = useState<FloristPayment[]>([]);
+  const [floPayOpen, setFloPayOpen] = useState(false);
+  // ⚠️ Server `paid_at` filtrini qo'llamasa ham son to'g'ri qolsin — davr bo'yicha KLIENTDA kesamiz
+  const floPaidInRange = useMemo(
+    () => floPays.filter((p) => { const d = (p.paid_at || "").slice(0, 10); return !d || (d >= from && d <= to); })
+      .reduce((acc2, p) => acc2 + Math.round(+p.amount || 0), 0),
+    [floPays, from, to],
+  );
 
   // History sahifasini almashtirish boshqa hisobot manbalarini qayta yuklamaydi.
   const loadSupportingData = useCallback(() => {
@@ -256,6 +266,16 @@ export default function HisobKitobPage() {
     api.suppliers().then(setSuppliers).catch(() => {});
     api.supplierPayments().then(setPayments).catch(() => {});
   }, []);
+
+  /** ⚠️ FLORISTGA BERILGAN PUL — /api/florist-payments/ (backend 76b3b72).
+      Saqlangandan keyin spec §5 bo'yicha IKKALASI ham qayta so'raladi:
+      to'lovlar ro'yxati va hisob-kitob (summary raqamlari o'zgaradi). */
+  const loadFloristPayments = useCallback(() => {
+    api.floristPayments({ ordering: "-paid_at", paid_at_after: from, paid_at_before: to, page_size: 100 })
+      .then(setFloPays)
+      .catch(() => api.floristPayments({ ordering: "-paid_at", page_size: 100 }).then(setFloPays).catch(() => setFloPays([])));
+  }, [from, to]);
+  useEffect(() => { if (visible) loadFloristPayments(); }, [visible, loadFloristPayments]);
 
   useEffect(() => { loadSupportingData(); }, [loadSupportingData]);
   // ⚠️ avtomatik taymer YO'Q — «Yangilash» tugmasi orqali (RefreshButton)
@@ -476,6 +496,22 @@ export default function HisobKitobPage() {
             <Download size={15} strokeWidth={2} /> Barchasi
           </button>
         </div>
+      </div>
+
+      {/* ⚠️ SPEC §3 — tepada IKKI BLOK: biznes foydasi va egaga qoladigan real pul.
+          Ular ATAYIN alohida: net_profit va owner_take_home boshqa-boshqa savolga javob. */}
+      <AccountingOwnerBlocks s={s} />
+
+      {/* FLORISTGA PUL BERISH — spec §5 */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[14px] border px-3.5 py-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+        <span className="text-[12.5px] font-semibold" style={{ color: "var(--text-2)" }}>
+          Floristlarga berilgan pul
+          <span className="ml-1.5 font-bold tabular-nums" style={{ color: "var(--acc)" }}>{fmt(floPaidInRange)}</span>
+          <span className="ml-1 text-[11.5px] font-medium" style={{ color: "var(--muted)" }}>· {floPays.length} ta yozuv · davr ichida</span>
+        </span>
+        <button type="button" onClick={() => setFloPayOpen(true)} className="btn-secondary btn-sm !flex-none">
+          <Wallet size={13} strokeWidth={2} /> Floristga pul berish
+        </button>
       </div>
 
       {/* KPI qatori — sarlavha filial rejimi bilan; pul kartochkalari ostida ajratma (faqat Hammasi) */}
@@ -1003,6 +1039,15 @@ export default function HisobKitobPage() {
           onClose={() => setPayDrawer(null)}
           onSaved={() => { setPayDrawer(null); invalidateReportCache(); refreshSuppliers(); }}
           showToast={showToast}
+        />
+      )}
+
+      {/* ⚠️ Saqlangach spec §5 bo'yicha IKKALASI qayta so'raladi: to'lovlar ro'yxati
+          va hisob-kitob (florist_paid_total / owner_take_home o'zgaradi). */}
+      {floPayOpen && (
+        <FloristPaymentModal
+          onClose={() => setFloPayOpen(false)}
+          onSaved={() => { setFloPayOpen(false); invalidateReportCache(); loadFloristPayments(); refreshAll(); }}
         />
       )}
     </div>

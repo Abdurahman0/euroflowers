@@ -7,7 +7,7 @@ import type {
   InstagramEvent, InstagramSettings, IntegrationSettings, Lead, LeadInput,
   LeadStatusDef, MaterialDelivery, MaterialDeliveryInput, MaterialMovement, MaterialReceiveInput, Message, Notification, Packaging, PagePermission, Paginated, PaymentType,
   Reservation, ReservationInput, ReservationPayment, ReservationPaymentInput, CatalogRestoreFlowersInput, FloristStockBulkIssueInput,
-  CatalogSalesPage, CatalogSalesList, CatalogRework, SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierDebt, SupplierDebtInput, SupplierPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
+  CatalogSalesPage, CatalogSalesList, CatalogRework, SocialPost, StockBatch, StockDelivery, StockDeliveryInput, StockMovement, Supplier, SupplierInput, SupplierPayment, SupplierDebt, SupplierDebtInput, SupplierPaymentInput, FloristPayment, FloristPaymentInput, FloristStats, UploadResponse, User, VolumeRateInput,
 } from "./types";
 import { dashboardDateTo, accountingDateTo } from "./format";
 
@@ -741,6 +741,15 @@ export const api = {
   suppliers: (p?: Params) => list<Supplier>("/api/suppliers/", p),
   /** Yetkazib beruvchi to'lovlari — CRUD (backend 0082). on_delete=PROTECT postavshikda. */
   supplierPayments: (p?: Params) => list<SupplierPayment>("/api/supplier-payments/", p),
+  /** FLORISTGA BERILGAN PUL — /api/florist-payments/ (backend 76b3b72).
+      ⚠️ Yozuv yo'llari JONLI SINALMAGAN (loyiha qoidasi: faqat GET). */
+  floristPayments: (p?: Params) => list<FloristPayment>("/api/florist-payments/", p),
+  floristPaymentsPage: paged<FloristPayment>("/api/florist-payments/"),
+  createFloristPayment: (data: FloristPaymentInput) =>
+    request<FloristPayment>("/api/florist-payments/", { method: "POST", body: JSON.stringify(data) }),
+  updateFloristPayment: (id: number, data: Partial<FloristPaymentInput>) =>
+    request<FloristPayment>(`/api/florist-payments/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteFloristPayment: (id: number) => request<void>(`/api/florist-payments/${id}/`, { method: "DELETE" }),
 
   /* ===== QO'LDA QO'SHILGAN QARZ — /api/supplier-debts/ (deploy 20.08.2026) =====
      ⚠️ Bu partiya/yuk EMAS. Tizimga kiritilmagan eski qarzni qo'lda yozish uchun;

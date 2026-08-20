@@ -980,8 +980,49 @@ export type AccountingFigures = {
   // chiqit FAQAT asosiy filialda — filial qatorlarida doim 0
   waste_cost_total?: string; waste_stems?: number;
   net_profit: string;
+  /* ─────────── 20.08.2026 (backend 76b3b72) — SOTUV AJRATMASI va EGA KASSASI ───────────
+     ⚠️ `sales_*_total` — FAQAT TOVAR SAVDOSI ajratmasi (dastafka KIRMAYDI).
+        Yuqoridagi `cash_total`/`card_total` esa KASSAGA TUSHGAN pul (dastafka ICHIDA).
+        Jonli farq: sales_cash 245 726 777 va cash_total 246 703 999 — ARALASHTIRMANG. */
+  sales_cash_total?: string | number;
+  sales_card_total?: string | number;
+  sales_other_total?: string | number;
+  /** postavshiklar: xarid / to'langan / qarz / ortiqcha to'lov */
+  supplier_purchase_total?: string | number;
+  supplier_paid_total?: string | number;
+  supplier_debt_total?: string | number;
+  supplier_overpaid_total?: string | number;
+  /** floristlar: hisoblangan oylik / real berilgan pul / qolgan qarz */
+  florist_accrued_total?: string | number;
+  florist_paid_total?: string | number;
+  florist_balance_total?: string | number;
+  /**
+   * ⚠️ EGAGA QOLADIGAN PUL — `net_profit` BILAN BIR NARSA EMAS:
+   *   net_profit      = sotuv − tannarx − chiqit            (biznes foydasi)
+   *   owner_take_home = tushum − postavshikka − floristga − rasxod  (real qo'lga qoladigan pul)
+   */
+  owner_take_home?: string | number;
+  cashflow_balance?: string | number;
   share_percent?: string; // umumiy savdodagi ulush, % (summary'da yo'q — Jami = 100%)
 };
+
+/** FLORISTGA REAL BERILGAN PUL — /api/florist-payments/ (backend 76b3b72, 20.08.2026).
+    ⚠️ Bu OYLIK HISOBLASH emas: hisoblangan summa `florist_accrued_total` da,
+    bu esa qo'lga BERILGAN pul (`florist_paid_total`). Farqi — qolgan qarz. */
+export type FloristPaymentMethod = "cash" | "card" | "transfer";
+export type FloristPayment = {
+  id: number;
+  florist: number;
+  florist_name?: string;
+  florist_detail?: { id: number; name?: string | null } | null;
+  amount: string;
+  paid_at: string;
+  method: FloristPaymentMethod;
+  method_label?: string;
+  note?: string;
+  created_at?: string;
+};
+export type FloristPaymentInput = { florist: number; amount: string; paid_at?: string; method?: FloristPaymentMethod; note?: string };
 export type AccountingSummary = AccountingFigures;
 export type AccountingByBranch = AccountingFigures;
 /** Filial filtri holati — SARLAVHA shundan (klient state'dan EMAS). */
