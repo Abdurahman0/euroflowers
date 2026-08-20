@@ -621,6 +621,34 @@ export const catalogRateMissing = (
 ): boolean =>
   kind === "standard" && !!florist && !!volume && !rateSalaryForCatalog(rates, florist, volume, arrangement);
 
+/**
+ * KATALOG FORMASI REJIMI — §8/§9 (backend 20.08.2026) qoidalari YAGONA joyda.
+ *
+ * ⚠️ ASOSIY O'ZGARISH: MAXSUS (custom) katalog gulni TO'G'RIDAN-TO'G'RI `stock_batch`
+ *    qoldig'idan yechadi — FLORIST TANLANGAN BO'LSA HAM florist balansiga tegilmaydi.
+ *    Shu sababli «florist balansidan gul tanlash» oqimi (soni yo'q, chiqim yopilganda
+ *    taqsimlanadi) FAQAT STANDART katalogda qoladi.
+ *
+ *  • floristIssueMode — florist balansi oqimi (standart + florist tanlangan)
+ *  • volumeRequired   — §9: standartda hajm majburiy; custom'da florist bo'lsa ham so'raladi
+ *  • stemsRequired    — §8: custom (va filial) katalogda gul SONI majburiy
+ *  • salaryEditable   — §9: standartda oylik hajm tarifidan (qo'lda kiritilmaydi); custom'da qo'lda
+ */
+export const catalogFlowRules = (
+  kind: CatalogKind,
+  florist: number | null | undefined,
+  branch: number | null | undefined,
+): { floristIssueMode: boolean; volumeRequired: boolean; stemsRequired: boolean; salaryEditable: boolean } => {
+  const floristMode = (florist ?? 0) > 0;
+  const branchMode = (branch ?? 0) > 0;
+  return {
+    floristIssueMode: floristMode && kind === "standard",
+    volumeRequired: kind === "standard" || floristMode,
+    stemsRequired: kind === "custom" || branchMode,
+    salaryEditable: kind === "custom",
+  };
+};
+
 /** ⚠️ NOM TUZOG'I xaritasi — YAGONA joy:
     tarifning `florist_fee` (florist ISH HAQI) → katalogning `florist_salary_amount`.
     Katalogning O'ZINING `florist_fee` (mijozdan xizmat haqi) bilan ARALASHTIRMANG. */
