@@ -45,6 +45,8 @@ export function AISettingsSection() {
   const [temp, setTemp] = useState("0.7");
   const [activeAi, setActiveAi] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [globalLoading, setGlobalLoading] = useState(true);
+  const [globalSaving, setGlobalSaving] = useState(false);
   const [err, setErr] = useState("");
 
   const visible = canView("ai_settings");
@@ -57,6 +59,13 @@ export function AISettingsSection() {
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Yuklab bo'lmadi"));
   }, [visible]);
+  useEffect(() => {
+    if (!visible) return;
+    api.aiGlobalSettings()
+      .then((a) => setActiveAi(a.is_active))
+      .catch((e) => setErr(e instanceof Error ? e.message : "AI holatini yuklab bo'lmaydi"))
+      .finally(() => setGlobalLoading(false));
+  }, [visible]);
   if (!visible) return null;
 
   const save = async () => {
@@ -66,7 +75,6 @@ export function AISettingsSection() {
         openai_model: model.trim(),
         system_prompt: prompt,
         temperature: Math.min(2, Math.max(0, parseFloat(temp) || 0)),
-        is_active: activeAi,
       });
       setSt(upd);
       showToast("✓ AI sozlamalari saqlandi");
@@ -74,6 +82,24 @@ export function AISettingsSection() {
       showToast(e instanceof ApiError ? e.message : "Saqlab bo'lmadi");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleGlobalAi = async (next: boolean) => {
+    if (globalSaving || globalLoading) return;
+    const previous = activeAi;
+    setActiveAi(next);
+    setGlobalSaving(true);
+    try {
+      const updated = await api.updateAiGlobalSettings({ is_active: next });
+      setActiveAi(updated.is_active);
+      setSt((current) => current ? { ...current, is_active: updated.is_active } : current);
+      showToast(updated.is_active ? "✓ AI yoqildi" : "✓ AI o'chirildi");
+    } catch (e) {
+      setActiveAi(previous);
+      showToast(e instanceof ApiError ? e.message : "AI holatini saqlab bo'lmadi");
+    } finally {
+      setGlobalSaving(false);
     }
   };
 
@@ -98,11 +124,14 @@ export function AISettingsSection() {
             Tizim prompti
             <textarea className="min-h-[110px] rounded-[10px] border px-3 py-2 text-[13px] leading-relaxed outline-none focus:shadow-[0_0_0_3px_var(--focus)]" style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text)" }} value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={!canControl("ai_settings")} />
           </label>
-          <div className="flex items-center justify-between">
-            <label className="flex cursor-pointer items-center gap-2 text-[13px]">
-              <input type="checkbox" checked={activeAi} onChange={(e) => setActiveAi(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" disabled={!canControl("ai_settings")} />
-              AI faol
-            </label>
+          <div className="rounded-[13px] border px-3.5 py-3" style={{ borderColor: activeAi ? "var(--border)" : "var(--warning)", background: activeAi ? "var(--surface-2)" : "var(--warning-soft)" }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0"><div className="text-[13px] font-bold">AI javoblari</div><div className="text-[11.5px]" style={{ color: "var(--muted)" }}>{activeAi ? "AI barcha mijozlarga javob beradi" : "AI to'liq o'chadi, faqat operatorlar javob beradi"}</div></div>
+              <button type="button" role="switch" aria-checked={activeAi} aria-label="AI javoblarini yoqish yoki o'chirish" onClick={() => toggleGlobalAi(!activeAi)} disabled={!canControl("ai_settings") || globalLoading || globalSaving} className="relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50" style={{ background: activeAi ? "var(--primary)" : "var(--border-strong)" }}><span className="absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: activeAi ? "translateX(24px)" : "translateX(4px)" }} /></button>
+            </div>
+            {!activeAi && <p className="mt-2 text-[12px] font-semibold" style={{ color: "var(--warning-ink)" }}>AI o'chirilgan. Mijoz xabarlari qabul qilinadi, lekin AI javob bermaydi.</p>}
+          </div>
+          <div className="flex justify-end">
             {canControl("ai_settings") && (
               <button onClick={save} disabled={saving} className={clsx("btn-primary !flex-none px-6", saving && "btn-loading")}>Saqlash</button>
             )}

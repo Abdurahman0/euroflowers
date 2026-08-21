@@ -998,6 +998,10 @@ export const api = {
   aiSettings: () => request<AISettings>("/api/ai/settings/"),
   updateAiSettings: (data: Partial<AISettings>) =>
     request<AISettings>("/api/ai/settings/", { method: "PATCH", body: JSON.stringify(data) }),
+  /** Global AI switch — alohida backend sozlama, chatlar ishlashda davom etadi. */
+  aiGlobalSettings: () => request<Pick<AISettings, "is_active">>("/api/ai-settings/"),
+  updateAiGlobalSettings: (data: Pick<AISettings, "is_active">) =>
+    request<Pick<AISettings, "is_active">>("/api/ai-settings/", { method: "PATCH", body: JSON.stringify(data) }),
 
   /** Integratsiya kalitlari — faqat developer (kontrakt) */
   integrations: () => request<IntegrationSettings>("/api/integrations/"),

@@ -518,6 +518,7 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   // --- yozuvlar: demo rejimda muvaffaqiyatli javob qaytariladi, saqlanmaydi ---
   if (method !== "GET") {
     if (p === "/api/ai/settings/") return out({ ...aiSettings, ...body, updated_at: ago(0) });
+    if (p === "/api/ai-settings/") return out({ is_active: Boolean(body.is_active) });
     if (p === "/api/integrations/") return out({ ...integrations, ...body, updated_at: ago(0) });
     if (p === "/api/notifications/read_all/") return out({ updated: 0 });
     if (/\/api\/notifications\/\d+\/read\//.test(p)) {
@@ -821,6 +822,7 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   if (p === "/api/users/") return out(page(users));
   if (p === "/api/instagram/status/") return out(instagram);
   if (p === "/api/ai/settings/") return out(aiSettings);
+  if (p === "/api/ai-settings/") return out({ is_active: aiSettings.is_active });
   if (p === "/api/integrations/") return out(integrations);
   if (p === "/api/instagram/events/") return out(page(igEvents));
   if (p === "/api/permissions/") return out(page(fullPerms));

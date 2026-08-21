@@ -579,6 +579,7 @@ export default function ChatPage() {
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-[14px] font-semibold" style={{ color: "var(--text)" }}>{custName(c)}</span>
                   {c.status === "operator" && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--warning-soft)", color: "var(--warning-ink)" }}>OPERATOR</span>}
+                  {c.is_ai_paused && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--warning-soft)", color: "var(--warning-ink)" }}>AI PAUZA</span>}
                   {c.status === "closed" && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--surface-2)", color: "var(--muted)" }}>YOPIQ</span>}
                 </div>
                 {/* ⚠️ AI XULOSASI — operator uchun ro'yxatdagi ENG foydali satr: suhbatni
@@ -656,7 +657,7 @@ export default function ChatPage() {
                 {CONV_STATUS_LABEL[conv.status]}
               </span>
               {/* AI pauzada — badge (vaqtli yoki doimiy) */}
-              {conv.ai_paused_until != null || (conv.status !== "ai" && conv.ai_pause_reason) ? (
+              {conv.is_ai_paused || conv.ai_paused_until != null || (conv.status !== "ai" && conv.ai_pause_reason) ? (
                 <span
                   className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-bold"
                   style={{ background: "var(--warning-soft)", color: "var(--warning-ink)", borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)" }}

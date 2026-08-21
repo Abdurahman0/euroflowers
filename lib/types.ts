@@ -1177,6 +1177,7 @@ export type Conversation = {
   /** AI pauzada — shu vaqtgacha (null = pauza yo'q) */
   ai_paused_until: string | null;
   ai_pause_reason: string;
+  is_ai_paused?: boolean;
   customer: number;
   branch?: number;
   social_post: number | null;
