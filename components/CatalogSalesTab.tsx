@@ -1,12 +1,14 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Info, Receipt } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, Receipt, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
-import { useStore } from "@/lib/store";
+import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtLocalTime } from "@/lib/format";
 import SearchInput from "@/components/SearchInput";
+import CatalogRestoreSaleModal from "@/components/CatalogRestoreSaleModal";
+import { notifyReportDataChanged } from "@/lib/reportCache";
 import FilterSelect from "@/components/FilterSelect";
 import EmptyState from "@/components/EmptyState";
 import FlowerLoader from "@/components/FlowerLoader";
@@ -16,7 +18,7 @@ import {
   saleNum, deliveryRowView, PAYMENT_FILTERS, SALES_PAGE_SIZE,
 } from "@/lib/catalogSales";
 import { paymentBreakdownLabel } from "@/lib/mixedPayment";
-import type { CatalogSalesPage } from "@/lib/types";
+import type { CatalogSalesPage, CatalogSaleRow } from "@/lib/types";
 
 /**
  * SOTUVLAR — katalog sahifasining ikkinchi tabi (GET /api/catalog/sales/).
@@ -26,12 +28,18 @@ import type { CatalogSalesPage } from "@/lib/types";
  * Farqi: bu ro'yxat O'Z FILIALI sotuvlarini ko'rsatadi va TANNARX/FOYDA yo'q.
  * Shuning uchun sarlavha «Sotuvlar bo'yicha» — «Savdo» EMAS.
  */
-export default function CatalogSalesTab({ branchUser, onOpenItem }: {
+export default function CatalogSalesTab({ branchUser, onOpenItem, onRestored }: {
   /** filial foydalanuvchisida «Filial» ustuni CHIZILMAYDI (bitta takrorlanuvchi qiymat) */
   branchUser: boolean;
   onOpenItem: (catalogItemId: number) => void;
+  /** sotuv qaytarilgach — katalog ro'yxati va hisobot keshi yangilansin */
+  onRestored?: () => void;
 }) {
   const showToast = useStore((s) => s.showToast);
+  const { canControl } = usePerm();
+  // ⚠️ Qaytarish — katalog YOZUV huquqi (spec: «Katalog page write permission kerak»)
+  const canRestore = canControl("catalog");
+  const [restore, setRestore] = useState<CatalogSaleRow | null>(null);
   const [data, setData] = useState<CatalogSalesPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -172,6 +180,7 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
                   <th className="px-2 py-2.5 text-right font-semibold">Summa</th>
                   <th className="px-2 py-2.5 font-semibold">To&apos;lov</th>
                   <th className="px-2 py-2.5 font-semibold">Hajm</th>
+                  {canRestore && <th className="px-2 py-2.5 font-semibold" aria-label="Amallar" />}
                 </tr>
               </thead>
               <tbody>
@@ -232,6 +241,21 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
                         </span>
                       </td>
                       <td className="px-2 py-2.5" style={{ color: "var(--text-2)" }}>{r.volume_label || "—"}</td>
+                      {/* ⚠️ XATO SOTUVNI QAYTARISH — qator bosilsa katalog ochiladi, shu bois
+                          tugma bosilishi YUQORIGA O'TMAYDI (stopPropagation). */}
+                      {canRestore && (
+                        <td className="px-2 py-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setRestore(r); }}
+                            className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors hover:bg-[var(--hover)]"
+                            style={{ borderColor: "var(--border)", color: "var(--text-2)" }}
+                            title="Xato sotilgan bo'lsa qaytarish"
+                          >
+                            <RotateCcw size={12} strokeWidth={2.2} /> Qaytarish
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -256,6 +280,14 @@ export default function CatalogSalesTab({ branchUser, onOpenItem }: {
             </div>
           )}
         </>
+      )}
+
+      {restore && (
+        <CatalogRestoreSaleModal
+          sale={restore}
+          onClose={() => setRestore(null)}
+          onDone={() => { setRestore(null); load(); notifyReportDataChanged(); onRestored?.(); }}
+        />
       )}
     </div>
   );

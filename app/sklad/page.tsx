@@ -156,6 +156,12 @@ export default function SkladPage() {
   const [search, setSearch] = useState("");
   // server filtrlari
   const [moveType, setMoveType] = useState("");
+  // ⚠️ DONA SOTUVI (spec §6) — `reference_type=stock_sale` va to'lov turi bo'yicha filtr.
+  //    Sklad partiyasidan alohida sotilgan gullar shu bilan ajratib olinadi.
+  const [saleOnly, setSaleOnly] = useState(false);
+  const [payType, setPayType] = useState("");
+  // ⚠️ TOTALS SERVERDAN (spec §7) — klientda qayta sanalmaydi.
+  const [moveTotals, setMoveTotals] = useState<Record<string, unknown> | null>(null);
   const [moveSupplier, setMoveSupplier] = useState("");
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   // jurnal manbasi — Gul sklad / Material sklad (sahifada saqlanadi)
@@ -230,18 +236,26 @@ export default function SkladPage() {
   const loadMoves = useCallback(async () => {
     const range = dateRange ? rangeParams(dateRange) : { created_at_after: dateAfterParam(dateFilter) };
     try {
-      setMoves(await api.stockMovements({
+      const query = {
         ordering: "-created_at",
         ...range,
         movement_type: moveType || undefined,
         supplier: moveSupplier || undefined,
-      }));
+        // ⚠️ §6: dona-sotuvlar va to'lov turi filtri
+        ...(saleOnly ? { reference_type: "stock_sale" } : {}),
+        ...(payType ? { payment_type: payType } : {}),
+      };
+      setMoves(await api.stockMovements(query));
+      // §7 — totals uchun bitta kichik so'rov (ro'yxat `list()` totals'ni qaytarmaydi)
+      api.stockMovementsPage({ ...query, page_size: 1 })
+        .then((r) => setMoveTotals((r.totals ?? null) as Record<string, unknown> | null))
+        .catch(() => setMoveTotals(null));
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Jurnalni yuklab bo'lmadi");
     }
     // florist qo'lidagi chiqit — alohida ko'rsatiladi (jamlanmaydi)
     api.floristStockIssues({ kind: "waste", ...range, page_size: 200 }).then(setFloristWaste).catch(() => setFloristWaste([]));
-  }, [showToast, dateFilter, dateRange, moveType, moveSupplier]);
+  }, [showToast, dateFilter, dateRange, moveType, moveSupplier, saleOnly, payType]);
   useEffect(() => { if (tab === "jurnal" && jSource === "gul") loadMoves(); }, [tab, jSource, loadMoves]);
 
   // yetkazib beruvchilar — jurnal filtri uchun (bir marta)
@@ -564,7 +578,44 @@ export default function SkladPage() {
           <p className="note-chip text-[14px]" style={{ color: "var(--mut)" }}>
             {isGul ? "Gul partiyalari bo'yicha kirim-chiqim harakatlari" : "Material (o'ram/savat/quti) kirim-chiqim harakatlari"}
           </p>
+        </div>
+        {/* ⚠️ §7 — DONA SOTUVI JAMILARI serverdan (`totals`): faqat reference_type=stock_sale
+            bo'lgan sotuvlardan hisoblanadi, klientda qayta sanalmaydi. */}
+        {isGul && saleOnly && moveTotals && (
+          <div className="mb-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))" }}>
+            {[
+              { k: "Dona sotuvi jami", v: moveTotals.stock_sale_total, hue: "var(--acc)" },
+              { k: "Shundan naqd", v: moveTotals.stock_sale_cash_total },
+              { k: "Shundan karta", v: moveTotals.stock_sale_card_total },
+            ].map((c) => (
+              <div key={c.k} className="glass !rounded-[16px] p-3.5">
+                <div className="text-[11px] font-bold uppercase tracking-[1.2px]" style={{ color: "var(--muted)" }}>{c.k}</div>
+                <div className="mt-1 text-[19px] font-extrabold tabular-nums" style={{ color: c.hue ?? "var(--text)" }}>{fmt(Number(c.v ?? 0))}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {/* ⚠️ §6 — «Dona sotuvi»: partiyadan alohida sotilgan gullar (reference_type=stock_sale) */}
+            {isGul && (
+              <>
+                <button type="button" onClick={() => { setSaleOnly((v) => !v); if (saleOnly) setPayType(""); }} aria-pressed={saleOnly}
+                  className="h-10 rounded-[13px] border px-3 text-[12.5px] font-bold transition-colors duration-150"
+                  style={saleOnly ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" } : { borderColor: "var(--border)", color: "var(--text-2)" }}>
+                  Dona sotuvi
+                </button>
+                {saleOnly && (
+                  <FilterSelect value={payType} onChange={setPayType} label="To'lov" options={[
+                    { value: "", label: "Barcha to'lovlar" },
+                    { value: "cash", label: "Naqd" },
+                    { value: "card", label: "Karta" },
+                    { value: "debt", label: "Qarz" },
+                    { value: "mixed", label: "Aralash" },
+                  ]} />
+                )}
+              </>
+            )}
             <FilterSelect
               value={moveType}
               onChange={setMoveType}

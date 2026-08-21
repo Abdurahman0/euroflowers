@@ -735,6 +735,17 @@ export const api = {
       Body: {movement_type, quantity_stems | quantity_bunches (string), reason} */
   batchMovement: (id: number, data: { movement_type: string; quantity_stems?: number; quantity_bunches?: string; reason?: string; created_at?: string }) =>
     request<unknown>(`/api/stock-batches/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
+  /**
+   * SOTUVNI QAYTARISH — xato «sotildi» qilingan katalogni tiklaydi (backend 21.08.2026).
+   * ⚠️ Barcha maydonlar IXTIYORIY: `sale_history` berilmasa server OXIRGI sotuvni,
+   *    `quantity` berilmasa o'sha sotuvni TO'LIQ qaytaradi.
+   * ⚠️ Gul skladiga TEGMAYDI (gul katalog yaratilganda yechilgan); qo'shimcha material,
+   *    florist oyligi va qarz esa proporsional tiklanadi.
+   * ⚠️ Yozuv yo'li JONLI SINALMAGAN (loyiha qoidasi: faqat GET).
+   */
+  restoreCatalogSale: (id: number, data?: { sale_history?: number; quantity?: number; reason?: string }) =>
+    request<CatalogItem>(`/api/catalog/${id}/restore-sale/`, { method: "POST", body: JSON.stringify(data ?? {}) }),
+
   sellStockBatch: (id: number, data: { quantity_stems: number; sale_amount: string; payment_type: "cash" | "card" | "debt" | "mixed"; cash_amount?: string; card_amount?: string; reason?: string; sold_at?: string }) =>
     request<StockMovement>(`/api/stock-batches/${id}/sell/`, { method: "POST", body: JSON.stringify(data) }),
 

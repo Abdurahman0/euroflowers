@@ -317,7 +317,8 @@ export default function KatalogPage() {
     return (
       <>
         {tabBar}
-        <CatalogSalesTab branchUser={branchUser} onOpenItem={openItemById} />
+        {/* ⚠️ Sotuv QAYTARILGACH katalog ro'yxati ham yangilanadi (qoldiq o'zgardi) */}
+        <CatalogSalesTab branchUser={branchUser} onOpenItem={openItemById} onRestored={() => { load(); notifyReportDataChanged(); }} />
       </>
     );
   }
