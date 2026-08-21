@@ -10,14 +10,15 @@ import DatePicker from "./DatePicker";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import ImageInput from "./ImageInput";
 import { debtSellPayload, debtCustomerReady, DEBT_CUSTOMER_REQUIRED, DEBT_NONE_DISABLED_REASON } from "@/lib/debt";
+import { volumesInGroup, pickSellItem } from "@/lib/catalogGroups";
 import { applyMixedEdit, focusMixedField, blurMixedField, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage, parseMoney, emptyMixed, type MixedState } from "@/lib/mixedPayment";
 import { fmt } from "@/lib/format";
-import { PACKAGING_LABEL } from "@/lib/inventory";
+import { PACKAGING_LABEL, VOLUME_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
 import { paymentProgress } from "@/lib/reservation";
 import { catalogRemaining } from "@/lib/rework";
 import { withTashkentOffset, todayTashkent } from "@/lib/backdate";
-import type { CatalogItem, FloristProfile, Packaging, PaymentType, Reservation } from "@/lib/types";
+import type { CatalogItem, CatalogVolume, FloristProfile, Packaging, PaymentType, Reservation } from "@/lib/types";
 
 type SaleMat = { packaging: number; qty: string; kind: "material" | "accessory" };
 const floristName = (fp: FloristProfile) => { const u = fp.user_detail; return [u?.first_name, u?.last_name].filter(Boolean).join(" ") || u?.username || `#${fp.id}`; };
@@ -48,11 +49,15 @@ const PAYMENTS: { value: PaymentType; label: string; icon: typeof Banknote }[] =
  */
 export default function KatalogSellModal({
   item,
+  siblings,
   onClose,
   onSold,
   presetReservation = null,
 }: {
   item: CatalogItem;
+  /** ⚠️ SHU GURUHDAGI boshqa yozuvlar — «Hajm» tanlagichi shulardan yig'iladi.
+      Savat kartasi hajm bo'yicha bo'linmaydi, hajm SOTUVDA tanlanadi. */
+  siblings?: CatalogItem[];
   onClose: () => void;
   onSold: (updated: CatalogItem) => void;
   /** §2: bronni ulash — detail drawer «Katalogdan sotish»dan yoki ?reservation= orqali oldindan tanlanadi */
@@ -61,9 +66,28 @@ export default function KatalogSellModal({
   const showToast = useStore((s) => s.showToast);
   const total = item.quantity_total ?? 1;
   // ⚠️ QOLDIQ — YAGONA manba (sotilgan + chiqit + RESTAVRATSIYA ayriladi).
+  /**
+   * ⚠️ HAJM SOTUVDA TANLANADI — savat kartasi hajm bo'yicha bo'linmaydi (bitta «Savat»),
+   *    shuning uchun operator qaysi hajm ketayotganini shu oynada aytadi.
+   *
+   * ⚠️ SERVER SOTUVGA `volume` MAYDONINI QABUL QILMAYDI (OpenAPI: CatalogSellRequest —
+   *    quantity/sale_price/payment_type/…, hajm YO'Q). Shu bois tanlov YOZUVNI
+   *    ALMASHTIRADI: shu hajmdagi yozuvdan sotiladi va soni o'shanikidan yechiladi.
+   *    Yozuvning hajmi JIMGINA O'ZGARTIRILMAYDI — bir yozuvda bir necha dona turadi,
+   *    bittasini sotgani uchun qolganlarining hajmini buzish yolg'on bo'lardi.
+   */
+  const [active, setActive] = useState<CatalogItem>(item);
+  const volumeOpts = useMemo(() => volumesInGroup(siblings ?? [item]), [siblings, item]);
+  const activeVolume = ((active.volume ?? "") as CatalogVolume | "");
+  const pickByVolume = (v: CatalogVolume | "") => {
+    const pool = (siblings ?? [item]).filter((k) => ((k.volume ?? "") as string) === v);
+    const next = pickSellItem(pool);
+    if (next) setActive(next);
+  };
+
   // Ilgari faqat total − sold edi: buzilgan buketni sotishga urinish mumkin edi.
-  const left = Math.max(catalogRemaining(item), 0) || 1;
-  const listPrice = Math.round(+item.price || 0);
+  const left = Math.max(catalogRemaining(active), 0) || 1;
+  const listPrice = Math.round(+active.price || 0);
 
   const [qty, setQty] = useState(1);
   const [payment, setPayment] = useState<PaymentType>("cash");
@@ -73,14 +97,20 @@ export default function KatalogSellModal({
   //    (guruh kartasida bir nechta narx bo'lishi mumkin).
   const [price, setPrice] = useState(String(listPrice));
   const [reason, setReason] = useState("");
+  // operator narxni QO'LDA yozgan bo'lsa — hajm almashganda ustiga yozilmaydi
+  const [priceTouched, setPriceTouched] = useState(false);
+  useEffect(() => {
+    if (!priceTouched) setPrice(String(Math.round(+active.price || 0)));
+    setQty((q) => Math.min(Math.max(q, 1), Math.max(catalogRemaining(active), 1)));
+  }, [active.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
 
   // MIJOZ — item'da biriktirilgan bo'lsa oldindan tanlanadi
-  const hadCustomer = !!(item.customer_detail || item.customer);
+  const hadCustomer = !!(active.customer_detail || active.customer);
   const [cust, setCust] = useState<CustomerPick>(
-    item.customer_detail
-      ? { mode: "existing", id: item.customer_detail.id, detail: item.customer_detail }
+    active.customer_detail
+      ? { mode: "existing", id: active.customer_detail.id, detail: active.customer_detail }
       : { mode: "none" }
   );
   // SOTUV SANASI — ixtiyoriy; yoqilib o'zgartirilsagina yuboriladi (aks holda backend: hozir)
@@ -250,7 +280,7 @@ export default function KatalogSellModal({
     let patched: CatalogItem | null = null;
     if (custBody) {
       try {
-        patched = await api.updateCatalogItem(item.id, custBody);
+        patched = await api.updateCatalogItem(active.id, custBody);
       } catch (e) {
         if (e instanceof ApiError && e.fieldErrors) setErrs(e.fieldErrors);
         showToast(e instanceof ApiError ? e.message : "Mijozni biriktirib bo'lmadi");
@@ -260,7 +290,7 @@ export default function KatalogSellModal({
     }
     // 2-QADAM: sotuv
     try {
-      const updated = await api.sellCatalogItem(item.id, {
+      const updated = await api.sellCatalogItem(active.id, {
         quantity: qty,
         payment_type: payment,
         // ⚠️ `sale_price` DOIM yuboriladi — maydondagi summa aynan shu (sukut bo'yicha
@@ -294,7 +324,7 @@ export default function KatalogSellModal({
           ? `✓ Qarzga berildi → ${debtWho} · ${fmt(calc.totalSum)}. Bu summa QARZ TO'LANGAN kuni savdoga qo'shiladi.`
           : calc.totalDiscount > 0
             ? `✓ ${qty} ta sotildi · chegirma ${fmt(calc.totalDiscount)}${who}`
-            : `✓ «${item.name_uz || item.name_ru}»: ${qty} ta sotildi${who}`
+            : `✓ «${active.name_uz || active.name_ru}»: ${qty} ta sotildi${who}`
       );
       onSold(updated);
     } catch (e) {
@@ -311,7 +341,7 @@ export default function KatalogSellModal({
       <ModalHeader
         icon={<Tag size={19} strokeWidth={1.8} />}
         title="Katalogdan sotish"
-        sub={`${item.name_uz || item.name_ru} · ${fmt(listPrice)} / dona`}
+        sub={`${active.name_uz || active.name_ru} · ${fmt(listPrice)} / dona`}
         onClose={onClose}
       />
 
@@ -376,6 +406,33 @@ export default function KatalogSellModal({
               ))}
           </div>
         </div>
+      )}
+
+      {/* ⚠️ HAJM — savat/quti kartasi hajm bo'yicha bo'linmaydi, shuning uchun qaysi hajm
+          sotilayotgani SHU YERDA tanlanadi. Tanlov shu hajmdagi YOZUVGA o'tadi (server
+          sotuvga `volume` qabul qilmaydi), ya'ni soni o'sha yozuvdan yechiladi. */}
+      {volumeOpts.length > 1 && (
+        <Field label="Hajmi" span>
+          <div className="flex flex-wrap gap-1.5">
+            {volumeOpts.map((v) => (
+              <button
+                key={v || "none"}
+                type="button"
+                onClick={() => pickByVolume(v)}
+                aria-pressed={activeVolume === v}
+                className="rounded-full border-[1.5px] px-3.5 py-1.5 text-[12.5px] font-bold transition-colors duration-150"
+                style={activeVolume === v
+                  ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" }
+                  : { borderColor: "var(--border)", color: "var(--text-2)" }}
+              >
+                {v ? VOLUME_LABEL[v] : "Hajmsiz"}
+              </button>
+            ))}
+          </div>
+          <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>
+            Tanlangan hajmdagi yozuvdan sotiladi · narxni pastda qo&apos;lda kiritasiz
+          </span>
+        </Field>
       )}
 
       {/* SONI — stepper */}
@@ -492,7 +549,7 @@ export default function KatalogSellModal({
               className="inp"
               inputMode="numeric"
               value={price}
-              onChange={(e) => { setPrice(e.target.value.replace(/\D/g, "")); setErrs((x) => { const n = { ...x }; delete n.sale_price; return n; }); }}
+              onChange={(e) => { setPriceTouched(true); setPrice(e.target.value.replace(/\D/g, "")); setErrs((x) => { const n = { ...x }; delete n.sale_price; return n; }); }}
               placeholder={String(listPrice)}
             />
             <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>

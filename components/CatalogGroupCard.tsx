@@ -26,7 +26,8 @@ import type { CatalogItem } from "@/lib/types";
  */
 
 export type GroupActions = {
-  onSell: (k: CatalogItem) => void;
+  /** ⚠️ `siblings` — shu guruhdagi barcha yozuvlar: sotuv oynasidagi «Hajm» tanlagichi shulardan. */
+  onSell: (k: CatalogItem, siblings?: CatalogItem[]) => void;
   onView: (k: CatalogItem) => void;
   onEdit: (k: CatalogItem) => void;
   onDelete: (k: CatalogItem) => void;
@@ -74,7 +75,7 @@ export default function CatalogGroupCard({
   const pending = g.items.reduce((s, k) => s + deductionState(k).pending, 0);
   // ⚠️ Narx SOTUV OYNASIDA qo'lda kiritiladi (dona narxi maydoni doim ochiq), shuning uchun
   //    har xil narxli guruh ham sotishni BLOKLAMAYDI — kartada oraliq ko'rsatiladi, xolos.
-  const sell = () => { if (target) actions.onSell(target); };
+  const sell = () => { if (target) actions.onSell(target, g.items); };
 
   return (
     <article className="glass flex flex-col overflow-hidden !rounded-[20px]" style={{ borderLeft: `3px solid ${hue}` }}>
@@ -234,7 +235,7 @@ export default function CatalogGroupCard({
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {sellable(k) && (
-                    <button onClick={() => actions.onSell(k)} className="rounded-[10px] border-[1.5px] px-3 py-1 text-[12px] font-bold hover:bg-mint" style={{ borderColor: "var(--line)" }}>
+                    <button onClick={() => actions.onSell(k, [k])} className="rounded-[10px] border-[1.5px] px-3 py-1 text-[12px] font-bold hover:bg-mint" style={{ borderColor: "var(--line)" }}>
                       Sotish
                     </button>
                   )}

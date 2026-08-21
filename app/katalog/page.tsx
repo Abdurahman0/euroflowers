@@ -223,11 +223,15 @@ export default function KatalogPage() {
   // «Sotish» — modal orqali: soni + ixtiyoriy chegirma narxi va sababi
   // ⚠️ HAJM GURUHLARI — ko'rinib turgan yozuvlardan (filtr + sahifa) yig'iladi.
   // ⚠️ BUKETLAR — hajm bo'yicha 3 ta guruh kartasi; SAVAT/QUTI — alohida rasmli kartalar.
-  const { groups, singles, customs } = useMemo(() => splitCatalogView(shownItems), [shownItems]);
+  const { groups, customs } = useMemo(() => splitCatalogView(shownItems), [shownItems]);
   // ⚠️ Bir vaqtda BITTA guruh ochiladi va u butun qatorni egallaydi (akkordeon).
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
-  const [sellItem, setSellItem] = useState<CatalogItem | null>(null);
+  // ⚠️ Sotuv oynasi guruhning BARCHA yozuvlarini biladi — «Hajm» tanlagichi shulardan
+  //    yig'iladi (savat kartasi hajm bo'yicha bo'linmaydi).
+  const [sell, setSell] = useState<{ item: CatalogItem; siblings?: CatalogItem[] } | null>(null);
+  const setSellItem = (k: CatalogItem, siblings?: CatalogItem[]) => setSell({ item: k, siblings });
+  const sellItem = sell?.item ?? null;
   // §2 Bron bilan sotish — Bronlar sahifasidan «Katalogdan sotish» (?reservation=&item=) orqali
   const [presetResv, setPresetResv] = useState<Reservation | null>(null);
   useEffect(() => {
@@ -454,40 +458,6 @@ export default function KatalogPage() {
         {shownItems.length === 0 && <div className="col-span-full"><EmptyState title={floristFilter ? "Bu floristda katalog yo'q" : "Katalog hozircha bo'sh"} sub={floristFilter ? "Boshqa floristni tanlang." : "Birinchi tayyor guldastani qo'shing — story havolasi bilan."} /></div>}
       </div>
 
-      {/* ⚠️ SAVAT / QUTI — guruhlanmaydi: har biri alohida tovar, RASMI bilan chiziladi.
-          Buket guruhlaridan KEYIN turadi. */}
-      {singles.length > 0 && (
-        <>
-          <div className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-[1.5px]" style={{ color: "var(--muted)" }}>
-            Savatlar va qutilar <span className="font-semibold normal-case tracking-normal opacity-80">· har biri alohida</span>
-          </div>
-          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(275px,1fr))" }}>
-            {singles.map((k) => (
-              <CatalogItemCard
-                key={k.id}
-                k={k}
-                actions={{
-                  onSell: setSellItem,
-                  onView: (x) => api.catalogItem(x.id).then(setViewItem).catch(() => showToast("Katalog tafsiloti topilmadi")),
-                  onEdit: setEditItem,
-                  onDelete: setConfirmDel,
-                  onRework: (x) => setReworkOpen({ source: x }),
-                  onTransfer: setTransferItem,
-                  onDeduct: deduct,
-                  onCustomer: (id, label) => setCustomerFilter({ id, label }),
-                  busyId,
-                  control,
-                  mainUser,
-                  costVisible: catalogHasCostData,
-                  undistributed: isUndistributed,
-                  composition: compositionText,
-                }}
-              />
-            ))}
-          </div>
-        </>
-      )}
-
       {/* ⚠️ MAXSUS KATALOG — mijoz uchun bir marta yasalgan buyumlar. Guruhga QO'SHILMAYDI
           (savat kabi har biri alohida karta) va o'z chipida holatidan qat'i nazar ko'rinadi. */}
       {customs.length > 0 && (
@@ -527,12 +497,13 @@ export default function KatalogPage() {
         <EmptyState title="Maxsus katalog yo'q" sub="Mijoz uchun alohida yasalgan buyum qo'shilsa shu yerda ko'rinadi." />
       )}
 
-      {sellItem && (
+      {sell && (
         <KatalogSellModal
-          item={sellItem}
+          item={sell.item}
+          siblings={sell.siblings}
           presetReservation={presetResv}
-          onClose={() => setSellItem(null)}
-          onSold={(upd) => { patchItem(upd); setSellItem(null); setPresetResv(null); notifyReportDataChanged(); loadNotifs(); load(); }}
+          onClose={() => setSell(null)}
+          onSold={(upd) => { patchItem(upd); setSell(null); setPresetResv(null); notifyReportDataChanged(); loadNotifs(); load(); }}
         />
       )}
 

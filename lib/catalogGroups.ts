@@ -14,6 +14,10 @@ import type { ArrangementType, CatalogItem, CatalogVolume } from "@/lib/types";
  *    ham boshqa (jonli: o'rta savat 1 000 000, o'rta buket 400 000). Bir kartaga
  *    qo'shilsa qoldiq soni ham, narx ham chalkashardi.
  *
+ * ⚠️ SAVAT/QUTI HAJM BO'YICHA BO'LINMAYDI — buketdan farqi shu: buket «Kichik/O'rta/Katta»
+ *    bo'lib turadi, savat esa BITTA kartada (hajmi har xil bo'lsa ham). Qaysi hajm
+ *    ketayotgani SOTUV paytida tanlanadi (narx ham o'shanda qo'lda kiritiladi).
+ *
  * ⚠️ HAJMSIZ yozuvlar YO'QOLMAYDI — o'z guruhiga tushadi (`volume: ""`), aks holda
  *    sotiladigan tovar ekranda umuman ko'rinmay qolardi.
  *
@@ -49,10 +53,17 @@ const volumeOf = (k: CatalogItem): CatalogVolume | "" => {
 const typeOf = (k: CatalogItem): ArrangementType =>
   k.arrangement_type === "basket" || k.arrangement_type === "box" ? k.arrangement_type : "bouquet";
 
-export const groupKey = (volume: CatalogVolume | "", type: ArrangementType) => `${volume}|${type}`;
+/** ⚠️ FAQAT BUKET hajm bo'yicha bo'linadi; savat/quti bitta kartada (hajm sotuvda tanlanadi). */
+const splitsByVolume = (type: ArrangementType) => type === "bouquet";
 
-export const groupLabel = (volume: CatalogVolume | "", type: ArrangementType) =>
-  `${volume ? VOLUME_LABEL[volume] : "Hajmi belgilanmagan"} ${TYPE_WORD[type]}`;
+export const groupKey = (volume: CatalogVolume | "", type: ArrangementType) =>
+  `${splitsByVolume(type) ? volume : ""}|${type}`;
+
+export const groupLabel = (volume: CatalogVolume | "", type: ArrangementType) => {
+  const word = TYPE_WORD[type];
+  if (!splitsByVolume(type)) return word.charAt(0).toUpperCase() + word.slice(1); // «Savat» · «Quti»
+  return `${volume ? VOLUME_LABEL[volume] : "Hajmi belgilanmagan"} ${word}`;
+};
 
 export function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
   const map = new Map<string, CatalogItem[]>();
@@ -63,14 +74,21 @@ export function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
     else map.set(key, [k]);
   }
   const out: CatalogGroup[] = [];
-  for (const volume of VOLUME_ORDER) {
-    for (const type of TYPE_ORDER) {
+  // ⚠️ TARTIB: AVVAL barcha BUKET guruhlari hajm bo'yicha (kichik → o'rta → katta →
+  //    hajmsiz), KEYIN savat va quti — ular hajmga bo'linmagani uchun bittadan.
+  //    (Ilgari tashqi sikl hajm bo'yicha edi va «Savat» birinchi hajmning o'rtasiga tushib qolardi.)
+  const plan: [CatalogVolume | "", ArrangementType][] = [
+    ...VOLUME_ORDER.filter((v) => map.has(groupKey(v, "bouquet"))).map((v) => [v, "bouquet"] as [CatalogVolume | "", ArrangementType]),
+    ...TYPE_ORDER.filter((t) => t !== "bouquet" && map.has(groupKey("", t))).map((t) => ["", t] as [CatalogVolume | "", ArrangementType]),
+  ];
+  {
+    for (const [volume, type] of plan) {
       const key = groupKey(volume, type);
       const list = map.get(key);
       if (!list) continue;
       out.push({
         key,
-        volume,
+        volume: splitsByVolume(type) ? volume : "",
         type,
         label: groupLabel(volume, type),
         items: list,
@@ -97,18 +115,24 @@ export function groupCatalog(items: CatalogItem[]): CatalogGroup[] {
  *
  * Savatlar tartibi: hajm bo'yicha (kichik → o'rta → katta → hajmsiz), ichida yangisi oldinda.
  */
-export function splitCatalogView(items: CatalogItem[]): { groups: CatalogGroup[]; singles: CatalogItem[]; customs: CatalogItem[] } {
+export function splitCatalogView(items: CatalogItem[]): { groups: CatalogGroup[]; customs: CatalogItem[] } {
   // ⚠️ MAXSUS (custom) katalog HECH QACHON guruhga qo'shilmaydi — u mijoz uchun bir marta
   //    yasalgan buyum, o'z kartasi bilan «Maxsus katalog» bo'limida turadi.
+  // ⚠️ SAVAT endi buket kabi GURUHDA (alohida kartalar YO'Q) — faqat hajm bo'yicha bo'linmaydi.
   const isCustom = (k: CatalogItem) => k.catalog_kind === "custom";
   const rank = (k: CatalogItem) => VOLUME_ORDER.indexOf(volumeOf(k));
   const bySize = (a: CatalogItem, b: CatalogItem) => rank(a) - rank(b) || b.id - a.id;
-  const std = items.filter((k) => !isCustom(k));
   return {
-    groups: groupCatalog(std.filter((k) => typeOf(k) === "bouquet")),
-    singles: std.filter((k) => typeOf(k) !== "bouquet").sort(bySize),
+    groups: groupCatalog(items.filter((k) => !isCustom(k))),
     customs: items.filter(isCustom).sort(bySize),
   };
+}
+
+/** Guruhdagi mavjud hajmlar (qoldig'i borlari) — sotuv oynasidagi «Hajm» tanlagichi uchun. */
+export function volumesInGroup(items: CatalogItem[]): (CatalogVolume | "")[] {
+  const set = new Set<CatalogVolume | "">();
+  for (const k of items) if (catalogRemaining(k) > 0) set.add(volumeOf(k));
+  return VOLUME_ORDER.filter((v) => set.has(v));
 }
 
 /**
