@@ -308,8 +308,8 @@ if (typeof window !== "undefined") {
  * bo'lmasa rol bo'yicha zaxira qoida (developer/admin — hammasi).
  */
 const ROLE_FALLBACK: Record<Role, PermissionPage[]> = {
-  developer: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "ai_settings", "integrations", "users", "mini_app", "audit"],
-  admin: ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "users", "audit"],
+  developer: ["dashboard", "inventory", "catalog", "ai_catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "ai_settings", "integrations", "users", "mini_app", "audit"],
+  admin: ["dashboard", "inventory", "catalog", "ai_catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "users", "audit"],
   operator: ["dashboard", "crm", "customers", "conversations", "catalog", "social_posts", "notifications"],
   florist: ["notifications", "attendance", "florists"],
   apprentice: ["notifications", "attendance", "florists"],

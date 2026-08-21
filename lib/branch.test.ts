@@ -161,3 +161,24 @@ describe("branchSplitParts / branchSplitLine — 1, 2 and 3+ branches", () => {
     expect(branchSplitLine(r, "cash_total", money)).toBe("T 500 000 (100%)");
   });
 });
+
+describe("§4 — AI katalog ruxsati (`ai_catalog`)", () => {
+  // ⚠️ Jonli matritsa (20.08.2026) 19 kalit yuboradi va ular orasida `ai_catalog` bor.
+  //    Sahifa `ai_settings` bilan bog'langan edi: shu kalit berilgan xodim menyuda
+  //    hech nima ko'rmasdi, developer esa (hamma kalit bor) ko'rardi.
+  it("`ai_catalog` berilgan xodim menyuda AI katalogni KO'RADI", () => {
+    expect(visibleScreens(false, ["ai_catalog"])).toContain("aiCatalog");
+  });
+
+  it("faqat `catalog` berilgan xodimga AI katalog KO'RINMAYDI", () => {
+    const v = visibleScreens(false, ["catalog"]);
+    expect(v).toContain("katalog");
+    expect(v).not.toContain("aiCatalog");
+  });
+
+  it("`ai_settings` (AI yordamchi) o'zi AI katalogni ochmaydi", () => {
+    const v = visibleScreens(false, ["ai_settings"]);
+    expect(v).toContain("ai");
+    expect(v).not.toContain("aiCatalog");
+  });
+});

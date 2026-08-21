@@ -48,8 +48,8 @@ const n = (v: unknown) => (v == null || v === "" ? 0 : Number(v) || 0);
 export default function AiCatalogPage() {
   const { showToast } = useStore();
   const { canControl } = usePerm();
-  // ⚠️ Tahrirlash huquqi ham `ai_settings` (yon menyu ruxsati bilan bir xil).
-  const control = canControl("ai_settings");
+  // ⚠️ Tahrirlash huquqi ham `ai_catalog` (yon menyu va marshrut qo'riqchisi bilan bir xil).
+  const control = canControl("ai_catalog");
 
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");

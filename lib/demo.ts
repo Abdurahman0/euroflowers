@@ -44,7 +44,7 @@ const statusDetail = (key: string) => leadStatuses.find((s) => s.key === key) ??
 
 // ===== Foydalanuvchilar =====
 
-const ALL_PAGES = ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "settings", "ai_settings", "integrations", "users", "mini_app", "audit"] as const;
+const ALL_PAGES = ["dashboard", "inventory", "catalog", "ai_catalog", "crm", "customers", "conversations", "social_posts", "notifications", "settings", "ai_settings", "integrations", "users", "mini_app", "audit"] as const;
 const fullPerms: PagePermission[] = ALL_PAGES.map((page, i) => ({ id: i + 1, page, can_view: true, can_control: true }));
 
 const users: User[] = [

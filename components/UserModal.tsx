@@ -19,6 +19,7 @@ const PAGES: { page: PermissionPage; label: string }[] = [
   { page: "dashboard", label: "Dashboard" },
   { page: "inventory", label: "Sklad" },
   { page: "catalog", label: "Katalog" },
+  { page: "ai_catalog", label: "AI katalog" },
   { page: "crm", label: "CRM" },
   { page: "customers", label: "Mijozlar" },
   { page: "conversations", label: "Instagram inbox" },

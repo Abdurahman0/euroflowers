@@ -29,7 +29,7 @@ const ROUTE_PERM: Record<string, PermissionPage> = {
   "/rasxodlar": "expenses",
   "/chat": "conversations",
   "/ai": "ai_settings",
-  "/ai-katalog": "catalog",
+  "/ai-katalog": "ai_catalog",
   "/crm": "crm",
   "/buyurtmalar": "crm",
   "/mijozlar": "customers",

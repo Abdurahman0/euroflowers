@@ -6,7 +6,9 @@ export type Role = "developer" | "admin" | "operator" | "florist" | "apprentice"
 export type PermissionPage =
   | "dashboard" | "inventory" | "catalog" | "crm" | "customers" | "conversations"
   | "social_posts" | "notifications" | "suppliers" | "florists" | "attendance"
-  | "settings" | "ai_settings" | "integrations"
+  // ⚠️ `ai_catalog` — AI vitrinasi uchun ALOHIDA kalit (jonli matritsada bor, 20.08.2026).
+  //    U ro'yxatda yo'q edi: admin uni bera olmasdi va sahifa faqat developer'ga ko'rinardi.
+  | "settings" | "ai_settings" | "ai_catalog" | "integrations"
   | "users" | "mini_app" | "expenses" | "audit";
 
 export type PagePermission = {
