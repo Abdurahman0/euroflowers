@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { fmt, fmtDate, fmtTime, movementLeadId } from "@/lib/format";
 import { PACKAGING_LABEL, MATERIAL_DELIVERY } from "@/lib/inventory";
 import { MATERIAL_UNIT_LABEL, BASKET_MATERIAL_LABEL, UNIT_CONFIG, configFor, quantityDual, receivePreview } from "@/lib/materialUnit";
+import { applyMixedEdit, blurMixedField, emptyMixed, focusMixedField, formatMoneyInput, parseMoney, recalcOnTotalChange, validateMixed, type MixedState } from "@/lib/mixedPayment";
 import { Icon } from "./icons";
 import type { BasketMaterial, MaterialDelivery, MaterialMovement, MaterialUnit, Packaging, PackagingType } from "@/lib/types";
 
@@ -516,9 +517,142 @@ function MaterialCard({ m, control, onEdit, onMove, onDetail }: { m: Packaging; 
 }
 
 export function AccessorySellModal({ material, onClose, onDone }: { material: Packaging; onClose: () => void; onDone: () => void }) {
-  const showToast = useStore((s) => s.showToast); const [quantity, setQuantity] = useState("1"); const [price, setPrice] = useState(String(material.sale_price ?? "")); const [reason, setReason] = useState(""); const [payment, setPayment] = useState("cash"); const [busy, setBusy] = useState(false);
-  const save = async () => { const q = Math.floor(+quantity || 0); if (q < 1 || q > material.quantity) return showToast(`Qoldiq ${material.quantity} dona`); setBusy(true); try { await api.sellPackaging(material.id, { quantity: q, sale_price: price || undefined, payment_type: payment, reason: reason.trim() || undefined, sold_at: new Date().toISOString() }); showToast("✓ Accessory sotildi"); onDone(); } catch (e) { showToast(e instanceof ApiError ? e.message : "Sotib bo'lmadi"); } finally { setBusy(false); } };
-  return <Modal onClose={onClose} width={440}><ModalHeader icon={<ShoppingCart size={20} />} title="Accessory sotish" sub={`${material.name_uz || material.name_ru} · qoldiq ${material.quantity} dona`} onClose={onClose} /><div className="grid gap-3"><Field label="Soni"><input className="inp" type="number" min="1" max={material.quantity} value={quantity} onChange={(e) => setQuantity(e.target.value)} /></Field><Field label="Sotuv narxi"><input className="inp" type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} /></Field><Field label="To'lov turi"><select className="inp" value={payment} onChange={(e) => setPayment(e.target.value)}><option value="cash">Naqd</option><option value="card">Karta</option><option value="debt">Qarz</option><option value="mixed">Aralash</option></select></Field><Field label="Sabab"><input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ixtiyoriy" /></Field></div><ModalFooter><button onClick={onClose} className="btn-ghost">Bekor</button><button onClick={save} disabled={busy} className="btn-primary">{busy ? "Saqlanmoqda…" : "Sotish"}</button></ModalFooter></Modal>;
+  const showToast = useStore((s) => s.showToast);
+  const [quantity, setQuantity] = useState("1");
+  const [price, setPrice] = useState(String(Math.round(+(material.sale_price ?? 0)) || ""));
+  const [reason, setReason] = useState("");
+  const [payment, setPayment] = useState<"cash" | "card" | "debt" | "mixed">("cash");
+  const [mixed, setMixed] = useState<MixedState>(emptyMixed);
+  const [busy, setBusy] = useState(false);
+
+  const qty = Math.floor(+quantity || 0);
+  const unit = Math.round(+price || 0);
+  const total = Math.max(qty, 0) * unit;
+
+  // ⚠️ JAMI o'zgarganda ARALASH maydonlari qayta hisoblanadi (tegilmagani to'ldiriladi) —
+  //    katalog sotuvidagi bilan AYNAN bir mantiq (lib/mixedPayment).
+  useEffect(() => { setMixed((prev) => recalcOnTotalChange(prev, total)); }, [total]);
+  // ⚠️ Aralashdan chiqilsa maydonlar TOZALANADI (katalog sotuvidagi bilan bir xil):
+  //    aks holda keyingi safar eski ajratma qolib ketardi.
+  useEffect(() => { if (payment !== "mixed") setMixed(emptyMixed); }, [payment]);
+
+  const mv = validateMixed(mixed, total);
+
+  const save = async () => {
+    if (qty < 1 || qty > material.quantity) return showToast(`Qoldiq ${material.quantity} dona`);
+    if (unit <= 0) return showToast("Sotuv narxini kiriting");
+    // ⚠️ ARALASH: naqd + karta AYNAN jamiga teng bo'lishi shart (kam/ortiq bo'lsa saqlanmaydi)
+    if (payment === "mixed" && !mv.ok) return showToast(mv.message || "Naqd va karta yig'indisi jamiga teng bo'lsin");
+    setBusy(true);
+    try {
+      // ⚠️ SERVER ARALASH AJRATMASINI SAQLAMAYDI: PackagingSellRequest = quantity/sale_price/
+      //    payment_type/reason/sold_at (jonli OpenAPI) — cash_amount/card_amount YO'Q.
+      //    Shu bois ajratma IZOHGA yozilmaydi (matn maydoniga raqam tiqish emas), balki
+      //    operator uni ekranda ko'rib tasdiqlaydi va serverga to'lov TURI ketadi.
+      await api.sellPackaging(material.id, {
+        quantity: qty,
+        sale_price: String(unit),
+        payment_type: payment,
+        reason: reason.trim() || undefined,
+        sold_at: new Date().toISOString(),
+      });
+      showToast("✓ Accessory sotildi");
+      onDone();
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : "Sotib bo'lmadi");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const PAY: { value: typeof payment; label: string }[] = [
+    { value: "cash", label: "Naqd" },
+    { value: "card", label: "Karta" },
+    { value: "debt", label: "Qarz" },
+    { value: "mixed", label: "Aralash" },
+  ];
+
+  return (
+    <Modal onClose={onClose} width={460}>
+      <ModalHeader icon={<ShoppingCart size={20} />} title="Accessory sotish" sub={`${material.name_uz || material.name_ru} · qoldiq ${material.quantity} dona`} onClose={onClose} />
+      <div className="grid gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Soni">
+            <input className="inp" type="number" min="1" max={material.quantity} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          </Field>
+          <Field label="Dona narxi (so'm)">
+            <input className="inp" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 120000" />
+          </Field>
+        </div>
+
+        <Field label="To'lov turi" span>
+          <div className="flex flex-wrap gap-1.5">
+            {PAY.map((p) => (
+              <button key={p.value} type="button" onClick={() => setPayment(p.value)} aria-pressed={payment === p.value}
+                className="rounded-full border-[1.5px] px-3.5 py-1.5 text-[12.5px] font-bold transition-colors duration-150"
+                style={payment === p.value ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" } : { borderColor: "var(--border)", color: "var(--text-2)" }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {/* ⚠️ NAQD/KARTA — summa ko'rinib tursin (operator nima olayotganini tasdiqlaydi) */}
+        {(payment === "cash" || payment === "card") && (
+          <Field label={payment === "cash" ? "Naqd summa (so'm)" : "Karta summa (so'm)"} span>
+            <input className="inp" inputMode="numeric" value={formatMoneyInput(total)} readOnly
+              aria-label={payment === "cash" ? "Naqd summa" : "Karta summa"} />
+            <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>
+              {qty} dona × {formatMoneyInput(unit)} = <b style={{ color: "var(--acc)" }}>{fmt(total)}</b>
+            </span>
+          </Field>
+        )}
+
+        {/* ⚠️ ARALASH — IKKI MAYDON. Ilgari «Aralash» tanlansa hech qanday maydon
+            chiqmasdi va jami qaysi usulda olinganini kiritishning yo'li yo'q edi. */}
+        {payment === "mixed" && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Naqd (so'm)">
+              <input className="inp" inputMode="numeric" value={mixed.cash}
+                onFocus={() => setMixed((p) => focusMixedField(p, "cash"))}
+                onBlur={() => setMixed((p) => blurMixedField(p, "cash", total))}
+                onChange={(e) => setMixed((p) => applyMixedEdit(p, "cash", e.target.value, total))} placeholder="0" />
+            </Field>
+            <Field label="Karta (so'm)">
+              <input className="inp" inputMode="numeric" value={mixed.card}
+                onFocus={() => setMixed((p) => focusMixedField(p, "card"))}
+                onBlur={() => setMixed((p) => blurMixedField(p, "card", total))}
+                onChange={(e) => setMixed((p) => applyMixedEdit(p, "card", e.target.value, total))} placeholder="0" />
+            </Field>
+            <div className="col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-[12px] px-3 py-2 text-[12px] font-bold"
+              style={{ background: "var(--surface-2)", color: mv.ok ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)" }}>
+              <span style={{ color: "var(--text-2)" }}>Kiritildi {formatMoneyInput(parseMoney(mixed.cash) + parseMoney(mixed.card))}</span>
+              <span>{mv.ok ? `✓ jami ${fmt(total)}` : mv.message}</span>
+            </div>
+            {/* ⚠️ HALOL OGOHLANTIRISH — server ajratmani saqlamaydi (OpenAPI'da maydon yo'q) */}
+            <p className="col-span-2 text-[11.5px] leading-snug" style={{ color: "var(--muted)" }}>
+              Server aksessuar sotuvida <b>ajratmani saqlamaydi</b> — yozuvga to&apos;lov turi «Aralash» bo&apos;lib tushadi.
+            </p>
+          </div>
+        )}
+
+        <Field label="Sabab" span>
+          <input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ixtiyoriy" />
+        </Field>
+
+        {total > 0 && payment !== "cash" && payment !== "card" && (
+          <div className="flex items-center justify-between rounded-[12px] px-3 py-2 text-[13px] font-bold" style={{ background: "var(--surface-2)" }}>
+            <span style={{ color: "var(--text-2)" }}>Jami</span>
+            <span className="tabular-nums" style={{ color: "var(--acc)" }}>{fmt(total)}</span>
+          </div>
+        )}
+      </div>
+      <ModalFooter>
+        <button onClick={onClose} className="btn-ghost">Bekor</button>
+        <button onClick={save} disabled={busy || (payment === "mixed" && !mv.ok)} className={`btn-primary disabled:opacity-60 ${busy ? "btn-loading" : ""}`}>Sotish</button>
+      </ModalFooter>
+    </Modal>
+  );
 }
 
 export default function MaterialSklad() {
