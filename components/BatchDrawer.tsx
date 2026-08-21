@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, ShoppingCart } from "lucide-react";
 import clsx from "clsx";
 import Drawer from "./Drawer";
 import { BatchMovementModal } from "./BatchMovementModal";
@@ -11,6 +11,7 @@ import { fmt, fmtDate, fmtTime, movementRefLabel } from "@/lib/format";
 import { formatStemsAndBunches, roundingHint, isFreeBatch, batchCostLabel } from "@/lib/inventory";
 import { batchTitleNoHeight, variantColor } from "@/lib/stockLabel";
 import FreeBatchChip from "./FreeBatchChip";
+import StockBatchSellModal from "./StockBatchSellModal";
 import type { StockBatch, StockMovement } from "@/lib/types";
 
 /**
@@ -56,6 +57,7 @@ export default function BatchDrawer({
   // amallar — barchasi shu view modal ichida
   const [wasteOpen, setWasteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false); // BatchEditModal (kartadagi bilan bir xil forma)
+  const [sellOpen, setSellOpen] = useState(false);
 
   const v = b.variant_detail;
 
@@ -122,6 +124,9 @@ export default function BatchDrawer({
         <div className="mb-4 flex flex-wrap gap-2">
           <button onClick={() => setWasteOpen(true)} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3.5 py-2 text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border-strong)", color: "var(--danger-ink)" }}>
             <Plus size={15} strokeWidth={2} /> Harakat / Chiqit
+          </button>
+          <button onClick={() => setSellOpen(true)} disabled={b.remaining_stems <= 0} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3.5 py-2 text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)] disabled:opacity-50" style={{ borderColor: "var(--primary)", color: "var(--primary)" }}>
+            <ShoppingCart size={15} strokeWidth={2} /> Sotish
           </button>
           <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 rounded-[12px] border-[1.5px] px-3.5 py-2 text-[13px] font-bold transition-colors duration-150 hover:bg-[var(--hover)]" style={{ borderColor: "var(--border-strong)", color: "var(--text-2)" }}>
             <Pencil size={15} strokeWidth={2} /> Tahrirlash
@@ -213,6 +218,7 @@ export default function BatchDrawer({
       {wasteOpen && <BatchMovementModal batch={b} onClose={() => setWasteOpen(false)} onDone={onMovementDone} />}
       {/* TAHRIRLASH — kartadagi bilan AYNAN bir xil forma (BatchEditModal) */}
       {editOpen && <BatchEditModal batch={b} onClose={() => setEditOpen(false)} onSaved={(upd) => { setB(upd); onChanged(upd); setEditOpen(false); }} />}
+      {sellOpen && <StockBatchSellModal batch={b} onClose={() => setSellOpen(false)} onDone={(upd) => { setB(upd); onChanged(upd); loadMoves().catch(() => {}); }} />}
     </Drawer>
   );
 }

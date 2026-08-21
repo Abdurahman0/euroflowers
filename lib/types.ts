@@ -500,6 +500,11 @@ export type StockMovement = {
   // backend (0082) — barcha harakat turlarida: |dona| × cost_per_stem / sale_price_per_stem
   cost_value?: string;
   sale_value?: string;
+  unit_price?: string | number;
+  sale_amount?: string | number;
+  payment_type?: "cash" | "card" | "debt" | "mixed" | string;
+  cash_amount?: string | number;
+  card_amount?: string | number;
 };
 
 export type CatalogStatus = "draft" | "available" | "reserved" | "sold" | "archived";

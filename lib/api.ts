@@ -735,6 +735,8 @@ export const api = {
       Body: {movement_type, quantity_stems | quantity_bunches (string), reason} */
   batchMovement: (id: number, data: { movement_type: string; quantity_stems?: number; quantity_bunches?: string; reason?: string; created_at?: string }) =>
     request<unknown>(`/api/stock-batches/${id}/movement/`, { method: "POST", body: JSON.stringify(data) }),
+  sellStockBatch: (id: number, data: { quantity_stems: number; sale_amount: string; payment_type: "cash" | "card" | "debt" | "mixed"; cash_amount?: string; card_amount?: string; reason?: string; sold_at?: string }) =>
+    request<StockMovement>(`/api/stock-batches/${id}/sell/`, { method: "POST", body: JSON.stringify(data) }),
 
   stockMovements: (p?: Params) => list<StockMovement>("/api/stock-movements/", p),
   stockMovementsPage: (p?: Params) => request<Paginated<StockMovement>>(`/api/stock-movements/${qs({ page_size: 50, ...p })}`),
