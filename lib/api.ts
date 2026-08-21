@@ -1018,7 +1018,9 @@ export const api = {
     request<Packaging>("/api/packaging/", { method: "POST", body: JSON.stringify(data) }),
   updatePackaging: (id: number, data: Partial<Packaging>) =>
     request<Packaging>(`/api/packaging/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
-  sellPackaging: (id: number, data: { quantity?: number; sale_price?: string; payment_type?: string; reason?: string; sold_at?: string }) =>
+  /** ⚠️ ARALASH: `cash_amount` + `card_amount` (backend 21.08.2026) — yig'indisi sotuv
+      summasiga TENG bo'lishi shart, aks holda server rad etadi. */
+  sellPackaging: (id: number, data: { quantity?: number; sale_price?: string; payment_type?: string; cash_amount?: string; card_amount?: string; reason?: string; sold_at?: string }) =>
     request<MaterialMovement>(`/api/packaging/${id}/sell/`, { method: "POST", body: JSON.stringify(data) }),
 
   /** Material sklad — /api/materials/* aliaslar (ichkarida Packaging modeli) */

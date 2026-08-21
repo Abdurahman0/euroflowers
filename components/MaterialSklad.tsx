@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { fmt, fmtDate, fmtTime, movementLeadId } from "@/lib/format";
 import { PACKAGING_LABEL, MATERIAL_DELIVERY } from "@/lib/inventory";
 import { MATERIAL_UNIT_LABEL, BASKET_MATERIAL_LABEL, UNIT_CONFIG, configFor, quantityDual, receivePreview } from "@/lib/materialUnit";
-import { applyMixedEdit, blurMixedField, emptyMixed, focusMixedField, formatMoneyInput, parseMoney, recalcOnTotalChange, validateMixed, type MixedState } from "@/lib/mixedPayment";
+import { applyMixedEdit, blurMixedField, emptyMixed, focusMixedField, formatMoneyInput, mixedSellPayload, parseMoney, recalcOnTotalChange, validateMixed, type MixedState } from "@/lib/mixedPayment";
 import { Icon } from "./icons";
 import type { BasketMaterial, MaterialDelivery, MaterialMovement, MaterialUnit, Packaging, PackagingType } from "@/lib/types";
 
@@ -545,14 +545,16 @@ export function AccessorySellModal({ material, onClose, onDone }: { material: Pa
     if (payment === "mixed" && !mv.ok) return showToast(mv.message || "Naqd va karta yig'indisi jamiga teng bo'lsin");
     setBusy(true);
     try {
-      // ⚠️ SERVER ARALASH AJRATMASINI SAQLAMAYDI: PackagingSellRequest = quantity/sale_price/
-      //    payment_type/reason/sold_at (jonli OpenAPI) — cash_amount/card_amount YO'Q.
-      //    Shu bois ajratma IZOHGA yozilmaydi (matn maydoniga raqam tiqish emas), balki
-      //    operator uni ekranda ko'rib tasdiqlaydi va serverga to'lov TURI ketadi.
+      // ⚠️ ARALASH AJRATMASI SERVERGA KETADI (backend 21.08.2026): PackagingSellRequest
+      //    endi `cash_amount` va `card_amount` ni oladi va yozuvda saqlaydi.
+      //    Yig'indi sotuv summasiga TENG bo'lishi shart — yuqorida tekshirilgan (mv.ok).
+      const split = mixedSellPayload(payment === "mixed", mixed, total);
+      if (split === null) { setBusy(false); return showToast(mv.message || "Naqd va karta yig'indisi jamiga teng bo'lsin"); }
       await api.sellPackaging(material.id, {
         quantity: qty,
         sale_price: String(unit),
         payment_type: payment,
+        ...split,
         reason: reason.trim() || undefined,
         sold_at: new Date().toISOString(),
       });
@@ -629,10 +631,6 @@ export function AccessorySellModal({ material, onClose, onDone }: { material: Pa
               <span style={{ color: "var(--text-2)" }}>Kiritildi {formatMoneyInput(parseMoney(mixed.cash) + parseMoney(mixed.card))}</span>
               <span>{mv.ok ? `✓ jami ${fmt(total)}` : mv.message}</span>
             </div>
-            {/* ⚠️ HALOL OGOHLANTIRISH — server ajratmani saqlamaydi (OpenAPI'da maydon yo'q) */}
-            <p className="col-span-2 text-[11.5px] leading-snug" style={{ color: "var(--muted)" }}>
-              Server aksessuar sotuvida <b>ajratmani saqlamaydi</b> — yozuvga to&apos;lov turi «Aralash» bo&apos;lib tushadi.
-            </p>
           </div>
         )}
 

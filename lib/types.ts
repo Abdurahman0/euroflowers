@@ -1306,6 +1306,9 @@ export type MaterialMovement = {
   unit_cost?: string | null;
   unit_price?: string | null;
   payment_type?: PaymentType | string | null;
+  /** ⚠️ ARALASH sotuv ajratmasi (backend 21.08.2026) — `payment_type: "mixed"` da to'ladi. */
+  cash_amount?: string | number | null;
+  card_amount?: string | number | null;
 };
 
 /** AI mijoz katalogi — ichki ishlab chiqarish katalogidan alohida. */

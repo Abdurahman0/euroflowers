@@ -8,6 +8,8 @@ import FlowerLoader from "@/components/FlowerLoader";
 import { fmt, fmtTime } from "@/lib/format";
 import type { MaterialMovement, Packaging } from "@/lib/types";
 
+const PAY_LABEL: Record<string, string> = { cash: "Naqd", card: "Karta", debt: "Qarz", mixed: "Aralash" };
+
 /**
  * AKSESSUAR TAFSILOTI — narx, TANNARX, qoldiq va harakatlar tarixi.
  *
@@ -160,7 +162,20 @@ export default function AccessoryDetail({
                     <div className="text-[13px] font-bold">{sale ? "Alohida sotuv" : isIn ? "Kirim" : "Chiqim"} · {Math.abs(m.quantity)} dona</div>
                     <div className="text-[11.5px]" style={{ color: "var(--muted)" }}>{m.reason || "—"} · {fmtTime(m.created_at)}</div>
                   </div>
-                  {sale && <span className="rounded-full bg-mint px-2.5 py-1 text-[11px] font-bold text-mintink">{m.payment_type ?? "—"} · {+(m.unit_price ?? 0) > 0 ? fmt(m.unit_price) : "—"}</span>}
+                  {/* ⚠️ ARALASH sotuvda SAQLANGAN ajratma ko'rsatiladi — operator yozuvga
+                      nima tushganini ko'radi (backend 21.08.2026: cash_amount/card_amount). */}
+                  {sale && (
+                    <span className="flex flex-wrap items-center gap-1">
+                      <span className="rounded-full bg-mint px-2.5 py-1 text-[11px] font-bold text-mintink">
+                        {PAY_LABEL[String(m.payment_type ?? "")] ?? m.payment_type ?? "—"} · {+(m.unit_price ?? 0) > 0 ? fmt(m.unit_price) : "—"}
+                      </span>
+                      {m.payment_type === "mixed" && (+(m.cash_amount ?? 0) > 0 || +(m.card_amount ?? 0) > 0) && (
+                        <span className="rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+                          naqd {fmt(m.cash_amount ?? 0)} · karta {fmt(m.card_amount ?? 0)}
+                        </span>
+                      )}
+                    </span>
+                  )}
                 </div>
               );
             })}
