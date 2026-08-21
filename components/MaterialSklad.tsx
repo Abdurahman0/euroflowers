@@ -74,6 +74,8 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
     api.materialDeliveries({ ordering: "-received_at", page_size: 50 }).then(setDeliveries).catch(() => {});
   }, [material, lockedDelivery]);
 
+  // qoldiq maydoni tegilganmi (mavjud aksessuarni tahrirlashda)
+  const qtyChanged = !!material && String(material.quantity) !== String(f.quantity).trim();
   const upb = Math.round(+f.units_per_bunch || 0);
   const cfg = UNIT_CONFIG[f.unit];
   // ⚠️ BUKET QOG'OZI (wrap): «O'lcham» va «Sotuv narxi» bu turga ma'nosiz — so'ralmaydi.
@@ -119,6 +121,10 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
         }
       } else {
         payload.cost_price = f.cost_price ? String(+f.cost_price) : "0";
+        // ⚠️ QOLDIQ FAQAT OPERATOR O'ZGARTIRGAN BO'LSA yuboriladi. Aks holda oyna
+        //    ochiq turganda bo'lgan sotuv/kirim JIMGINA ORQAGA qaytarilardi (nomni
+        //    tahrirlash ham qoldiqni eski songa tiklab yuborardi).
+        if (accessoryOnly && qtyChanged) payload.quantity = Math.max(Math.floor(+f.quantity || 0), 0);
       }
       const saved = material ? await api.updateMaterial(material.id, payload) : await api.createMaterial(payload);
       showToast(material ? "✓ Material yangilandi" : linkOn ? `✓ Material qo'shildi va yukka kiritildi` : "✓ Material qo'shildi");
@@ -182,9 +188,19 @@ export function MaterialModal({ material, onClose, onSaved, lockedDelivery = nul
             <input className="inp" type="number" value={f.sale_price} onChange={(e) => setF({ ...f, sale_price: e.target.value })} placeholder="Masalan: 20000" />
           </Field>
         )}
-        {!material && !linkOn && (
-          <Field label="Boshlang'ich soni">
-            <input className="inp" type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} placeholder="Masalan: 50" />
+        {/* ⚠️ SONI — yangi yozuvda «boshlang'ich», mavjud AKSESSUARDA esa TAHRIRLANADI
+            (so'rov): qoldiqni shu yerdan to'g'irlash mumkin. Material uchun bu maydon
+            ochilmadi — u yerda qoldiq pochka/dona hisobiga bog'liq (quantityDual). */}
+        {((!material && !linkOn) || (material && accessoryOnly)) && (
+          <Field label={material ? "Qoldiq (dona)" : "Boshlang'ich soni"}>
+            <input className="inp" type="number" min={0} value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} placeholder="Masalan: 50" />
+            {material && (
+              <span className="mt-0.5 block text-[11.5px] font-semibold" style={{ color: qtyChanged ? "var(--warning-ink, #8a6d1f)" : "var(--muted)" }}>
+                {qtyChanged
+                  ? `Hozir ${material.quantity} dona → saqlaganda ${Math.max(Math.floor(+f.quantity || 0), 0)} dona bo'ladi`
+                  : `Hozirgi qoldiq ${material.quantity} dona · yangi tovar kelgan bo'lsa «Kirim qilish» dan foydalaning`}
+              </span>
+            )}
           </Field>
         )}
       </div>
