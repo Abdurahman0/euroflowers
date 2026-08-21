@@ -15,6 +15,7 @@ type Payment = "cash" | "card" | "debt" | "mixed";
 
 export default function StockBatchSellModal({ batch, onClose, onDone }: { batch: StockBatch; onClose: () => void; onDone: (batch: StockBatch) => void }) {
   const showToast = useStore((s) => s.showToast);
+  const [saleUnit, setSaleUnit] = useState<"stems" | "bunches">("stems");
   const [quantity, setQuantity] = useState("1");
   const [amount, setAmount] = useState("");
   const [payment, setPayment] = useState<Payment>("cash");
@@ -25,27 +26,32 @@ export default function StockBatchSellModal({ batch, onClose, onDone }: { batch:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const qty = Math.floor(+quantity || 0);
+  const stemsPerBunch = Math.max(batch.stems_per_bunch || 1, 1);
+  const parsedBunches = batch.remaining_bunches == null ? NaN : parseFloat(batch.remaining_bunches);
+  const availableBunches = Math.max(Number.isFinite(parsedBunches) ? parsedBunches : batch.remaining_stems / stemsPerBunch, 0);
+  const available = saleUnit === "bunches" ? availableBunches : batch.remaining_stems;
+  const soldStems = saleUnit === "bunches" ? qty * stemsPerBunch : qty;
   const total = parseMoney(amount);
-  const overStock = qty > batch.remaining_stems;
+  const overStock = qty > available || soldStems > batch.remaining_stems;
   const mixedValue = useMemo(() => validateMixed(mixed, total), [mixed, total]);
-  const unitPrice = qty > 0 && total > 0 ? total / qty : 0;
+  const unitPrice = soldStems > 0 && total > 0 ? total / soldStems : 0;
 
   useEffect(() => { setMixed((prev) => recalcOnTotalChange(prev, total)); }, [total]);
   useEffect(() => { if (payment !== "mixed") setMixed(emptyMixed); }, [payment]);
 
   const submit = async () => {
     setError("");
-    if (qty < 1) return setError("Dona sonini kiriting");
-    if (overStock) return setError(`Qoldiq yetarli emas: ${batch.remaining_stems} dona mavjud`);
+    if (qty < 1) return setError(saleUnit === "bunches" ? "Pochka sonini kiriting" : "Dona sonini kiriting");
+    if (overStock) return setError(saleUnit === "bunches" ? `Qoldiq yetarli emas: ${availableBunches.toLocaleString("ru")} pochka mavjud` : `Qoldiq yetarli emas: ${batch.remaining_stems} dona mavjud`);
     if (total <= 0) return setError("Sotuv summasini kiriting");
     if (payment === "mixed" && !mixedValue.ok) return setError(mixedValue.message || "Naqd va karta yig'indisi sotuv summasiga teng bo'lsin");
     setBusy(true);
     try {
       const split = mixedSellPayload(payment === "mixed", mixed, total);
       if (payment === "mixed" && !split) return setError(mixedValue.message || "Aralash to'lovni tekshiring");
-      await api.sellStockBatch(batch.id, { quantity_stems: qty, sale_amount: String(total), payment_type: payment, ...(split ?? {}), ...(reason.trim() ? { reason: reason.trim() } : {}), ...(dateOn && soldAt ? { sold_at: withTashkentOffset(soldAt) } : {}) });
+      await api.sellStockBatch(batch.id, { quantity_stems: soldStems, sale_amount: String(total), payment_type: payment, ...(split ?? {}), ...(reason.trim() ? { reason: reason.trim() } : {}), ...(dateOn && soldAt ? { sold_at: withTashkentOffset(soldAt) } : {}) });
       const fresh = await api.stockBatch(batch.id).catch(() => null);
-      showToast(`✓ ${qty} dona gul sotildi · ${fmt(total)}`);
+      showToast(`✓ ${qty} ${saleUnit === "bunches" ? "pochka" : "dona"} gul sotildi · ${fmt(total)}`);
       onDone(fresh ?? batch);
       onClose();
     } catch (e) {
@@ -56,11 +62,12 @@ export default function StockBatchSellModal({ batch, onClose, onDone }: { batch:
   };
 
   return <Modal onClose={onClose} width={460}>
-    <ModalHeader icon={<ShoppingCart size={20} />} title="Partiyadan dona sotish" sub={`${batchTitleNoHeight(batch)} · №${batch.batch_number}`} onClose={onClose} />
-    <div className="mb-4 rounded-[13px] border px-3.5 py-2.5 text-[12.5px] font-semibold" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>Mavjud qoldiq: <b style={{ color: "var(--primary)" }}>{batch.remaining_stems.toLocaleString("ru")} dona</b>{qty > 0 && <span style={{ color: overStock ? "var(--danger-ink)" : "var(--muted)" }}> · sotuvdan keyin {Math.max(batch.remaining_stems - qty, 0).toLocaleString("ru")} dona qoladi</span>}</div>
+    <ModalHeader icon={<ShoppingCart size={20} />} title="Partiyadan sotish" sub={`${batchTitleNoHeight(batch)} · №${batch.batch_number}`} onClose={onClose} />
+    <Field label="Sotuv birligi" span><div className="grid grid-cols-2 gap-2">{([['stems', 'Dona'], ['bunches', 'Pochka']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => { setSaleUnit(value); setQuantity("1"); }} aria-pressed={saleUnit === value} className="rounded-[12px] border-[1.5px] px-3 py-2 text-[13px] font-bold" style={saleUnit === value ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" } : { borderColor: "var(--border)", color: "var(--text-2)" }}>{label}</button>)}</div></Field>
+    <div className="mb-4 mt-3 rounded-[13px] border px-3.5 py-2.5 text-[12.5px] font-semibold" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>Mavjud qoldiq: <b style={{ color: "var(--primary)" }}>{available.toLocaleString("ru")} {saleUnit === "bunches" ? "pochka" : "dona"}</b>{qty > 0 && <span style={{ color: overStock ? "var(--danger-ink)" : "var(--muted)" }}> · sotuvdan keyin {Math.max(available - qty, 0).toLocaleString("ru")} {saleUnit === "bunches" ? "pochka" : "dona"} qoladi</span>}{saleUnit === "bunches" && <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>Ekivalent: {soldStems.toLocaleString("ru")} dona · 1 pochka = {stemsPerBunch} dona</span>}</div>
     <div className="grid gap-3">
-      <div className="grid grid-cols-2 gap-3"><Field label="Dona soni"><input className="inp" type="number" min="1" max={batch.remaining_stems} value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ""))} autoFocus /></Field><Field label="Sotuv summasi (so'm)"><input className="inp" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 250000" /></Field></div>
-      {unitPrice > 0 && <p className="-mt-1 text-[11.5px]" style={{ color: "var(--muted)" }}>Hisoblangan dona narxi: <b style={{ color: "var(--text-2)" }}>{fmt(unitPrice)}</b></p>}
+      <div className="grid grid-cols-2 gap-3"><Field label={saleUnit === "bunches" ? "Pochka soni" : "Dona soni"}><input className="inp" type="number" min="1" max={available} value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ""))} autoFocus /></Field><Field label="Sotuv summasi (so'm)"><input className="inp" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} placeholder="Masalan: 250000" /></Field></div>
+      {unitPrice > 0 && <p className="-mt-1 text-[11.5px]" style={{ color: "var(--muted)" }}>Hisoblangan dona narxi: <b style={{ color: "var(--text-2)" }}>{fmt(unitPrice)}</b>{saleUnit === "bunches" && <> · pochka narxi: <b style={{ color: "var(--text-2)" }}>{fmt(total / qty)}</b></>}</p>}
       <Field label="To'lov turi" span><div className="flex flex-wrap gap-1.5">{([['cash', 'Naqd'], ['card', 'Karta'], ['debt', 'Qarz'], ['mixed', 'Aralash']] as [Payment, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => setPayment(value)} aria-pressed={payment === value} className="rounded-full border-[1.5px] px-3.5 py-1.5 text-[12.5px] font-bold" style={payment === value ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" } : { borderColor: "var(--border)", color: "var(--text-2)" }}>{label}</button>)}</div></Field>
       {payment === "mixed" && <div className="grid grid-cols-2 gap-3"><Field label="Naqd summa"><input className="inp" inputMode="numeric" value={mixed.cash} onFocus={() => setMixed((p) => focusMixedField(p, "cash"))} onChange={(e) => setMixed((p) => applyMixedEdit(p, "cash", e.target.value, total))} placeholder="0" /></Field><Field label="Karta summa"><input className="inp" inputMode="numeric" value={mixed.card} onChange={(e) => setMixed((p) => applyMixedEdit(p, "card", e.target.value, total))} placeholder="0" /></Field><div className="col-span-2 rounded-[12px] px-3 py-2 text-[12px] font-bold" style={{ background: "var(--surface-2)", color: mixedValue.ok ? "var(--success-ink, #3d8a5f)" : "var(--danger-ink)" }}>Kiritildi: {formatMoneyInput(parseMoney(mixed.cash) + parseMoney(mixed.card))} · {mixedValue.ok ? `✓ ${fmt(total)}` : mixedValue.message}</div></div>}
       <Field label="Izoh" span><input className="inp" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ixtiyoriy" /></Field>
