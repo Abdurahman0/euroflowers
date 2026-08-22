@@ -1,6 +1,5 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
-import { batchTitleNoHeight, flowerName } from "@/lib/stockLabel";
 import { PackagePlus, Plus, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -11,13 +10,16 @@ import Select from "./Select";
 import DualQtyInput, { defaultQtyMode, type QtyMode } from "./DualQtyInput";
 import StockLine, { lineFromStockBatch } from "./StockLine";
 import { fmt } from "@/lib/format";
-import { formatStemsAndBunches, batchDeliveryTag } from "@/lib/inventory";
+import { formatStemsAndBunches } from "@/lib/inventory";
+import { groupBatchesForIssue, allocateStems, mergeAllocations, type BatchGroup } from "@/lib/floristBatchGroups";
 import type { FloristProfile, StockBatch } from "@/lib/types";
 
 const floristName = (fp?: FloristProfile | null): string =>
   fp ? [fp.user_detail?.first_name, fp.user_detail?.last_name].filter(Boolean).join(" ") || fp.user_detail?.username || `#${fp.id}` : "—";
 
-type Row = { batch: number; mode: QtyMode; qty: string };
+/** ⚠️ Qator endi PARTIYA emas, GURUH ustida ishlaydi (postavshik + gul turi + bo'yi):
+    bir xil gulning bir necha partiyasi tanlagichda BITTA variant bo'lib chiqadi. */
+type Row = { group: string; mode: QtyMode; qty: string };
 
 /**
  * Skladdan floristga gul CHIQARISH — KO'P QATORLI (katalog kompozitsiya quruvchisi pattern'i).
@@ -46,7 +48,7 @@ export default function FloristStockIssueModal({
 }) {
   const { showToast } = useStore();
   const [florist, setFlorist] = useState(initialFlorist);
-  const [rows, setRows] = useState<Row[]>([{ batch: 0, mode: "bunches", qty: "" }]);
+  const [rows, setRows] = useState<Row[]>([{ group: "", mode: "bunches", qty: "" }]);
   const [reason, setReason] = useState("");
   // ORQAGA SANA — yig'iq; belgilanmasa kalit umuman yuborilmaydi
   const [dateOn, setDateOn] = useState(false);
@@ -56,42 +58,47 @@ export default function FloristStockIssueModal({
   const [rowErr, setRowErr] = useState<Record<number, string>>({});
   // umumiy tranzaksiya xatosi (partiya aniqlanmasa) — banner sifatida
   const [formErr, setFormErr] = useState<string | null>(null);
-  const [flashBatch, setFlashBatch] = useState<number | null>(null);
+  const [flashGroup, setFlashGroup] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const batchOf = (id: number) => batches.find((b) => b.id === id);
-  const stemsOf = (r: Row) => { const spb = batchOf(r.batch)?.stems_per_bunch || 1; const n = parseFloat(r.qty) || 0; return r.mode === "bunches" ? Math.round(n * spb) : Math.round(n); };
-  const remainingOf = (id: number) => batchOf(id)?.remaining_stems ?? 0;
-  const overOf = (r: Row) => r.batch > 0 && stemsOf(r) > remainingOf(r.batch);
+  // ⚠️ GURUHLAR — postavshik + gul turi (nav) + bo'yi bir xil bo'lgan partiyalar birlashadi.
+  //    Qoldiq yig'indi bo'lib ko'rsatiladi, taqsimot yuborishda FIFO bilan qilinadi.
+  const groups = useMemo(() => groupBatchesForIssue(batches), [batches]);
+  const groupOf = (key: string): BatchGroup | undefined => groups.find((g) => g.key === key);
+  /** pochka hisobi faqat partiyalar bir xil bo'lsa; aks holda DONA bilan ishlanadi */
+  const spbOf = (key: string) => groupOf(key)?.stemsPerBunch ?? 1;
+  const stemsOf = (r: Row) => { const n = parseFloat(r.qty) || 0; return r.mode === "bunches" ? Math.round(n * spbOf(r.group)) : Math.round(n); };
+  const remainingOf = (key: string) => groupOf(key)?.remainingStems ?? 0;
+  const overOf = (r: Row) => !!r.group && stemsOf(r) > remainingOf(r.group);
 
-  const flash = (batch: number) => {
+  const flash = (key: string) => {
     if (flashTimer.current) clearTimeout(flashTimer.current);
-    setFlashBatch(batch);
+    setFlashGroup(key);
     showToast("Mavjud qatorga qo'shildi");
-    flashTimer.current = setTimeout(() => setFlashBatch(null), 600);
+    flashTimer.current = setTimeout(() => setFlashGroup(null), 600);
   };
 
   // ⚠️ TUGAGAN partiyalarni (remaining_stems <= 0) tanlagichda KO'RSATMAYMIZ — chiqarib bo'lmaydi.
   //    (Ota-sahifa ham refetch qiladi; bu esa modal ichidagi himoya — eski/tugagan partiya sirg'alib chiqmasin.)
-  const batchOpts = useMemo(() => [...batches]
-    .filter((b) => (b.remaining_stems ?? 0) > 0)
-    .sort((a, b) => flowerName(a).localeCompare(flowerName(b)))
-    .map((b) => ({
-      value: b.id,
-      label: `${batchTitleNoHeight(b, "")}${b.height_label ? ` · ${b.height_label}` : ""}`,
-      sub: `№${b.batch_number} · ${formatStemsAndBunches(b.remaining_stems, b.stems_per_bunch)}${batchDeliveryTag(b.delivery_detail) ? ` · ${batchDeliveryTag(b.delivery_detail)}` : ""}`,
-    })), [batches]);
+  const batchOpts = useMemo(() => groups.map((g) => ({
+    value: g.key,
+    label: g.label,
+    // ⚠️ Sarlavhada YIG'INDI qoldiq; nechta partiyadan yig'ilgani ham aytiladi (yashirilmaydi)
+    sub: `${g.supplierName || "postavshiksiz"} · ${formatStemsAndBunches(g.remainingStems, g.stemsPerBunch ?? 1)}${g.items.length > 1 ? ` · ${g.items.length} partiya` : ""}`,
+  })), [groups]);
 
   // DUBLIKAT partiya → mavjud qatorga qo'shiladi (composer bilan bir xil), aks holda qatorni belgilaymiz.
   // ⚠️ flash/toast setRows UPDATER'idan TASHQARIDA chaqiriladi (render paytida setState bermaslik uchun).
-  const setBatchAt = (i: number, newBatch: number) => {
+  const setBatchAt = (i: number, newKey: string) => {
     setRowErr({}); setFormErr(null);
-    const dupIdx = rows.findIndex((r, j) => j !== i && r.batch === newBatch && newBatch > 0);
+    const dupIdx = rows.findIndex((r, j) => j !== i && r.group === newKey && !!newKey);
     if (dupIdx === -1) {
-      setRows((rs) => rs.map((r, j) => (j === i ? { batch: newBatch, qty: "", mode: defaultQtyMode(batchOf(newBatch)?.stems_per_bunch) } : r)));
+      const g = groupOf(newKey);
+      // ⚠️ Pochka faqat partiyalar bir xil bo'lsa; aralash bo'lsa DONA rejimi majburiy
+      setRows((rs) => rs.map((r, j) => (j === i ? { group: newKey, qty: "", mode: g?.stemsPerBunch ? defaultQtyMode(g.stemsPerBunch) : "stems" } : r)));
       return;
     }
-    const spb = batchOf(newBatch)?.stems_per_bunch || 1;
+    const spb = spbOf(newKey);
     const inc = stemsOf(rows[i]);
     setRows((rs) => rs
       .map((x, j) => {
@@ -100,17 +107,25 @@ export default function FloristStockIssueModal({
         return { ...x, qty: x.mode === "bunches" ? String(+cur.toFixed(2)) : String(Math.round(cur)) };
       })
       .filter((_, j) => j !== i));
-    flash(newBatch);
+    flash(newKey);
   };
   const setQtyAt = (i: number, qty: string) => { setRowErr({}); setFormErr(null); setRows((rs) => rs.map((r, j) => (j === i ? { ...r, qty } : r))); };
   const setModeAt = (i: number, mode: QtyMode) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, mode } : r)));
-  const addRow = () => setRows((rs) => [...rs, { batch: 0, mode: "bunches", qty: "" }]);
+  const addRow = () => setRows((rs) => [...rs, { group: "", mode: "bunches", qty: "" }]);
   const removeRow = (i: number) => setRows((rs) => (rs.length > 1 ? rs.filter((_, j) => j !== i) : rs));
 
-  const validRows = rows.filter((r) => r.batch > 0 && stemsOf(r) > 0);
+  const validRows = rows.filter((r) => !!r.group && stemsOf(r) > 0);
   const anyOver = rows.some(overOf);
   const totalStems = validRows.reduce((s, r) => s + stemsOf(r), 0);
-  const totalCost = validRows.reduce((s, r) => s + stemsOf(r) * Math.round(+(batchOf(r.batch)?.cost_per_stem ?? 0)), 0);
+  // ⚠️ TANNARX — taqsimot bo'yicha (har partiyaning O'Z tannarxi), o'rtacha emas
+  const totalCost = validRows.reduce((s, r) => {
+    const g = groupOf(r.group);
+    if (!g) return s;
+    return s + allocateStems(g.items, stemsOf(r)).reduce((c, a) => {
+      const b = g.items.find((x) => x.id === a.batch);
+      return c + a.quantity_stems * Math.round(+(b?.cost_per_stem ?? 0));
+    }, 0);
+  }, 0);
 
   const submit = async () => {
     if (!florist) return showToast("Floristni tanlang");
@@ -119,7 +134,11 @@ export default function FloristStockIssueModal({
     setBusy(true); setRowErr({}); setFormErr(null);
     try {
       // ⚠️ BITTA TRANZAKSIYA — bitta gulda qoldiq yetmasa HECH BIRI chiqmaydi (all-or-nothing).
-      await api.floristStockBulkIssue({ florist, items: validRows.map((r) => ({ batch: r.batch, quantity_stems: stemsOf(r) })), reason: reason.trim() || undefined, ...backdatePayload(dateOn ? issuedAt : "") });
+      // ⚠️ GURUH → PARTIYALAR: tanlangan dona FIFO bilan taqsimlanadi (eski partiyadan
+      //    boshlab), bir partiyaga ikki qatordan tushsa BITTA qatorga jamlanadi.
+      //    Backend baribir har partiyani alohida tekshiradi (all-or-nothing).
+      const items = mergeAllocations(validRows.flatMap((r) => allocateStems(groupOf(r.group)?.items ?? [], stemsOf(r))));
+      await api.floristStockBulkIssue({ florist, items, reason: reason.trim() || undefined, ...backdatePayload(dateOn ? issuedAt : "") });
       showToast(`✓ ${validRows.length} ta gul chiqarildi`);
       onDone(); // balanslar + partiya qoldiqlari qayta yuklanadi
       onClose();
@@ -128,7 +147,11 @@ export default function FloristStockIssueModal({
       const detail = e instanceof ApiError && e.body && typeof e.body === "object" && "detail" in e.body ? (e.body as { detail: unknown }).detail : null;
       const msg = Array.isArray(detail) ? detail.join("\n") : detail != null ? String(detail) : (e instanceof ApiError ? e.message : "Chiqarib bo'lmadi");
       const offending: Record<number, string> = {};
-      for (const r of validRows) { const bn = batchOf(r.batch)?.batch_number; if (bn && msg.includes(bn)) offending[r.batch] = msg; }
+      // server matnida partiya raqami bo'lsa — o'sha partiya QAYSI qatordan kelganini topamiz
+      rows.forEach((r, i) => {
+        const g = groupOf(r.group);
+        if (g && g.items.some((b) => b.batch_number && msg.includes(b.batch_number))) offending[i] = msg;
+      });
       setRowErr(offending);
       setFormErr(msg); // umumiy banner (partiya aniq bo'lsa ham — all-or-nothing ekanini ta'kidlaydi)
       showToast(e instanceof ApiError ? e.message : "Chiqarib bo'lmadi");
@@ -146,35 +169,57 @@ export default function FloristStockIssueModal({
 
       <div className="mt-3 flex flex-col gap-2.5">
         {rows.map((r, i) => {
-          const b = batchOf(r.batch);
-          const spb = b?.stems_per_bunch || 1;
+          const g = groupOf(r.group);
+          const spb = g?.stemsPerBunch ?? 1;
           const stems = stemsOf(r);
           const over = overOf(r);
-          const flashing = flashBatch != null && r.batch === flashBatch;
-          const err = r.batch > 0 ? rowErr[r.batch] : undefined;
+          const flashing = flashGroup != null && r.group === flashGroup;
+          const err = rowErr[i];
           return (
             <div key={i} className="rounded-[13px] border p-2.5 transition-colors duration-300"
               style={{ borderColor: over || err ? "var(--danger-ink)" : "var(--border)", background: flashing ? "color-mix(in srgb, var(--primary) 12%, transparent)" : (over || err) ? "var(--danger-soft, rgba(160,74,74,.08))" : undefined, boxShadow: flashing ? "inset 0 0 0 1.5px var(--primary)" : undefined }}>
               <div className="grid grid-cols-[1fr_32px] items-center gap-2">
-                <Select value={r.batch} onChange={(v) => setBatchAt(i, +v)}
+                <Select value={r.group} onChange={(v) => setBatchAt(i, String(v))}
                   placeholder={batchesLoading && batchOpts.length === 0 ? "Partiyalar yuklanmoqda…" : "Gulni tanlang"}
                   searchable options={batchOpts} />
                 {rows.length > 1 && <button type="button" onClick={() => removeRow(i)} className="icon-btn icon-btn-danger !h-8 !w-8" title="Olib tashlash"><X size={15} strokeWidth={1.75} /></button>}
               </div>
-              {b && (
+              {g && (
                 <div className="mt-2 rounded-[11px] border p-2" style={{ borderColor: "var(--border)" }}>
-                  <StockLine data={lineFromStockBatch(b)} right={<span className="text-[12px] font-bold" style={{ color: "var(--text-2)" }}>{formatStemsAndBunches(b.remaining_stems, spb)}</span>} />
+                  <StockLine
+                    data={lineFromStockBatch(g.items[0])}
+                    right={<span className="text-[12px] font-bold" style={{ color: "var(--text-2)" }}>{formatStemsAndBunches(g.remainingStems, spb)}</span>}
+                  />
+                  {/* ⚠️ Guruh BIR NECHTA partiyadan yig'ilgan bo'lsa — yashirmaymiz: qaysi
+                      partiyalardan ekani va eskisidan boshlab ketishi ochiq aytiladi. */}
+                  {g.items.length > 1 && (
+                    <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: "var(--muted)" }}>
+                      {g.items.length} partiya birlashtirildi ({g.items.map((x) => `№${x.batch_number} ${x.remaining_stems}`).join(" · ")}) — eskisidan boshlab yechiladi
+                    </p>
+                  )}
+                  {g.stemsPerBunch == null && (
+                    <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--warning-ink, #8a6d1f)" }}>
+                      Partiyalarda pochka soni har xil — faqat DONA bilan kiritiladi
+                    </p>
+                  )}
                 </div>
               )}
-              {r.batch > 0 && (
+              {!!r.group && (
                 <div className="mt-2">
-                  <DualQtyInput mode={r.mode} value={r.qty} stemsPerBunch={spb} onMode={(m) => setModeAt(i, m)} onValue={(q) => setQtyAt(i, q)} label="Soni" />
+                  <DualQtyInput
+                    mode={g?.stemsPerBunch ? r.mode : "stems"}
+                    value={r.qty}
+                    stemsPerBunch={spb}
+                    onMode={(m) => { if (g?.stemsPerBunch) setModeAt(i, m); }}
+                    onValue={(q) => setQtyAt(i, q)}
+                    label="Soni"
+                  />
                 </div>
               )}
-              {r.batch > 0 && stems > 0 && (
+              {!!r.group && stems > 0 && (
                 <div className="mt-1.5 rounded-[10px] px-2.5 py-1.5 text-[12px] font-semibold" style={{ background: over ? "var(--danger-soft, rgba(160,74,74,.12))" : "var(--surface-2)", color: over ? "var(--danger-ink)" : "var(--text-2)" }}>
-                  {over ? `Skladda atigi ${formatStemsAndBunches(remainingOf(r.batch), spb)} bor`
-                    : <>Qoldiq: {remainingOf(r.batch).toLocaleString("ru")} → <b style={{ color: "var(--primary)" }}>{(remainingOf(r.batch) - stems).toLocaleString("ru")}</b> dona</>}
+                  {over ? `Skladda atigi ${formatStemsAndBunches(remainingOf(r.group), spb)} bor`
+                    : <>Qoldiq: {remainingOf(r.group).toLocaleString("ru")} → <b style={{ color: "var(--primary)" }}>{(remainingOf(r.group) - stems).toLocaleString("ru")}</b> dona</>}
                 </div>
               )}
               {err && <p className="mt-1.5 whitespace-pre-line text-[12px] font-semibold" style={{ color: "var(--danger-ink)" }}>{err}</p>}
