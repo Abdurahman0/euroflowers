@@ -10,6 +10,8 @@ import { catalogRemaining } from "@/lib/rework";
 import { VOLUME_LABEL } from "@/lib/inventory";
 import type { Branch, CatalogItem } from "@/lib/types";
 
+type VolumeChoice = { value: string; items: CatalogItem[]; available: number };
+
 /**
  * Katalog nusxasini FILIALGA yuborish (asosiy → Parkent). Qisman yuborish mumkin.
  * ⚠️ QAYTARIB BO'LMAYDI — backend'da bekor/qaytar yo'li YO'Q (OpenAPI: catalog-transfers
@@ -24,7 +26,7 @@ export default function CatalogTransferDrawer({ item, siblings = [], onClose, on
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
   const [note, setNote] = useState("");
-  const [selectedId, setSelectedId] = useState(item.id);
+  const [selectedVolume, setSelectedVolume] = useState(item.volume || "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -36,21 +38,27 @@ export default function CatalogTransferDrawer({ item, siblings = [], onClose, on
     }).catch(() => {});
   }, []);
 
-  // The transfer API is item-specific. The volume picker therefore selects the
-  // real catalog row for that volume; no invented `volume` request field is sent.
+  // A catalog group can aggregate several backend rows. Keep every row in the
+  // selected volume so a transfer can consume the aggregate, not just one row.
   const choices = useMemo(() => {
     const all = [item, ...siblings].filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i);
-    const byVolume = new Map<string, CatalogItem>();
+    const byVolume = new Map<string, CatalogItem[]>();
     for (const x of all) {
       const key = x.volume || "";
-      const current = byVolume.get(key);
-      if (!current || catalogRemaining(x) > catalogRemaining(current) || x.id === item.id) byVolume.set(key, x);
+      const rows = byVolume.get(key);
+      if (rows) rows.push(x);
+      else byVolume.set(key, [x]);
     }
-    return Array.from(byVolume.values());
+    return Array.from(byVolume, ([value, items]): VolumeChoice => ({
+      value,
+      items,
+      available: items.reduce((sum, x) => sum + catalogRemaining(x), 0),
+    }));
   }, [item, siblings]);
-  const selected = choices.find((x) => x.id === selectedId) ?? choices[0] ?? item;
-  // ⚠️ MAX = QOLDIQ: sotilgan + chiqit + RESTAVRATSIYA ayrilgan (lib/rework).
-  const unsold = catalogRemaining(selected);
+  const choice = choices.find((x) => x.value === selectedVolume) ?? choices[0];
+  const selectedRows = choice?.items ?? [item];
+  const selected = selectedRows[0] ?? item;
+  const unsold = choice?.available ?? catalogRemaining(selected);
   const listPrice = Math.round(+selected.price || 0);
   const n = Math.max(Math.round(+qty || 0), 0);
   const remaining = unsold - n;
@@ -63,8 +71,18 @@ export default function CatalogTransferDrawer({ item, siblings = [], onClose, on
     if (n > unsold) return showToast(`Yuborish uchun atigi ${unsold} dona bor`);
     setBusy(true); setErr(null);
     try {
-      const t = await api.transferCatalog(selected.id, { branch, quantity: n, ...(price.trim() ? { price: String(priceNum) } : {}), ...(note.trim() ? { note: note.trim() } : {}) });
-      showToast(`✓ ${t.branch_name}ga ${n} dona yuborildi`);
+      let leftToTransfer = n;
+      let branchName = "filial";
+      for (const row of selectedRows) {
+        if (leftToTransfer <= 0) break;
+        const rowQuantity = Math.min(leftToTransfer, catalogRemaining(row));
+        if (rowQuantity <= 0) continue;
+        const t = await api.transferCatalog(row.id, { branch, quantity: rowQuantity, ...(price.trim() ? { price: String(priceNum) } : {}), ...(note.trim() ? { note: note.trim() } : {}) });
+        branchName = t.branch_name;
+        leftToTransfer -= rowQuantity;
+      }
+      if (leftToTransfer > 0) throw new Error("Tanlangan hajm qoldig'i o'zgargan. Qayta urinib ko'ring.");
+      showToast(`✓ ${branchName}ga ${n} dona yuborildi`);
       onDone(); // katalog ro'yxatini yangilaymiz (asosiy filialda soni kamaydi)
       onClose();
     } catch (e) {
@@ -78,7 +96,7 @@ export default function CatalogTransferDrawer({ item, siblings = [], onClose, on
 
   return (
     <Modal onClose={onClose} width={460}>
-      <ModalHeader icon={<Send size={18} strokeWidth={1.9} />} title="Filialga yuborish" sub={`${selected.name_uz || selected.name_ru} · sotuvda ${unsold} dona`} onClose={onClose} />
+      <ModalHeader icon={<Send size={18} strokeWidth={1.9} />} title="Filialga yuborish" sub={`${selected.name_uz || selected.name_ru} · tanlangan hajmda ${unsold} dona`} onClose={onClose} />
 
       {/* ⚠️ §5 IKKI YO'LNI AJRATISH: bu MAVJUD asosiy katalogni filialga ko'chiradi. Yangi filial
           katalogi yaratish uchun — «Katalog qo'shish»da yuqoridagi «Qaysi filial uchun» tanlagichi. */}
@@ -91,14 +109,7 @@ export default function CatalogTransferDrawer({ item, siblings = [], onClose, on
       </Field>
 
       <Field label="Hajmi / hajm" span>
-        {choices.length > 1 ? (
-          <Select value={selected.id} onChange={(v) => { setSelectedId(+v); setQty("1"); setPrice(""); }} options={choices.map((x) => ({ value: x.id, label: `${x.volume ? VOLUME_LABEL[x.volume] : "Hajmi belgilanmagan"} · ${catalogRemaining(x)} dona mavjud` }))} />
-        ) : (
-          <div className="inp flex items-center justify-between" style={{ color: "var(--text-2)" }}>
-            <span>{selected.volume ? VOLUME_LABEL[selected.volume] : "Hajmi belgilanmagan"}</span>
-            <span className="text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>{unsold} dona mavjud</span>
-          </div>
-        )}
+        <Select value={choice?.value ?? ""} onChange={(v) => { setSelectedVolume(String(v)); setQty("1"); setPrice(""); }} options={choices.map((x) => ({ value: x.value, label: `${x.value ? VOLUME_LABEL[x.value as keyof typeof VOLUME_LABEL] ?? x.value : "Hajmi belgilanmagan"} · ${x.available} dona mavjud` }))} />
       </Field>
 
       <Field label={`Soni (maks: ${unsold})`} span>
