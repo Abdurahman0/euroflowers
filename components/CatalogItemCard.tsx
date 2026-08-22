@@ -187,13 +187,10 @@ export default function CatalogItemCard({ k, actions }: { k: CatalogItem; action
 
       {/* «Sotish» — modal: soni, ixtiyoriy chegirma narxi va sababi */}
       {sellable && (
-        <button
-          onClick={() => actions.onSell(k)}
-          className="mt-auto rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint"
-          style={{ borderColor: "var(--line)" }}
-        >
-          Sotish
-        </button>
+        <div className="mt-auto flex gap-2">
+          <button onClick={() => actions.onSell(k)} className="flex-1 rounded-xl border-[1.5px] py-2 text-[13px] font-bold hover:bg-mint" style={{ borderColor: "var(--line)" }}>Sotish</button>
+          {actions.mainUser && actions.control && <button onClick={() => actions.onTransfer(k, [k])} className="flex-1 rounded-xl border px-2 py-2 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>Filialga chiqarish</button>}
+        </div>
       )}
     </div>
   </article>

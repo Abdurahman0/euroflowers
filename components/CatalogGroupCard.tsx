@@ -32,7 +32,7 @@ export type GroupActions = {
   onEdit: (k: CatalogItem) => void;
   onDelete: (k: CatalogItem) => void;
   onRework: (k: CatalogItem) => void;
-  onTransfer: (k: CatalogItem) => void;
+  onTransfer: (k: CatalogItem, siblings?: CatalogItem[]) => void;
   onDeduct: (k: CatalogItem) => void;
   onCustomer: (id: number, label: string) => void;
   busyId: number | null;
@@ -120,6 +120,15 @@ export default function CatalogGroupCard({
               style={{ borderColor: "var(--line)" }}
             >
               Sotish
+            </button>
+          )}
+          {actions.mainUser && actions.control && target && (
+            <button
+              onClick={() => actions.onTransfer(target, g.items)}
+              className="rounded-xl border px-3 py-2 text-[12.5px] font-bold transition-colors hover:bg-[var(--hover)]"
+              style={{ borderColor: "var(--border)", color: "var(--primary)" }}
+            >
+              Filialga chiqarish
             </button>
           )}
           <button
@@ -237,6 +246,11 @@ export default function CatalogGroupCard({
                   {sellable(k) && (
                     <button onClick={() => actions.onSell(k, [k])} className="rounded-[10px] border-[1.5px] px-3 py-1 text-[12px] font-bold hover:bg-mint" style={{ borderColor: "var(--line)" }}>
                       Sotish
+                    </button>
+                  )}
+                  {actions.mainUser && actions.control && left > 0 && (
+                    <button onClick={() => actions.onTransfer(k, [k])} className="rounded-[10px] border px-3 py-1 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>
+                      Filialga chiqarish
                     </button>
                   )}
                   {actions.control && (

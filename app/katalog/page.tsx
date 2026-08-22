@@ -79,9 +79,21 @@ export default function KatalogPage() {
   // asosiy filial admini (mainUser) — filialga yuborishi mumkin.
   const branchUser = isBranchUser(useStore((s) => s.user?.profile.branch));
   const mainUser = !branchUser;
-  const [transferItem, setTransferItem] = useState<CatalogItem | null>(null);
+  const [transfer, setTransfer] = useState<{ item: CatalogItem; siblings?: CatalogItem[] } | null>(null);
   const [restoreItem, setRestoreItem] = useState<CatalogItem | null>(null);
   const [items, setItems] = useState<CatalogItem[]>([]);
+  const openTransfer = (item: CatalogItem, siblings: CatalogItem[] = []) => {
+    // Catalog rows are the backend's transfer units. Related rows with the same
+    // name/type expose the available sizes without inventing a transfer payload.
+    const related = items.filter((x) =>
+      x.id !== item.id &&
+      x.arrangement_type === item.arrangement_type &&
+      x.catalog_kind === item.catalog_kind &&
+      (x.name_uz || x.name_ru) === (item.name_uz || item.name_ru),
+    );
+    const all = [...siblings, ...related].filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i);
+    setTransfer({ item, siblings: all });
+  };
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   // ko'rish / tahrirlash / o'chirish
@@ -443,7 +455,7 @@ export default function KatalogPage() {
               onEdit: setEditItem,
               onDelete: setConfirmDel,
               onRework: (k) => setReworkOpen({ source: k }),
-              onTransfer: setTransferItem,
+              onTransfer: openTransfer,
               onDeduct: deduct,
               onCustomer: (id, label) => setCustomerFilter({ id, label }),
               busyId,
@@ -477,7 +489,7 @@ export default function KatalogPage() {
                   onEdit: setEditItem,
                   onDelete: setConfirmDel,
                   onRework: (x) => setReworkOpen({ source: x }),
-                  onTransfer: setTransferItem,
+                  onTransfer: openTransfer,
                   onDeduct: deduct,
                   onCustomer: (id, label) => setCustomerFilter({ id, label }),
                   busyId,
@@ -508,8 +520,8 @@ export default function KatalogPage() {
         />
       )}
 
-      {transferItem && (
-        <CatalogTransferDrawer item={transferItem} onClose={() => setTransferItem(null)} onDone={() => { notifyReportDataChanged(); load(); }} />
+      {transfer && (
+        <CatalogTransferDrawer item={transfer.item} siblings={transfer.siblings} onClose={() => setTransfer(null)} onDone={() => { notifyReportDataChanged(); load(); }} />
       )}
 
       {formOpen && <KatalogModal onClose={() => setFormOpen(false)} onSaved={load} />}
@@ -526,7 +538,7 @@ export default function KatalogPage() {
           onClose={() => setViewItem(null)}
           onEdit={control ? () => { setEditItem(viewItem); setViewItem(null); } : undefined}
           onDelete={control ? () => setConfirmDel(viewItem) : undefined}
-          onTransfer={mainUser && control && catalogRemaining(viewItem) > 0 ? () => { setTransferItem(viewItem); setViewItem(null); } : undefined}
+          onTransfer={mainUser && control && catalogRemaining(viewItem) > 0 ? () => { openTransfer(viewItem); setViewItem(null); } : undefined}
           onRestore={control ? () => { setRestoreItem(viewItem); setViewItem(null); } : undefined}
           onRework={control ? () => { setReworkOpen({ source: viewItem }); setViewItem(null); } : undefined}
         />
