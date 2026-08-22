@@ -1796,6 +1796,8 @@ export type CloseIssuePreview = {
   share_stems: number;
   unplaced_stems: number;
   missing_rates: CloseIssueMissingRate[];
+  /** apprentice_equal — shogird uchun hajm tarifisiz teng taqsimot */
+  weight_source?: "volume_rate" | "apprentice_equal" | string;
   items: CloseIssuePreviewItem[];
 };
 export type CloseIssueResult = {
@@ -1805,6 +1807,7 @@ export type CloseIssueResult = {
   returned_stems: number;
   shared_stems: number;
   unplaced_stems: number;
+  weight_source?: "volume_rate" | "apprentice_equal" | string;
   items: CloseIssuePreviewItem[];
 };
 /** batch MAJBURIY (har gul alohida yopiladi). return_stems ixtiyoriy (sukut 0). */

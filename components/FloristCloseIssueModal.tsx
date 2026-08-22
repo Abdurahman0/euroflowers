@@ -8,7 +8,7 @@ import StockLine, { lineFromBatchDetail } from "./StockLine";
 import { ARRANGEMENT_LABEL } from "./badges";
 import { formatStemsAndBunches, stems as stemsFmt, VOLUME_LABEL } from "@/lib/inventory";
 import { buildCloseIssueRequest, closeIssueBlocked, missingRateLabels, allReturns, clampReturnStems } from "@/lib/floristStock";
-import type { CloseIssuePreview, CloseIssueResult, FloristStockBalance } from "@/lib/types";
+import type { CloseIssuePreview, CloseIssueResult, FloristStockBalance, StaffType } from "@/lib/types";
 
 const volLabel = (v: string) => VOLUME_LABEL[v as keyof typeof VOLUME_LABEL] ?? v; // "small"→Kichik; "S" o'zicha
 
@@ -18,8 +18,9 @@ const volLabel = (v: string) => VOLUME_LABEL[v as keyof typeof VOLUME_LABEL] ?? 
  * hajm standartiga qarab bo'linadi. Bu — BIRINCHI taqsimot (adjust — keyingi tuzatish).
  * ⚠️ close-issue-preview GET (bazaga tegmaydi) debounce bilan; POST faqat tasdiqdan keyin.
  */
-export default function FloristCloseIssueModal({ balance, onClose, onDone }: {
+export default function FloristCloseIssueModal({ balance, staffType, onClose, onDone }: {
   balance: FloristStockBalance;
+  staffType?: StaffType;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -53,8 +54,9 @@ export default function FloristCloseIssueModal({ balance, onClose, onDone }: {
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [florist, batch, retNum, result]);
 
-  const blocked = preview ? closeIssueBlocked(preview) : false;
-  const missing = preview ? missingRateLabels(preview) : [];
+  const apprenticeEqual = staffType === "apprentice" || preview?.weight_source === "apprentice_equal";
+  const blocked = preview ? !apprenticeEqual && closeIssueBlocked(preview) : false;
+  const missing = preview && !apprenticeEqual ? missingRateLabels(preview) : [];
   const share = preview?.share_stems ?? 0;
   const unplaced = preview?.unplaced_stems ?? 0;
   const isAllReturns = preview ? allReturns(preview) : false;
@@ -94,6 +96,12 @@ export default function FloristCloseIssueModal({ balance, onClose, onDone }: {
         <Info size={12} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--primary)" }} />
         Bu <b>birinchi</b> taqsimot. Yopilgandan keyin xato sezilsa «To&apos;g&apos;rilash» (adjust) ishlatiladi.
       </p>
+      {apprenticeEqual && (
+        <div className="mt-2 flex items-start gap-2 rounded-[12px] px-3 py-2.5 text-[12px] font-semibold" style={{ background: "var(--primary-soft, var(--surface-2))", color: "var(--text-2)" }}>
+          <Info size={14} className="mt-px shrink-0" style={{ color: "var(--primary)" }} />
+          <span>Shogird uchun gul <b>hajm tarifsiz teng taqsimlanadi</b>. Ish haqi kunlik davomat orqali hisoblanadi.</span>
+        </div>
+      )}
 
       {result ? (
         <ResultView result={result} onClose={onClose} />
@@ -204,6 +212,7 @@ function ResultView({ result, onClose }: { result: CloseIssueResult; onClose: ()
         {result.returned_stems > 0 ? ` · ${stemsFmt(result.returned_stems)} skladga qaytdi` : ""}
         {result.unplaced_stems > 0 ? ` · ${stemsFmt(result.unplaced_stems)} joylanmadi` : ""}
       </div>
+      {result.weight_source === "apprentice_equal" && <p className="mt-2 text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>Shogird uchun tarifsiz teng taqsimot qo&apos;llandi.</p>}
       {result.items.length > 0 && (
         <div className="flex flex-col gap-1">
           {result.items.map((it) => (

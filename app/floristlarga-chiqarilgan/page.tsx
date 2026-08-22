@@ -17,7 +17,7 @@ import FloristCloseIssueModal from "@/components/FloristCloseIssueModal";
 import FloristIssueRowMenu from "@/components/FloristIssueRowMenu";
 import { fmt, fmtDate, fmtTime } from "@/lib/format";
 import { formatStemsAndBunches, stems as stemsFmt } from "@/lib/inventory";
-import type { FloristProfile, FloristStockBalance, FloristStockIssue, StockBatch } from "@/lib/types";
+import type { FloristProfile, FloristStockBalance, FloristStockIssue, StaffType, StockBatch } from "@/lib/types";
 
 const floristName = (fp?: FloristProfile | null): string =>
   fp ? [fp.user_detail?.first_name, fp.user_detail?.last_name].filter(Boolean).join(" ") || fp.user_detail?.username || `#${fp.id}` : "—";
@@ -59,7 +59,7 @@ export default function FloristStockIssuePage() {
   // scoped=null (per-florist, faqat to_catalog, hamma partiya)
   const [adjust, setAdjust] = useState<{ florist: number; name: string; scoped: FloristStockBalance | null; total: number } | null>(null);
   // CHIQIMNI YOPISH modali (birinchi taqsimot) — bitta balans (florist+partiya) uchun
-  const [closeTarget, setCloseTarget] = useState<FloristStockBalance | null>(null);
+  const [closeTarget, setCloseTarget] = useState<{ balance: FloristStockBalance; staffType?: StaffType } | null>(null);
 
   // URL o'qish: ?tab= va ?florist= (deep link modalni prefill bilan OCHADI)
   useEffect(() => {
@@ -233,11 +233,12 @@ export default function FloristStockIssuePage() {
             <div className="flex flex-col gap-4">
               {groupedBalances.map(([fid, g]) => {
                 const groupTotal = g.rows.reduce((s, b) => s + b.remaining_stems, 0);
+                const groupStaff = florists.find((fp) => fp.id === fid);
                 return (
                 <div key={fid}>
                   {!isFlorist && (
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <div className="text-[13px] font-bold" style={{ color: "var(--primary)" }}>{g.name}</div>
+                      <div className="flex items-center gap-2 text-[13px] font-bold" style={{ color: "var(--primary)" }}>{g.name}{groupStaff && <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: groupStaff.staff_type === "apprentice" ? "var(--primary-soft)" : "var(--surface-2)", color: groupStaff.staff_type === "apprentice" ? "var(--primary)" : "var(--muted)" }}>{groupStaff.staff_type === "apprentice" ? "Shogird" : "Florist"}</span>}</div>
                       {/* PER-FLORIST: hamma partiya qoldig'i katalogga bo'linadi (faqat to_catalog) */}
                       {canManage && groupTotal > 0 && (
                         <button onClick={() => setAdjust({ florist: fid, name: g.name, scoped: null, total: groupTotal })}
@@ -261,7 +262,7 @@ export default function FloristStockIssuePage() {
                             <div className="flex shrink-0 flex-wrap items-center gap-2">
                               {/* CHIQIMNI YOPISH (birinchi taqsimot) + TO'G'RILASH (keyingi tuzatish) —
                                   bitta menyuda, yopish DOMINANT (ikkalasi ham inventory MANAGE huquqi bilan) */}
-                              {canManage && <CloseAdjustMenu onClose={() => setCloseTarget(b)} onAdjust={() => setAdjust({ florist: b.florist, name: b.florist_name, scoped: b, total: b.remaining_stems })} />}
+                              {canManage && <CloseAdjustMenu onClose={() => setCloseTarget({ balance: b, staffType: florists.find((f) => f.id === b.florist)?.staff_type })} onAdjust={() => setAdjust({ florist: b.florist, name: b.florist_name, scoped: b, total: b.remaining_stems })} />}
                               <button onClick={() => setReturnTarget({ balance: b, kind: "return" })} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--success-ink, #3d8a5f)" }}><RotateCcw size={13} strokeWidth={2.2} /> Qaytarish</button>
                               <button onClick={() => setReturnTarget({ balance: b, kind: "waste" })} className="flex items-center gap-1.5 rounded-[11px] border px-2.5 py-1.5 text-[12px] font-bold transition-colors hover:bg-[var(--hover)]" style={{ borderColor: "var(--border)", color: "var(--danger-ink)" }}><Trash2 size={13} strokeWidth={2.2} /> Chiqit</button>
                             </div>
@@ -284,7 +285,7 @@ export default function FloristStockIssuePage() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[15px] font-bold tracking-tight">Tarix</h2>
             <div className="flex flex-wrap gap-2">
-              {!isFlorist && <FilterSelect value={hFlorist} onChange={setHFlorist} label="Florist" options={[{ value: "", label: "Barcha floristlar" }, ...florists.map((fp) => ({ value: String(fp.id), label: floristName(fp) }))]} />}
+              {!isFlorist && <FilterSelect value={hFlorist} onChange={setHFlorist} label="Florist" options={[{ value: "", label: "Barcha floristlar" }, ...florists.map((fp) => ({ value: String(fp.id), label: `${floristName(fp)} · ${fp.staff_type === "apprentice" ? "Shogird" : "Florist"}` }))]} />}
               <FilterSelect value={hKind} onChange={setHKind} label="Turi" options={[{ value: "", label: "Barchasi" }, { value: "issue", label: "Chiqarilgan" }, { value: "return", label: "Qaytarilgan" }, { value: "waste", label: "Chiqit" }]} />
             </div>
           </div>
@@ -350,7 +351,7 @@ export default function FloristStockIssuePage() {
         />
       )}
       {closeTarget && (
-        <FloristCloseIssueModal balance={closeTarget} onClose={() => setCloseTarget(null)} onDone={onStockChange} />
+        <FloristCloseIssueModal balance={closeTarget.balance} staffType={closeTarget.staffType} onClose={() => setCloseTarget(null)} onDone={onStockChange} />
       )}
     </div>
   );
