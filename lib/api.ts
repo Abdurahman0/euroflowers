@@ -1015,6 +1015,12 @@ export const api = {
     request<Pick<AISettings, "is_active">>("/api/ai/settings/", { method: "PATCH", body: JSON.stringify(data) }),
 
   /** Integratsiya kalitlari — faqat developer (kontrakt) */
+  /** ⚠️ FILIAL SOTUV GURUHI — PATCH /api/branches/{id}/ {sale_bot_token, sale_group_chat_id}.
+      Tokenlar javobda qaytmaydi; holat `sale_group_configured` bilan bilinadi.
+      ⚠️ Yozuv yo'li JONLI SINALMAGAN (loyiha qoidasi: faqat GET). */
+  updateBranch: (id: number, data: Partial<Branch>) =>
+    request<Branch>(`/api/branches/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+
   integrations: () => request<IntegrationSettings>("/api/integrations/"),
   updateIntegrations: (data: Partial<IntegrationSettings>) =>
     request<IntegrationSettings>("/api/integrations/", { method: "PATCH", body: JSON.stringify(data) }),

@@ -18,7 +18,13 @@ import { useStore } from "@/lib/store";
 const MAX_MB = 5;
 const TYPES = ["image/png", "image/jpeg", "image/webp"];
 
-export default function ImageInput({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+export default function ImageInput({ value, onChange, capture }: {
+  value: string;
+  onChange: (url: string) => void;
+  /** ⚠️ Telefonda TO'G'RIDAN-TO'G'RI kameradan olish (sotuv rasmi uchun): "environment".
+      Kompyuterda e'tiborga olinmaydi, shuning uchun boshqa joylarga tegmaydi. */
+  capture?: "environment" | "user";
+}) {
   const showToast = useStore((s) => s.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -56,6 +62,7 @@ export default function ImageInput({ value, onChange }: { value: string; onChang
       <input
         ref={fileRef}
         type="file"
+        {...(capture ? { capture } : {})}
         accept="image/png, image/jpeg, image/webp"
         className="hidden"
         onChange={(e) => {

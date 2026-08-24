@@ -19,7 +19,8 @@ import type { AISettings, InstagramEvent, IntegrationSettings } from "@/lib/type
 const EVENT_TYPES = ["", "message", "story_reply", "story_send", "media_send"];
 
 /** Maxfiy kalit maydoni — qiymat yashirin, faqat yangисi yoziladi. */
-function SecretInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+/** ⚠️ Yagona maxfiy-maydon — filial sotuv guruhlarida ham SHU ishlatiladi (takrorlanmaydi). */
+export function SecretInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
     <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
       {label}
@@ -176,6 +177,9 @@ export function IntegrationsSection() {
   };
 
   const has = (v?: string) => (v && v.length ? "● o'rnatilgan" : "○ yo'q");
+  // ⚠️ `/api/integrations/` da `sale_group_configured` YO'Q (filiallarda bor) —
+  //    holat ikkala maydon to'lganidan aniqlanadi.
+  const saleReady = !!(data?.sale_bot_token && data?.sale_group_chat_id);
 
   return (
     <section className="glass p-5">
@@ -189,6 +193,18 @@ export function IntegrationsSection() {
           <div className="grid gap-2 text-[12px]" style={{ color: "var(--muted)" }}>
             <span>Instagram token: <b style={{ color: "var(--text-2)" }}>{has(data.instagram_access_token)}</b> · Akkaunt ID: <b style={{ color: "var(--text-2)" }}>{data.instagram_account_id || "—"}</b></span>
             <span>Telegram bot: <b style={{ color: "var(--text-2)" }}>{has(data.telegram_bot_token)}</b> · Business ID: <b style={{ color: "var(--text-2)" }}>{data.instagram_business_id || "—"}</b></span>
+            {/* ⚠️ SOTUV GURUHI — katalogdan sotilganda rasm+xabar shu guruhga ketadi.
+                Sozlanmagan bo'lsa sotuv baribir o'tadi, faqat xabar YUBORILMAYDI. */}
+            <span className="flex flex-wrap items-center gap-1.5">
+              Sotuv guruhi (asosiy filial):
+              <b className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                style={saleReady
+                  ? { background: "var(--success-soft)", color: "var(--success-ink, #3d8a5f)" }
+                  : { background: "var(--warning-soft)", color: "var(--warning-ink, #8a6d1f)" }}>
+                {saleReady ? "ulangan" : "ulanmagan"}
+              </b>
+              {!saleReady && <span>— sotuv xabari yuborilmaydi</span>}
+            </span>
           </div>
           {canControl("integrations") && (
             <>
@@ -199,6 +215,20 @@ export function IntegrationsSection() {
                 <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                   Instagram akkaunt ID
                   <input className="rounded-[10px] border px-3 py-2 text-[13px] outline-none focus:shadow-[0_0_0_3px_var(--focus)]" style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text)" }} value={form.instagram_account_id ?? ""} onChange={(e) => setForm((f) => ({ ...f, instagram_account_id: e.target.value }))} placeholder={data.instagram_account_id || "Masalan: 17800…"} />
+                </label>
+                <SecretInput label="Sotuv bot token" value={form.sale_bot_token ?? ""} onChange={(v) => setForm((f) => ({ ...f, sale_bot_token: v }))} />
+                <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                  Sotuv guruh chat ID
+                  <input
+                    className="rounded-[10px] border px-3 py-2 text-[13px] normal-case tracking-normal outline-none focus:shadow-[0_0_0_3px_var(--focus)]"
+                    style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text)" }}
+                    value={form.sale_group_chat_id ?? ""}
+                    onChange={(e) => setForm((f) => ({ ...f, sale_group_chat_id: e.target.value }))}
+                    placeholder={data.sale_group_chat_id ? "● o'rnatilgan" : "Masalan: -1001234567890"}
+                  />
+                  <span className="text-[10.5px] font-medium normal-case tracking-normal" style={{ color: "var(--muted)" }}>
+                    Katalogdan sotilganda rasm va xabar shu guruhga boradi (Recall guruhidan alohida)
+                  </span>
                 </label>
                 <label className="flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                   Telegram guruh chat ID

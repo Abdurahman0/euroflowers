@@ -1,5 +1,6 @@
 "use client";
 import { IntegrationsSection, InstagramEventsSection } from "@/components/DevSections";
+import BranchSaleGroups from "@/components/BranchSaleGroups";
 import { usePerm } from "@/lib/store";
 import EmptyState from "@/components/EmptyState";
 
@@ -19,6 +20,8 @@ export default function IntegratsiyalarPage() {
   return (
     <div className="grid items-start gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}>
       <IntegrationsSection />
+      {/* ⚠️ Sotuv xabari filialga qarab BOSHQA botdan ketadi — filial guruhlari shu yerda */}
+      <BranchSaleGroups />
       <InstagramEventsSection />
     </div>
   );

@@ -592,6 +592,16 @@ export default function KatalogSellModal({
       )}
 
       {/* §4 SOTUVDA QO'SHILGAN — yig'iq (tez sotuv buzilmasin); qo'shimcha material + oformleniya */}
+      {/* ⚠️ SOTUV RASMI — YIG'IQ bo'limdan CHIQARILDI: rasm sotuv xabari bilan Telegram
+          guruhiga ketadi, ya'ni har sotuvda ko'rinib turishi kerak (ilgari «Sotuvda
+          qo'shilgan» akkordeoni ichida edi va operator uni ochmasa umuman ko'rmasdi). */}
+      <Field label="Sotuv rasmi (ixtiyoriy)" span>
+        <ImageInput value={saleImage} onChange={setSaleImage} capture="environment" />
+        <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>
+          Sotuv xabari bilan birga Telegram guruhiga yuboriladi. Yuklanmasa katalogdagi gul rasmi ketadi.
+        </span>
+      </Field>
+
       <div className="mt-4 rounded-[14px] border" style={{ borderColor: extraOpen ? "var(--primary)" : "var(--border)" }}>
         <button type="button" onClick={() => setExtraOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left">
           <span className="flex min-w-0 items-center gap-2">
@@ -661,10 +671,6 @@ export default function KatalogSellModal({
               <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Oformleniya haqi: {decoFee.toLocaleString("ru")} × {qty} = <b style={{ color: "var(--acc)" }}>{fmt(decoPay)}</b></p>
             ))}
 
-            {/* SOTUV RASMI — guruhga ketadi (spec: `sale_image_url`) */}
-            <div className="mb-1 mt-4 flex items-center gap-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}><ImageIcon size={13} style={{ color: "var(--acc)" }} /> Sotuv rasmi</div>
-            <ImageInput value={saleImage} onChange={setSaleImage} />
-            <p className="mt-1 text-[11.5px]" style={{ color: "var(--muted)" }}>Ixtiyoriy — sotuv xabari bilan birga Telegram guruhiga yuboriladi.</p>
 
             {/* IQTISODIY TA'SIR — bu sotuvga */}
             {extraTotal > 0 && (

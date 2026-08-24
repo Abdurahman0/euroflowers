@@ -29,6 +29,11 @@ export type Branch = {
   is_main: boolean;
   is_active: boolean;
   note?: string;
+  /** ⚠️ FAQAT O'QISH — filialning sotuv guruhi sozlanganmi (token+chat id bor). */
+  sale_group_configured?: boolean;
+  /** ⚠️ FAQAT YOZISH (PATCH) — javobda qaytmaydi. */
+  sale_bot_token?: string;
+  sale_group_chat_id?: string;
   created_at: string;
   updated_at: string;
 };
@@ -1933,6 +1938,14 @@ export type IntegrationSettings = {
   telegram_bot_token: string;
   /** Recall xabarlari yuboriladigan Telegram guruh chat ID (bo'sh — .env fallback) */
   telegram_group_chat_id?: string;
+  /* ─── SOTUV GURUHI (FRONTEND_SOTUV_RASM.md §7) — katalogdan sotilganda rasm+xabar
+     shu guruhga ketadi. Asosiy filial sotuvi SHU sozlama bilan, filial sotuvi esa
+     o'sha filialning boti bilan yuboriladi.
+     ⚠️ JONLI TEKSHIRUV (24.08.2026): spec «tokenlar javobda qaytmaydi» deydi, lekin
+        /api/integrations/ ularni OCHIQ qaytaradi — shuning uchun ekranda qiymat
+        ko'rsatilmaydi, faqat «ulangan/ulanmagan» holati chiqadi. */
+  sale_bot_token?: string;
+  sale_group_chat_id?: string;
   extra: Record<string, unknown> | null;
 };
 
