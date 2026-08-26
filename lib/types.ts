@@ -1333,6 +1333,15 @@ export type AICatalogItem = {
   note: string;
   image_url: string;
   instagram_link: string;
+  /* ─── META ADS MAPPING (backend 25.08.2026) ───
+     ⚠️ Reklama orqali kelgan DMda AI aynan SHU IDlarga bog'langan mahsulotlarni
+        ko'rsatadi; topilmasa reel/post havolasi yoki rasm bo'yicha qidiruvga tushadi.
+     ⚠️ Bitta reklamada bir nechta gul bo'lsa — BIR XIL id bir nechta yozuvga qo'yiladi
+        (takrorlanishi ATAYLAB, xato emas).
+     ⚠️ BO'SH SATR yuborilsa mapping TOZALANADI — shuning uchun forma ikkala maydonni
+        HAR DOIM yuboradi (kalitni tushirib qoldirsa eski qiymat qolib ketardi). */
+  instagram_ad_id?: string;
+  instagram_ad_post_id?: string;
   is_active: boolean;
   created_by?: number;
   created_at?: string;

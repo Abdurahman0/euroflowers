@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Megaphone, Sparkles } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import Modal, { ModalHeader, ModalFooter, Field } from "./Modal";
@@ -51,6 +51,8 @@ export default function AiCatalogModal({
   const [note, setNote] = useState(item?.note ?? "");
   const [image, setImage] = useState(item?.image_url ?? "");
   const [insta, setInsta] = useState(item?.instagram_link ?? "");
+  const [adId, setAdId] = useState(item?.instagram_ad_id ?? "");
+  const [adPostId, setAdPostId] = useState(item?.instagram_ad_post_id ?? "");
   const [active, setActive] = useState(item?.is_active ?? true);
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
@@ -78,6 +80,10 @@ export default function AiCatalogModal({
         note: note.trim(),
         image_url: image.trim(),
         instagram_link: instaTrim,
+        // ⚠️ HAR DOIM yuboriladi (bo'sh bo'lsa ham): bo'sh satr mappingni TOZALAYDI.
+        //    Kalit tushirilsa tahrirlashda eski reklama bog'lanishi qolib ketardi.
+        instagram_ad_id: adId.trim(),
+        instagram_ad_post_id: adPostId.trim(),
         is_active: active,
       };
       const saved = item ? await api.updateAICatalogItem(item.id, payload) : await api.createAICatalogItem(payload);
@@ -140,6 +146,28 @@ export default function AiCatalogModal({
             placeholder="https://instagram.com/p/…" />
           <Err k="instagram_link" />
         </Field>
+      </div>
+
+      {/* ⚠️ META ADS MAPPING — reklama orqali kelgan mijozga AI aynan shu reklamadagi
+          gullarni ko'rsatadi. Ikkalasi ham IXTIYORIY: oddiy yozuvda bo'sh qoladi. */}
+      <div className="mt-3 rounded-[14px] border p-3" style={{ borderColor: adId.trim() || adPostId.trim() ? "var(--primary)" : "var(--border)", background: "var(--surface-2)" }}>
+        <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold" style={{ color: "var(--text-2)" }}>
+          <Megaphone size={13} strokeWidth={2.2} style={{ color: "var(--primary)" }} /> Meta Ads mapping
+          <span className="font-semibold" style={{ color: "var(--muted)" }}>· ixtiyoriy</span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Instagram Ad ID">
+            <input className="inp" inputMode="numeric" value={adId} onChange={(e) => setAdId(e.target.value.slice(0, 120))} placeholder="Masalan: 120240146122130452" />
+          </Field>
+          <Field label="Instagram Ad Post ID">
+            <input className="inp" inputMode="numeric" value={adPostId} onChange={(e) => setAdPostId(e.target.value.slice(0, 120))} placeholder="Masalan: 938672392402515" />
+          </Field>
+        </div>
+        <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: "var(--muted)" }}>
+          Target yoqilganda Meta Ads Manager yoki reklama tafsilotlaridan olingan IDlarni kiriting.
+          Bitta reklamada bir nechta gul bo&apos;lsa, bir xil Ad ID va Post ID bir nechta AI katalog mahsulotiga qo&apos;yilishi mumkin.
+          {item && (adId.trim() || adPostId.trim()) ? " Bo'shatib saqlasangiz bog'lanish uziladi." : ""}
+        </p>
       </div>
 
       {/* ⚠️ FAOL — AI mijozga FAQAT shu belgilangan yozuvlarni ko'rsatadi */}

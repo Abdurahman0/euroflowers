@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Image as ImageIcon, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ExternalLink, Image as ImageIcon, Megaphone, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePerm, useStore } from "@/lib/store";
 import useAutoRefresh from "@/lib/useAutoRefresh";
@@ -88,6 +88,8 @@ export default function AiCatalogPage() {
     [byType],
   );
 
+  const adLinked = useMemo(() => rows.filter((x) => x.instagram_ad_id || x.instagram_ad_post_id).length, [rows]);
+
   const remove = async () => {
     if (!del || deleting) return;
     setDeleting(true);
@@ -137,6 +139,8 @@ export default function AiCatalogPage() {
           { label: "Jami dona", v: String(n(totals?.quantity_total)), sub: "vitrinadagi soni" },
           { label: "Vitrina qiymati", v: fmt(n(totals?.value_total)), sub: "narx × soni" },
           { label: "Faol", v: String(n(totals?.active)), sub: `nofaol ${n(totals?.inactive)}`, hue: "var(--success-ink, #3d8a5f)" },
+          // ⚠️ Reklama bog'lanishi SERVER totals'ida yo'q — shu sahifadagi yozuvlardan sanaladi
+          { label: "Reklamaga bog'langan", v: String(adLinked), sub: `${rows.length} yozuvdan · shu sahifada` },
         ].map((c) => (
           <div key={c.label} className="glass !rounded-[16px] p-3.5">
             <div className="text-[11px] font-bold uppercase tracking-[1.2px]" style={{ color: "var(--muted)" }}>{c.label}</div>
@@ -182,6 +186,17 @@ export default function AiCatalogPage() {
                 <div className="flex flex-wrap gap-1.5 text-[11.5px] font-bold">
                   <span className="rounded-full bg-tint px-2.5 py-0.5">{n(x.quantity)} ta</span>
                   {x.volume && <span className="rounded-full bg-tint px-2.5 py-0.5">{volLabel(x.volume)}</span>}
+                  {/* ⚠️ META ADS — shu yozuv reklamaga bog'langan: reklama orqali kelgan
+                      mijozga AI aynan shunday bog'langan gullarni ko'rsatadi. */}
+                  {(x.instagram_ad_id || x.instagram_ad_post_id) && (
+                    <span
+                      className="flex items-center gap-1 rounded-full px-2.5 py-0.5"
+                      style={{ background: "var(--primary-soft)", color: "var(--primary)" }}
+                      title={`Ad ID: ${x.instagram_ad_id || "—"}\nPost ID: ${x.instagram_ad_post_id || "—"}`}
+                    >
+                      <Megaphone size={11} strokeWidth={2.4} /> Reklama
+                    </span>
+                  )}
                 </div>
                 {x.note && <p className="line-clamp-3 text-[12.5px] leading-relaxed" style={{ color: "var(--mut)" }}>{x.note}</p>}
                 <div className="mt-auto flex items-center gap-2 pt-2">
