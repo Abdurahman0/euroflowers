@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { loadYmaps, TASHKENT, type YMap, type YPlacemark, type YCircle } from "@/lib/ymaps";
 
 /**
  * GEOFENCE xarita — Yandex Maps (kalitsiz JS API). Markaz-pin sudraladi,
@@ -7,34 +8,6 @@ import { useEffect, useRef, useState } from "react";
  * Xarita ranglari Yandex'niki; atrofdagi UI tema tokenlarida.
  */
 
-type YMaps = {
-  ready: (cb: () => void) => void;
-  Map: new (el: HTMLElement, opts: Record<string, unknown>) => YMap;
-  Placemark: new (coords: [number, number], props: unknown, opts: unknown) => YPlacemark;
-  Circle: new (geom: [[number, number], number], props: unknown, opts: unknown) => YCircle;
-};
-type YMap = { geoObjects: { add: (o: unknown) => void; remove: (o: unknown) => void }; destroy: () => void; setCenter: (c: [number, number]) => void; events: { add: (e: string, cb: (ev: { get: (k: string) => [number, number] }) => void) => void } };
-type YPlacemark = { geometry: { getCoordinates: () => [number, number]; setCoordinates: (c: [number, number]) => void }; events: { add: (e: string, cb: () => void) => void } };
-type YCircle = { geometry: { setRadius: (r: number) => void; setCoordinates: (c: [number, number]) => void } };
-
-let loaderPromise: Promise<YMaps> | null = null;
-function loadYmaps(): Promise<YMaps> {
-  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
-  const w = window as unknown as { ymaps?: YMaps };
-  if (w.ymaps) return Promise.resolve(w.ymaps);
-  if (loaderPromise) return loaderPromise;
-  loaderPromise = new Promise<YMaps>((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = "https://api-maps.yandex.ru/2.1/?lang=uz_UZ";
-    s.async = true;
-    s.onload = () => { const y = (window as unknown as { ymaps?: YMaps }).ymaps; y ? y.ready(() => resolve(y)) : reject(new Error("ymaps yo'q")); };
-    s.onerror = () => reject(new Error("Xarita yuklanmadi"));
-    document.head.appendChild(s);
-  });
-  return loaderPromise;
-}
-
-const TASHKENT: [number, number] = [41.311081, 69.279737];
 
 export default function GeofenceMap({
   lat,

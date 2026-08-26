@@ -54,6 +54,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, userLoading, loadMe, loadNotifs, setTheme, setDark, gardenPosterOnly, bgMode, setBgMode, sideOpen, toggleSide, uiMode, setUiMode } = useStore();
   const isLogin = pathname.startsWith("/login");
+  // OCHIQ marshrutlar — auth guard umuman ishlamaydi (mijoz Instagramdagi
+  // havoladan kiradi): /login va yetkazish manzili xaritasi /loc/:leadId
+  const isPublic = isLogin || pathname === "/loc" || pathname.startsWith("/loc/");
   const staffRole = user?.profile.role === "florist" || user?.profile.role === "apprentice";
   const staffPath = pathname.startsWith("/florist/") || pathname === "/profile";
   const { canView } = usePerm();
@@ -63,8 +66,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const routeAllowed = staffRole ? staffPath : (!user || !permPage || canView(permPage));
 
   useEffect(() => {
+    if (isPublic) return;
     if (user && staffRole && !staffPath) router.replace("/florist/dashboard");
-  }, [user, staffRole, staffPath, router]);
+  }, [user, staffRole, staffPath, router, isPublic]);
 
   // video rejimda element krossfeyd tugaguncha (400ms) DOM'da qoladi;
   // "rasm" bilan yangi ochilishda esa umuman mount bo'lmaydi (mp4 so'rovi yo'q)
@@ -168,12 +172,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // kanonik skroll: shell ichida body qulflanadi — yagona skroll main hududda
   // (login o'zi boshqaradi, shuning uchun u yerda qulf yo'q)
   useEffect(() => {
-    document.body.classList.toggle("app-locked", !isLogin);
+    document.body.classList.toggle("app-locked", !isPublic);
     return () => document.body.classList.remove("app-locked");
-  }, [isLogin]);
+  }, [isPublic]);
 
   useEffect(() => {
-    if (isLogin) return;
+    if (isPublic) return;
     if (!isLoggedIn()) {
       router.replace("/login");
       return;
@@ -190,10 +194,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       useStore.getState().disconnectNotifWS();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLogin]);
+  }, [isPublic]);
 
   // skroll — TABIIY (native): hech qanday smooth-scroll kutubxonasi yo'q,
   // g'ildirak/trackpad aynan kutilgandek ishlaydi
+  // ochiq xarita sahifasi — qobiqsiz, to'liq ekran (sidebar/header yo'q)
+  if (isPublic && !isLogin) return <>{children}</>;
+
   if (isLogin) {
     return (
       <div className="relative min-h-screen">

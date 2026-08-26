@@ -15,3 +15,4 @@
 *.tsbuildinfo
 .next-verify/
 .next-demo/
+.next-prod/
