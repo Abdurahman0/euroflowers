@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { Check, Crosshair, Link2Off, Loader2, MapPin, TriangleAlert } from "lucide-react";
+import { Check, Copy, Crosshair, ExternalLink, Link2Off, Loader2, MapPin, TriangleAlert } from "lucide-react";
 import DeliveryPinMap from "@/components/DeliveryPinMap";
 import { LOC_MESSAGE, deliveryPayload, locOutcome, parseLeadId, readToken, type LocOutcome } from "@/lib/deliveryLocation";
 import { fmtCoords, reverseGeocode } from "@/lib/reverseGeocode";
+import { androidIntentUrl, detectInApp, detectPlatform, geoAdvice, type GeoAdvice, type InApp, type Platform } from "@/lib/inAppBrowser";
 import { SHOP } from "@/lib/ymaps";
 
 /**
@@ -27,18 +28,22 @@ export default function DeliveryLocationPage() {
   const [sending, setSending] = useState(false);
   const [outcome, setOutcome] = useState<LocOutcome | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
-  const [geoNote, setGeoNote] = useState("");
+  const [advice, setAdvice] = useState<GeoAdvice | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showUrl, setShowUrl] = useState(false);
+  const [env, setEnv] = useState<{ app: InApp; platform: Platform }>({ app: null, platform: "other" });
   const [addrBusy, setAddrBusy] = useState(false);
   const geoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // kod query'dan — o'zgartirilmasdan, kesilmasdan olinadi
   useEffect(() => {
     setToken(readToken(new URLSearchParams(window.location.search).get("t")));
+    setEnv({ app: detectInApp(navigator.userAgent), platform: detectPlatform(navigator.userAgent) });
   }, []);
 
   const onMove = useCallback((la: number, ln: number) => {
     setPos([la, ln]);
-    setGeoNote("");
+    setAdvice(null);
   }, []);
 
   // teskari geokodlash — belgi tinchigach 700 ms dan keyin, xatoda jim
@@ -60,24 +65,64 @@ export default function DeliveryLocationPage() {
     };
   }, [pos]);
 
-  const locateMe = () => {
-    if (!navigator.geolocation) {
-      setGeoNote("Qurilmangiz joylashuvni aniqlay olmadi — belgini qo'lda suring.");
+  /**
+   * Joylashuvni aniqlash. Chaqiruv TO'G'RIDAN-TO'G'RI bosish ichida turadi —
+   * webview'lar ruxsat oynasini faqat foydalanuvchi harakatidan keyin ochadi.
+   * Birinchi urinish aniq (GPS), u tushsa — taxminiy (tarmoq) bilan qayta
+   * urinamiz: in-app brauzerlarda ko'pincha aynan GPS rejimi bloklanadi.
+   */
+  const askPosition = (highAccuracy: boolean, timeout: number) =>
+    new Promise<GeolocationPosition>((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: highAccuracy,
+        timeout,
+        maximumAge: 0,
+      }),
+    );
+
+  const locateMe = async () => {
+    setCopied(false);
+    setShowUrl(false);
+    if (!navigator.geolocation || (typeof window !== "undefined" && window.isSecureContext === false)) {
+      setAdvice(geoAdvice(0, env.app, env.platform));
       return;
     }
     setGeoBusy(true);
-    setGeoNote("");
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        setGeoBusy(false);
-        setPos([p.coords.latitude, p.coords.longitude]);
-      },
-      () => {
-        setGeoBusy(false);
-        setGeoNote("Joylashuvga ruxsat berilmadi — belgini xaritada qo'lda suring.");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-    );
+    setAdvice(null);
+    try {
+      let p: GeolocationPosition;
+      try {
+        p = await askPosition(true, 12000);
+      } catch (e) {
+        const code = (e as GeolocationPositionError)?.code ?? 0;
+        if (code === 1) throw e; // ruxsat rad etilgan — qayta so'rash foyda bermaydi
+        p = await askPosition(false, 8000);
+      }
+      setPos([p.coords.latitude, p.coords.longitude]);
+    } catch (e) {
+      setAdvice(geoAdvice((e as GeolocationPositionError)?.code ?? 0, env.app, env.platform));
+    } finally {
+      setGeoBusy(false);
+    }
+  };
+
+  /** Havolani tashqi brauzerda ochish — in-app webview geolokatsiyani bermaganda. */
+  const openExternal = async () => {
+    const href = window.location.href;
+    if (env.platform === "android") {
+      window.location.href = androidIntentUrl(href);
+      return;
+    }
+    // iOS: webview'dan chiqib bo'lmaydi — havolani nusxalab beramiz.
+    // Nusxalash ishlamasa (webview clipboard'ni bermasa) havolani ekranga
+    // chiqaramiz: uzoq bosib qo'lda nusxalash mumkin.
+    try {
+      await navigator.clipboard.writeText(href);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+    setShowUrl(true);
   };
 
   // «Tanlash» — qayta yuborishga ruxsat: oxirgi koordinata saqlanadi
@@ -161,14 +206,59 @@ export default function DeliveryLocationPage() {
             {address || (addrBusy ? "Manzil aniqlanmoqda…" : fmtCoords(pos[0], pos[1]))}
           </div>
 
-          {(geoNote || outcome === "retry" || outcome === "error") && (
+          {(outcome === "retry" || outcome === "error") && (
             <div
               className="mt-2.5 flex items-start gap-2 rounded-[12px] px-3 py-2 text-[12px] leading-snug"
-              style={{ background: "var(--surface-2)", color: outcome ? "var(--danger-ink)" : "var(--warning-ink)" }}
+              style={{ background: "var(--surface-2)", color: "var(--danger-ink)" }}
               data-tid="loc-note"
             >
               <TriangleAlert size={14} className="mt-[1px] shrink-0" />
-              <span>{outcome ? LOC_MESSAGE[outcome].text : geoNote}</span>
+              <span>{LOC_MESSAGE[outcome].text}</span>
+            </div>
+          )}
+
+          {advice && outcome == null && (
+            <div
+              className="mt-2.5 rounded-[12px] px-3 py-2.5 text-[12px] leading-snug"
+              style={{ background: "var(--surface-2)", color: "var(--warning-ink)" }}
+              data-tid="loc-geo-note"
+            >
+              <div className="flex items-start gap-2">
+                <TriangleAlert size={14} className="mt-[1px] shrink-0" />
+                <span>
+                  <span className="font-semibold">{advice.text}</span> {advice.hint}
+                </span>
+              </div>
+              {advice.openExternal && (
+                <button
+                  type="button"
+                  onClick={openExternal}
+                  data-tid="loc-open-external"
+                  className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-[10px] border text-[12.5px] font-semibold"
+                  style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text)" }}
+                >
+                  {env.platform === "android" ? (
+                    <>
+                      <ExternalLink size={14} strokeWidth={2.2} />
+                      Brauzerda ochish
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} strokeWidth={2.2} />
+                      {copied ? "Havola nusxalandi — Safari'ga qo'ying" : "Havolani nusxalash"}
+                    </>
+                  )}
+                </button>
+              )}
+              {showUrl && (
+                <div
+                  className="mt-2 select-all break-all rounded-[10px] border px-2.5 py-2 text-[11.5px]"
+                  style={{ borderColor: "var(--border)", background: "var(--surface-solid)", color: "var(--text-2)" }}
+                  data-tid="loc-url"
+                >
+                  {typeof window === "undefined" ? "" : window.location.href}
+                </div>
+              )}
             </div>
           )}
 
