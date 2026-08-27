@@ -17,9 +17,8 @@ import { NAV } from "@/lib/branch";
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { sideOpen, toggleSide, notifs } = useStore();
+  const { sideOpen, toggleSide } = useStore();
   const { canView } = usePerm();
-  const yangiLead = notifs.filter((n) => !n.is_read && n.notification_type === "lead").length;
 
   // tor ekranlarda avtomatik yig'iladi — kontent doim ustuvor
   useEffect(() => {
@@ -103,17 +102,6 @@ export default function Sidebar() {
                 <Icon name={n.id} size={16} />
               </span>
               {sideOpen && <span className="relative z-10 flex-1 whitespace-nowrap text-left">{n.label}</span>}
-              {sideOpen && n.id === "crm" && yangiLead > 0 && (
-                <span
-                  className={clsx(
-                    "relative z-10 min-w-[20px] rounded-full px-1.5 py-px text-center text-[11px] font-bold",
-                    active ? "bg-white/20 text-white" : "text-white"
-                  )}
-                  style={active ? undefined : { background: "var(--primary)" }}
-                >
-                  {yangiLead}
-                </span>
-              )}
             </button>
             </Fragment>
           );
