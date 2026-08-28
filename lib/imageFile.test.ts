@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitDimensions, humanMB, isImageFile, outputName, passesAsIs, SAFE_TYPES } from "./imageFile";
+import { fitDimensions, humanMB, ImagePrepError, isImageFile, outputName, passesAsIs, SAFE_TYPES, uploadErrorText } from "./imageFile";
 
 describe("isImageFile", () => {
   it("telefon suratlarini qabul qiladi (HEIC/HEIF)", () => {
@@ -58,4 +58,24 @@ describe("passesAsIs", () => {
 
 describe("humanMB", () => {
   it("MB da ko'rsatadi", () => expect(humanMB(8 * 1048576)).toBe("8.0"));
+});
+
+describe("uploadErrorText", () => {
+  it("403 — operatorga aniq sabab aytiladi", () => {
+    expect(uploadErrorText({ status: 403, message: "Ruxsat yo'q" })).toContain("ruxsat yo'q");
+  });
+  it("401 va 413 uchun alohida matn", () => {
+    expect(uploadErrorText({ status: 401, message: "x" })).toContain("Sessiya tugadi");
+    expect(uploadErrorText({ status: 413, message: "x" })).toContain("juda katta");
+  });
+  it("boshqa API xatosida serverning o'z xabari ko'rsatiladi", () => {
+    expect(uploadErrorText({ status: 400, message: "Fayl buzuq" })).toBe("Fayl buzuq");
+  });
+  it("tayyorlash xatosi o'zidek qaytadi", () => {
+    expect(uploadErrorText(new ImagePrepError("Rasmni o'qib bo'lmadi"))).toBe("Rasmni o'qib bo'lmadi");
+  });
+  it("tarmoq uzilishi (status 0) — umumiy matn", () => {
+    expect(uploadErrorText({ status: 0, message: "Server bilan aloqa yo'q" })).toContain("qayta urinib");
+    expect(uploadErrorText(new Error("boom"))).toContain("qayta urinib");
+  });
 });

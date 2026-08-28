@@ -48,6 +48,28 @@ export function humanMB(bytes: number): string {
 
 export class ImagePrepError extends Error {}
 
+/**
+ * Yuklash xatosi → foydalanuvchiga ko'rsatiladigan matn.
+ *
+ * ⚠️ Ilgari HAR QANDAY xato «Rasm yuklab bo'lmadi — qayta urinib ko'ring»
+ * bo'lib chiqardi, ya'ni serverning haqiqiy sababi (masalan operatorda
+ * `/api/uploads/` ga ruxsat yo'qligi) butunlay ko'rinmasdi.
+ *
+ * `ApiError` importsiz — status/message bo'yicha o'rdakcha tekshiruv, shunda
+ * bu funksiya sof qoladi va lib/api ni tortmaydi.
+ */
+export function uploadErrorText(e: unknown): string {
+  if (e instanceof ImagePrepError) return e.message;
+  const o = typeof e === "object" && e !== null ? (e as { status?: unknown; message?: unknown }) : {};
+  const status = typeof o.status === "number" ? o.status : 0;
+  const msg = typeof o.message === "string" ? o.message.trim() : "";
+  if (status === 403) return "Rasm yuklashga ruxsat yo'q — administratordan huquq so'rang.";
+  if (status === 401) return "Sessiya tugadi — tizimga qayta kiring.";
+  if (status === 413) return "Rasm server uchun juda katta — kichikroq surat tanlang.";
+  if (status > 0 && msg) return msg;
+  return "Rasm yuklab bo'lmadi — qayta urinib ko'ring.";
+}
+
 /** Blobni rasmga dekodlash — avval createImageBitmap, so'ng <img>. */
 async function decode(file: File): Promise<{ src: CanvasImageSource; w: number; h: number } | null> {
   if (typeof createImageBitmap === "function") {

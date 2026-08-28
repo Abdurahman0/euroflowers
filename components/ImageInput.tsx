@@ -2,7 +2,7 @@
 import { ImagePlus, Link2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { ImagePrepError, humanMB, isImageFile, prepareImage } from "@/lib/imageFile";
+import { humanMB, isImageFile, prepareImage, uploadErrorText } from "@/lib/imageFile";
 import { useStore } from "@/lib/store";
 
 /**
@@ -55,11 +55,7 @@ export default function ImageInput({ value, onChange }: {
       setMeta({ name: ready.name, size: ready.size });
       showToast("✓ Rasm yuklandi");
     } catch (e) {
-      setErr(
-        e instanceof ImagePrepError
-          ? e.message
-          : "Rasm yuklab bo'lmadi — qayta urinib ko'ring.",
-      );
+      setErr(uploadErrorText(e));
     } finally {
       setBusy(false);
     }
