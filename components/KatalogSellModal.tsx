@@ -157,6 +157,9 @@ export default function KatalogSellModal({
   // (`sale_image_url`). Ilgari biz uni sotuvlar ro'yxatida KO'RSATARDIK, lekin
   // yubormasdik — ya'ni u hech qachon to'lmasdi.
   const [saleImage, setSaleImage] = useState("");
+  /** ⚠️ ZAXIRA: `/api/uploads/` rad etsa (operator roliga 403) rasm SHU YERDA
+      qoladi va sotuv so'rovi bilan birga `sale_image` fayli bo'lib ketadi. */
+  const [saleFile, setSaleFile] = useState<File | null>(null);
   useEffect(() => {
     // ⚠️ §5: SARFLANADIGANLAR (Gupka/Lenta/Lak) sotuvda qo'shilmaydi — tanlagichdan chiqarib tashlanadi.
     api.materials({ is_active: true, page_size: "all" }).then((ms) => setMaterials(usableInCatalog(ms))).catch(() => {});
@@ -315,7 +318,7 @@ export default function KatalogSellModal({
         ...mixedBody,
         // DASTAFKA: bo'sh bo'lsa kalit UMUMAN yuborilmaydi ("0" ham emas).
         ...deliveryPayload(delivery),
-      });
+      }, saleFile);
       // customer_detail — PATCH javobidan (backend mavjud mijozga ULAGAN bo'lsa ismi ko'rinsin)
       const linked = updated.customer_detail || patched?.customer_detail;
       const who = linked ? ` → ${linked.name}${linked.masked_phone ? ` (${linked.masked_phone})` : ""}` : "";
@@ -601,7 +604,7 @@ export default function KatalogSellModal({
           guruhiga ketadi, ya'ni har sotuvda ko'rinib turishi kerak (ilgari «Sotuvda
           qo'shilgan» akkordeoni ichida edi va operator uni ochmasa umuman ko'rmasdi). */}
       <Field label="Sotuv rasmi (ixtiyoriy)" span>
-        <ImageInput value={saleImage} onChange={setSaleImage} />
+        <ImageInput value={saleImage} onChange={setSaleImage} onFile={setSaleFile} />
         <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>
           Sotuv xabari bilan birga Telegram guruhiga yuboriladi. Yuklanmasa katalogdagi gul rasmi ketadi.
         </span>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSellPayload } from "./api";
+import { buildSellFormData, buildSellPayload } from "./api";
 
 /**
  * ⚠️ ASL NOSOZLIK SHU YERDA EDI: tana oq ro'yxat bo'yicha qurilib, ro'yxatda yo'q
@@ -90,5 +90,36 @@ describe("terminal to'lov", () => {
     expect(buildSellPayload({ sale_price: "250000", payment_type: "mixed", cash_amount: "100000", card_amount: "150000" })).toEqual({
       sale_price: "250000", payment_type: "mixed", cash_amount: "100000", card_amount: "150000",
     });
+  });
+});
+
+/* ===== MULTIPART — sotuv rasmi FAYL sifatida (operator roli uchun) ===== */
+
+describe("buildSellFormData", () => {
+  const file = new File([new Uint8Array([1, 2, 3])], "sotuv.jpg", { type: "image/jpeg" });
+  const entries = (fd: FormData) => Array.from(fd.entries()).map(([k, v]) => [k, v instanceof File ? `FILE:${v.name}` : v]);
+
+  it("oddiy maydonlar + fayl", () => {
+    const fd = buildSellFormData({ quantity: 2, sale_price: "250000", payment_type: "terminal" }, file);
+    expect(entries(fd)).toEqual([
+      ["quantity", "2"], ["sale_price", "250000"], ["payment_type", "terminal"], ["sale_image", "FILE:sotuv.jpg"],
+    ]);
+  });
+  it("⚠️ materials DRF'ning HTML-ro'yxat ko'rinishida ketadi (jonli tekshirilgan)", () => {
+    const fd = buildSellFormData({ materials: [{ packaging: 79, quantity: 2 }, { packaging: 80, quantity: 1 }] }, file);
+    expect(entries(fd)).toEqual([
+      ["materials[0]packaging", "79"], ["materials[0]quantity", "2"],
+      ["materials[1]packaging", "80"], ["materials[1]quantity", "1"],
+      ["sale_image", "FILE:sotuv.jpg"],
+    ]);
+  });
+  it("aralash to'lov va qarz maydonlari ham yetib boradi", () => {
+    const fd = buildSellFormData({ payment_type: "mixed", cash_amount: "100000", card_amount: "150000", customer_name: "Ali", debt_note: "juma" }, file);
+    const o = Object.fromEntries(entries(fd));
+    expect(o).toMatchObject({ payment_type: "mixed", cash_amount: "100000", card_amount: "150000", customer_name: "Ali", debt_note: "juma" });
+  });
+  it("bo'sh maydonlar multipart'ga ham tushmaydi", () => {
+    const fd = buildSellFormData({ quantity: 1 }, file);
+    expect(entries(fd)).toEqual([["sale_image", "FILE:sotuv.jpg"]]); // quantity 1 — sukut, yuborilmaydi
   });
 });

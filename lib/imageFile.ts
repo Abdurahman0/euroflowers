@@ -66,7 +66,9 @@ export function uploadErrorText(e: unknown): string {
   if (status === 403) return "Rasm yuklashga ruxsat yo'q — administratordan huquq so'rang.";
   if (status === 401) return "Sessiya tugadi — tizimga qayta kiring.";
   if (status === 413) return "Rasm server uchun juda katta — kichikroq surat tanlang.";
-  if (status > 0 && msg) return msg;
+  // tarmoq/timeout (status 0) da ham serverning O'Z matni foydali:
+  // «So'rov vaqti tugadi…» / «Server bilan aloqa yo'q…»
+  if (msg) return msg;
   return "Rasm yuklab bo'lmadi — qayta urinib ko'ring.";
 }
 

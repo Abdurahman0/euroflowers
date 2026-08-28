@@ -74,8 +74,14 @@ describe("uploadErrorText", () => {
   it("tayyorlash xatosi o'zidek qaytadi", () => {
     expect(uploadErrorText(new ImagePrepError("Rasmni o'qib bo'lmadi"))).toBe("Rasmni o'qib bo'lmadi");
   });
-  it("tarmoq uzilishi (status 0) — umumiy matn", () => {
-    expect(uploadErrorText({ status: 0, message: "Server bilan aloqa yo'q" })).toContain("qayta urinib");
-    expect(uploadErrorText(new Error("boom"))).toContain("qayta urinib");
+  it("tarmoq uzilishi / timeout — serverning O'Z matni ko'rsatiladi", () => {
+    // ⚠️ yuklash 20 s dan oshsa ApiError(0, "So'rov vaqti tugadi…") keladi —
+    //    «qayta urinib ko'ring» bu yerda sababni YASHIRARDI
+    expect(uploadErrorText({ status: 0, message: "So'rov vaqti tugadi — internet sekin" })).toBe("So'rov vaqti tugadi — internet sekin");
+    expect(uploadErrorText({ status: 0, message: "Server bilan aloqa yo'q" })).toBe("Server bilan aloqa yo'q");
+  });
+  it("matnsiz xatoda umumiy matn qoladi", () => {
+    expect(uploadErrorText({})).toContain("qayta urinib");
+    expect(uploadErrorText(null)).toContain("qayta urinib");
   });
 });

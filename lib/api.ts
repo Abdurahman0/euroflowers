@@ -189,6 +189,36 @@ export function buildSellPayload(data?: SellInput): Record<string, unknown> {
   };
 }
 
+/**
+ * SOTUV TANASI MULTIPART ko'rinishida — sotuv rasmi FAYL sifatida biriktiriladi.
+ *
+ * ⚠️ NEGA KERAK: `/api/uploads/` OPERATOR roliga 403 qaytaradi
+ * («Sizda bu sahifa uchun ruxsat yo'q»), ya'ni operator rasmni oldindan
+ * yuklab, havolasini bera olmaydi. Sotuv endpointining O'ZI esa multipart
+ * qabul qiladi va `sale_image` fayl maydoniga ega (backend spec 28.08.2026).
+ *
+ * ⚠️ ICHMA-ICH massiv (materials) multipart'da DRF'ning HTML-ro'yxat
+ * ko'rinishida ketadi: `materials[0]packaging` / `materials[0]quantity`.
+ * JONLI TEKSHIRILGAN (28.08.2026, operator_2 tokeni bilan, quantity=0 →
+ * sotuv YARATILMAYDI): faqat `quantity` xatosi qaytdi, ya'ni qolgan hamma
+ * maydon — fayl ham, materials ham — to'g'ri o'qildi.
+ */
+export function buildSellFormData(data: SellInput | undefined, file: File): FormData {
+  const fd = new FormData();
+  Object.entries(buildSellPayload(data)).forEach(([k, v]) => {
+    if (v == null) return;
+    if (k === "materials" && Array.isArray(v)) {
+      v.forEach((m, i) =>
+        Object.entries(m as Record<string, unknown>).forEach(([mk, mv]) => fd.append(`materials[${i}]${mk}`, String(mv))),
+      );
+      return;
+    }
+    fd.append(k, String(v));
+  });
+  fd.append("sale_image", file, file.name);
+  return fd;
+}
+
 /** oxirgi HTTP javob kodi — `requestWithStatus` uchun (200 va 201 farqi). */
 let lastStatus = 0;
 
@@ -909,8 +939,11 @@ export const api = {
    * KATALOGDAN SOTISH — POST /api/catalog/{id}/sell/
    * Tana `buildSellPayload` da (sof funksiya, Vitest bilan qulflangan).
    */
-  sellCatalogItem: (id: number, data?: SellInput) =>
-    request<CatalogItem>(`/api/catalog/${id}/sell/`, { method: "POST", body: JSON.stringify(buildSellPayload(data)) }),
+  sellCatalogItem: (id: number, data?: SellInput, saleImage?: File | null) =>
+    request<CatalogItem>(`/api/catalog/${id}/sell/`, saleImage
+      // rasm FAYL sifatida — `/api/uploads/` ga ruxsati yo'q rollar uchun yagona yo'l
+      ? { method: "POST", body: buildSellFormData(data, saleImage) }
+      : { method: "POST", body: JSON.stringify(buildSellPayload(data)) }),
   catalogItem: (id: number) => request<CatalogItem>(`/api/catalog/${id}/`),
   /**
    * KATALOG SOTUV TARIXI — sahifalangan, `totals` BUTUN FILTR bo'yicha.
