@@ -23,12 +23,9 @@ const MAX_MB = 25;
 /** Serverga ketadigan yakuniy hajm — kichraytirishdan KEYIN. */
 const UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
 
-export default function ImageInput({ value, onChange, capture }: {
+export default function ImageInput({ value, onChange }: {
   value: string;
   onChange: (url: string) => void;
-  /** ⚠️ Telefonda TO'G'RIDAN-TO'G'RI kameradan olish (sotuv rasmi uchun): "environment".
-      Kompyuterda e'tiborga olinmaydi, shuning uchun boshqa joylarga tegmaydi. */
-  capture?: "environment" | "user";
 }) {
   const showToast = useStore((s) => s.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -70,10 +67,12 @@ export default function ImageInput({ value, onChange, capture }: {
 
   return (
     <div className="flex flex-col gap-2">
+      {/* ⚠️ `capture` ATAYLAB YO'Q — u telefonda kamerani TO'G'RIDAN-TO'G'RI ochib,
+          galereyani butunlay yashiradi. Usiz iOS/Android o'zi «Suratga olish /
+          Galereyadan tanlash» menyusini beradi, ya'ni ikkala yo'l ham ochiq. */}
       <input
         ref={fileRef}
         type="file"
-        {...(capture ? { capture } : {})}
         accept="image/*"
         className="hidden"
         onChange={(e) => {

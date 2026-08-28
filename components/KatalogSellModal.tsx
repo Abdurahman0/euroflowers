@@ -596,7 +596,7 @@ export default function KatalogSellModal({
           guruhiga ketadi, ya'ni har sotuvda ko'rinib turishi kerak (ilgari «Sotuvda
           qo'shilgan» akkordeoni ichida edi va operator uni ochmasa umuman ko'rmasdi). */}
       <Field label="Sotuv rasmi (ixtiyoriy)" span>
-        <ImageInput value={saleImage} onChange={setSaleImage} capture="environment" />
+        <ImageInput value={saleImage} onChange={setSaleImage} />
         <span className="mt-1 block text-[11.5px]" style={{ color: "var(--muted)" }}>
           Sotuv xabari bilan birga Telegram guruhiga yuboriladi. Yuklanmasa katalogdagi gul rasmi ketadi.
         </span>
