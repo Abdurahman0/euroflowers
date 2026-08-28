@@ -1,10 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt } from "@/lib/format";
+import { columnsOf, isMoneyCol, isTextCol } from "@/lib/excelStats";
 import type { ExcelRow, ExcelStats } from "@/lib/types";
 
 /**
  * EXCEL USLUBIDAGI KUNLIK JADVALLAR — `dashboard.excel_stats`.
+ *
+ * ⚠️ Ustun turlari (matn / pul / dona) lib/excelStats.ts da — u yer testlanadi.
  *
  * ⚠️ USTUNLAR KODDA QOTIRILMAYDI. `rasxod` jadvalining ustunlari — FLORIST
  * ISMLARI (jonli: ABO, BEGZOD, ISO, BAKIR, FATXULLO, ZAFAR, SHOHAKBAR …).
@@ -22,31 +25,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "rasxod", label: "Rasxod" },
   { key: "yandex", label: "Yandex" },
 ];
-
-/** Matn (raqam emas) ustunlari — katta/kichik harfga qaramaydi. */
-const TEXT_COLS = new Set(["№", "sana", "date"]);
-const isTextCol = (c: string) => TEXT_COLS.has(c.trim().toLowerCase()) || c.trim() === "№";
-
-/**
- * ⚠️ SOVDA varag'ida HAMMA SON PUL EMAS.
- * Jonli tekshiruv (2026-08-04): naxt 2 750 000 + karta 5 700 000 + dostavka
- * 100 000 ≈ sovda 8 600 000 — ya'ni bular pul. `sotuv: 30` va «kotta savat: 1»
- * esa DONA soni. Hammasini pul deb chizsak ekranda «30 so'm», «1 so'm» chiqadi
- * va operator sotuv sonini pul deb o'qib qoladi.
- * Shu bois SOVDA da pul ustunlari ANIQ sanab o'tilgan, qolgani — dona.
- * RASXOD va YANDEX varaqlarida esa hamma son pul (xarajat/yo'nalish summasi).
- */
-const SOVDA_MONEY = new Set(["sovda", "naxt", "karta", "dostavka"]);
-const isMoneyCol = (sheet: TabKey, c: string): boolean =>
-  sheet === "sovda" ? SOVDA_MONEY.has(c.trim().toLowerCase()) : true;
-
-/** ⚠️ Ustunlar HAMMA qatordan yig'iladi — birinchi qatorda bo'lmagan ustun tushib qolmasin. */
-const columnsOf = (rows: ExcelRow[]): string[] => {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const r of rows) for (const k of Object.keys(r ?? {})) if (!seen.has(k)) { seen.add(k); out.push(k); }
-  return out;
-};
 
 const cell = (v: ExcelRow[string], col: string, sheet: TabKey): string => {
   if (v == null || v === "") return "—";

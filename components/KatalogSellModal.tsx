@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CalendarClock, Check, ChevronDown, CreditCard, HandCoins, Image as ImageIcon, Info, Minus, Package, Plus, Sparkles, Split, Tag, X } from "lucide-react";
+import { Banknote, CalendarClock, Check, ChevronDown, CreditCard, HandCoins, Image as ImageIcon, Info, Minus, Nfc, Package, Plus, Sparkles, Split, Tag, X } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -28,6 +28,9 @@ const custLabel = (r: Reservation) => r.customer_detail?.name || r.customer_name
 const PAYMENTS: { value: PaymentType; label: string; icon: typeof Banknote }[] = [
   { value: "cash", label: "Naqd", icon: Banknote },
   { value: "card", label: "Karta", icon: CreditCard },
+  // ⚠️ TERMINAL — POS orqali to'lov (backend 28.08.2026). Kartadan ALOHIDA hisoblanadi
+  //    va endi «boshqa» ustuniga tushib ketmaydi; cash_amount/card_amount YUBORILMAYDI.
+  { value: "terminal", label: "Terminal", icon: Nfc },
   // ⚠️ QARZ — to'lov turi emas, to'lovning KEYINGA SURILISHI: bugungi savdo o'zgarmaydi.
   { value: "debt", label: "Qarz", icon: HandCoins },
   // ⚠️ ARALASH — pul HAQIQATDA qayerga tushgan bo'lsa o'sha ustunga yoziladi
@@ -455,9 +458,11 @@ export default function KatalogSellModal({
         <span className="mt-1 block text-[11.5px] font-semibold" style={{ color: "var(--muted)" }}>Sotuvda {left} ta bor</span>
       </Field>
 
-      {/* TO'LOV TURI — naqd / karta */}
+      {/* TO'LOV TURI — naqd / karta / terminal / qarz / aralash */}
       <Field label="To'lov turi" span>
-        <div className="grid grid-cols-4 gap-2">
+        {/* ⚠️ 5 ta usul BITTA QATORGA sig'maydi (oyna 460px): «Terminal» va «Aralash»
+            yozuvlari qirqilardi. Shu bois 3+2 — har bir chip to'liq o'qiladi. */}
+        <div className="grid grid-cols-3 gap-2">
           {PAYMENTS.map((p) => {
             const on = payment === p.value;
             const PIcon = p.icon;

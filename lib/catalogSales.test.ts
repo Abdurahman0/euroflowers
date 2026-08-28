@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildSalesQuery, salesFiltersToParams, salesPageCount, totalsView,
+  buildSalesQuery, salesFiltersToParams, salesPageCount, totalsView, PAYMENT_FILTERS,
   discountView, isDiscounted, saleNum, deliveryRowView, SALES_PAGE_SIZE_MAX,
 } from "./catalogSales";
 import { fmtLocalTime, fmtLocalDate, readIsoParts } from "./format";
@@ -72,10 +72,10 @@ describe("totalsView — server bergani AYNAN, qayta hisoblanmaydi", () => {
     expect(totalsView({
       sales_count: 20, quantity: 21, revenue: 7430000.0, discount_total: 200000.0,
       cash_total: 3480000.0, card_total: 3950000.0, debt_total: 0.0,
-    })).toEqual({ count: 20, quantity: 21, revenue: 7430000, discount: 200000, cash: 3480000, card: 3950000, debt: 0, delivery: 0, received: 0 });
+    })).toEqual({ count: 20, quantity: 21, revenue: 7430000, discount: 200000, cash: 3480000, card: 3950000, terminal: 0, debt: 0, delivery: 0, received: 0 });
   });
   it("jamilar yo'q → nollar (yiqilmaydi)", () => {
-    expect(totalsView(null)).toEqual({ count: 0, quantity: 0, revenue: 0, discount: 0, cash: 0, card: 0, debt: 0, delivery: 0, received: 0 });
+    expect(totalsView(null)).toEqual({ count: 0, quantity: 0, revenue: 0, discount: 0, cash: 0, card: 0, terminal: 0, debt: 0, delivery: 0, received: 0 });
   });
 });
 
@@ -163,5 +163,32 @@ describe("fmtLocalTime — server yozgan vaqt AYNAN, brauzer mintaqasi TA'SIR QI
     // tekshiramiz: satr komponentlari Date obyektiga UMUMAN bog'liq emas.
     const p = readIsoParts("2026-08-03T22:10:39.551452+05:00")!;
     expect([p.y, p.mo, p.d, p.h, p.mi]).toEqual([2026, 8, 3, 22, 10]);
+  });
+});
+
+/* ===== TERMINAL — backend 28.08.2026 ===== */
+
+describe("terminal to'lov turi", () => {
+  it("filtrlar ro'yxatida terminal bor va tartib to'g'ri", () => {
+    expect(PAYMENT_FILTERS.map((f) => f.value)).toEqual(["", "cash", "card", "terminal", "debt", "mixed", "unknown"]);
+    expect(PAYMENT_FILTERS.find((f) => f.value === "terminal")?.label).toBe("Terminal");
+  });
+  it("so'rovga ?payment_type=terminal bo'lib ketadi", () => {
+    expect(buildSalesQuery({ payment: "terminal" }).payment_type).toBe("terminal");
+  });
+  it("terminal_total jamilarga o'qiladi (server bergani AYNAN)", () => {
+    // jonli javob (28.08.2026): totals ichida terminal_total bor
+    const v = totalsView({
+      sales_count: 3, quantity: 3, revenue: 750000, discount_total: 0,
+      cash_total: 250000, card_total: 250000, terminal_total: "250000.00", debt_total: 0,
+      received_total: 750000,
+    });
+    expect(v.terminal).toBe(250000);
+    // ⚠️ terminal KARTAGA QO'SHILMAYDI — alohida ustun
+    expect(v.card).toBe(250000);
+    expect(v.cash + v.card + v.terminal).toBe(v.received);
+  });
+  it("eski javobda terminal_total yo'q → 0 (yiqilmaydi)", () => {
+    expect(totalsView({ sales_count: 1, quantity: 1, revenue: 1, discount_total: 0, cash_total: 1, card_total: 0, debt_total: 0 }).terminal).toBe(0);
   });
 });

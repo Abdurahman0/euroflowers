@@ -132,6 +132,16 @@ describe("accountingRowView — one row-view for by_branch AND summary", () => {
     const v = accountingRowView(fig({ branch_name: "Parkent filiali", is_main: false, sales_count: 2, total_quantity: 2, flower_stems: 10, total_sales: "720000.00", cash_total: "320000.00", card_total: "400000.00", net_profit: "540000.00", share_percent: "8.55" }));
     expect(v).toMatchObject({ name: "Parkent filiali", salesCount: 2, buket: 2, stems: 10, sales: 720000, cash: 320000, card: 400000, net: 540000, share: 8.55 });
   });
+  // ⚠️ TERMINAL — backend 28.08.2026: kartaga qo'shilmaydi, alohida ustun
+  it("terminal_total alohida o'qiladi va kartaga QO'SHILMAYDI", () => {
+    const v = accountingRowView(fig({ total_sales: "750000.00", cash_total: "250000.00", card_total: "250000.00", terminal_total: "250000.00", received_total: "750000.00" }));
+    expect(v.terminal).toBe(250000);
+    expect(v.card).toBe(250000);
+    expect(v.cash + v.card + v.terminal).toBe(v.received);
+  });
+  it("eski javobda terminal_total yo'q → 0", () => {
+    expect(accountingRowView(fig({ total_sales: "100" })).terminal).toBe(0);
+  });
   it("summary (no branch_name, no share) → 'Jami' at 100%", () => {
     const v = accountingRowView(fig({ total_sales: "8420000.00" }));
     expect(v.name).toBe("Jami");

@@ -23,7 +23,7 @@ export const SALES_PAGE_SIZE = 25;
 export type SalesFilters = {
   dateFrom?: string;
   dateTo?: string;
-  /** "" = hammasi; cash | card | debt | unknown */
+  /** "" = hammasi; cash | card | terminal | debt | unknown */
   payment?: string;
   search?: string;
   page?: number;
@@ -79,11 +79,18 @@ export function discountView(r: CatalogSaleRow): { listed: number | null; sold: 
   };
 }
 
-/** To'lov turi filtri — spec'dagi to'rt qiymat + «hammasi». */
+/**
+ * To'lov turi filtri.
+ * ⚠️ JONLI TASDIQ (28.08.2026): server `cash · card · terminal · debt · unknown`
+ * ni QO'LLAYDI (terminal→0, filtr ishlaydi), `mixed` esa hamon E'TIBORSIZ
+ * qoladi — filtrsiz javob bilan bir xil count qaytaradi. Shuning uchun
+ * «aralash» tanlanganda pastda ochiq ogohlantirish chiqadi.
+ */
 export const PAYMENT_FILTERS: { value: string; label: string }[] = [
   { value: "", label: "To'lov: hammasi" },
   { value: "cash", label: "Naqd" },
   { value: "card", label: "Karta" },
+  { value: "terminal", label: "Terminal" },
   { value: "debt", label: "Qarz" },
   // ⚠️ Server bu qiymatni hozircha TANIMAYDI (filtrsiz qaytaradi) — UI ogohlantiradi.
   { value: "mixed", label: "Aralash" },
@@ -99,6 +106,7 @@ export function totalsView(t: CatalogSalesTotals | null | undefined) {
     discount: saleNum(t?.discount_total),
     cash: saleNum(t?.cash_total),
     card: saleNum(t?.card_total),
+    terminal: saleNum(t?.terminal_total),
     debt: saleNum(t?.debt_total),
     delivery: saleNum(t?.delivery_total),
     received: saleNum(t?.received_total),

@@ -133,7 +133,7 @@ export function accountingRowView(f: AccountingFigures) {
     mixedCount: f.mixed_count ?? 0,
     mixedQuantity: f.mixed_quantity ?? 0,
     // ⚠️ DASTAFKA — TOVAR savdosidan tashqarida; naqd/karta ustunlari ICHIDA.
-    // INVARIANT: cash + card + debt + unknown = received (total_sales EMAS).
+    // INVARIANT: cash + card + terminal + debt + unknown = received (total_sales EMAS).
     // ⚠️ RASXOD — `net` (sotuv foydasi) ga TEGMAYDI; `netAfter` alohida ko'rsatiladi.
     expense: num(f.expense_total),
     expenseCount: f.expense_count ?? 0,
@@ -146,6 +146,8 @@ export function accountingRowView(f: AccountingFigures) {
     sales: num(f.total_sales),
     cash: num(f.cash_total),
     card: num(f.card_total),
+    // ⚠️ TERMINAL — kartaga QO'SHILMAYDI, alohida ustun (backend 28.08.2026)
+    terminal: num(f.terminal_total),
     discount: num(f.discount_total),
     cost: num(f.cost_total),
     flowerCost: num(f.flower_cost_total),

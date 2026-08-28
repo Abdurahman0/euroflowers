@@ -821,6 +821,8 @@ export type CatalogSalesTotals = {
   discount_total: string | number;
   cash_total: string | number;
   card_total: string | number;
+  /** POS terminal tushumi — karta ustunidan ALOHIDA (backend 28.08.2026). */
+  terminal_total?: string | number;
   debt_total: string | number;
   /** ⚠️ cash/card bilan KESISHADI (yuqoridagi izohga qarang). `mixed_quantity` bu yerda YO'Q. */
   mixed_count?: number;
@@ -875,7 +877,9 @@ export type VariantChangeResult = {
     ⚠️ `debt` UCHINCHI qiymat: sotuv o'sha kuni savdoga KIRMAYDI, qarz to'langan kuni
     to'langan usul (cash|card) bilan tushadi. Qarz TO'LOVIning o'zida faqat cash|card
     bo'ladi — shuning uchun `DebtPayMethod` alohida tur. */
-export type PaymentType = "cash" | "card" | "debt" | "mixed";
+/** ⚠️ `terminal` — POS terminal orqali to'lov (backend 28.08.2026). Karta bilan
+    QO'SHILMAYDI: tushum alohida ustunda hisoblanadi va «boshqa» ichiga kirmaydi. */
+export type PaymentType = "cash" | "card" | "terminal" | "debt" | "mixed";
 /** Qarz to'lovi usuli — `debt` bo'lishi MUMKIN EMAS (OpenAPI: Method212Enum). */
 export type DebtPayMethod = "cash" | "card";
 
@@ -965,6 +969,8 @@ export type AccountingFigures = {
   total_sales: string;
   cash_total: string; cash_count?: number; cash_quantity?: number;
   card_total: string; card_count?: number; card_quantity?: number;
+  /** POS terminal (backend 28.08.2026) — ilgari `unknown_total` ichiga tushib ketardi. */
+  terminal_total?: string | number; terminal_count?: number; terminal_quantity?: number;
   unknown_total: string; unknown_count?: number; unknown_quantity?: number;
   /** ⚠️ ARALASH TO'LOV — cash/card BUCKETLARI BILAN KESISHADI, beshinchi kategoriya EMAS.
       Bitta aralash sotuv KATTA ulush qaysi usulda bo'lsa o'sha `*_count` ga BIR MARTA
@@ -978,7 +984,7 @@ export type AccountingFigures = {
   net_profit_after_expenses?: string | number;
   /** ⚠️ DASTAFKA — TOVAR SAVDOSIGA KIRMAYDI va SOF FOYDAGA TA'SIR QILMAYDI
       (kuryerga berilgani uchun kirib-chiqib ketadi).
-      ⚠️ INVARIANT: cash_total + card_total + debt_total + unknown_total = received_total
+      ⚠️ INVARIANT: cash_total + card_total + terminal_total + debt_total + unknown_total = received_total
       (`total_sales` EMAS — naqd/karta ustunlari dastafkani ham o'z ichiga oladi). */
   delivery_total?: string | number; delivery_count?: number;
   /** = total_sales + delivery_total (kassaga tushgan jami) */
@@ -998,6 +1004,8 @@ export type AccountingFigures = {
         Jonli farq: sales_cash 245 726 777 va cash_total 246 703 999 — ARALASHTIRMANG. */
   sales_cash_total?: string | number;
   sales_card_total?: string | number;
+  /** POS terminal — TOVAR SAVDOSI ajratmasida ham alohida (28.08.2026). */
+  sales_terminal_total?: string | number;
   sales_other_total?: string | number;
   /** postavshiklar: xarid / to'langan / qarz / ortiqcha to'lov */
   supplier_purchase_total?: string | number;

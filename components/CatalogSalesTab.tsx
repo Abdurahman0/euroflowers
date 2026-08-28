@@ -113,6 +113,8 @@ export default function CatalogSalesTab({ branchUser, onOpenItem, onRestored }: 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
           <span>naqd <b className="tabular-nums">{fmt(t.cash)}</b></span>
           <span>karta <b className="tabular-nums">{fmt(t.card)}</b></span>
+          {/* ⚠️ TERMINAL — kartadan alohida ustun (backend 28.08.2026) */}
+          <span>terminal <b className="tabular-nums">{fmt(t.terminal)}</b></span>
           <span>qarz <b className="tabular-nums">{fmt(t.debt)}</b></span>
           {t.delivery > 0 && (
             <>

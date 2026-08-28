@@ -65,6 +65,7 @@ export default function AccountingOwnerBlocks({ s }: { s: AccountingSummary }) {
         <Row label="Umumiy sotuv" value={n(s.total_sales)} />
         {has(s.sales_cash_total) && <Row label="Sotuvdan naqd" value={n(s.sales_cash_total)} sub="dastafkasiz" />}
         {has(s.sales_card_total) && <Row label="Sotuvdan karta" value={n(s.sales_card_total)} sub="dastafkasiz" />}
+        {has(s.sales_terminal_total) && <Row label="Sotuvdan terminal" value={n(s.sales_terminal_total)} sub="dastafkasiz" />}
         {n(s.sales_other_total) > 0 && <Row label="Sotuvdan boshqa" value={n(s.sales_other_total)} />}
         <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
         <Row label="Sof foyda" value={n(s.net_profit)} tone={profitTone} strong />

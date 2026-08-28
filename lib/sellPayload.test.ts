@@ -76,3 +76,19 @@ describe("buildSellPayload — BO'SH qiymat yuborilmaydi", () => {
     expect(buildSellPayload({ materials: [] })).toEqual({});
   });
 });
+
+/* ===== TERMINAL — backend 28.08.2026 ===== */
+
+describe("terminal to'lov", () => {
+  it("faqat payment_type ketadi — cash_amount/card_amount YUBORILMAYDI", () => {
+    const body = buildSellPayload({ quantity: 1, sale_price: "250000", payment_type: "terminal" });
+    expect(body).toEqual({ sale_price: "250000", payment_type: "terminal" });
+    expect(body).not.toHaveProperty("cash_amount");
+    expect(body).not.toHaveProperty("card_amount");
+  });
+  it("aralash avvalgidek ikkala summani olib ketadi", () => {
+    expect(buildSellPayload({ sale_price: "250000", payment_type: "mixed", cash_amount: "100000", card_amount: "150000" })).toEqual({
+      sale_price: "250000", payment_type: "mixed", cash_amount: "100000", card_amount: "150000",
+    });
+  });
+});

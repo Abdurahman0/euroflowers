@@ -124,6 +124,8 @@ function BranchRow({ fig, footer }: { fig: AccountingFigures; footer?: boolean }
       <td className="px-2 py-2.5 text-right tabular-nums font-semibold">{fmt(v.received)}</td>
       <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(v.cash)}</td>
       <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(v.card)}</td>
+      {/* ⚠️ TERMINAL — kartadan alohida (28.08.2026); nol bo'lsa chiziqcha, shovqin qilmaydi */}
+      <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: v.terminal > 0 ? "var(--text-2)" : "var(--muted)" }}>{v.terminal > 0 ? fmt(v.terminal) : "—"}</td>
       <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: v.discount > 0 ? "var(--warning-ink)" : "var(--muted)" }}>{v.discount > 0 ? fmt(v.discount) : "—"}</td>
       <td className="px-2 py-2.5 text-right tabular-nums" style={{ color: "var(--text-2)" }} title={tannarxTip}><span className="cursor-help underline decoration-dotted underline-offset-2">{fmt(v.cost)}</span></td>
       <td className="px-2 py-2.5 text-right"><Money v={v.net} tone={profitTone(v.net, v.sales ? (v.net / v.sales) * 100 : 0)} bold /></td>
@@ -539,6 +541,9 @@ export default function HisobKitobPage() {
           // «Tovar savdosi» bilan ko'z bilan solishtirilmaydi; izohda aytamiz.
           { label: "Naqd", v: fmt(s.cash_total), sub: hasDelivery ? `${s.cash_count ?? 0} sotuv · dastafka ham ichida` : `${s.cash_count ?? 0} sotuv`, splitField: "cash_total" },
           { label: "Karta", v: fmt(s.card_total), sub: hasDelivery ? `${s.card_count ?? 0} sotuv · dastafka ham ichida` : `${s.card_count ?? 0} sotuv`, splitField: "card_total" },
+          // ⚠️ TERMINAL — kartaga QO'SHILMAYDI (backend 28.08.2026). Nol bo'lsa ham
+          // ko'rsatiladi: «terminal tushumi yo'q» ham ma'lumot, jimgina yashirilmaydi.
+          { label: "Terminal", v: fmt(s.terminal_total ?? 0), sub: hasDelivery ? `${s.terminal_count ?? 0} sotuv · dastafka ham ichida` : `${s.terminal_count ?? 0} sotuv`, splitField: "terminal_total" },
           { label: "Skidka", v: fmt(s.discount_total), sub: `${s.discounted_sales_count} sotuvda`, splitField: "discount_total" },
           { label: "Sof foyda", v: fmt(s.net_profit), sub: `tannarx ${fmt(s.cost_total)}`, hue: profitTone(num(s.net_profit), num(s.total_sales) ? (num(s.net_profit) / num(s.total_sales)) * 100 : 0), splitField: "net_profit" },
         ];
@@ -614,7 +619,7 @@ export default function HisobKitobPage() {
             <Link href="/filial-hisoboti" className="text-[12px] font-bold" style={{ color: "var(--primary)" }}>Filial hisoboti (yuborilgan · ustama) →</Link>
           </div>
           <div className="overflow-x-auto thin-scroll">
-            <table className="w-full min-w-[900px] border-collapse text-[13px]">
+            <table className="w-full min-w-[980px] border-collapse text-[13px]">
               <thead><tr className="text-left" style={{ color: "var(--muted)" }}>
                 <th className="px-2 py-2 font-semibold">Filial</th>
                 <th className="px-2 py-2 text-right font-semibold">Sotuv</th>
@@ -622,9 +627,10 @@ export default function HisobKitobPage() {
                 <th className="px-2 py-2 text-right font-semibold">Gul donasi</th>
                 <th className="px-2 py-2 text-right font-semibold">Tovar savdosi<Tip text="FAQAT buket/savatdan tushgan pul — dastafka kirmaydi." /></th>
                 <th className="px-2 py-2 text-right font-semibold">Dastafka</th>
-                <th className="px-2 py-2 text-right font-semibold">Kassaga tushgan<Tip text="Tovar savdosi + dastafka. ⚠️ Naqd va Karta ustunlari AYNAN shu summani bo'ladi — «Tovar savdosi»ni emas." /></th>
+                <th className="px-2 py-2 text-right font-semibold">Kassaga tushgan<Tip text="Tovar savdosi + dastafka. ⚠️ Naqd, Karta va Terminal ustunlari AYNAN shu summani bo'ladi — «Tovar savdosi»ni emas." /></th>
                 <th className="px-2 py-2 text-right font-semibold">Naqd</th>
                 <th className="px-2 py-2 text-right font-semibold">Karta</th>
+                <th className="px-2 py-2 text-right font-semibold">Terminal</th>
                 <th className="px-2 py-2 text-right font-semibold">Skidka</th>
                 <th className="px-2 py-2 text-right font-semibold">Tannarx</th>
                 <th className="px-2 py-2 text-right font-semibold">Sof foyda</th>

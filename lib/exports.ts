@@ -96,15 +96,17 @@ export async function exportAllFlorists(entries: FloristSalaryEntry[], florists:
 /* ===== 3c — ADMIN: FOYDA / TO'LOV TURI / KUNLAR BO'YICHA ===== */
 export async function exportAccountingByDay(acc: Accounting, from: string, to: string) {
   // history'ni kunlar bo'yicha yig'amiz (backend kunlik breakdown bermaydi)
-  type Day = { date: string; revenue: number; cash: number; card: number; cost: number; discount: number; profit: number };
+  type Day = { date: string; revenue: number; cash: number; card: number; terminal: number; cost: number; discount: number; profit: number };
   const days = new Map<string, Day>();
   acc.history.forEach((h) => {
     const d = (h.sold_at || "").slice(0, 10);
-    const cur = days.get(d) ?? { date: d, revenue: 0, cash: 0, card: 0, cost: 0, discount: 0, profit: 0 };
+    const cur = days.get(d) ?? { date: d, revenue: 0, cash: 0, card: 0, terminal: 0, cost: 0, discount: 0, profit: 0 };
     const rev = num(h.sale_total);
     cur.revenue += rev;
     if (h.payment_type === "cash") cur.cash += rev;
     else if (h.payment_type === "card") cur.card += rev;
+    // ⚠️ TERMINAL — kartaga QO'SHILMAYDI (backend 28.08.2026), alohida ustun
+    else if (h.payment_type === "terminal") cur.terminal += rev;
     cur.cost += num(h.cost_total);
     cur.discount += num(h.discount_amount);
     cur.profit += num(h.net_profit);
@@ -114,6 +116,7 @@ export async function exportAccountingByDay(acc: Accounting, from: string, to: s
   const s = acc.summary;
   const totals = {
     date: "JAMI", revenue: num(s.total_sales), cash: num(s.cash_total), card: num(s.card_total),
+    terminal: num(s.terminal_total ?? 0),
     cost: num(s.cost_total), discount: num(s.discount_total), profit: num(s.net_profit),
   };
   const cols: SheetCol[] = [
@@ -121,6 +124,7 @@ export async function exportAccountingByDay(acc: Accounting, from: string, to: s
     { header: "Savdo (so'm)", key: "revenue", type: "money" },
     { header: "Naqd (so'm)", key: "cash", type: "money" },
     { header: "Karta (so'm)", key: "card", type: "money" },
+    { header: "Terminal (so'm)", key: "terminal", type: "money" },
     { header: "Tannarx (so'm)", key: "cost", type: "money" },
     { header: "Chegirma (so'm)", key: "discount", type: "money" },
     { header: "Sof foyda (so'm)", key: "profit", type: "money" },
