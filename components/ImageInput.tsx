@@ -2,6 +2,7 @@
 import { ImagePlus, Link2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { ImagePrepError, humanMB, isImageFile, prepareImage } from "@/lib/imageFile";
 import { useStore } from "@/lib/store";
 
 /**
@@ -9,14 +10,18 @@ import { useStore } from "@/lib/store";
  * komponentdan foydalanadi (gul turlari, navlar, katalog, kirim, postlar):
  *   • bosish → tizim fayl tanlagichi; ustiga tortib tashlash ham ishlaydi
  *   • dragover'da aksent chegara + tint
- *   • tur (PNG/JPEG/WebP) va hajm (≤5MB) tekshiruvi, yumshoq atirgul xato
+ *   • HAR QANDAY rasm qabul qilinadi — telefon surati ham (HEIC/HEIF, MIME'siz):
+ *     yuklashdan oldin brauzerda kichraytirilib JPEG'ga o'giriladi
+ *   • yumshoq atirgul xato matni
  *   • tanlangandan keyin: preview + fayl nomi/hajmi + olib tashlash (X)
  *   • saqlash quvuri O'ZGARMAGAN: api.upload(file) → {url} → onChange(url)
  *   • URL kiritish faqat ikkilamchi "URL orqali" tugmasi ortida
  */
 
-const MAX_MB = 5;
-const TYPES = ["image/png", "image/jpeg", "image/webp"];
+/** Tanlash chegarasi — kichraytirishdan OLDIN (zamonaviy kamera surati 10-20MB bo'ladi). */
+const MAX_MB = 25;
+/** Serverga ketadigan yakuniy hajm — kichraytirishdan KEYIN. */
+const UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
 
 export default function ImageInput({ value, onChange, capture }: {
   value: string;
@@ -36,22 +41,28 @@ export default function ImageInput({ value, onChange, capture }: {
   const handleFile = async (file: File | null | undefined) => {
     if (!file || busy) return;
     setErr("");
-    if (!TYPES.includes(file.type)) {
-      setErr("Faqat PNG, JPEG yoki WebP rasm yuklash mumkin.");
+    if (!isImageFile(file.name, file.type)) {
+      setErr("Bu rasm fayli emas — surat yoki PNG/JPEG tanlang.");
       return;
     }
     if (file.size > MAX_MB * 1024 * 1024) {
-      setErr(`Rasm ${MAX_MB}MB dan oshmasin — tanlangani ${(file.size / 1048576).toFixed(1)}MB.`);
+      setErr(`Rasm ${MAX_MB}MB dan oshmasin — tanlangani ${humanMB(file.size)}MB.`);
       return;
     }
     setBusy(true);
     try {
-      const { url } = await api.upload(file);
+      // telefon surati (HEIC/katta JPEG) shu yerda kichik JPEG'ga aylanadi
+      const ready = await prepareImage(file, { maxBytes: UPLOAD_MAX_BYTES });
+      const { url } = await api.upload(ready);
       onChange(url);
-      setMeta({ name: file.name, size: file.size });
+      setMeta({ name: ready.name, size: ready.size });
       showToast("✓ Rasm yuklandi");
-    } catch {
-      setErr("Rasm yuklab bo'lmadi — qayta urinib ko'ring.");
+    } catch (e) {
+      setErr(
+        e instanceof ImagePrepError
+          ? e.message
+          : "Rasm yuklab bo'lmadi — qayta urinib ko'ring.",
+      );
     } finally {
       setBusy(false);
     }
@@ -63,7 +74,7 @@ export default function ImageInput({ value, onChange, capture }: {
         ref={fileRef}
         type="file"
         {...(capture ? { capture } : {})}
-        accept="image/png, image/jpeg, image/webp"
+        accept="image/*"
         className="hidden"
         onChange={(e) => {
           handleFile(e.target.files?.[0]);
@@ -115,7 +126,7 @@ export default function ImageInput({ value, onChange, capture }: {
         >
           <ImagePlus size={22} strokeWidth={1.75} style={{ color: over ? "var(--primary)" : "var(--muted)" }} />
           {busy ? "Yuklanmoqda…" : "Rasm tanlang yoki shu yerga tashlang"}
-          <span className="text-[11px] font-normal" style={{ color: "var(--muted)" }}>PNG · JPEG · WebP, maks {MAX_MB}MB</span>
+          <span className="text-[11px] font-normal" style={{ color: "var(--muted)" }}>Telefon surati ham bo'ladi · maks {MAX_MB}MB</span>
         </button>
       )}
 
