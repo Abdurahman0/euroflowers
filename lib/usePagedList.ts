@@ -55,7 +55,8 @@ export function usePagedList<T>({
   filters: Record<string, unknown>;
   /** `page`/`page_size` ni URL'da saqlash */
   urlKey?: boolean;
-  defaultPageSize?: number;
+  /** ⚠️ `ALL_PAGE_SIZE` ("all") — sahifalashsiz, hamma yozuv bitta so'rovda. */
+  defaultPageSize?: number | typeof ALL_PAGE_SIZE;
   enabled?: boolean;
 }): PagedListResult<T> {
   const initial = (): PageState => {

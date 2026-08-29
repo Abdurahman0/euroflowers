@@ -28,11 +28,11 @@ import { isBranchUser } from "@/lib/branch";
 import CatalogSalesTab from "@/components/CatalogSalesTab";
 import RestavratsiyaTab from "@/components/RestavratsiyaTab";
 import RestavratsiyaModal from "@/components/RestavratsiyaModal";
-import Pagination from "@/components/Pagination";
 import CatalogGroupCard from "@/components/CatalogGroupCard";
 import CatalogItemCard from "@/components/CatalogItemCard";
 import { splitCatalogView } from "@/lib/catalogGroups";
 import { usePagedList } from "@/lib/usePagedList";
+import { ALL_PAGE_SIZE } from "@/lib/pagination";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 import { deductionState } from "@/lib/catalogStock";
 import { floristLabel, type FloristLike } from "@/lib/floristLabel";
@@ -153,7 +153,14 @@ export default function KatalogPage() {
   const paged = usePagedList<CatalogItem>({
     fetcher: (query, signal) => api.catalogPage(query, signal),
     filters: catalogFilters,
-    defaultPageSize: 50,
+    // ⚠️ SAHIFALASH YO'Q — katalog TO'LIQ ko'rinadi (server `page_size=all` ni
+    //    qo'llab-quvvatlaydi: 363 yozuv, total_pages=1). Operator kartani
+    //    izlab sahifalarni varaqlamaydi.
+    defaultPageSize: ALL_PAGE_SIZE,
+    // ⚠️ URL'dagi `page`/`page_size` E'TIBORGA OLINMAYDI: sahifalash tugmalari
+    //    yo'q, eski havola (?page=3&page_size=50) bilan kirilsa foydalanuvchi
+    //    o'sha sahifada qamalib qolardi va ro'yxat to'liq ko'rinmasdi.
+    urlKey: false,
   });
   const loading = paged.loading;
   const load = paged.refresh;
@@ -427,15 +434,6 @@ export default function KatalogPage() {
         </div>
       )}
 
-      <div className="mb-4 rounded-[18px] border px-4 py-2.5 shadow-[0_8px_30px_rgba(58,35,25,.04)]" style={{ borderColor: "var(--line)", background: "color-mix(in srgb, var(--surface-solid) 72%, transparent)" }}>
-        <Pagination
-          info={paged.info}
-          onPage={paged.setPage}
-          alwaysShow
-          label="katalog"
-          busy={paged.loading}
-        />
-      </div>
 
       {/* ⚠️ KATALOG «UMUMIY» KO'RINISHDA — bitta karta = bitta HAJM (Kichik/O'rta/Katta).
           Do'konda bir xil tovar bir necha marta kiritilgan («kotta», «KOTTA 100 TALI ATIR» —
