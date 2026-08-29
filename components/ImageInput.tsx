@@ -2,7 +2,7 @@
 import { ImagePlus, Link2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { humanMB, isImageFile, prepareImage, uploadErrorText } from "@/lib/imageFile";
+import { humanMB, isImageFile, isUploadForbidden, normalizeImageUrl, prepareImage, uploadErrorText } from "@/lib/imageFile";
 import { useStore } from "@/lib/store";
 
 /**
@@ -41,6 +41,10 @@ export default function ImageInput({ value, onChange, onFile }: {
   const [err, setErr] = useState("");
   const [meta, setMeta] = useState<{ name: string; size: number } | null>(null);
   const [urlMode, setUrlMode] = useState(false);
+  /** ⚠️ QORALAMA ALOHIDA: ilgari har harf `onChange` ga ketardi va birinchi
+      belgidayoq `value` to'lib, maydon UNMOUNT bo'lardi — havolani yozib
+      bo'lmasdi (ko'rinishda `<img src="h">` qolardi). Endi faqat tasdiqlanganda. */
+  const [urlDraft, setUrlDraft] = useState("");
   /** zaxira yo'l: mahalliy ko'rinish (object URL) — server havolasi yo'q */
   const [localUrl, setLocalUrl] = useState("");
   const [deferred, setDeferred] = useState(false);
@@ -82,10 +86,27 @@ export default function ImageInput({ value, onChange, onFile }: {
         onFile(ready);
       } else {
         setErr(uploadErrorText(e));
+        // ⚠️ RUXSAT YO'Q (operator roli): katalog/AI-katalog kontrakti faqat
+        //    `image_url` HAVOLASINI qabul qiladi — faylni emas. Shu bois yagona
+        //    ishlaydigan yo'lni O'ZIMIZ ochamiz, operator uni izlab yurmasin.
+        if (isUploadForbidden(e)) setUrlMode(true);
       }
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Qo'lda kiritilgan havolani TASDIQLASH — tekshiruvdan o'tsa qiymatga aylanadi. */
+  const applyUrl = () => {
+    const { url, error } = normalizeImageUrl(urlDraft);
+    if (error) { setErr(error); return; }
+    setErr("");
+    setMeta(null);
+    dropLocal();
+    onFile?.(null);
+    onChange(url);
+    setUrlDraft("");
+    setUrlMode(false);
   };
 
   // server havolasi bo'lmasa mahalliy (object URL) ko'rinish ishlatiladi
@@ -126,7 +147,7 @@ export default function ImageInput({ value, onChange, onFile }: {
           </div>
           <button
             type="button"
-            onClick={() => { onChange(""); setMeta(null); setErr(""); dropLocal(); onFile?.(null); }}
+            onClick={() => { onChange(""); setMeta(null); setErr(""); dropLocal(); onFile?.(null); setUrlDraft(""); setUrlMode(false); }}
             className="icon-btn icon-btn-danger"
             title="Olib tashlash"
             aria-label="Rasmni olib tashlash"
@@ -168,17 +189,34 @@ export default function ImageInput({ value, onChange, onFile }: {
         </p>
       )}
 
-      {/* URL orqali — ikkilamchi yo'l (masalan, tashqi CDN havolasi) */}
+      {/* URL orqali — ikkilamchi yo'l; ruxsat yo'q rollarda YAGONA yo'l */}
+      {!shown && urlMode && err && (
+        <p className="text-[11.5px]" style={{ color: "var(--muted)" }}>
+          Rasm havolasini qo&apos;ying — masalan Telegram yoki Instagramdagi suratning manzili.
+        </p>
+      )}
       {!shown && (
         urlMode ? (
-          <input
-            className="inp"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Masalan: https://rasm.uz/gul.jpg"
-            autoFocus
-            aria-label="Rasm URL manzili"
-          />
+          <div className="flex gap-2">
+            <input
+              className="inp"
+              value={urlDraft}
+              onChange={(e) => { setUrlDraft(e.target.value); setErr(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyUrl(); } }}
+              placeholder="Masalan: https://rasm.uz/gul.jpg"
+              autoFocus
+              aria-label="Rasm URL manzili"
+            />
+            <button
+              type="button"
+              onClick={applyUrl}
+              disabled={!urlDraft.trim()}
+              className="shrink-0 rounded-[12px] px-3.5 text-[13px] font-bold text-white disabled:opacity-50"
+              style={{ background: "var(--primary)" }}
+            >
+              Qo&apos;yish
+            </button>
+          </div>
         ) : (
           <button type="button" onClick={() => setUrlMode(true)} className="inline-flex items-center gap-1 self-start text-[12px] font-semibold transition-colors duration-200 hover:text-[color:var(--text-2)]" style={{ color: "var(--muted)" }}>
             <Link2 size={13} strokeWidth={1.75} /> URL orqali kiritish

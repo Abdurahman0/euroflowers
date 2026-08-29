@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitDimensions, humanMB, ImagePrepError, isImageFile, outputName, passesAsIs, SAFE_TYPES, uploadErrorText } from "./imageFile";
+import { fitDimensions, humanMB, ImagePrepError, isImageFile, isUploadForbidden, normalizeImageUrl, outputName, passesAsIs, SAFE_TYPES, uploadErrorText } from "./imageFile";
 
 describe("isImageFile", () => {
   it("telefon suratlarini qabul qiladi (HEIC/HEIF)", () => {
@@ -61,8 +61,10 @@ describe("humanMB", () => {
 });
 
 describe("uploadErrorText", () => {
-  it("403 — operatorga aniq sabab aytiladi", () => {
-    expect(uploadErrorText({ status: 403, message: "Ruxsat yo'q" })).toContain("ruxsat yo'q");
+  it("403 — operatorga aniq sabab va CHIQISH YO'LI aytiladi", () => {
+    const t = uploadErrorText({ status: 403, message: "Ruxsat yo'q" });
+    expect(t).toContain("ruxsat yo'q");
+    expect(t).toContain("havolasini");   // «URL orqali» yo'li ko'rsatiladi
   });
   it("401 va 413 uchun alohida matn", () => {
     expect(uploadErrorText({ status: 401, message: "x" })).toContain("Sessiya tugadi");
@@ -83,5 +85,35 @@ describe("uploadErrorText", () => {
   it("matnsiz xatoda umumiy matn qoladi", () => {
     expect(uploadErrorText({})).toContain("qayta urinib");
     expect(uploadErrorText(null)).toContain("qayta urinib");
+  });
+});
+
+describe("isUploadForbidden", () => {
+  it("403 — ha (operator roli)", () => expect(isUploadForbidden({ status: 403 })).toBe(true));
+  it("boshqa xatolar — yo'q", () => {
+    expect(isUploadForbidden({ status: 401 })).toBe(false);
+    expect(isUploadForbidden({ status: 0 })).toBe(false);
+    expect(isUploadForbidden(new Error("x"))).toBe(false);
+    expect(isUploadForbidden(null)).toBe(false);
+  });
+});
+
+describe("normalizeImageUrl", () => {
+  it("to'g'ri havola o'tadi", () => {
+    const u = "https://euroflowers.api.cognilabs.org/media/uploads/gul.jpg";
+    expect(normalizeImageUrl(`  ${u}  `)).toEqual({ url: u, error: "" });
+    expect(normalizeImageUrl("http://rasm.uz/a.png").error).toBe("");
+  });
+  it("sxemasiz yoki bo'sh — xato", () => {
+    expect(normalizeImageUrl("rasm.uz/a.png").error).toContain("http://");
+    expect(normalizeImageUrl("/media/sales/a.jpg").error).toContain("http://");
+    expect(normalizeImageUrl("h").error).toContain("http://");
+    expect(normalizeImageUrl("").error).toContain("bo'sh");
+    expect(normalizeImageUrl("   ").error).toContain("bo'sh");
+  });
+  it("kontrakt chegarasi — 200 belgi", () => {
+    const long = "https://a.uz/" + "x".repeat(200);
+    expect(normalizeImageUrl(long).error).toContain("200 belgidan");
+    expect(normalizeImageUrl("https://a.uz/" + "x".repeat(180)).error).toBe("");
   });
 });

@@ -58,12 +58,21 @@ export class ImagePrepError extends Error {}
  * `ApiError` importsiz — status/message bo'yicha o'rdakcha tekshiruv, shunda
  * bu funksiya sof qoladi va lib/api ni tortmaydi.
  */
+/**
+ * Yuklash RUXSAT sababli rad etildimi (403).
+ * ⚠️ Operator rolida `/api/uploads/` shunday qaytaradi — bunda maydon
+ * «URL orqali» rejimiga O'ZI o'tadi, chunki katalog/AI-katalog kontrakti
+ * faqat `image_url` (havola) qabul qiladi, faylni EMAS.
+ */
+export const isUploadForbidden = (e: unknown): boolean =>
+  typeof e === "object" && e !== null && (e as { status?: unknown }).status === 403;
+
 export function uploadErrorText(e: unknown): string {
   if (e instanceof ImagePrepError) return e.message;
   const o = typeof e === "object" && e !== null ? (e as { status?: unknown; message?: unknown }) : {};
   const status = typeof o.status === "number" ? o.status : 0;
   const msg = typeof o.message === "string" ? o.message.trim() : "";
-  if (status === 403) return "Rasm yuklashga ruxsat yo'q — administratordan huquq so'rang.";
+  if (status === 403) return "Rasm yuklashga ruxsat yo'q — administratordan huquq so'rang yoki rasm havolasini qo'ying.";
   if (status === 401) return "Sessiya tugadi — tizimga qayta kiring.";
   if (status === 413) return "Rasm server uchun juda katta — kichikroq surat tanlang.";
   // tarmoq/timeout (status 0) da ham serverning O'Z matni foydali:
@@ -130,4 +139,22 @@ export async function prepareImage(
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
   if (!blob) throw new ImagePrepError("Rasmni tayyorlab bo'lmadi — qayta urinib ko'ring.");
   return new File([blob], outputName(file.name), { type: "image/jpeg", lastModified: Date.now() });
+}
+
+/**
+ * QO'LDA KIRITILGAN RASM HAVOLASI — tekshirish va tozalash.
+ *
+ * ⚠️ NEGA KERAK: `/api/uploads/` ruxsati yo'q rollar (operator) uchun havola
+ * YAGONA yo'l, chunki katalog / AI-katalog kontrakti `image_url` ni URI
+ * sifatida oladi (maxLength 200) — faylni EMAS. Noto'g'ri havola jimgina
+ * saqlanib, keyin siniq rasm bo'lib qolmasin.
+ */
+export function normalizeImageUrl(raw: string): { url: string; error: string } {
+  const v = (raw ?? "").trim();
+  if (!v) return { url: "", error: "Havola bo'sh." };
+  if (!/^https?:\/\/\S+$/i.test(v)) {
+    return { url: "", error: "Havola http:// yoki https:// bilan boshlanishi kerak." };
+  }
+  if (v.length > 200) return { url: "", error: "Havola juda uzun — 200 belgidan oshmasin." };
+  return { url: v, error: "" };
 }
