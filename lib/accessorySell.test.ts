@@ -3,7 +3,7 @@ import { mixedSellPayload, validateMixed, emptyMixed, type MixedState } from "./
 
 // Aksessuar sotuvi — ARALASH to'lov (backend 21.08.2026: PackagingSellRequest ichida
 // `cash_amount` va `card_amount`). Yig'indi sotuv summasiga TENG bo'lishi shart.
-const st = (cash: string, card: string): MixedState => ({ cash, card, cashTouched: true, cardTouched: true });
+const st = (cash: string, card: string): MixedState => ({ ...emptyMixed, cash, card, cashTouched: true, cardTouched: true });
 
 describe("AS1 — ajratma payloadi", () => {
   it("naqd 30 000 + karta 50 000 = 80 000 → ikkala summa ham yuboriladi", () => {

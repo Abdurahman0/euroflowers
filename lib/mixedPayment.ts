@@ -1,5 +1,13 @@
 /**
- * ARALASH TO'LOV (naqd + karta) — sof mantiq.
+ * ARALASH TO'LOV (naqd + karta + terminal) — sof mantiq.
+ *
+ * ⚠️ USULLAR RO'YXATI ENDPOINTGA BOG'LIQ:
+ *   · katalog sotuvi  — naqd + karta + TERMINAL (`CatalogSellRequest.terminal_amount`,
+ *     backend 29.08.2026; qoida: uchtadan KAMIDA IKKITASI noldan katta)
+ *   · aksessuar/partiya sotuvi — faqat naqd + karta (ularning kontraktida
+ *     `terminal_amount` YO'Q: PackagingSellRequest / StockBatchSellRequest)
+ * Shu bois har funksiya `methods` oladi; sukut — IKKI usul, ya'ni eski
+ * chaqiruvchilar o'zgarishsiz ishlaydi.
  *
  * ⚠️ TAQQOSLASH SUMMASI = SOTUV SUMMASI (`sale_price × quantity`) — DASTAFKA BILAN BIRGA.
  * 2026-08-04 da qoida O'ZGARDI (DASTAFKA_QOIDASI_OZGARDI.md): `sale_price` endi
@@ -33,16 +41,38 @@ export const formatMoneyInput = (v: string | number | null | undefined): string 
   return n === 0 && (v === "" || v == null) ? "" : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 };
 
+export type MixedMethod = "cash" | "card" | "terminal";
+/** Aksessuar / partiya sotuvi — kontraktda terminal YO'Q. */
+export const MIXED_CASH_CARD: MixedMethod[] = ["cash", "card"];
+/** Katalog sotuvi — terminal ham bor (backend 29.08.2026). */
+export const MIXED_WITH_TERMINAL: MixedMethod[] = ["cash", "card", "terminal"];
+
+export const MIXED_LABEL: Record<MixedMethod, string> = { cash: "Naqd", card: "Karta", terminal: "Terminal" };
+
 export type MixedState = {
   /** xom (formatlangan) kiritmalar */
   cash: string;
   card: string;
+  terminal: string;
   /** operator maydonni QO'LDA tahrirladimi — avtomatik to'ldirish shundan keyin TO'XTAYDI */
   cashTouched: boolean;
   cardTouched: boolean;
+  terminalTouched: boolean;
 };
 
-export const emptyMixed: MixedState = { cash: "", card: "", cashTouched: false, cardTouched: false };
+export const emptyMixed: MixedState = {
+  cash: "", card: "", terminal: "",
+  cashTouched: false, cardTouched: false, terminalTouched: false,
+};
+
+const touchedOf = (s: MixedState, m: MixedMethod): boolean => s[`${m}Touched`];
+const sumOf = (s: MixedState, methods: MixedMethod[], except?: MixedMethod): number =>
+  methods.reduce((acc, m) => (m === except ? acc : acc + parseMoney(s[m])), 0);
+/** Qoldiq FAQAT bitta tegilmagan maydon qolganda taklif qilinadi — aks holda taxmin bo'lardi. */
+const loneUntouched = (s: MixedState, methods: MixedMethod[], except: MixedMethod): MixedMethod | null => {
+  const rest = methods.filter((m) => m !== except && !touchedOf(s, m));
+  return rest.length === 1 ? rest[0] : null;
+};
 
 /**
  * BITTA maydon o'zgarganda — ikkinchisini QOLDIQ bilan to'ldirish.
@@ -53,17 +83,17 @@ export const emptyMixed: MixedState = { cash: "", card: "", cashTouched: false, 
  *  · tahrirlangan maydonning o'zi HECH QACHON qayta yozilmaydi.
  */
 export function applyMixedEdit(
-  prev: MixedState, field: "cash" | "card", raw: string, total: number,
+  prev: MixedState, field: MixedMethod, raw: string, total: number,
+  methods: MixedMethod[] = MIXED_CASH_CARD,
 ): MixedState {
   const value = formatMoneyInput(raw);
-  const entered = parseMoney(value);
   const next: MixedState = { ...prev, [field]: value, [`${field}Touched`]: true } as MixedState;
-  const other = field === "cash" ? "card" : "cash";
-  const otherTouched = field === "cash" ? prev.cardTouched : prev.cashTouched;
-  // ikkinchisi QO'LDA tegilgan bo'lsa — tegmaymiz (operator bilan urishmaymiz)
-  if (otherTouched) return next;
-  const remainder = Math.max(total - entered, 0); // ⚠️ manfiy qoldiq YOZILMAYDI
-  return { ...next, [other]: remainder > 0 ? formatMoneyInput(remainder) : "" } as MixedState;
+  // ⚠️ UCH USULDA: birinchi summa yozilganda qolgan IKKITASIGA taqsimlash noma'lum —
+  //    hech narsa to'ldirilmaydi. Ikkinchisi yozilgach, oxirgisi qoldiq bilan to'ladi.
+  const target = loneUntouched(next, methods, field);
+  if (!target) return next;
+  const remainder = Math.max(total - sumOf(next, methods, target), 0); // ⚠️ manfiy qoldiq YOZILMAYDI
+  return { ...next, [target]: remainder > 0 ? formatMoneyInput(remainder) : "" } as MixedState;
 }
 
 /**
@@ -83,9 +113,8 @@ export function applyMixedEdit(
  * ⚠️ `select()` bilan qilinmadi: sichqoncha bosilganda karetka `mouseup` da qayta
  * qo'yiladi va tanlov BEKOR bo'ladi — o'rtaga yozish yana buzardi.
  */
-export function focusMixedField(prev: MixedState, field: "cash" | "card"): MixedState {
-  const touched = field === "cash" ? prev.cashTouched : prev.cardTouched;
-  if (touched || prev[field] === "") return prev;   // o'z qiymati yoki allaqachon bo'sh
+export function focusMixedField(prev: MixedState, field: MixedMethod): MixedState {
+  if (touchedOf(prev, field) || prev[field] === "") return prev;   // o'z qiymati yoki allaqachon bo'sh
   return { ...prev, [field]: "" } as MixedState;
 }
 
@@ -93,11 +122,11 @@ export function focusMixedField(prev: MixedState, field: "cash" | "card"): Mixed
  * FOKUSDAN CHIQQANDA — hech narsa yozilmagan bo'lsa taklif QAYTADI.
  * (Operator maydonga bosib, fikridan qaytib, boshqa joyga bossa — qoldiq yo'qolmaydi.)
  */
-export function blurMixedField(prev: MixedState, field: "cash" | "card", total: number): MixedState {
-  const touched = field === "cash" ? prev.cashTouched : prev.cardTouched;
-  if (touched || prev[field] !== "") return prev;
-  const other = field === "cash" ? "card" : "cash";
-  const rem = Math.max(total - parseMoney(prev[other]), 0);
+export function blurMixedField(
+  prev: MixedState, field: MixedMethod, total: number, methods: MixedMethod[] = MIXED_CASH_CARD,
+): MixedState {
+  if (touchedOf(prev, field) || prev[field] !== "") return prev;
+  const rem = Math.max(total - sumOf(prev, methods, field), 0);
   return { ...prev, [field]: rem > 0 ? formatMoneyInput(rem) : "" } as MixedState;
 }
 
@@ -105,41 +134,51 @@ export function blurMixedField(prev: MixedState, field: "cash" | "card", total: 
  * JAMI o'zgarganda (dona / chegirma tahrirlandi) — FAQAT tegilmagan maydonni qayta hisoblash.
  * Ikkalasi ham tegilgan bo'lsa hech narsa o'zgarmaydi (nomuvofiqlik ko'rsatiladi).
  */
-export function recalcOnTotalChange(prev: MixedState, total: number): MixedState {
-  if (prev.cashTouched && prev.cardTouched) return prev;
-  if (prev.cashTouched && !prev.cardTouched) {
-    const rem = Math.max(total - parseMoney(prev.cash), 0);
-    return { ...prev, card: rem > 0 ? formatMoneyInput(rem) : "" };
-  }
-  if (prev.cardTouched && !prev.cashTouched) {
-    const rem = Math.max(total - parseMoney(prev.card), 0);
-    return { ...prev, cash: rem > 0 ? formatMoneyInput(rem) : "" };
-  }
-  return prev; // ikkalasi ham tegilmagan — hali bo'sh, to'ldirmaymiz
+export function recalcOnTotalChange(
+  prev: MixedState, total: number, methods: MixedMethod[] = MIXED_CASH_CARD,
+): MixedState {
+  const untouched = methods.filter((m) => !touchedOf(prev, m));
+  // hech biri yoki bir nechtasi tegilmagan bo'lsa — taxmin qilmaymiz
+  if (untouched.length !== 1) return prev;
+  const target = untouched[0];
+  const rem = Math.max(total - sumOf(prev, methods, target), 0);
+  return { ...prev, [target]: rem > 0 ? formatMoneyInput(rem) : "" };
 }
 
 export type MixedValidation = {
   cash: number;
   card: number;
+  terminal: number;
   sum: number;
   /** jami − yig'indi; musbat = KAM kiritilgan, manfiy = ORTIQ */
   diff: number;
   balanced: boolean;
-  /** ikkalasi ham > 0 (spec: ikkalasi MAJBURIY) */
+  /** noldan katta summalar soni */
+  positiveCount: number;
+  /** ⚠️ KAMIDA IKKITASI noldan katta (ikki usulli rejimda — ikkalasi ham) */
   bothPositive: boolean;
   ok: boolean;
   /** operatorga ko'rsatiladigan xabar (ok bo'lsa bo'sh) */
   message: string;
 };
 
-/** Yig'indi jamiga TENGmi va ikkala summa ham noldan kattami. */
-export function validateMixed(state: MixedState, total: number): MixedValidation {
-  const cash = parseMoney(state.cash);
-  const card = parseMoney(state.card);
-  const sum = cash + card;
+/**
+ * Yig'indi jamiga TENGmi va kamida IKKITA summa noldan kattami.
+ *
+ * ⚠️ QOIDA O'ZGARDI (backend 29.08.2026): ilgari «naqd ham, karta ham > 0»
+ * edi; endi uch usuldan KAMIDA IKKITASI > 0 bo'lsa yetadi (naqd+terminal,
+ * karta+terminal, uchalasi — hammasi to'g'ri). Ikki usulli rejimda (aksessuar,
+ * partiya) bu AYNAN eski qoidaga teng: ikkitadan kamida ikkitasi = ikkalasi.
+ */
+export function validateMixed(
+  state: MixedState, total: number, methods: MixedMethod[] = MIXED_CASH_CARD,
+): MixedValidation {
+  const amounts = methods.map((m) => parseMoney(state[m]));
+  const sum = amounts.reduce((a, b) => a + b, 0);
   const diff = total - sum;
   const balanced = diff === 0 && total > 0;
-  const bothPositive = cash > 0 && card > 0;
+  const positiveCount = amounts.filter((n) => n > 0).length;
+  const bothPositive = positiveCount >= 2;
   let message = "";
   if (!balanced) {
     // ⚠️ SPEC (FRONTEND_CATALOG_MIXED_SALE_API.md, «Ekran») dagi AYNAN ibora:
@@ -149,25 +188,36 @@ export function validateMixed(state: MixedState, total: number): MixedValidation
       ? `✗ ${formatMoneyInput(diff)} kam`
       : `✗ ${formatMoneyInput(-diff)} ortiq`;
   } else if (!bothPositive) {
-    // 300 000 + 0 — spec bo'yicha NOTO'G'RI; oddiy naqd/kartaga yo'naltiramiz
-    // spec 400 matni AYNAN, ustiga NIMA QILISH kerakligi (jimgina bloklamaymiz)
-    message = "Aralash to'lovda ikkala summa ham noldan katta bo'lishi kerak — bitta usul bo'lsa «Naqd» yoki «Karta»ni tanlang.";
+    // bitta usul bilan to'langan bo'lsa `mixed` EMAS — o'sha usulning o'zi tanlanadi
+    message = methods.length > 2
+      ? "Aralash to'lovda kamida ikkita summani kiriting: naqd, karta yoki terminal. Bitta usul bo'lsa o'sha usulni tanlang."
+      : "Aralash to'lovda ikkala summa ham noldan katta bo'lishi kerak — bitta usul bo'lsa «Naqd» yoki «Karta»ni tanlang.";
   }
-  return { cash, card, sum, diff, balanced, bothPositive, ok: balanced && bothPositive, message };
+  return {
+    cash: parseMoney(state.cash), card: parseMoney(state.card), terminal: parseMoney(state.terminal),
+    sum, diff, balanced, positiveCount, bothPositive, ok: balanced && bothPositive, message,
+  };
 }
 
 /**
  * Sotuv payload'ining ARALASH qismi.
- * ⚠️ `cash_amount`/`card_amount` FAQAT `mixed` rejimida yuboriladi — boshqa
- * rejimlarda kalitlar UMUMAN qo'shilmaydi. Yaroqsiz bo'lsa `null` (submit bloklanadi).
+ * ⚠️ `*_amount` kalitlari FAQAT `mixed` rejimida yuboriladi — boshqa rejimlarda
+ * UMUMAN qo'shilmaydi. Yaroqsiz bo'lsa `null` (submit bloklanadi).
+ * ⚠️ NOL summa YUBORILMAYDI: spec «yuborilmagan maydon 0 deb qabul qilinadi»
+ * deydi, shuning uchun tanada faqat HAQIQATDA olingan pul turadi.
  */
 export function mixedSellPayload(
-  isMixed: boolean, state: MixedState, total: number,
+  isMixed: boolean, state: MixedState, total: number, methods: MixedMethod[] = MIXED_CASH_CARD,
 ): Record<string, string> | null {
   if (!isMixed) return {};
-  const v = validateMixed(state, total);
+  const v = validateMixed(state, total, methods);
   if (!v.ok) return null;
-  return { cash_amount: String(v.cash), card_amount: String(v.card) };
+  const out: Record<string, string> = {};
+  methods.forEach((m) => {
+    const n = parseMoney(state[m]);
+    if (n > 0) out[`${m}_amount`] = String(n);
+  });
+  return out;
 }
 
 /**
@@ -201,19 +251,20 @@ export function deliveryTooLarge(saleTotal: number, deliveryRaw: string | number
 export const deliveryTooLargeMessage = (saleTotal: number, deliveryRaw: string | number): string =>
   `Dastafka summasi sotuv summasidan kam bo'lishi kerak. Sotuv: ${formatMoneyInput(saleTotal)}, dastafka: ${formatMoneyInput(parseMoney(deliveryRaw))}`;
 
-/** Sotuv tarixidagi ko'rinish: «Aralash (150 000 naqd · 150 000 karta)».
-    ⚠️ Oddiy to'lovda `payment_breakdown` NULL — bo'sh qavs CHIZILMAYDI. */
+/** Sotuv tarixidagi ko'rinish: «Aralash (150 000 naqd · 150 000 terminal)».
+    ⚠️ Oddiy to'lovda `payment_breakdown` NULL — bo'sh qavs CHIZILMAYDI.
+    ⚠️ `terminal` — backend 29.08.2026 dan beri qaytadi; eski sotuvlarda 0. */
 export function paymentBreakdownLabel(
   label: string | undefined,
-  breakdown: { cash?: string | number; card?: string | number } | null | undefined,
+  breakdown: { cash?: string | number; card?: string | number; terminal?: string | number } | null | undefined,
 ): string {
   const base = label || "—";
   if (!breakdown) return base;
-  const cash = parseMoney(breakdown.cash);
-  const card = parseMoney(breakdown.card);
-  if (cash <= 0 && card <= 0) return base; // bo'sh obyekt — qavs ochmaymiz
   const parts: string[] = [];
-  if (cash > 0) parts.push(`${formatMoneyInput(cash)} naqd`);
-  if (card > 0) parts.push(`${formatMoneyInput(card)} karta`);
+  (["cash", "card", "terminal"] as const).forEach((m) => {
+    const n = parseMoney(breakdown[m]);
+    if (n > 0) parts.push(`${formatMoneyInput(n)} ${MIXED_LABEL[m].toLowerCase()}`);
+  });
+  if (!parts.length) return base; // bo'sh obyekt — qavs ochmaymiz
   return `${base} (${parts.join(" · ")})`;
 }

@@ -123,3 +123,26 @@ describe("buildSellFormData", () => {
     expect(entries(fd)).toEqual([["sale_image", "FILE:sotuv.jpg"]]); // quantity 1 — sukut, yuborilmaydi
   });
 });
+
+/* ===== ARALASHDA TERMINAL — backend 29.08.2026 ===== */
+
+describe("buildSellPayload — aralashda terminal", () => {
+  it("⚠️ terminal_amount YETIB BORADI (oq ro'yxatda yo'q edi — jimgina yo'qolardi)", () => {
+    expect(buildSellPayload({ payment_type: "mixed", cash_amount: "100000", terminal_amount: "100000" }))
+      .toEqual({ payment_type: "mixed", cash_amount: "100000", terminal_amount: "100000" });
+  });
+  it("uchalasi birga", () => {
+    const p = buildSellPayload({ payment_type: "mixed", cash_amount: "50000", card_amount: "50000", terminal_amount: "100000" });
+    expect(p).toEqual({ payment_type: "mixed", cash_amount: "50000", card_amount: "50000", terminal_amount: "100000" });
+    expect(Number(p.cash_amount) + Number(p.card_amount) + Number(p.terminal_amount)).toBe(200_000);
+  });
+  it("terminal yo'q bo'lsa kalit UMUMAN yuborilmaydi", () => {
+    expect(buildSellPayload({ payment_type: "mixed", cash_amount: "100000", card_amount: "100000" }))
+      .not.toHaveProperty("terminal_amount");
+  });
+  it("multipart tanaga ham tushadi (operator yo'li)", () => {
+    const file = new File([new Uint8Array([1])], "s.jpg", { type: "image/jpeg" });
+    const o = Object.fromEntries(Array.from(buildSellFormData({ payment_type: "mixed", cash_amount: "100000", terminal_amount: "100000" }, file).entries()).map(([k, v]) => [k, v instanceof File ? "FILE" : v]));
+    expect(o).toMatchObject({ payment_type: "mixed", cash_amount: "100000", terminal_amount: "100000" });
+  });
+});

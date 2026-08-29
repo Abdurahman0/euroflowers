@@ -11,7 +11,7 @@ import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPi
 import ImageInput from "./ImageInput";
 import { debtSellPayload, debtCustomerReady, DEBT_CUSTOMER_REQUIRED, DEBT_NONE_DISABLED_REASON } from "@/lib/debt";
 import { volumesInGroup, pickSellItem } from "@/lib/catalogGroups";
-import { applyMixedEdit, focusMixedField, blurMixedField, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage, parseMoney, emptyMixed, type MixedState } from "@/lib/mixedPayment";
+import { applyMixedEdit, focusMixedField, blurMixedField, recalcOnTotalChange, validateMixed, mixedSellPayload, formatMoneyInput, deliveryPayload, deliveryGoods, deliveryTooLarge, deliveryTooLargeMessage, parseMoney, emptyMixed, MIXED_LABEL, MIXED_WITH_TERMINAL, type MixedState } from "@/lib/mixedPayment";
 import { fmt } from "@/lib/format";
 import { PACKAGING_LABEL, VOLUME_LABEL } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
@@ -235,9 +235,9 @@ export default function KatalogSellModal({
   const deliveryBad = deliveryTooLarge(calc.totalSum, delivery);
   useEffect(() => {
     if (!isMixed) return;
-    setMixed((p) => recalcOnTotalChange(p, payTarget));
+    setMixed((p) => recalcOnTotalChange(p, payTarget, MIXED_WITH_TERMINAL));
   }, [isMixed, payTarget]);
-  const mixedV = validateMixed(mixed, payTarget);
+  const mixedV = validateMixed(mixed, payTarget, MIXED_WITH_TERMINAL);
   const mixedBlocked = isMixed && !mixedV.ok;
 
   /**
@@ -251,7 +251,7 @@ export default function KatalogSellModal({
    */
   useEffect(() => {
     setErrs((x) => (Object.keys(x).length ? {} : x));
-  }, [payment, mixed.cash, mixed.card, qty, price, delivery, cust.mode]);
+  }, [payment, mixed.cash, mixed.card, mixed.terminal, qty, price, delivery, cust.mode]);
 
   // §4 SOTUVDA QO'SHILGAN iqtisodi: material qoldiqni × qty (server ko'paytiradi), tannarx va oformleniya haqi.
   const validSaleMats = saleMats.filter((m) => m.packaging > 0 && +m.qty > 0);
@@ -273,7 +273,7 @@ export default function KatalogSellModal({
     // ostida doim ko'rinib turadi. Ilgari u `errs.cash_amount` ga yozilardi va
     // keyingi tahrirlar uni TOZALAMASDI: natijada yashil «Jami … ✓» bilan qizil
     // xato BIR VAQTDA turardi (mobil skrinshotda aynan shu). Ikki validator — ikki javob.
-    const mixedBody = mixedSellPayload(isMixed, mixed, payTarget);
+    const mixedBody = mixedSellPayload(isMixed, mixed, payTarget, MIXED_WITH_TERMINAL);
     if (mixedBody === null) return;   // tugma allaqachon o'chiq; sabab pastda ko'rinadi
     if (Object.keys(next).length) return setErrs(next);
     setBusy(true);
@@ -483,7 +483,7 @@ export default function KatalogSellModal({
             );
           })}
         </div>
-        {/* ARALASH — ikkita summa; jami CHEGIRMADAN KEYINGI summaga teng bo'lishi shart */}
+        {/* ARALASH — uchta summa (naqd/karta/terminal); jami CHEGIRMADAN KEYINGI summaga teng bo'lishi shart */}
         {isMixed && (
           <div className="mt-2 rounded-md border p-3" style={{ borderColor: mixedV.ok ? "var(--acc)" : "var(--border)", background: "var(--surface-2)" }}>
             <div className="flex items-baseline justify-between gap-2">
@@ -496,24 +496,32 @@ export default function KatalogSellModal({
                 shundan {fmt(deliveryNum)} dastafka · tovar savdosi {fmt(goodsTotal)}
               </div>
             )}
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <div>
-                <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Naqd</div>
-                {/* ⚠️ FOKUSDA TOZALANADI — avtomatik qoldiq ustiga yozilib ketmasin (lib izohiga qarang) */}
-                <input className="inp" inputMode="numeric" value={mixed.cash} placeholder="0" aria-label="Naqd summasi"
-                  onFocus={() => setMixed((p) => focusMixedField(p, "cash"))}
-                  onBlur={() => setMixed((p) => blurMixedField(p, "cash", payTarget))}
-                  onChange={(e) => { setMixed((p) => applyMixedEdit(p, "cash", e.target.value, payTarget)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
-                {!mixed.cashTouched && mixed.cash !== "" && <div className="mt-0.5 text-[10.5px]" style={{ color: "var(--muted)" }}>avtomatik qoldiq</div>}
-              </div>
-              <div>
-                <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>Karta</div>
-                <input className="inp" inputMode="numeric" value={mixed.card} placeholder="0" aria-label="Karta summasi"
-                  onFocus={() => setMixed((p) => focusMixedField(p, "card"))}
-                  onBlur={() => setMixed((p) => blurMixedField(p, "card", payTarget))}
-                  onChange={(e) => { setMixed((p) => applyMixedEdit(p, "card", e.target.value, payTarget)); setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.detail; return n; }); }} />
-                {!mixed.cardTouched && mixed.card !== "" && <div className="mt-0.5 text-[10.5px]" style={{ color: "var(--muted)" }}>avtomatik qoldiq</div>}
-              </div>
+            {/* ⚠️ UCHTA SUMMA (backend 29.08.2026): naqd · karta · terminal.
+                Kamida IKKITASI noldan katta bo'lishi kerak; yig'indi esa
+                «Mijozdan olinadi» summasiga AYNAN teng. */}
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {MIXED_WITH_TERMINAL.map((m) => (
+                <div key={m}>
+                  <div className="mb-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>{MIXED_LABEL[m]}</div>
+                  {/* ⚠️ FOKUSDA TOZALANADI — avtomatik qoldiq ustiga yozilib ketmasin (lib izohiga qarang) */}
+                  <input
+                    className="inp !px-2 text-[13px]"
+                    inputMode="numeric"
+                    value={mixed[m]}
+                    placeholder="0"
+                    aria-label={`${MIXED_LABEL[m]} summasi`}
+                    onFocus={() => setMixed((p) => focusMixedField(p, m))}
+                    onBlur={() => setMixed((p) => blurMixedField(p, m, payTarget, MIXED_WITH_TERMINAL))}
+                    onChange={(e) => {
+                      setMixed((p) => applyMixedEdit(p, m, e.target.value, payTarget, MIXED_WITH_TERMINAL));
+                      setErrs((x) => { const n = { ...x }; delete n.cash_amount; delete n.card_amount; delete n.terminal_amount; delete n.detail; return n; });
+                    }}
+                  />
+                  {!mixed[`${m}Touched`] && mixed[m] !== "" && (
+                    <div className="mt-0.5 text-[10.5px]" style={{ color: "var(--muted)" }}>avtomatik qoldiq</div>
+                  )}
+                </div>
+              ))}
             </div>
             <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2" style={{ borderColor: "var(--line2, var(--border))" }}>
               <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>Jami</span>
@@ -530,8 +538,8 @@ export default function KatalogSellModal({
             )}
             {/* SERVER 400 maydonlari — faqat holat YAROQLI bo'lsa ko'rsatiladi
                 (aks holda o'zimizning sabab bilan ikkilanib ketardi). */}
-            {mixedV.ok && (errs.cash_amount || errs.card_amount) && (
-              <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.cash_amount || errs.card_amount}</p>
+            {mixedV.ok && (errs.cash_amount || errs.card_amount || errs.terminal_amount) && (
+              <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "var(--danger-ink)" }}>{errs.cash_amount || errs.card_amount || errs.terminal_amount}</p>
             )}
             <p className="mt-1.5 text-[11px]" style={{ color: "var(--muted)" }}>
               Pul haqiqatda qayerga tushgan bo&apos;lsa o&apos;sha ustunga yoziladi. Sotuv soni BIR MARTA sanaladi.

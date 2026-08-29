@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  applyMixedEdit, blurMixedField, deliveryGoods, deliveryPayload, emptyMixed, focusMixedField, formatMoneyInput, mixedSellPayload, parseMoney, paymentBreakdownLabel, recalcOnTotalChange, validateMixed,
+  applyMixedEdit, blurMixedField, deliveryGoods, deliveryPayload, emptyMixed, focusMixedField, formatMoneyInput, mixedSellPayload, parseMoney, paymentBreakdownLabel, recalcOnTotalChange, validateMixed, MIXED_WITH_TERMINAL,
   type MixedState,
 } from "./mixedPayment";
 
@@ -293,7 +293,7 @@ describe("⚠️ avtomatik qoldiq ustiga yozish (asl nosozlik)", () => {
 
 describe("validateMixed — operator HAQIQATDA hosil qiladigan qiymatlar", () => {
   const T = 300_000;
-  const st = (cash: string, card: string): MixedState => ({ cash, card, cashTouched: true, cardTouched: true });
+  const st = (cash: string, card: string): MixedState => ({ ...emptyMixed, cash, card, cashTouched: true, cardTouched: true });
 
   it("formatlangan satrlar (bo'sh joy bilan) — TO'G'RI o'qiladi", () => {
     const v = validateMixed(st("150 000", "150 000"), T);
@@ -330,7 +330,7 @@ describe("validateMixed — operator HAQIQATDA hosil qiladigan qiymatlar", () =>
 
 describe("⚠️ DASTAFKA taqqoslash summasini O'ZGARTIRMAYDI (qoida 2026-08-04 da teskari bo'lgan)", () => {
   const T = 500_000;                    // sotuv summasi — dastafka UNING ICHIDA
-  const st = (cash: string, card: string): MixedState => ({ cash, card, cashTouched: true, cardTouched: true });
+  const st = (cash: string, card: string): MixedState => ({ ...emptyMixed, cash, card, cashTouched: true, cardTouched: true });
 
   it("dastafkasiz: 200 000 + 300 000 = 500 000 ✓", () => {
     expect(validateMixed(st("200 000", "300 000"), T).ok).toBe(true);
@@ -372,7 +372,7 @@ describe("parseMoney — formatlangan pul satrlari", () => {
 
 describe("§2 — YAGONA MANBA: ✓ va xato ZID bo'la olmaydi", () => {
   const T = 150_000;
-  const st = (cash: string, card: string): MixedState => ({ cash, card, cashTouched: true, cardTouched: true });
+  const st = (cash: string, card: string): MixedState => ({ ...emptyMixed, cash, card, cashTouched: true, cardTouched: true });
 
   it("skrinshotdagi holat: 75 000 + 75 000 = 150 000 → ok, xabar BO'SH", () => {
     const v = validateMixed(st("75 000", "75 000"), T);
@@ -410,5 +410,133 @@ describe("§2 — YAGONA MANBA: ✓ va xato ZID bo'la olmaydi", () => {
       const v = validateMixed(s, T);
       expect(mixedSellPayload(true, s, T) === null).toBe(!v.ok);
     }
+  });
+});
+
+/* ═══════ TERMINAL ARALASH TO'LOVDA — backend 29.08.2026 ═══════
+   Qoida: uchtadan KAMIDA IKKITASI noldan katta; yig'indi jamiga teng.
+   ⚠️ Ikki usulli chaqiruvchilar (aksessuar, partiya) O'ZGARMAYDI — sukut
+   `MIXED_CASH_CARD`, ularning kontraktida `terminal_amount` YO'Q. */
+
+const M3 = MIXED_WITH_TERMINAL;
+const s3 = (cash: string, card: string, terminal: string): MixedState =>
+  ({ ...emptyMixed, cash, card, terminal, cashTouched: true, cardTouched: true, terminalTouched: true });
+
+describe("validateMixed — uch usul", () => {
+  const T = 200_000;
+  it("naqd + terminal (karta yo'q) — TO'G'RI", () => {
+    const v = validateMixed(s3("100 000", "", "100 000"), T, M3);
+    expect(v).toMatchObject({ cash: 100000, card: 0, terminal: 100000, sum: 200000, positiveCount: 2, ok: true });
+  });
+  it("karta + terminal — TO'G'RI", () => {
+    expect(validateMixed(s3("", "50 000", "150 000"), T, M3).ok).toBe(true);
+  });
+  it("uchalasi — TO'G'RI", () => {
+    const v = validateMixed(s3("50 000", "50 000", "100 000"), T, M3);
+    expect(v.positiveCount).toBe(3);
+    expect(v.ok).toBe(true);
+  });
+  it("eski naqd + karta ham ishlayveradi", () => {
+    expect(validateMixed(s3("100 000", "100 000", ""), T, M3).ok).toBe(true);
+  });
+  it("faqat BITTA summa — bloklanadi va nima qilish aytiladi", () => {
+    const v = validateMixed(s3("", "", "200 000"), T, M3);
+    expect(v.ok).toBe(false);
+    expect(v.balanced).toBe(true);          // yig'indi to'g'ri, lekin usul bitta
+    expect(v.message).toContain("kamida ikkita summani kiriting");
+  });
+  it("yig'indi teng bo'lmasa — «kam / ortiq» xabari (uch usulda ham)", () => {
+    expect(validateMixed(s3("50 000", "", "100 000"), T, M3).message).toBe("✗ 50 000 kam");
+    expect(validateMixed(s3("100 000", "50 000", "100 000"), T, M3).message).toBe("✗ 50 000 ortiq");
+  });
+  it("⚠️ IKKI USULLI rejim o'zgarmadi — terminal HISOBGA OLINMAYDI", () => {
+    // aksessuar sotuvida terminal maydoni umuman yo'q; holatda qolsa ham qo'shilmasin
+    const v = validateMixed(s3("40 000", "40 000", "999 000"), 80_000);
+    expect(v.sum).toBe(80000);
+    expect(v.ok).toBe(true);
+  });
+});
+
+describe("mixedSellPayload — uch usul", () => {
+  it("nol summa YUBORILMAYDI (spec: yuborilmagan maydon 0 deb olinadi)", () => {
+    expect(mixedSellPayload(true, s3("100 000", "", "100 000"), 200_000, M3))
+      .toEqual({ cash_amount: "100000", terminal_amount: "100000" });
+  });
+  it("uchalasi yuboriladi", () => {
+    expect(mixedSellPayload(true, s3("50 000", "50 000", "100 000"), 200_000, M3))
+      .toEqual({ cash_amount: "50000", card_amount: "50000", terminal_amount: "100000" });
+  });
+  it("yaroqsiz holat → null (submit bloklanadi)", () => {
+    expect(mixedSellPayload(true, s3("", "", "200 000"), 200_000, M3)).toBeNull();
+  });
+  it("⚠️ ikki usulli chaqiruvchi terminal_amount YUBORMAYDI", () => {
+    expect(mixedSellPayload(true, s3("30 000", "50 000", "999 000"), 80_000))
+      .toEqual({ cash_amount: "30000", card_amount: "50000" });
+  });
+});
+
+describe("applyMixedEdit — uch usulda qoldiq", () => {
+  const T = 200_000;
+  it("BIRINCHI summa yozilganda hech narsa to'ldirilmaydi (taqsimlash noma'lum)", () => {
+    const r = applyMixedEdit(emptyMixed, "cash", "100000", T, M3);
+    expect(r.cash).toBe("100 000");
+    expect(r.card).toBe("");
+    expect(r.terminal).toBe("");
+  });
+  it("IKKINCHI summa yozilgach — oxirgisi qoldiq bilan to'ladi", () => {
+    const a = applyMixedEdit(emptyMixed, "cash", "100000", T, M3);
+    const b = applyMixedEdit(a, "card", "50000", T, M3);
+    expect(b.terminal).toBe("50 000");
+    expect(b.terminalTouched).toBe(false);   // taklif — «avtomatik qoldiq»
+  });
+  it("qoldiq manfiy bo'lsa BO'SH qoladi (nomuvofiqlik xabari ko'rsatiladi)", () => {
+    const a = applyMixedEdit(emptyMixed, "cash", "150000", T, M3);
+    const b = applyMixedEdit(a, "card", "150000", T, M3);
+    expect(b.terminal).toBe("");
+    expect(validateMixed(b, T, M3).message).toBe("✗ 100 000 ortiq");
+  });
+  it("qo'lda tegilgan maydon QAYTA YOZILMAYDI", () => {
+    let st = applyMixedEdit(emptyMixed, "terminal", "20000", T, M3);
+    st = applyMixedEdit(st, "cash", "100000", T, M3);   // qoldiq kartaga
+    expect(st.card).toBe("80 000");
+    expect(st.terminal).toBe("20 000");                  // tegilgan — saqlanadi
+  });
+  it("⚠️ IKKI usulli rejim o'zgarmadi: bitta yozilsa ikkinchisi darrov to'ladi", () => {
+    const r = applyMixedEdit(emptyMixed, "cash", "150000", 300_000);
+    expect(r.card).toBe("150 000");
+  });
+});
+
+describe("recalcOnTotalChange / blurMixedField — uch usul", () => {
+  it("jami o'zgarsa FAQAT tegilmagan yagona maydon qayta hisoblanadi", () => {
+    const st: MixedState = { ...emptyMixed, cash: "100 000", card: "50 000", cashTouched: true, cardTouched: true };
+    expect(recalcOnTotalChange(st, 200_000, M3).terminal).toBe("50 000");
+  });
+  it("ikkita maydon tegilmagan bo'lsa — taxmin qilinmaydi", () => {
+    const st: MixedState = { ...emptyMixed, cash: "100 000", cashTouched: true };
+    expect(recalcOnTotalChange(st, 200_000, M3)).toEqual(st);
+  });
+  it("bo'sh maydondan chiqilganda qoldiq taklif qilinadi", () => {
+    const st: MixedState = { ...emptyMixed, cash: "120 000", cashTouched: true };
+    expect(blurMixedField(st, "terminal", 200_000, M3).terminal).toBe("80 000");
+  });
+});
+
+describe("paymentBreakdownLabel — terminal bilan", () => {
+  it("uchta kalitli javob (jonli: sonlar, satr emas)", () => {
+    expect(paymentBreakdownLabel("Aralash", { cash: 100000, card: 0, terminal: 100000 }))
+      .toBe("Aralash (100 000 naqd · 100 000 terminal)");
+  });
+  it("spec'dagi satrli ko'rinish ham o'qiladi", () => {
+    expect(paymentBreakdownLabel("Aralash", { cash: "100000", card: "0", terminal: "100000" }))
+      .toBe("Aralash (100 000 naqd · 100 000 terminal)");
+  });
+  it("eski sotuv (terminal yo'q) — avvalgidek", () => {
+    expect(paymentBreakdownLabel("Aralash", { cash: "200000.00", card: "650000.00" }))
+      .toBe("Aralash (200 000 naqd · 650 000 karta)");
+  });
+  it("uchalasi", () => {
+    expect(paymentBreakdownLabel("Aralash", { cash: 50000, card: 50000, terminal: 100000 }))
+      .toBe("Aralash (50 000 naqd · 50 000 karta · 100 000 terminal)");
   });
 });

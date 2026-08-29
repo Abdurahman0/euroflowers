@@ -18,6 +18,7 @@ import {
   saleNum, deliveryRowView, PAYMENT_FILTERS, SALES_PAGE_SIZE,
 } from "@/lib/catalogSales";
 import { paymentBreakdownLabel } from "@/lib/mixedPayment";
+import { mediaUrl } from "@/lib/mediaUrl";
 import type { CatalogSalesPage, CatalogSaleRow } from "@/lib/types";
 
 /**
@@ -210,10 +211,12 @@ export default function CatalogSalesTab({ branchUser, onOpenItem, onRestored }: 
                               {[r.florist_name, r.sold_by].filter(Boolean).join(" · ") || "—"}
                             </span>
                           </span>
+                          {/* ⚠️ `sale_image_url` ILDIZGA NISBIY keladi ("/media/sales/…") —
+                              to'g'ridan-to'g'ri berilsa frontend domenida 404 bo'lardi */}
                           {r.sale_image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={r.sale_image_url} alt="Sotuv rasmi" title="Sotuvda yuklangan rasm"
-                              onClick={(e) => { e.stopPropagation(); window.open(r.sale_image_url, "_blank", "noopener"); }}
+                            <img src={mediaUrl(r.sale_image_url)} alt="Sotuv rasmi" title="Sotuvda yuklangan rasm"
+                              onClick={(e) => { e.stopPropagation(); window.open(mediaUrl(r.sale_image_url), "_blank", "noopener"); }}
                               className="h-8 w-8 shrink-0 rounded-[8px] object-cover ring-1" style={{ background: "var(--surface-2)", boxShadow: "0 0 0 1px var(--acc)" }} />
                           ) : null}
                         </div>

@@ -151,8 +151,9 @@ export type SellInput = {
   quantity?: number; sale_price?: string; discount_reason?: string;
   payment_type?: PaymentType; sold_at?: string; reservation?: number;
   materials?: { packaging: number; quantity: number }[]; decoration_florist?: number;
-  /** ARALASH — ikkalasi ham majburiy va > 0 */
-  cash_amount?: string; card_amount?: string;
+  /** ⚠️ ARALASH — uch summadan KAMIDA IKKITASI > 0 (backend 29.08.2026).
+      `terminal_amount` shu ro'yxatga QO'SHILMASA, jimgina yo'qolardi. */
+  cash_amount?: string; card_amount?: string; terminal_amount?: string;
   /** sotuv summasining ICHIDAGI dastafka (ustiga qo'shilmaydi) */
   delivery_amount?: string;
   /** QARZ — `customer` YOKI `customer_name` + `customer_phone` */
@@ -179,6 +180,7 @@ export function buildSellPayload(data?: SellInput): Record<string, unknown> {
     ...(d.decoration_florist ? { decoration_florist: d.decoration_florist } : {}),
     ...(d.cash_amount ? { cash_amount: d.cash_amount } : {}),
     ...(d.card_amount ? { card_amount: d.card_amount } : {}),
+    ...(d.terminal_amount ? { terminal_amount: d.terminal_amount } : {}),
     // ⚠️ operator ATAYLAB "0" yozsa — yuboriladi (ongli tanlov)
     ...(d.delivery_amount != null && d.delivery_amount !== "" ? { delivery_amount: d.delivery_amount } : {}),
     ...(d.customer ? { customer: d.customer } : {}),
