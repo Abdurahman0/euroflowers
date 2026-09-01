@@ -987,6 +987,14 @@ export const api = {
     request<void>(`/api/social-posts/${id}/`, { method: "DELETE" }),
 
   conversations: (p?: Params) => list<Conversation>("/api/conversations/", p),
+  /**
+   * ⚠️ SAHIFALANGAN suhbatlar — AI chat ro'yxati SHUNI ishlatadi.
+   * Umumiy `list()` yordamchisi `next` ni ergashtiradi, lekin guard = 4:
+   * 1366 ta suhbatdan faqat 500 tasi kelardi (qolganiga yetib bo'lmasdi) va
+   * har yangilanishda 5 ta so'rov ketardi.
+   */
+  conversationsPage: (p?: Params, signal?: AbortSignal) =>
+    request<Paginated<Conversation>>(`/api/conversations/${qs(p)}`, { signal }),
   conversation: (id: number) => request<Conversation>(`/api/conversations/${id}/`),
   sendMessage: (id: number, text: string) =>
     request<Message>(`/api/conversations/${id}/send/`, { method: "POST", body: JSON.stringify({ text }) }),

@@ -1,5 +1,5 @@
 "use client";
-import { AlertCircle, ArrowLeft, Clock3, MoonStar, RotateCw, Sparkles, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Clock3, Loader2, MoonStar, RotateCw, Sparkles, Trash2 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { InstagramIcon, TelegramIcon } from "@hugeicons/core-free-icons";
 import SearchInput from "@/components/SearchInput";
@@ -13,6 +13,7 @@ import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import useVisiblePoll from "@/lib/useVisiblePoll";
+import { CHAT_PAGE_SIZE, chatCountLabel, chatListQuery, hasMoreConversations, mergeConversations } from "@/lib/chatList";
 import { fmtTime, initials } from "@/lib/format";
 import { CONV_STATUS_LABEL } from "@/components/badges";
 import { Icon } from "@/components/icons";
@@ -245,6 +246,13 @@ function MessageRow({
 export default function ChatPage() {
   const showToast = useStore((s) => s.showToast);
   const [convs, setConvs] = useState<Conversation[]>([]);
+  /** ⚠️ SAHIFALAB YUKLASH — 1366 ta suhbatdan ilgari faqat 500 tasi kelardi.
+      Pastga surilganda keyingi 100 ta so'raladi. */
+  const [convTotal, setConvTotal] = useState(0);
+  const [convMore, setConvMore] = useState(false);
+  const [convMoreBusy, setConvMoreBusy] = useState(false);
+  const convPage = useRef(1);
+  const moreRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   /**
    * ⚠️ DEEP-LINK — `?conversation_id=<id>` (AI media handoff: operator Telegram
@@ -268,6 +276,12 @@ export default function ChatPage() {
   const [pauseOpen, setPauseOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
+  /** ⚠️ Qidiruv SERVERDA — har harfda so'rov ketmasin deb 350 ms kechiktiriladi. */
+  const [debSearch, setDebSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [statusF, setStatusF] = useState(""); // suhbat holati — server filtri
   const [chanF, setChanF] = useState<"" | "instagram" | "telegram">(""); // platforma filtri
   const [text, setText] = useState("");
@@ -297,27 +311,51 @@ export default function ChatPage() {
     return () => window.removeEventListener("resize", measure);
   }, [loading]);
 
-  const loadList = useCallback(async () => {
+  /**
+   * SUHBATLAR RO'YXATI — sahifalab.
+   * `mode`: "first" — filtr/qidiruv o'zgardi (ro'yxat qaytadan);
+   *         "more"  — pastga surildi (keyingi sahifa qo'shiladi);
+   *         "poll"  — 30 s yangilanish (FAQAT 1-sahifa, mavjud qatorlar saqlanadi).
+   * ⚠️ Qidiruv SERVERDA — operator butun bazadan topadi, yuklangan qatorlardan emas.
+   */
+  const loadPage = useCallback(async (mode: "first" | "more" | "poll") => {
+    const page = mode === "more" ? convPage.current + 1 : 1;
+    if (mode === "more") setConvMoreBusy(true);
     try {
-      // manba filtri server tomonda (backend `source` bo'yicha filtrlaydi)
-      const cs = await api.conversations({ ordering: "-last_message_at", status: statusF || undefined, source: chanF || undefined });
-      setConvs(cs);
-      setSelId((id) => id ?? cs[0]?.id ?? null);
+      const d = await api.conversationsPage(chatListQuery({ status: statusF || undefined, search: debSearch, page }));
+      const rows = d.results ?? [];
+      setConvTotal(Number(d.count ?? 0));
+      if (mode === "first") {
+        convPage.current = 1;
+        setConvs(rows);
+        setConvMore(hasMoreConversations(d, 1));
+        setSelId((id) => id ?? rows[0]?.id ?? null);
+      } else if (mode === "more") {
+        convPage.current = page;
+        setConvs((prev) => mergeConversations(prev, rows));
+        setConvMore(hasMoreConversations(d, page));
+      } else {
+        // poll: 1-sahifani birlashtiramiz — yuklangan sahifalar YO'QOLMAYDI
+        setConvs((prev) => mergeConversations(prev, rows));
+        if (convPage.current === 1) setConvMore(hasMoreConversations(d, 1));
+        setSelId((id) => id ?? rows[0]?.id ?? null);
+      }
       // ⚠️ DEEP-LINK: mobil ko'rinishda suhbat paneli DARHOL ochiladi — ro'yxatda
-      //    topilmasa ham (detal API orqali ochiladi). Ilgari faqat ro'yxatda bor
-      //    suhbat uchun ochilardi: Telegramdan kelgan operator telefonida ro'yxatni
-      //    ko'rib, qaysi chatga tushishini o'zi qidirishga majbur bo'lardi.
+      //    topilmasa ham (detal API orqali ochiladi).
       if (deepConv && !deepDone.current) {
         deepDone.current = true;
         setMobileConv(true);
       }
-      if (deepConv) setDeepMissing(!cs.some((c) => c.id === deepConv));
+      if (deepConv) setDeepMissing(!rows.some((c) => c.id === deepConv));
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Suhbatlarni yuklab bo'lmadi");
     } finally {
       setLoading(false);
+      if (mode === "more") setConvMoreBusy(false);
     }
-  }, [showToast, statusF, chanF, deepConv]);
+  }, [showToast, statusF, debSearch, deepConv]);
+
+  const loadList = useCallback(() => loadPage("poll"), [loadPage]);
 
   /**
    * Suhbat detali. `strict` — deep-link uchun: xato JIM YUTILMAYDI, operatorga aytiladi.
@@ -341,9 +379,21 @@ export default function ChatPage() {
     }
   }, []);
 
-  useEffect(() => { loadList(); }, [loadList]);
+  // ⚠️ filtr/qidiruv o'zgarsa ro'yxat BOSHIDAN — sahifa hisobi ham nolga qaytadi
+  useEffect(() => { setLoading(true); loadPage("first"); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [statusF, debSearch]);
   // ⚠️ Ro'yxat — 30 s, FAQAT varaq ko'rinib turganda (ilgari 15 s va fonda ham ishlardi)
-  useVisiblePoll(loadList, 30_000, true);
+  useVisiblePoll(() => loadPage("poll"), 30_000, true);
+
+  // ro'yxat oxiri ko'rinsa — keyingi sahifa (IntersectionObserver)
+  useEffect(() => {
+    const el = moreRef.current;
+    if (!el || !convMore || convMoreBusy) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadPage("more");
+    }, { rootMargin: "200px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [convMore, convMoreBusy, loadPage]);
 
   useEffect(() => {
     if (selId == null) return;
@@ -464,7 +514,6 @@ export default function ChatPage() {
     );
   };
 
-  const q = search.trim().toLowerCase();
   // manba: backend `source` maydoni AVTORITATIV; eski `channel` va mijoz
   // ma'lumotidan aniqlash — faqat zaxira yo'l
   const chanOfRaw = (c: Conversation): "instagram" | "telegram" => {
@@ -472,14 +521,10 @@ export default function ChatPage() {
     if (c.channel === "telegram" || c.channel === "instagram") return c.channel;
     return c.customer_detail?.instagram_username || c.customer_detail?.instagram_user_id ? "instagram" : "telegram";
   };
-  const fConvs = convs.filter((c) => {
-    if (chanF && chanOfRaw(c) !== chanF) return false;
-    if (!q) return true;
-    return (
-      (c.customer_detail?.name ?? "").toLowerCase().includes(q) ||
-      (c.customer_detail?.instagram_username ?? "").toLowerCase().includes(q)
-    );
-  });
+  // ⚠️ QIDIRUV SERVERDA (`?search=`) — bu yerda QAYTA filtrlamaymiz, aks holda
+  //    server topgan, lekin bizning tor mezonimizga tushmagan qatorlar YO'QOLARDI.
+  //    Platforma filtri esa klientda qoladi: server `source` ni e'tiborsiz qoldiradi.
+  const fConvs = chanF ? convs.filter((c) => chanOfRaw(c) === chanF) : convs;
 
   const custName = (c: Conversation) => c.customer_detail?.name || `@${c.customer_detail?.instagram_username ?? "—"}`;
 
@@ -599,6 +644,22 @@ export default function ChatPage() {
             </button>
           ))}
           {fConvs.length === 0 && <EmptyState title="Suhbat topilmadi" sub="Qidiruvni o'zgartirib ko'ring." />}
+
+          {/* ⚠️ CHEKSIZ SURISH — bu blok ko'rinsa keyingi 100 ta so'raladi.
+              Ilgari ro'yxat 500 tada to'xtardi va qolgan suhbatlarga yetib bo'lmasdi. */}
+          {fConvs.length > 0 && (
+            <div ref={moreRef} className="py-3 text-center text-[11.5px]" style={{ color: "var(--muted)" }}>
+              {convMoreBusy ? (
+                <span className="inline-flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Yuklanmoqda…</span>
+              ) : convMore ? (
+                <button type="button" onClick={() => loadPage("more")} className="font-semibold underline underline-offset-2" style={{ color: "var(--primary)" }}>
+                  Yana {CHAT_PAGE_SIZE} ta yuklash
+                </button>
+              ) : (
+                chatCountLabel(convs.length, convTotal)
+              )}
+            </div>
+          )}
         </div>
       </div>
 
