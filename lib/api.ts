@@ -910,7 +910,19 @@ export const api = {
 
   /** Joriy foydalanuvchining florist profili (o'z hisoboti uchun). Florist bo'lmasa 404. */
   floristMe: () => request<FloristProfile>("/api/florists/me/"),
-  floristSalary: (p?: Params) => list<FloristSalaryEntry>("/api/florist-salary/", p),
+  /**
+   * ⚠️ HAMMA QATOR — `page_size=all` (server qo'llab-quvvatlaydi: 631 qator,
+   * bitta so'rov, ~1.2 MB / 4 s).
+   *
+   * NEGA: umumiy `list()` yordamchisi `page_size=100` bilan boshlab `next` ni
+   * ergashtiradi, lekin GUARD = 4 — ya'ni ENG KO'PI 500 qator. Oyliklar
+   * ro'yxatida 1-31 avgust oralig'ida 615 qator bor edi: oxirgi 115 tasi
+   * JIMGINA tushib qolar va florist jamisi kam ko'rsatilardi
+   * (jonli: Abror 17 910 000 ko'rinardi, aslida 22 280 000 — 4 370 000 kam).
+   * Jami klientda `amount` yig'indisi bo'lgani uchun xato to'g'ridan-to'g'ri
+   * ekrandagi PULGA chiqardi.
+   */
+  floristSalary: (p?: Params) => list<FloristSalaryEntry>("/api/florist-salary/", { page_size: "all", ...p }),
   /**
    * ⚠️ QO'SHIMCHA OFORMLENIYA — POST /api/florists/{id}/decoration/
    * Spec: FRONTEND_FLORIST_DECORATION_SALARY_API.md · KONTRAKT (jonli OpenAPI'da HALI YO'Q).
