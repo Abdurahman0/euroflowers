@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { usePerm, useStore, useTheme } from "@/lib/store";
 import type { PermissionPage } from "@/lib/types";
 import { isLoggedIn } from "@/lib/api";
+import { firstAllowedPath } from "@/lib/branch";
 import Sidebar from "./Sidebar";
 import FloristSidebar from "./FloristSidebar";
 import Header from "./Header";
@@ -64,11 +65,21 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // ⚠️ FILIAL ALLOWLIST OLIB TASHLANDI — route guard endi FAQAT ruxsatga qaraydi,
   // ya'ni nav bilan AYNAN bir mezon (menyuda yo'q sahifa URL orqali ham ochilmaydi).
   const routeAllowed = staffRole ? staffPath : (!user || !permPage || canView(permPage));
+  /** ⚠️ Ruxsati yo'q sahifaga tushib qolgan xodim BO'SH ekranda qolmaydi — NAV
+      tartibidagi birinchi ochiq sahifaga ko'chiriladi. `null` bo'lsa (umuman
+      ruxsat yo'q) ko'chirmaymiz: cheksiz redirect o'rniga halol ogohlantirish. */
+  const fallbackPath = !staffRole && user && !routeAllowed ? firstAllowedPath(canView) : null;
 
   useEffect(() => {
     if (isPublic) return;
     if (user && staffRole && !staffPath) router.replace("/florist/dashboard");
   }, [user, staffRole, staffPath, router, isPublic]);
+
+  // ruxsati yo'q sahifa (masalan `dashboard`siz xodim uchun «/») → birinchi ochiq sahifa
+  useEffect(() => {
+    if (isPublic || !fallbackPath || fallbackPath === pathname) return;
+    router.replace(fallbackPath);
+  }, [fallbackPath, pathname, router, isPublic]);
 
   // video rejimda element krossfeyd tugaguncha (400ms) DOM'da qoladi;
   // "rasm" bilan yangi ochilishda esa umuman mount bo'lmaydi (mp4 so'rovi yo'q)
@@ -269,6 +280,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <FlowerLoader />
             ) : routeAllowed ? (
               children
+            ) : fallbackPath ? (
+              // ochiq sahifaga ko'chirilyapti — bo'sh ekran ko'rsatilmaydi
+              <FlowerLoader />
             ) : (
               <div className="mt-16 flex flex-col items-center gap-2 text-center">
                 <p className="text-[16px] font-semibold">Bu sahifaga ruxsatingiz yo&apos;q</p>

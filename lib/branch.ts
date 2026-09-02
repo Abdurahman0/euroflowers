@@ -41,6 +41,26 @@ export const NAV: NavItem[] = [
 ];
 
 /**
+ * FOYDALANUVCHI KIRA OLADIGAN BIRINCHI SAHIFA.
+ *
+ * ⚠️ NEGA KERAK: login ham, Shell ham «/» (Dashboard) ni sukut deb olardi.
+ * `dashboard` ruxsati YO'Q xodim (masalan faqat `catalog` va `conversations`
+ * berilgan operator) kirgach bo'sh «Bu sahifaga ruxsatingiz yo'q» ekraniga
+ * tushardi va menyudan o'zi biror sahifani izlashga majbur bo'lardi.
+ *
+ * NAV tartibi — YAGONA manba: ro'yxatdagi BIRINCHI ruxsat berilgan sahifa
+ * qaytadi. Hech biri bo'lmasa `null` (chaqiruvchi ogohlantirish ko'rsatadi;
+ * jimgina cheksiz redirect BO'LMAYDI).
+ */
+export function firstAllowedPath(
+  canView: (...pages: PermissionPage[]) => boolean,
+  nav: NavItem[] = NAV,
+): string | null {
+  const hit = nav.find((n) => canView(...n.pages));
+  return hit ? hit.href : null;
+}
+
+/**
  * ⚠️ 2026-08-03: FILIAL ALLOWLIST OLIB TASHLANDI.
  * Ilgari filial foydalanuvchisi qattiq ["dashboard","hisob","katalog"] ro'yxati bilan
  * cheklanardi va bu ruxsat bilan KESISHTIRILARDI — natijada unga BERILGAN ruxsat ham

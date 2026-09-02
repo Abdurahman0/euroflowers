@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { visibleScreens, showsSharedData, pathAllowed, isBranchUser, buildUserBranchPayload, accountingBranchParam, accountingRowView, branchSplitParts, branchSplitLine } from "./branch";
+import { visibleScreens, showsSharedData, pathAllowed, isBranchUser, buildUserBranchPayload, accountingBranchParam, accountingRowView, branchSplitParts, branchSplitLine, firstAllowedPath } from "./branch";
 import type { AccountingByBranch, AccountingFigures, PermissionPage } from "./types";
 
 const ALL: PermissionPage[] = ["dashboard", "inventory", "catalog", "crm", "customers", "conversations", "social_posts", "notifications", "suppliers", "florists", "attendance", "settings", "ai_settings", "integrations", "users", "audit"];
@@ -190,5 +190,38 @@ describe("§4 — AI katalog ruxsati (`ai_catalog`)", () => {
     const v = visibleScreens(false, ["ai_settings"]);
     expect(v).toContain("ai");
     expect(v).not.toContain("aiCatalog");
+  });
+});
+
+/* ═══════ KIRA OLADIGAN BIRINCHI SAHIFA ═══════ */
+
+describe("firstAllowedPath — dashboard ruxsati yo'q foydalanuvchi", () => {
+  const can = (...allowed: PermissionPage[]) => (...pages: PermissionPage[]) => pages.some((p) => allowed.includes(p));
+
+  it("dashboard bo'lsa — «/»", () => {
+    expect(firstAllowedPath(can("dashboard", "catalog"))).toBe("/");
+  });
+  it("⚠️ dashboard YO'Q operator → NAV tartibidagi birinchi ruxsatli sahifa", () => {
+    // operator matritsasi (jonli): ai_catalog, catalog, conversations, crm, customers, expenses
+    expect(firstAllowedPath(can("catalog", "conversations", "crm", "customers", "ai_catalog", "expenses"))).toBe("/katalog");
+  });
+  it("faqat suhbatlar berilgan xodim → «/chat»", () => {
+    expect(firstAllowedPath(can("conversations"))).toBe("/chat");
+  });
+  it("faqat bildirishnomalar → «/bildirishnomalar»", () => {
+    expect(firstAllowedPath(can("notifications"))).toBe("/bildirishnomalar");
+  });
+  it("ombor xodimi → «/sklad» (NAV'da Katalogdan oldin)", () => {
+    expect(firstAllowedPath(can("inventory", "catalog"))).toBe("/sklad");
+  });
+  it("⚠️ hech qanday ruxsat yo'q → null (cheksiz redirect BO'LMAYDI)", () => {
+    expect(firstAllowedPath(() => false)).toBeNull();
+  });
+  it("NAV tartibiga ergashadi — ro'yxat o'zgarsa natija ham o'zgaradi", () => {
+    const nav = [
+      { id: "chat" as const, href: "/chat", label: "AI chatlar", pages: ["conversations"] as PermissionPage[] },
+      { id: "katalog" as const, href: "/katalog", label: "Katalog", pages: ["catalog"] as PermissionPage[] },
+    ];
+    expect(firstAllowedPath(can("catalog", "conversations"), nav)).toBe("/chat");
   });
 });

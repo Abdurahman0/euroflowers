@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { login, ApiError } from "@/lib/api";
 import { invalidateReportCache } from "@/lib/reportCache";
-import { useStore } from "@/lib/store";
+import { checkPerm, useStore } from "@/lib/store";
+import { firstAllowedPath } from "@/lib/branch";
 import { Icon } from "@/components/icons";
 import SoundToggle from "@/components/SoundToggle";
 import UiModeSwitch from "@/components/UiModeSwitch";
@@ -109,7 +110,15 @@ export default function LoginPage() {
       if (u) setUser(u);
       else await loadMe();
       setSuccess(true);
-      setTimeout(() => router.replace("/"), 650);
+      // ⚠️ «/» (Dashboard) HAMMAGA ochiq EMAS: `dashboard` ruxsati yo'q xodim
+      //    (masalan operator) bo'sh «ruxsatingiz yo'q» ekraniga tushardi.
+      //    Kirgan zahoti NAV tartibidagi birinchi ochiq sahifaga yuboramiz.
+      const st = useStore.getState();
+      const role = st.user?.profile.role;
+      const target = role === "florist" || role === "apprentice"
+        ? "/florist/dashboard"
+        : firstAllowedPath((...pages) => pages.some((p) => checkPerm(st.permissions, role, p, "view"))) ?? "/";
+      setTimeout(() => router.replace(target), 650);
     } catch (ex) {
       fail(
         ex instanceof ApiError && ex.status === 401
