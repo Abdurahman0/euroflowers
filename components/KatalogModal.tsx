@@ -12,6 +12,7 @@ import Select from "./Select";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import BackdateField from "./BackdateField";
 import { backdatePayload, backdateEditPayload } from "@/lib/backdate";
+import { customSalePayload } from "@/lib/customCatalog";
 import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
@@ -459,11 +460,40 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       // ⚠️ SANA — create: bugun bo'lsa kalit YO'Q; tahrir: FAQAT o'zgargan bo'lsa
       ...(item ? backdateEditPayload(item.created_at, createdAt) : backdatePayload(dateOn ? createdAt : "")),
     };
-    // maxsus: mijoz do'konda tanladi → sotilgan sifatida yoziladi; to'lov turi shu paytda
-    if (kind === "custom" && !item) { payload.status = "sold"; payload.payment_type = payment; }
-    else if (!item) payload.status = "available";
+    // ⚠️ MAXSUS KATALOG — ilgari create paytida `status: "sold"` yuborilardi.
+    //    Backend statusni yozib, gulni skladdan yechardi, lekin SOTUV YARATMASDI:
+    //    kartada «Sotildi» turardi, sotuvlar tarixida qator yo'q, pul hisob-kitobga
+    //    tushmasdi (jonli tekshiruv: id 660 — 1 500 000 so'm shunday yo'qolgan).
+    //    Endi standart oqimning O'ZI: «Sotuvda» bo'lib yaratiladi, so'ng darhol
+    //    POST /api/catalog/{id}/sell/ chaqiriladi — sotuv, tushum va tarix rost bo'ladi.
+    if (!item) payload.status = "available";
     try {
       const saved = await (item ? api.updateCatalogItem(item.id, payload) : api.createCatalogItem(payload));
+      // MAXSUS: mijoz do'konda tanladi → darhol HAQIQIY sotuv yoziladi
+      if (kind === "custom" && !item && saved?.id) {
+        // mijoz create paytida yozuvga biriktirilgan — sotuvga FAQAT id uzatamiz
+        // (yana `customer_name` yuborsak, mijoz IKKI marta yaratilib ketardi)
+        const custId = saved.customer_detail?.id ?? (typeof saved.customer === "number" ? saved.customer : undefined);
+        try {
+          await api.sellCatalogItem(saved.id, customSalePayload({
+            quantity: qtyTotal,
+            unitPrice: f.price,
+            payment,
+            discountReason: f.discount_reason,
+            customerId: custId,
+          }));
+        } catch (sellErr) {
+          // ⚠️ Yozuv YARATILDI, sotuv esa yozilmadi — buni JIMGINA yutmaymiz:
+          //    operator «Sotish» tugmasi orqali qo'lda tugatishi mumkin.
+          notifyReportDataChanged();
+          onSaved();
+          showToast(
+            `⚠️ Katalog yozuvi yaratildi, lekin sotuv yozilmadi: ${sellErr instanceof ApiError ? sellErr.message : "xatolik"}. Uni «Sotish» tugmasi orqali soting.`,
+          );
+          onClose();
+          return;
+        }
+      }
       // DIQQAT: create javobida calculated_*/discount_amount 0 keladi (kompozitsiya
       // keyin saqlanadi, GET'da to'g'ri qiymat chiqadi). Shu bois preview'ga tayanamiz
       // — preview matematikasi endi backend bilan aynan mos (fee ham qo'shilgan).
@@ -479,7 +509,13 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
         return;
       }
       const disc = price.discount;
-      showToast(item ? "✓ Katalog yozuvi yangilandi" : `✓ Katalogga qo'shildi${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`);
+      showToast(
+        item
+          ? "✓ Katalog yozuvi yangilandi"
+          : kind === "custom"
+            ? `✓ Maxsus katalog qo'shildi va sotildi · ${fmt((+f.price || 0) * qtyTotal)}${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`
+            : `✓ Katalogga qo'shildi${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`,
+      );
       onClose();
     } catch (e) {
       // backend `detail` MASSIV yoki KO'P QATORLI string bo'lishi mumkin — bitta matnga yig'amiz.
@@ -611,7 +647,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       {kind === "custom" && !item && (
         <>
           <div className="mt-2 flex items-center gap-1.5 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold text-peachink">
-            <Info size={14} strokeWidth={2} /> Sotilgan sifatida yoziladi (status = sotildi).
+            <Info size={14} strokeWidth={2} /> Saqlanganda DARHOL sotuv yoziladi — tushum hisob-kitobga tushadi.
           </div>
           {/* to'lov turi — maxsus katalog darhol sotilgani uchun shu paytda yoziladi */}
           <div className="mt-2 flex items-center gap-2">
