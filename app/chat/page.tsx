@@ -259,8 +259,26 @@ export default function ChatPage() {
    *    guruhidagi «CRM chatni ochish» tugmasi) va eski `?conv=<id>`.
    *    Faqat MOUNT paytida o'qiladi: keyin URL ochiq suhbat bo'yicha yangilanadi.
    */
-  const deepConv = useMemo(() => (typeof window !== "undefined" ? readDeepLinkConv(window.location.search) : null), []);
+  const [deepConv, setDeepConv] = useState<number | null>(() =>
+    typeof window !== "undefined" ? readDeepLinkConv(window.location.search) : null,
+  );
   const [selId, setSelId] = useState<number | null>(deepConv);
+  /**
+   * ⚠️ KLIENT TOMONIDAGI O'TISH (router.push «Chatga o'tish» tugmasidan):
+   * komponent mount bo'lganda `window.location.search` HALI eski bo'lishi mumkin —
+   * shunda chuqur havola o'qilmay qolar va ro'yxatdagi ENG YANGI suhbat ochilardi
+   * (jonli tekshiruv: #2566 so'ralgani holda #2569 ochildi — BOSHQA mijoz).
+   * Mount effektida QAYTA o'qiymiz: bu paytda URL aniq yangilangan bo'ladi.
+   */
+  useEffect(() => {
+    const id = readDeepLinkConv(window.location.search);
+    if (id == null) return;
+    setDeepConv(id);
+    setSelId(id);
+    setMobileConv(true);
+    deepDone.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [conv, setConv] = useState<Conversation | null>(null);
   /** Suhbatni ochib bo'lmadi (o'chirilgan/noto'g'ri id) — deep-link uchun ANIQ xato kerak,
       aks holda operator «Suhbat yuklanmoqda…» yozuvi bilan qolib ketardi. */

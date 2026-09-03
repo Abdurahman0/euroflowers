@@ -6,6 +6,8 @@ import { api } from "@/lib/api";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import Modal from "./Modal";
 import { SourceBadge, statusBadgeProps, statusName } from "./badges";
+import { conversationIdFromLeads, customerSearchTerm, pickCustomerConversation } from "@/lib/customerChat";
+import { chatListQuery } from "@/lib/chatList";
 import type { CatalogItem, Conversation, Customer, Lead } from "@/lib/types";
 
 export default function ClientModal({
@@ -36,16 +38,41 @@ export default function ClientModal({
   const [purchases, setPurchases] = useState<CatalogItem[] | null>(null);
 
   useEffect(() => {
+    let dead = false;
     // to'liq tarix — sahifadagi davr filtridan mustaqil
     api.leads({ ordering: "-created_at" })
-      .then((ls) => setLeads(ls.filter((l) => l.customer === client.id)))
-      .catch(() => setLeads([]));
-    api.conversations({ ordering: "-last_message_at" })
-      .then((cs) => setConv(cs.find((c) => c.customer === client.id) ?? null))
-      .catch(() => setConv(null));
+      .then(async (ls) => {
+        if (dead) return;
+        const mine = ls.filter((l) => l.customer === client.id);
+        setLeads(mine);
+        // ⚠️ SUHBAT: ilgari BUTUN ro'yxat tortilardi (`api.conversations()`) —
+        //    1601 ta suhbat, har biri butun `messages` bilan (≈88 KB/qator):
+        //    so'rov 20 s timeout'ga urilar va «Chatga o'tish» tugmasi HECH
+        //    QACHON chizilmasdi. Endi ikki arzon yo'l:
+        //      1) lead ichidagi `conversation` id (allaqachon qo'limizda),
+        //      2) bo'lmasa — serverdagi `?search=`, natija `customer` bo'yicha
+        //         tasdiqlanadi (qidiruv fuzzy).
+        try {
+          const fromLead = conversationIdFromLeads(mine, client.id);
+          if (fromLead) {
+            const c = await api.conversation(fromLead);
+            if (!dead) setConv(c);
+            return;
+          }
+          const term = customerSearchTerm(client);
+          if (!term) { if (!dead) setConv(null); return; }
+          const page = await api.conversationsPage(chatListQuery({ search: term }));
+          if (!dead) setConv(pickCustomerConversation(page.results ?? [], client.id));
+        } catch {
+          if (!dead) setConv(null);
+        }
+      })
+      .catch(() => { if (!dead) { setLeads([]); setConv(null); } });
     api.catalog({ customer: client.id, ordering: "-sold_at" })
       .then(setPurchases)
       .catch(() => setPurchases([]));
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
 
   const Stat = ({ v, k }: { v: string; k: string }) => (

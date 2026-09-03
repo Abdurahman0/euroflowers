@@ -7,6 +7,8 @@ import ClearFilters from "@/components/ClearFilters";
 import FilterSelect from "@/components/FilterSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
+import { chatHref } from "@/lib/customerChat";
 import { LayoutGroup, motion } from "framer-motion";
 import clsx from "clsx";
 import { api } from "@/lib/api";
@@ -178,7 +180,8 @@ const ARR_OPTS = [
 
 export default function BuyurtmalarPage() {
   const { user, showToast, dateFilter, dateRange, setDateFilter } = useStore();
-  const { canControl } = usePerm();
+  const { canControl, canView } = usePerm();
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [statuses, setStatuses] = useState<LeadStatusDef[]>(FALLBACK_STATUSES);
@@ -876,6 +879,7 @@ export default function BuyurtmalarPage() {
           onUpdated={(upd) => { setSelLead(upd); mutateLeads((ls) => ls.map((l) => (l.id === upd.id ? upd : l))); }}
           onEdit={canControl("crm") ? () => setEditLead(selLead) : undefined}
           onDelete={canControl("crm") ? () => setConfirmDelLead(selLead) : undefined}
+          onOpenChat={canView("conversations") ? (cid) => { setSelLead(null); router.push(chatHref(cid)); } : undefined}
         />
       )}
       {statusMgr && (

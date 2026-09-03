@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { Pencil, Tag, Trash2 } from "lucide-react";
+import { ChevronRight, MessageCircle, Pencil, Tag, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { fmt, fmtDate, fmtTime, initials } from "@/lib/format";
 import { api, ApiError } from "@/lib/api";
@@ -101,6 +101,7 @@ export default function LeadModal({
   onUpdated,
   onEdit,
   onDelete,
+  onOpenChat,
 }: {
   lead: Lead;
   /** dinamik statuslar (backend) — amal tugmalari shulardan chiziladi */
@@ -112,6 +113,8 @@ export default function LeadModal({
   onEdit?: () => void;
   /** o'chirish tasdig'ini ochadi (sahifa boshqaradi) */
   onDelete?: () => void;
+  /** «Chatga o'tish» — AI chatlar sahifasida shu buyurtma suhbatini ochadi */
+  onOpenChat?: (conversationId: number) => void;
 }) {
   const showToast = useStore((s) => s.showToast);
   const { canControl } = usePerm();
@@ -386,10 +389,33 @@ export default function LeadModal({
         <Row k="Tushgan vaqti" v={fmtTime(lead.created_at)} />
       </div>
 
+      {/* ⚠️ Ilgari bu shunchaki MATN edi («…AI chatlar bo'limida ko'rish mumkin»)
+          — operator suhbatni qo'lda izlashga majbur bo'lardi. Endi bosiladi. */}
       {lead.conversation != null && (
-        <div className="mt-3.5 rounded-[14px] bg-[color:var(--surface-2)] px-4 py-3 text-[13px] leading-relaxed">
-          Bu buyurtma #{lead.conversation}-suhbatdan tushgan — AI chatlar bo&apos;limida to&apos;liq yozishmani ko&apos;rish mumkin.
-        </div>
+        onOpenChat ? (
+          <button
+            type="button"
+            onClick={() => onOpenChat(lead.conversation as number)}
+            className="mt-3.5 flex w-full items-center gap-3 rounded-[14px] px-4 py-3 text-left transition-colors hover:bg-[color:var(--hover)]"
+            style={{ background: "var(--surface-2)" }}
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+              style={{ background: "var(--primary-soft)", color: "var(--primary)" }}>
+              <MessageCircle size={17} strokeWidth={2} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-bold">Chatga o&apos;tish</span>
+              <span className="block text-[12px]" style={{ color: "var(--muted)" }}>
+                Bu buyurtma #{lead.conversation}-suhbatdan tushgan — to&apos;liq yozishmani ochish
+              </span>
+            </span>
+            <ChevronRight size={16} className="shrink-0" style={{ color: "var(--muted)" }} />
+          </button>
+        ) : (
+          <div className="mt-3.5 rounded-[14px] bg-[color:var(--surface-2)] px-4 py-3 text-[13px] leading-relaxed">
+            Bu buyurtma #{lead.conversation}-suhbatdan tushgan — AI chatlar bo&apos;limida to&apos;liq yozishmani ko&apos;rish mumkin.
+          </div>
+        )
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">

@@ -13,6 +13,7 @@ import useAutoRefresh from "@/lib/useAutoRefresh";
 import { usePerm, useStore } from "@/lib/store";
 import { fmt, fmtTime, initials } from "@/lib/format";
 import ClientModal from "@/components/ClientModal";
+import { chatHref } from "@/lib/customerChat";
 import NewClientModal from "@/components/NewClientModal";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import type { Customer } from "@/lib/types";
@@ -172,7 +173,7 @@ export default function MijozlarPage() {
           client={selClient}
           onClose={() => setSelClient(null)}
           onOpenLead={(l) => { setSelClient(null); router.push(`/buyurtmalar?order=${l.id}`); }}
-          onOpenChat={(cid) => { setSelClient(null); router.push(`/chat?conv=${cid}`); }}
+          onOpenChat={(cid) => { setSelClient(null); router.push(chatHref(cid)); }}
           onEdit={control ? () => setEditClient(selClient) : undefined}
           onDelete={control ? () => setConfirmDel(selClient) : undefined}
         />
