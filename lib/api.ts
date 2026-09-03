@@ -1,4 +1,5 @@
 "use client";
+import { customReturnPayload, type CustomReturnResponse } from "./customReturn";
 import type {
   Accounting, AdjustDirection, AdjustInput, AdjustPreview, AdjustResult, AICatalogInput, AICatalogItem,
   CloseIssuePreview, CloseIssueInput, CloseIssueResult,
@@ -959,6 +960,18 @@ export const api = {
       ? { method: "POST", body: buildSellFormData(data, saleImage) }
       : { method: "POST", body: JSON.stringify(buildSellPayload(data)) }),
   catalogItem: (id: number) => request<CatalogItem>(`/api/catalog/${id}/`),
+  /**
+   * MAXSUS KATALOGNI QAYTARISH — POST /api/catalog/{id}/return-custom/
+   * (euroflowers_custom_catalog_return_frontend.md). Backend gul va materialni
+   * skladga qaytaradi, florist oyligini olib tashlaydi, audit yozadi va
+   * katalog yozuvini O'CHIRADI.
+   * ⚠️ Bu SOTUVNI qaytarish EMAS — sotilgani uchun `restore-sale/` ishlatiladi.
+   */
+  returnCustomCatalog: (id: number, reason?: string) =>
+    request<CustomReturnResponse>(`/api/catalog/${id}/return-custom/`, {
+      method: "POST",
+      body: JSON.stringify(customReturnPayload(reason)),
+    }),
   /**
    * KATALOG SOTUV TARIXI — sahifalangan, `totals` BUTUN FILTR bo'yicha.
    * ⚠️ O'Z FILIALI bilan chegaralangan (jonli: accounting?branch=main bilan AYNAN teng).

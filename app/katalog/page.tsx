@@ -33,6 +33,7 @@ import CatalogItemCard from "@/components/CatalogItemCard";
 import { splitCatalogView } from "@/lib/catalogGroups";
 import { usePagedList } from "@/lib/usePagedList";
 import { ALL_PAGE_SIZE } from "@/lib/pagination";
+import { canReturnCustom, customReturnMessage, RETURN_CUSTOM_CONFIRM, RETURN_CUSTOM_LABEL, RETURN_CUSTOM_REASON_PLACEHOLDER } from "@/lib/customReturn";
 import type { CatalogItem, FloristProfile, Reservation } from "@/lib/types";
 import { deductionState } from "@/lib/catalogStock";
 import { floristLabel, type FloristLike } from "@/lib/floristLabel";
@@ -101,6 +102,10 @@ export default function KatalogPage() {
   const [viewItem, setViewItem] = useState<CatalogItem | null>(null);
   const [editItem, setEditItem] = useState<CatalogItem | null>(null);
   const [confirmDel, setConfirmDel] = useState<CatalogItem | null>(null);
+  /** «Mahsus katalogni qaytarish» tasdig'i — sabab ixtiyoriy (spec) */
+  const [returnCustom, setReturnCustom] = useState<CatalogItem | null>(null);
+  const [returnReason, setReturnReason] = useState("");
+  const [returning, setReturning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   // server filtrlari
   const [search, setSearch] = useState("");
@@ -281,6 +286,34 @@ export default function KatalogPage() {
       showToast(e instanceof ApiError ? e.message : "Kamaytirib bo'lmadi");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  /**
+   * MAXSUS KATALOGNI QAYTARISH — POST /api/catalog/{id}/return-custom/
+   * Backend gul/materialni skladga qaytaradi, florist oyligini olib tashlaydi
+   * va katalog yozuvini O'CHIRADI — shuning uchun ro'yxatdan ham olib tashlaymiz.
+   */
+  const doReturnCustom = async () => {
+    if (!returnCustom) return;
+    const victim = returnCustom;
+    setReturning(true);
+    try {
+      const res = await api.returnCustomCatalog(victim.id, returnReason);
+      setItems((xs) => xs.filter((x) => x.id !== victim.id));
+      setViewItem((v) => (v?.id === victim.id ? null : v));
+      setEditItem((v) => (v?.id === victim.id ? null : v));
+      setReturnCustom(null);
+      setReturnReason("");
+      showToast(`✓ ${customReturnMessage(res)}`);
+      load();                      // ro'yxat qayta so'raladi (spec)
+      notifyReportDataChanged();   // gul/material skladga qaytdi → hisobot keshi
+    } catch (e) {
+      // ⚠️ Server sababi AYNAN ko'rsatiladi: «Faqat mahsus katalog qaytariladi»,
+      //    «Sotilgan… qaytarib bo'lmaydi», «boshqa hujjatlarga bog'langan» …
+      showToast(e instanceof ApiError ? e.message : "Qaytarib bo'lmadi");
+    } finally {
+      setReturning(false);
     }
   };
 
@@ -536,6 +569,7 @@ export default function KatalogPage() {
           onClose={() => setViewItem(null)}
           onEdit={control ? () => { setEditItem(viewItem); setViewItem(null); } : undefined}
           onDelete={control ? () => setConfirmDel(viewItem) : undefined}
+          onReturnCustom={control && canReturnCustom(viewItem) ? () => { setReturnReason(""); setReturnCustom(viewItem); setViewItem(null); } : undefined}
           onTransfer={mainUser && control && catalogRemaining(viewItem) > 0 ? () => { openTransfer(viewItem); setViewItem(null); } : undefined}
           onRestore={control ? () => { setRestoreItem(viewItem); setViewItem(null); } : undefined}
           onRework={control ? () => { setReworkOpen({ source: viewItem }); setViewItem(null); } : undefined}
@@ -562,6 +596,34 @@ export default function KatalogPage() {
           onClose={() => setReworkOpen(null)}
           onSaved={() => { setReworkOpen(null); load(); notifyReportDataChanged(); }}
         />
+      )}
+
+      {/* MAXSUS KATALOGNI QAYTARISH tasdig'i — matnlar spec'dan AYNAN */}
+      {returnCustom && createPortal(
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-5" style={{ background: "rgba(24,17,12,.4)", backdropFilter: "blur(8px)" }} onClick={() => setReturnCustom(null)} role="dialog" aria-modal="true" data-lenis-prevent>
+          <div className="glass-modal w-[min(420px,100%)] p-6 animate-[rowIn_0.22s_var(--ease)_both]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold">{RETURN_CUSTOM_LABEL}</h3>
+            <p className="mt-2 text-[13px] leading-relaxed" style={{ color: "var(--text-2)" }}>
+              «{returnCustom.name_uz || returnCustom.name_ru}» — {RETURN_CUSTOM_CONFIRM}
+            </p>
+            <label className="mt-3 block">
+              <span className="mb-1.5 block text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>Sabab (ixtiyoriy)</span>
+              <input
+                className="inp"
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                placeholder={RETURN_CUSTOM_REASON_PLACEHOLDER}
+                aria-label="Qaytarish sababi"
+                autoFocus
+              />
+            </label>
+            <div className="mt-5 flex gap-2.5">
+              <button onClick={() => setReturnCustom(null)} className="btn-ghost flex-1">Bekor qilish</button>
+              <button onClick={doReturnCustom} disabled={returning} className={`btn-primary flex-1 ${returning ? "btn-loading" : ""}`}>Qaytarish</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* o'chirish tasdig'i — body portali (drawer overlay'i ostida qolmasin) */}

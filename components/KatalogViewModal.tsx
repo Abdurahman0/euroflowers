@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send, Info, Recycle } from "lucide-react";
+import { ArrowLeftRight, Pencil, Trash2, Tag, PackageMinus, PackagePlus, PenLine, Sparkles, Send, Info, Recycle, Undo2 } from "lucide-react";
 import Modal from "./Modal";
 import { ARRANGEMENT_LABEL, CATALOG_STATUS_LABEL } from "./badges";
 import { KIND_LABEL, catalogWaiting } from "@/lib/inventory";
@@ -41,6 +41,7 @@ export default function KatalogViewModal({
   onClose,
   onEdit,
   onDelete,
+  onReturnCustom,
   onTransfer,
   onRestore,
   onRework,
@@ -49,6 +50,8 @@ export default function KatalogViewModal({
   onClose: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  /** «Mahsus katalogni qaytarish» — gul/material skladga qaytadi, yozuv o'chadi */
+  onReturnCustom?: () => void;
   /** asosiy filial admini uchun — filialga yuborish (sotilmagan qismi bor bo'lsa) */
   onTransfer?: () => void;
   /** §3 restavratsiya — tarkibdagi so'lgan gulni almashtirish (tarkib bor bo'lsa) */
@@ -337,7 +340,7 @@ export default function KatalogViewModal({
         </a>
       )}
 
-      {(onEdit || onDelete || onTransfer || onRestore || onRework) && (
+      {(onEdit || onDelete || onTransfer || onRestore || onRework || onReturnCustom) && (
         /* ⚠️ AMAL QATORI — umumiy `.btn-*` sinflariga o'tkazildi. Ilgari har biri
            qo'lda yasalgan edi (`rounded-xl` = 20px, kiritmalarnikidan ikki baravar
            yumaloq) va `flex-1` sabab matnidan kichrayib, «Filialga yuborish» hamda
@@ -364,6 +367,16 @@ export default function KatalogViewModal({
           {onEdit && (
             <button type="button" onClick={onEdit} className="btn-secondary">
               <Pencil size={14} strokeWidth={1.75} /> Tahrirlash
+            </button>
+          )}
+          {/* MAXSUS KATALOGNI QAYTARISH — o'chirishning YONIDA, lekin undan OLDIN:
+              bu «xatoni orqaga qaytarish», o'chirish esa oxirgi chora. Ikkalasi ham
+              destruktiv bo'lgani uchun bir xil ogohlantiruvchi rangda emas —
+              qaytarish MO''TADIL (gul skladga qaytadi, ya'ni tiklanadi). */}
+          {onReturnCustom && (
+            <button type="button" onClick={onReturnCustom} className="btn-secondary"
+              style={{ borderColor: "color-mix(in srgb, var(--warning-ink, #8a6d1f) 40%, var(--border-strong))", color: "var(--warning-ink, #8a6d1f)" }}>
+              <Undo2 size={14} strokeWidth={1.9} /> Qaytarish
             </button>
           )}
           {onDelete && (
