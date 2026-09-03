@@ -61,10 +61,23 @@ export default function ExcelStatsTables({ stats }: { stats?: ExcelStats | null 
             );
           })}
         </div>
-        {/* ⚠️ JAMILAR SERVERDAN — jadval qatorlaridan yig'ilmaydi */}
-        <div className="ml-auto flex flex-wrap gap-x-3 gap-y-1 text-[12px]" style={{ color: "var(--muted)" }}>
+        {/* ⚠️ JAMILAR SERVERDAN — jadval qatorlaridan yig'ilmaydi.
+            Ilgari bular oddiy matn oqimi edi va uzun satr bo'lib ikki qatorga
+            yoyilardi («SOVDA 56 405 000 so'm NAXT 12 585 000 so'm KARTA …») —
+            qaysi son qaysi nomga tegishli ekani ko'z bilan ajralmasdi.
+            Endi har biri alohida chip: nom ustida, son ostida. */}
+        <div className="ml-auto flex flex-wrap gap-1.5">
           {Object.entries(totals).filter(([, v]) => Number(v) > 0).map(([k, v]) => (
-            <span key={k}><span className="uppercase">{k}</span> <b className="tabular-nums" style={{ color: "var(--text-2)" }}>{fmt(Number(v))}</b></span>
+            <span
+              key={k}
+              className="inline-flex flex-col rounded-[10px] border px-2.5 py-1 leading-tight"
+              style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+            >
+              <span className="text-[9.5px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+                {k.replace(/_/g, " ")}
+              </span>
+              <b className="tabular-nums text-[12px]" style={{ color: "var(--text-2)" }}>{fmt(Number(v))}</b>
+            </span>
           ))}
         </div>
       </div>

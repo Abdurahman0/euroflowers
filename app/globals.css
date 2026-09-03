@@ -200,6 +200,21 @@
   border-color: var(--lg-in);
   box-shadow: inset 0 1px 0 var(--lg-hl), 0 24px 64px rgba(0, 0, 0, 0.3);
 }
+/* ⚠️ `.note-chip` ASOSIY ta'rifi — ilgari FAQAT `.bg-video` va `.ui-lite`
+   uchun yozilgan edi. Natijada rasm/yengil rejimda u chip emas, shunchaki
+   fon berilgan MATN bo'lib turardi: chegara yo'q, radius yo'q, padding yo'q
+   («Jami qoldiq: 18 446 dona …» satri yonidagi tugmalar bilan tekislanmasdi). */
+.note-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  line-height: 1.35;
+}
+
 /* ===== "yalang'och" elementlar — chip yuzalar, 68% =====
    Qoida: hech bir matn xom video ustida yotmaydi — panel yoki chip. */
 .bg-video .chip,
@@ -918,6 +933,14 @@ body {
   background: var(--surface-solid);
   backdrop-filter: none;
   box-shadow: var(--shadow-xs);
+  /* ⚠️ Yengilda blur/gradient yo'q — karta chetini FAQAT chegara ushlab turadi.
+     `--border` (14% / 11%) tekis yuzada deyarli ko'rinmasdi: kartalar fon bilan
+     qo'shilib ketardi. Shu bois yengilda kuchli chegara. */
+  border-color: var(--border-strong);
+}
+.ui-lite .glass-modal,
+.ui-lite .drawer-panel {
+  border-color: var(--border-strong);
 }
 .ui-lite .glass-modal,
 .ui-lite .search-box,
@@ -928,12 +951,24 @@ body {
 .ui-lite header {
   backdrop-filter: none !important;
 }
-.ui-lite .bg-sfc {
-  background: var(--surface-solid) !important;
+/* ⚠️ CHIP YUZASI KARTA BILAN BIR XIL BO'LMASIN: ilgari yengilda `.bg-sfc`
+   ham `--surface-solid` edi — ya'ni kartaning O'ZI bilan bir xil rang.
+   Natijada «Tannarx 120 000 so'm / 1 pochka», «pochkada 10 dona» kabi
+   chiplar butunlay yo'qolib, tartibsiz MATN satrlariga aylanardi. */
+.ui-lite .bg-sfc,
+.ui-lite .note-chip {
+  background: var(--surface-2) !important;
+  /* ⚠️ Yengilda karta va chip yuzasi ORASIDAGI farq juda kichik
+     (qorong'ida rgb(32,27,22) va rgb(39,33,25) — atigi 7 pog'ona).
+     Shu bois ajratishni CHEGARA bajaradi, aks holda chip matn bo'lib ko'rinadi. */
+  border: 1px solid var(--border-strong) !important;
 }
-.ui-lite .note-chip,
 .ui-lite .kanban-head {
   background: var(--surface-2);
+}
+/* yengilda filtr chiplari ham aniq chegara oladi */
+.ui-lite .chip:not(.chip-active) {
+  border-color: var(--border-strong);
 }
 /* sidebar ham qattiq yuza (inline blur bosib o'tiladi) */
 .ui-lite aside {
