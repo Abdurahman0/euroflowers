@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildSalesQuery, salesFiltersToParams, salesPageCount, totalsView, PAYMENT_FILTERS,
+  buildSalesQuery, salesFiltersToParams, salesPageCount, totalsView, PAYMENT_FILTERS, volumeBreakdown,
   discountView, isDiscounted, saleNum, deliveryRowView, SALES_PAGE_SIZE_MAX,
 } from "./catalogSales";
 import { fmtLocalTime, fmtLocalDate, readIsoParts } from "./format";
@@ -190,5 +190,41 @@ describe("terminal to'lov turi", () => {
   });
   it("eski javobda terminal_total yo'q → 0 (yiqilmaydi)", () => {
     expect(totalsView({ sales_count: 1, quantity: 1, revenue: 1, discount_total: 0, cash_total: 1, card_total: 0, debt_total: 0 }).terminal).toBe(0);
+  });
+});
+
+/* ═══════ HAJM BO'YICHA — chiplar uchun ═══════ */
+
+describe("volumeBreakdown", () => {
+  const row = (volume: string | null, volume_label: string, quantity: number): CatalogSaleRow =>
+    ({ volume, volume_label, quantity } as unknown as CatalogSaleRow);
+
+  it("dona va sotuv soni hajm bo'yicha yig'iladi", () => {
+    const rows = [
+      row("small", "Kichik", 2), row("small", "Kichik", 3),
+      row("large", "Katta", 1),
+    ];
+    expect(volumeBreakdown(rows)).toEqual([
+      { volume: "small", label: "Kichik", quantity: 5, sales: 2 },
+      { volume: "large", label: "Katta", quantity: 1, sales: 1 },
+    ]);
+  });
+  it("tartib: kichik → o'rta → katta, hajmsiz OXIRIDA", () => {
+    const rows = [row(null, "Belgilanmagan", 1), row("large", "Katta", 1), row("small", "Kichik", 1), row("medium", "O‘rta", 1)];
+    expect(volumeBreakdown(rows).map((b) => b.volume)).toEqual(["small", "medium", "large", ""]);
+  });
+  it("⚠️ yorliq QATORDAN olinadi — serverdagi apostrof saqlanadi", () => {
+    expect(volumeBreakdown([row("medium", "O‘rta", 1)])[0].label).toBe("O‘rta");
+  });
+  it("yorliq bo'sh bo'lsa «Belgilanmagan»", () => {
+    expect(volumeBreakdown([row("", "  ", 1)])[0].label).toBe("Belgilanmagan");
+  });
+  it("jami dona `totals.quantity` bilan mos tushadi (jonli: 1706)", () => {
+    const rows = [row("small", "Kichik", 1109), row("medium", "O‘rta", 325), row("large", "Katta", 271), row(null, "Belgilanmagan", 1)];
+    expect(volumeBreakdown(rows).reduce((s, b) => s + b.quantity, 0)).toBe(1706);
+  });
+  it("bo'sh ro'yxat — bo'sh natija", () => {
+    expect(volumeBreakdown([])).toEqual([]);
+    expect(volumeBreakdown(null)).toEqual([]);
   });
 });

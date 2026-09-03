@@ -15,7 +15,7 @@ import FlowerLoader from "@/components/FlowerLoader";
 import DatePicker from "@/components/DatePicker";
 import {
   buildSalesQuery, salesFiltersToParams, salesPageCount, totalsView, discountView, isDiscounted,
-  saleNum, deliveryRowView, PAYMENT_FILTERS, SALES_PAGE_SIZE,
+  saleNum, deliveryRowView, PAYMENT_FILTERS, SALES_PAGE_SIZE, volumeBreakdown, type VolumeBucket,
 } from "@/lib/catalogSales";
 import { paymentBreakdownLabel } from "@/lib/mixedPayment";
 import { mediaUrl } from "@/lib/mediaUrl";
@@ -42,6 +42,11 @@ export default function CatalogSalesTab({ branchUser, onOpenItem, onRestored }: 
   const canRestore = canControl("catalog");
   const [restore, setRestore] = useState<CatalogSaleRow | null>(null);
   const [data, setData] = useState<CatalogSalesPage | null>(null);
+  /** ⚠️ HAJM CHIPLARI — server hajm bo'yicha jami bermaydi (`volume` filtri ham,
+      `totals` da ajratma ham YO'Q), shu bois joriy filtrdagi HAMMA qator alohida
+      olinadi (`page_size=all`) va yig'indi klientda hisoblanadi. Sahifa
+      almashganda QAYTA so'ralmaydi — faqat filtr o'zgarganda. */
+  const [volumes, setVolumes] = useState<VolumeBucket[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -84,6 +89,16 @@ export default function CatalogSalesTab({ branchUser, onOpenItem, onRestored }: 
   }, [dateFrom, dateTo, payment, q, page]);
   useEffect(() => { load(); }, [load]);
 
+  // hajm ajratmasi — FILTR o'zgarganda (sahifa emas), fon rejimida
+  useEffect(() => {
+    let dead = false;
+    setVolumes(null);
+    api.catalogSales({ ...buildSalesQuery({ dateFrom, dateTo, payment, search: q }), page_size: "all" })
+      .then((d) => { if (!dead) setVolumes(volumeBreakdown(d.results ?? [])); })
+      .catch(() => { if (!dead) setVolumes([]); });
+    return () => { dead = true; };
+  }, [dateFrom, dateTo, payment, q]);
+
   const t = totalsView(data?.totals);
   const rows = data?.results ?? [];
   const pages = salesPageCount(data?.count ?? 0, SALES_PAGE_SIZE);
@@ -111,6 +126,29 @@ export default function CatalogSalesTab({ branchUser, onOpenItem, onRestored }: 
             <span style={{ color: "var(--acc)" }}>{fmt(t.revenue)}</span>
           </div>
         </div>
+        {/* HAJM BO'YICHA — nechta dona sotilgani. ⚠️ Bu chiplar FILTR EMAS:
+            serverda `volume` filtri yo'q, shu bois faqat ko'rsatadi. */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {volumes === null ? (
+            <span className="inline-flex h-[26px] w-[112px] animate-pulse rounded-full" style={{ background: "var(--surface-2)" }} />
+          ) : volumes.length === 0 ? null : (
+            volumes.map((b) => (
+              <span
+                key={b.volume || "none"}
+                title={`${b.label}: ${b.quantity} dona, ${b.sales} ta sotuvda`}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-bold"
+                style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-2)" }}
+              >
+                {b.label}
+                <b className="tabular-nums" style={{ color: "var(--acc)" }}>{b.quantity}</b>
+                <span className="font-semibold" style={{ color: "var(--muted)" }}>dona</span>
+                <span style={{ color: "var(--muted)" }}>·</span>
+                <span className="tabular-nums font-semibold" style={{ color: "var(--muted)" }}>{b.sales} sotuv</span>
+              </span>
+            ))
+          )}
+        </div>
+
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] font-semibold" style={{ color: "var(--text-2)" }}>
           <span>naqd <b className="tabular-nums">{fmt(t.cash)}</b></span>
           <span>karta <b className="tabular-nums">{fmt(t.card)}</b></span>

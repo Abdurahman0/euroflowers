@@ -129,3 +129,53 @@ export function deliveryRowView(r: { sale_total?: string | number; delivery_amou
   const goods = r.sale_total != null ? saleNum(r.sale_total) : Math.max(received - delivery, 0);
   return { hasDelivery: delivery > 0, goods, delivery, received };
 }
+
+/* ═══════ HAJM BO'YICHA SOTUV (kichik / o'rta / katta) ═══════ */
+
+export type VolumeBucket = {
+  /** API qiymati; hajmsiz qatorlar uchun "" */
+  volume: string;
+  label: string;
+  /** sotilgan DONA (qatorlardagi `quantity` yig'indisi) */
+  quantity: number;
+  /** sotuvlar soni */
+  sales: number;
+};
+
+/** Ko'rsatish tartibi — kichikdan kattaga, hajmsiz eng oxirida. */
+const VOLUME_ORDER = ["small", "medium", "large"];
+
+/**
+ * Sotuv qatorlaridan hajm bo'yicha yig'indi.
+ *
+ * ⚠️ SERVER BUNI BERMAYDI: `/api/catalog/sales/` da `volume` filtri YO'Q
+ * (jonli tekshiruv: `?volume=small` ham, `?volume=abrakadabra` ham bir xil
+ * 776 ta qaytaradi) va `totals` ichida hajm ajratmasi ham yo'q. Shu bois
+ * joriy filtrdagi HAMMA qator olinib (`page_size=all`), yig'indi shu yerda
+ * hisoblanadi — natija `totals.quantity` bilan mos tushadi (jonli: 1706).
+ *
+ * ⚠️ Yorliq QATORDAN olinadi (`volume_label`), chunki serverda «O'rta» apostrofi
+ * boshqacha (U+2018) — o'zimiz yozib qo'ysak ikki xil matn ko'rinardi.
+ */
+export function volumeBreakdown(rows: CatalogSaleRow[] | null | undefined): VolumeBucket[] {
+  const map = new Map<string, VolumeBucket>();
+  (rows ?? []).forEach((r) => {
+    const key = (r.volume ?? "") || "";
+    const cur = map.get(key) ?? {
+      volume: key,
+      label: (r.volume_label ?? "").trim() || "Belgilanmagan",
+      quantity: 0,
+      sales: 0,
+    };
+    cur.quantity += Number(r.quantity) || 0;
+    cur.sales += 1;
+    map.set(key, cur);
+  });
+  const out: VolumeBucket[] = [];
+  map.forEach((b) => out.push(b));
+  return out.sort((a, b) => {
+    const ia = VOLUME_ORDER.indexOf(a.volume);
+    const ib = VOLUME_ORDER.indexOf(b.volume);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+}
