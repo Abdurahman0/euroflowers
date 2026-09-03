@@ -167,10 +167,18 @@ export default function RasxodlarPage() {
     </button>
   );
 
+  // ⚠️ KENGLIK CHEKLOVI YO'Q: sahifa qobiq bergan kenglikni TO'LIQ egallaydi.
+  //    Ilgari `mx-auto max-w-[1280px]` + o'zining `px/py` si bor edi — kontent
+  //    o'ngdan ~63px kalta tugab, tepadagi sarlavha kartasi bilan tekislanmasdi
+  //    va qolgan sahifalardan tor ko'rinardi (ularda bunday cheklov yo'q).
   return (
-    <div className="mx-auto max-w-[1280px] px-3 py-4 sm:px-6 sm:py-5">
-      {/* SARLAVHA */}
-      <header className="mb-3 flex flex-wrap items-center gap-2">
+    <div>
+      {/* SARLAVHA — ⚠️ ilgari sarlavha ham, «Oylik jami» ham to'g'ridan-to'g'ri
+          gulli fon ustida turardi va qorong'i temada o'qilmasdi. Endi qolgan
+          sahifalardagi kabi yagona yuzada. */}
+      <div className="mb-4 rounded-[18px] border px-4 py-3 shadow-[0_8px_30px_rgba(58,35,25,.04)]"
+        style={{ borderColor: "var(--line)", background: "color-mix(in srgb, var(--surface-solid) 72%, transparent)" }}>
+      <header className="flex flex-wrap items-center gap-2">
         <h1 className="flex items-center gap-2 text-[20px] font-extrabold tracking-tight">
           <Wallet size={19} strokeWidth={1.9} style={{ color: "var(--primary)" }} /> Rasxodlar
         </h1>
@@ -196,7 +204,7 @@ export default function RasxodlarPage() {
         )}
       </header>
 
-      <div className="mb-3 flex flex-wrap items-baseline gap-x-3 text-[12.5px]" style={{ color: "var(--text-2)" }}>
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 text-[12.5px]" style={{ color: "var(--text-2)" }}>
         <span>Oylik jami: <b className="tabular-nums" style={{ color: "var(--acc)" }}>{fmt(t.total)}</b></span>
         <span style={{ color: "var(--muted)" }}>· {t.count} ta</span>
         {truncated > 0 && (
@@ -204,6 +212,7 @@ export default function RasxodlarPage() {
             ⚠️ {truncated} ta yozuv ko&apos;rsatilmadi — oraliqni qisqartiring
           </span>
         )}
+      </div>
       </div>
 
       {err && <p className="mb-3 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold" style={{ background: "var(--danger-soft, rgba(160,74,74,.12))", color: "var(--danger-ink)" }}>{err}</p>}
@@ -286,8 +295,13 @@ export default function RasxodlarPage() {
                 const more = view === "oy" ? list.length - shown.length : 0;
                 return (
                   <div key={d} onClick={() => (control ? setAddFor({ day: d }) : setDayPanel(d))}
-                    className={clsx("min-h-[92px] p-1.5 transition-colors", control && "cursor-pointer hover:bg-[var(--hover)]", view === "kun" && "min-h-[320px]")}
-                    style={{ background: isToday ? "var(--primary-soft)" : "var(--surface-solid)", opacity: inMonth ? 1 : 0.45 }}>
+                    /* ⚠️ Katta ekranda kalendar pastda katta bo'sh joy qoldirardi —
+                       qator balandligi ekran bilan birga o'sadi (mobil o'zgarmaydi). */
+                    className={clsx("min-h-[92px] p-1.5 transition-colors lg:min-h-[116px] xl:min-h-[132px]", control && "cursor-pointer hover:bg-[var(--hover)]", view === "kun" && "!min-h-[320px]")}
+                    /* ⚠️ Boshqa oy kunlari ilgari `opacity: .45` bilan so'ndirilardi —
+                       gulli fon katak ORQASIDAN ko'rinib, jadval yirtiq ko'rinardi.
+                       Endi to'liq shaffofmas, faqat yuzasi bosiqroq. */
+                    style={{ background: isToday ? "var(--primary-soft)" : inMonth ? "var(--surface-solid)" : "var(--surface-2)", opacity: 1 }}>
                     <div className="mb-1 flex items-baseline justify-between gap-1">
                       <span className={clsx("text-[11.5px]", isToday ? "font-extrabold" : "font-semibold")}
                         style={{ color: isToday ? "var(--primary)" : "var(--text-2)" }}>
