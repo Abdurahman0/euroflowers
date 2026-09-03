@@ -394,8 +394,15 @@ export default function RasxodlarPage() {
 
       {(addFor || editItem) && (
         <ExpenseQuickAdd
+          /* ⚠️ KALIT SHART: qo'shish → tahrirlash almashganda komponent QAYTA
+             mount bo'lishi kerak. Aks holda `useState` boshlang'ich qiymatlari
+             qayta ishlamay, tahrir formasi BO'SH ochilardi (summa, qayerga…). */
+          key={editItem ? `edit-${editItem.id}` : `add-${addFor?.day ?? "new"}`}
           expense={editItem}
           day={addFor?.day ?? null}
+          /* shu kundagi mavjud rasxodlar — modal ichida ko'rinadi */
+          dayExpenses={addFor?.day ? (byDay[addFor.day] ?? []) : []}
+          onPick={control ? (e) => { setAddFor(null); setEditItem(e); } : undefined}
           options={opts}
           onClose={() => { setAddFor(null); setEditItem(null); }}
           onSaved={() => { setAddFor(null); setEditItem(null); load(); }}

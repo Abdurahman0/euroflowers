@@ -24,14 +24,20 @@ import type { Expense, ExpenseOptions } from "@/lib/types";
  *   2) Kun katakchasidan ochilgan → o'sha kun ANIQ yuboriladi (T00:00:00+05:00).
  *   3) «o'zgartir» bilan sana/vaqt tanlangan → o'sha qiymat.
  */
-export default function ExpenseQuickAdd({ expense, day, options, onClose, onSaved, onDelete }: {
+export default function ExpenseQuickAdd({ expense, day, dayExpenses, options, onClose, onSaved, onDelete, onPick }: {
   expense: Expense | null;
   /** kun katakchasidan ochilgan bo'lsa — o'sha sana (YYYY-MM-DD) */
   day: string | null;
+  /** ⚠️ SHU KUNDAGI MAVJUD RASXODLAR — operator kun katakchasini bosganda
+      nima allaqachon yozilganini KO'RADI (ilgari faqat bo'sh forma ochilardi
+      va bir xil rasxod ikki marta kiritilishi mumkin edi). */
+  dayExpenses?: Expense[];
   options: ExpenseOptions | null;
   onClose: () => void;
   onSaved: () => void;
   onDelete?: () => void;
+  /** ro'yxatdagi yozuvni bosish — tahrirlashga o'tish */
+  onPick?: (e: Expense) => void;
 }) {
   const { showToast } = useStore();
   const isEdit = !!expense;
@@ -48,6 +54,7 @@ export default function ExpenseQuickAdd({ expense, day, options, onClose, onSave
   const [detail, setDetail] = useState("");
 
   const form: ExpenseForm = { amount, destination, payment_method: paymentMethod, spent_at: pickedDay, note };
+  const dayTotal = (dayExpenses ?? []).reduce((sum, x) => sum + expenseNum(x.amount), 0);
   const methods = options?.payment_methods ?? [{ value: "cash", label: "Naqd" }, { value: "card", label: "Karta" }, { value: "transfer", label: "O'tkazma" }];
 
   const dateLabel = pickedDay
@@ -90,7 +97,39 @@ export default function ExpenseQuickAdd({ expense, day, options, onClose, onSave
       <ModalHeader icon={<Wallet size={18} strokeWidth={1.8} />}
         title={isEdit ? "Rasxodni tahrirlash" : "Yangi rasxod"} sub={isEdit ? `#${expense!.id}` : "Summa va qayerga ketgani yetarli"} onClose={onClose} />
 
-      <div className="mt-1 grid gap-2.5"
+      {/* SHU KUNDAGI RASXODLAR — faqat yangi qo'shishda va kun ma'lum bo'lsa */}
+      {!isEdit && day && (dayExpenses?.length ?? 0) > 0 && (
+        <div className="mt-1 rounded-[12px] border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <div className="flex items-baseline justify-between gap-2 px-3 py-2">
+            <span className="text-[11.5px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+              Shu kunda allaqachon bor
+            </span>
+            <span className="text-[12px] font-bold tabular-nums" style={{ color: "var(--acc)" }}>
+              {fmt(dayTotal)} · {dayExpenses!.length} ta
+            </span>
+          </div>
+          <div className="thin-scroll max-h-[136px] overflow-y-auto border-t" style={{ borderColor: "var(--line2, var(--border))" }}>
+            {dayExpenses!.map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                onClick={() => onPick?.(x)}
+                disabled={!onPick}
+                title={onPick ? "Tahrirlash" : undefined}
+                className="flex w-full items-baseline gap-2 border-b px-3 py-1.5 text-left last:border-b-0 enabled:hover:bg-[var(--hover)]"
+                style={{ borderColor: "var(--line2, var(--border))" }}
+              >
+                <span className="w-[34px] shrink-0 text-[11px] tabular-nums" style={{ color: "var(--muted)" }}>{spentTime(x.spent_at)}</span>
+                <span className="h-[7px] w-[7px] shrink-0 self-center rounded-full" style={{ background: PAYMENT_DOT[x.payment_method] ?? "var(--muted)" }} />
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{x.destination}</span>
+                <span className="shrink-0 text-[12.5px] font-bold tabular-nums">{fmt(expenseNum(x.amount))}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-2.5 grid gap-2.5"
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && (e.target as HTMLElement).tagName !== "TEXTAREA") { e.preventDefault(); submit(); } }}>
         <Field label="Summa" span>
           <input className="inp" inputMode="numeric" value={amount} autoFocus placeholder="150 000"
