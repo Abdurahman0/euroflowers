@@ -12,7 +12,6 @@ import Select from "./Select";
 import CustomerPicker, { customerPayload, type CustomerPick } from "./CustomerPicker";
 import BackdateField from "./BackdateField";
 import { backdatePayload, backdateEditPayload } from "@/lib/backdate";
-import { customSalePayload } from "@/lib/customCatalog";
 import ImageInput from "./ImageInput";
 import { Icon } from "./icons";
 import { ARRANGEMENT_LABEL } from "./badges";
@@ -20,7 +19,7 @@ import { fmt } from "@/lib/format";
 import { KIND_LABEL, PACKAGING_LABEL, VOLUME_LABEL, stems as stemsFmt, formatStemsAndBunches, normalizeComposition, normalizeMaterials, rateSalaryForCatalog, catalogRateMissing, rateToCatalogSalary, catalogSalaryPayload, catalogFlowRules, ratesForFlorist, batchDeliveryTag, buildFloristComposition, catalogClosed } from "@/lib/inventory";
 import { usableInCatalog } from "@/lib/materialUnit";
 import FloristCompositionPicker from "./FloristCompositionPicker";
-import type { ArrangementType, Branch, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, PaymentType, StockBatch } from "@/lib/types";
+import type { ArrangementType, Branch, CatalogItem, CatalogKind, CatalogVolume, FloristProfile, FloristVolumeRate, Packaging, StockBatch } from "@/lib/types";
 
 type CompRow = { stock_batch: number; mode: "stems" | "bunches"; qty: string };
 /** ⚠️ Qator TURI eslab qolinadi: «Material qo'shish» bosilsa tanlagichda FAQAT material,
@@ -85,7 +84,6 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
     } : {}),
   });
   // maxsus katalog auto-sotiladi → to'lov turi shu paytda yoziladi
-  const [payment, setPayment] = useState<PaymentType>("cash");
   // MIJOZ — walk-in yoki mavjud; item'da biriktirilgan bo'lsa oldindan tanlanadi
   const hadCustomer = !!(item?.customer_detail || item?.customer);
   const [cust, setCust] = useState<CustomerPick>(
@@ -460,40 +458,16 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       // ⚠️ SANA — create: bugun bo'lsa kalit YO'Q; tahrir: FAQAT o'zgargan bo'lsa
       ...(item ? backdateEditPayload(item.created_at, createdAt) : backdatePayload(dateOn ? createdAt : "")),
     };
-    // ⚠️ MAXSUS KATALOG — ilgari create paytida `status: "sold"` yuborilardi.
-    //    Backend statusni yozib, gulni skladdan yechardi, lekin SOTUV YARATMASDI:
-    //    kartada «Sotildi» turardi, sotuvlar tarixida qator yo'q, pul hisob-kitobga
-    //    tushmasdi (jonli tekshiruv: id 660 — 1 500 000 so'm shunday yo'qolgan).
-    //    Endi standart oqimning O'ZI: «Sotuvda» bo'lib yaratiladi, so'ng darhol
-    //    POST /api/catalog/{id}/sell/ chaqiriladi — sotuv, tushum va tarix rost bo'ladi.
+    // ⚠️ MAXSUS KATALOG — YARATILGANDA SOTILMAYDI.
+    //    Tarix: ilgari create paytida `status: "sold"` yuborilardi, backend esa
+    //    statusni yozib gulni yechar, lekin SOTUV YARATMASDI — kartada «Sotildi»
+    //    turar, pul esa hech qayerda yo'q edi (id 660: 1 500 000 so'm yo'qolgan).
+    //    Keyin avtomatik `/sell/` qo'shilgandi; endi u ham OLIB TASHLANDI:
+    //    yozuv oddiy katalog kabi «Sotuvda» bo'lib yaratiladi va operator uni
+    //    «Sotish» tugmasi orqali sotadi — standart katalog bilan BIR XIL oqim.
     if (!item) payload.status = "available";
     try {
       const saved = await (item ? api.updateCatalogItem(item.id, payload) : api.createCatalogItem(payload));
-      // MAXSUS: mijoz do'konda tanladi → darhol HAQIQIY sotuv yoziladi
-      if (kind === "custom" && !item && saved?.id) {
-        // mijoz create paytida yozuvga biriktirilgan — sotuvga FAQAT id uzatamiz
-        // (yana `customer_name` yuborsak, mijoz IKKI marta yaratilib ketardi)
-        const custId = saved.customer_detail?.id ?? (typeof saved.customer === "number" ? saved.customer : undefined);
-        try {
-          await api.sellCatalogItem(saved.id, customSalePayload({
-            quantity: qtyTotal,
-            unitPrice: f.price,
-            payment,
-            discountReason: f.discount_reason,
-            customerId: custId,
-          }));
-        } catch (sellErr) {
-          // ⚠️ Yozuv YARATILDI, sotuv esa yozilmadi — buni JIMGINA yutmaymiz:
-          //    operator «Sotish» tugmasi orqali qo'lda tugatishi mumkin.
-          notifyReportDataChanged();
-          onSaved();
-          showToast(
-            `⚠️ Katalog yozuvi yaratildi, lekin sotuv yozilmadi: ${sellErr instanceof ApiError ? sellErr.message : "xatolik"}. Uni «Sotish» tugmasi orqali soting.`,
-          );
-          onClose();
-          return;
-        }
-      }
       // DIQQAT: create javobida calculated_*/discount_amount 0 keladi (kompozitsiya
       // keyin saqlanadi, GET'da to'g'ri qiymat chiqadi). Shu bois preview'ga tayanamiz
       // — preview matematikasi endi backend bilan aynan mos (fee ham qo'shilgan).
@@ -512,9 +486,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       showToast(
         item
           ? "✓ Katalog yozuvi yangilandi"
-          : kind === "custom"
-            ? `✓ Maxsus katalog qo'shildi va sotildi · ${fmt((+f.price || 0) * qtyTotal)}${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`
-            : `✓ Katalogga qo'shildi${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`,
+          : `✓ Katalogga qo'shildi${disc > 0 ? ` · chegirma ${fmt(disc)}` : ""}`,
       );
       onClose();
     } catch (e) {
@@ -644,30 +616,14 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
       <p className="mt-2 text-[12px]" style={{ color: "var(--muted)" }}>
         {kind === "standard" ? "Standart — florist tayyorlagan buket/savat." : "Maxsus — mijoz do'konda o'zi tanladi."}
       </p>
+      {/* ⚠️ TO'LOV TURI TANLOVI OLIB TASHLANDI: yozuv endi sotilmaydi, ya'ni
+          bu yerda to'lovning ma'nosi yo'q — u SOTISH oynasida so'raladi. */}
       {kind === "custom" && !item && (
-        <>
-          <div className="mt-2 flex items-center gap-1.5 rounded-[11px] bg-peach px-3 py-2 text-[12.5px] font-semibold text-peachink">
-            <Info size={14} strokeWidth={2} /> Saqlanganda DARHOL sotuv yoziladi — tushum hisob-kitobga tushadi.
-          </div>
-          {/* to'lov turi — maxsus katalog darhol sotilgani uchun shu paytda yoziladi */}
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>To&apos;lov:</span>
-            <div className="flex flex-1 gap-1.5">
-              {(["cash", "card"] as const).map((pv) => (
-                <button
-                  key={pv}
-                  type="button"
-                  onClick={() => setPayment(pv)}
-                  aria-pressed={payment === pv}
-                  className="flex-1 rounded-[11px] border-[1.5px] py-1.5 text-[12.5px] font-bold transition-colors duration-150"
-                  style={payment === pv ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" } : { borderColor: "var(--border)", color: "var(--text-2)" }}
-                >
-                  {pv === "cash" ? "Naqd" : "Karta"}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+        <div className="mt-2 flex items-center gap-1.5 rounded-[11px] px-3 py-2 text-[12.5px] font-semibold"
+          style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+          <Info size={14} strokeWidth={2} style={{ color: "var(--primary)" }} />
+          «Sotuvda» bo&apos;lib qo&apos;shiladi — sotilganda «Sotish» tugmasi orqali sotasiz.
+        </div>
       )}
 
       <Section>Asosiy</Section>
@@ -1149,7 +1105,7 @@ export default function KatalogModal({ item = null, onClose, onSaved }: { item?:
         </p>
         <div className="mt-3 flex justify-end gap-2.5 pb-2 max-sm:[&>*]:flex-1">
           <button onClick={onClose} className="btn-ghost">Bekor</button>
-          <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : item ? "Saqlash" : kind === "custom" ? "Sotildi deb yozish" : "Katalogga qo'shish"}</button>
+          <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">{busy ? "Saqlanmoqda…" : item ? "Saqlash" : "Katalogga qo'shish"}</button>
         </div>
       </div>
     </Modal>
